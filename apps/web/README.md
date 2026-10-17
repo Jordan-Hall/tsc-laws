@@ -1,6 +1,6 @@
-# Documentation
+# Web app
 
-The TypeScript reference and tsc-ts documentation use the Vercel Labs [Geistdocs](https://www.npmjs.com/package/@vercel/geistdocs) template.
+The tsc-ts documentation site lives in this directory.
 
 From the repository root:
 
@@ -20,14 +20,10 @@ Create a Vercel project with `apps/web` as its root directory, the Next.js frame
 
 Set `NEXT_PUBLIC_SITE_URL` to the site's absolute production URL for canonical URLs and the sitemap. On Vercel, `VERCEL_PROJECT_PRODUCTION_URL` is used when the explicit URL is absent. Preview deployments discourage indexing.
 
-## Writing
+## Content
 
-Write language rules before examples, state relevant compiler options, and link to upstream sources. Separate JavaScript runtime behavior from TypeScript checking. Explain accepted and rejected cases. Do not infer compiler compatibility from an example or describe corpus results as proof of correctness.
+Keep pages focused on installing and using tsc-ts. Link implementation claims to the repository and describe compatibility only within the scope covered by the comparison suites.
 
-Each TypeScript code block is checked independently with TypeScript 5.9, `strict: true`, ES2022, and bundler module resolution. Use `// @ts-expect-error` for rejected cases; unused directives fail the check. Use `// @filename: file.ts` to split multi-file examples and `// @option: exactOptionalPropertyTypes=true` to change an example's options. These checks validate the examples, not TypeScript 7 or tsc-ts conformance. JavaScript and shell examples are explanatory and are not run by this check.
+`npm run check:examples -w @tsc-ts/web` checks TypeScript examples with the web app's TypeScript dependency. A passing example check does not establish tsc-ts compatibility.
 
-Option directives accept JSON values for array/object options, for example `// @option: lib=["ES2022","ESNext.Disposable"]`, as well as booleans, numbers, and unquoted enum names. Grammar blocks use `text` and are explanatory rather than executable examples.
-
-The TypeScript specification describes edition 5.9.3 and cites its pinned compiler revision. Its grammar and checking algorithms describe observable rules; conformance and resource limits are stated separately from tsc-ts's TypeScript-Go target. Add new subjects to the specification coverage index and the appropriate navigation file.
-
-The content tests check internal links and navigation. After a production build, `test:routes` starts a temporary server and checks HTML, Markdown, content negotiation, search, and missing-page responses. Keep the unofficial status, version scope, and compiler limitations visible when adding pages.
+The content tests check internal links, page metadata, and navigation. After a production build, `test:routes` checks rendered pages, search, Markdown output, and missing-page responses.

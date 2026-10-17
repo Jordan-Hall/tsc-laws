@@ -1,5 +1,10 @@
 # tsc-ts
 
+<p>
+  <a href="https://vercel.com/labs#active-experiments"><img alt="Vercel Labs Experiment" src="https://img.shields.io/badge/LABS-EXPERIMENT-0a0a0a.svg?style=for-the-badge&amp;logo=Vercel&amp;labelColor=000000" height="28"></a>
+  <a href="https://github.com/vercel-labs/tsc-ts/blob/main/LICENSE"><img alt="License: Apache-2.0" src="https://img.shields.io/github/license/vercel-labs/tsc-ts.svg?style=for-the-badge&amp;labelColor=000000" height="28"></a>
+</p>
+
 An experimental TypeScript port of the TypeScript 7.0.2 compiler ([TypeScript-Go](https://github.com/microsoft/typescript-go), or tsgo), compiled to native code with [scriptc](https://scriptc.dev).
 
 ## Installation
@@ -35,7 +40,7 @@ Tasks run with [Turborepo](https://turborepo.com).
 
 ## Documentation
 
-[`apps/web`](apps/web/README.md) contains the TypeScript language reference and compiler documentation, built with the Vercel Labs Geistdocs template.
+[`apps/web`](apps/web/README.md) contains the tsc-ts compiler guides.
 
 ```sh
 npm run dev:web
@@ -183,36 +188,12 @@ Each file in [`packages/relater/examples`](packages/relater/examples) covers one
 | `patterned-indexes.json` | Template-pattern index signatures                      |
 | `string-mappings.json`   | `Uppercase`, `Lowercase`, `Capitalize`, `Uncapitalize` |
 
-### Benchmarks
-
-Median of five runs on an Apple M1 Max, measuring assignability checks only (no parsing, binding, or startup). Values are relater time divided by tsgo time; below 1× means relater is faster. Raw data: [`packages/relater/benchmarks/latest.json`](packages/relater/benchmarks/latest.json).
-
-| Workload          | Warm cache | Cold cache |
-| ----------------- | ---------: | ---------: |
-| primitives        |      0.40× |      1.25× |
-| structural        |      0.43× |      0.73× |
-| signatures        |      0.64× |      0.89× |
-| generics          |      0.71× |      1.56× |
-| array-methods     |      0.14× |      0.69× |
-| indexed-types     |      0.25× |      1.60× |
-| mapped-types      |      0.39× |      1.71× |
-| conditional-types |      0.37× |      1.69× |
-| variadic-tuples   |      0.92× |      1.11× |
-| no-infer          |      0.76× |      1.70× |
-| enums             |      0.50× |      2.12× |
-| template-types    |      0.96× |      1.83× |
-| patterned-indexes |      0.63× |      1.42× |
-| string-mappings   |      0.84× |      1.41× |
-
-These are synthetic, single-threaded benchmarks. They don't predict whole-compiler performance.
-
 ## Testing
 
 ```sh
 npm test                     # compare both checkers with tsgo
 npm run test:corpus          # compare the translated checker with tsgo on TypeScript's test cases
 npm run coverage -w @tsc-ts/relater     # check that all statements compile statically
-npm run bench -w @tsc-ts/relater        # time relater against tsgo
 npm run lint                 # oxlint
 npm run format               # oxfmt
 ```
