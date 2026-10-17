@@ -2306,7 +2306,7 @@ function getImportAttributes(node: Node): ImportAttributes | undefined {
 }
 
 /** Whether the grammar checker reports the import clause, which skips its bindings. */
-function hasImportClauseGrammarError(node: ImportClause): boolean {
+function hasImportClauseGrammarError(c: Checker, node: ImportClause): boolean {
   const namedBindings = node.namedBindings;
   if (node.phaseModifier === SyntaxKind.TypeKeyword) {
     if ((node.flags & NodeFlags.JSDoc) === 0 && node.name !== undefined && namedBindings !== undefined)
@@ -2317,6 +2317,8 @@ function hasImportClauseGrammarError(node: ImportClause): boolean {
   } else if (node.phaseModifier === SyntaxKind.DeferKeyword) {
     if (node.name !== undefined) return !hasParseErrors(node);
     if (namedBindings !== undefined && namedBindings.kind === SyntaxKind.NamedImports) return !hasParseErrors(node);
+    const moduleKind = getEmitModuleKind(c.compilerOptions);
+    if (moduleKind !== ModuleKind.ESNext && moduleKind !== ModuleKind.Preserve) return !hasParseErrors(node);
   }
   return false;
 }
@@ -2332,7 +2334,7 @@ export function checkImportDeclaration(c: Checker, node: Node): void {
   }
   const declaration = node as ImportDeclaration;
   const clause = declaration.importClause;
-  if (clause !== undefined && !hasImportClauseGrammarError(clause)) {
+  if (clause !== undefined && !hasImportClauseGrammarError(c, clause)) {
     if (clause.name !== undefined) checkImportBinding(c, clause);
     const namedBindings = clause.namedBindings;
     let resolvedModule: Symbol | undefined;

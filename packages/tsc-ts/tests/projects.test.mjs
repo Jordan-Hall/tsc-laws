@@ -628,6 +628,13 @@ projects.push(
     },
   ],
   [
+    'deferred imports under module commonjs',
+    {
+      'a.ts': 'export {};\nimport defer * as ns from "./missing";\n',
+      'tsconfig.json': JSON.stringify({ compilerOptions: { ...base, module: 'CommonJS' }, files: ['a.ts'] }),
+    },
+  ],
+  [
     'names reserved by emitted CommonJS code',
     {
       'a.ts':
