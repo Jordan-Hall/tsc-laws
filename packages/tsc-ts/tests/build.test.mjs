@@ -312,6 +312,70 @@ const scenarios = {
       { args: ['-b', '--checkers', '2'], edit: { 'tsconfig.tsbuildinfo': null } },
     ],
   },
+  // In native builds, -b rebuilds with build info check the files a change affects on two checker threads:
+  // the composite project's threads only check, and it emits on the main thread; the other project's
+  // threads also emit.
+  'build rebuild of affected files on checker threads': {
+    files: {
+      'lib/tsconfig.json': '{"compilerOptions":{"composite":true,"rootDir":"src","outDir":"out"},"include":["src"]}',
+      'lib/src/base.ts':
+        'export interface Shape { kind: string; size: number }\nexport const unit = { kind: "u", size: 1 };\n',
+      'lib/src/a.ts': 'import { Shape, unit } from "./base";\nexport const a = (s: Shape) => [s, unit];\n',
+      'lib/src/b.ts': 'import { unit } from "./base";\nexport const b = { ...unit, extra: true };\n',
+      'lib/src/c.ts': 'import * as base from "./base";\nexport const c: base.Shape = base.unit;\n',
+      'lib/src/d.ts': 'import { Shape } from "./base";\nexport function d(s: Shape): Shape | undefined { return s; }\n',
+      'app/tsconfig.json':
+        '{"compilerOptions":{"incremental":true,"rootDir":"src","outDir":"out"},"include":["src"],"references":[{"path":"../lib"}]}',
+      'app/src/e.ts': 'import { unit } from "../../lib/src/base";\nexport const e: string = unit.kind;\n',
+      'app/src/f.ts': 'import { a } from "../../lib/src/a";\nexport const f = a({ kind: "f", size: 2 });\n',
+      'app/src/g.ts': 'import { b } from "../../lib/src/b";\nexport const g = b.extra;\n',
+      'app/src/h.ts': 'import { c } from "../../lib/src/c";\nexport const h = c.size;\n',
+    },
+    steps: [
+      { args: ['-b', 'app', '--checkers', '2'] },
+      {
+        args: ['-b', 'app', '--checkers', '2', '-v'],
+        edit: {
+          'lib/src/base.ts':
+            'export interface Shape { kind: string; size: number; label?: string }\n' +
+            'export const unit = { kind: "u", size: 1, label: "unit" };\n',
+        },
+      },
+      {
+        args: ['-b', 'app', '--checkers', '2'],
+        edit: {
+          'lib/src/base.ts':
+            'export interface Shape { kind: string; size: number; label?: number }\n' +
+            'export const unit = { kind: "u", size: 1, label: "unit" };\n',
+        },
+      },
+      { args: ['-b', 'app', '--checkers', '2'], edit: { 'app/src/e.ts': 'export const e: string = "e";\n' } },
+    ],
+  },
+  // With build info left by an incremental build, a project that is no longer incremental is built again
+  // in full: every output is written (in native builds the threads would otherwise check without emitting).
+  'build rebuild after incremental is turned off, with checker threads': {
+    files: {
+      'tsconfig.json': '{"compilerOptions":{"incremental":true,"rootDir":"src","outDir":"out"},"include":["src"]}',
+      'src/a.ts': 'export const a = 1;\n',
+      'src/b.ts': 'export const b = 1;\n',
+      'src/c.ts': 'export const c = 1;\n',
+      'src/d.ts': 'export const d = 1;\n',
+      'src/e.ts': 'export const e = 1;\n',
+      'src/f.ts': 'export const f = 1;\n',
+    },
+    steps: [
+      { args: ['-b', '--checkers', '2'] },
+      {
+        args: ['-b', '--checkers', '2'],
+        edit: {
+          'tsconfig.json': '{"compilerOptions":{"incremental":false,"rootDir":"src","outDir":"out"},"include":["src"]}',
+          'src/a.ts': 'export const a = 2;\n',
+          'src/f.ts': 'export const f = 2;\n',
+        },
+      },
+    ],
+  },
   'noEmitOnError rebuild of affected files on checker threads': {
     files: {
       'tsconfig.json':
