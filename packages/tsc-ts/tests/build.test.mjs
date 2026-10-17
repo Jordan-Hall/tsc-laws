@@ -352,6 +352,30 @@ const scenarios = {
       { args: ['-b', 'app', '--checkers', '2'], edit: { 'app/src/e.ts': 'export const e: string = "e";\n' } },
     ],
   },
+  // With build info left by an incremental build, a project that is no longer incremental is built again
+  // in full: every output is written (in native builds the threads would otherwise check without emitting).
+  'build rebuild after incremental is turned off, with checker threads': {
+    files: {
+      'tsconfig.json': '{"compilerOptions":{"incremental":true,"rootDir":"src","outDir":"out"},"include":["src"]}',
+      'src/a.ts': 'export const a = 1;\n',
+      'src/b.ts': 'export const b = 1;\n',
+      'src/c.ts': 'export const c = 1;\n',
+      'src/d.ts': 'export const d = 1;\n',
+      'src/e.ts': 'export const e = 1;\n',
+      'src/f.ts': 'export const f = 1;\n',
+    },
+    steps: [
+      { args: ['-b', '--checkers', '2'] },
+      {
+        args: ['-b', '--checkers', '2'],
+        edit: {
+          'tsconfig.json': '{"compilerOptions":{"incremental":false,"rootDir":"src","outDir":"out"},"include":["src"]}',
+          'src/a.ts': 'export const a = 2;\n',
+          'src/f.ts': 'export const f = 2;\n',
+        },
+      },
+    ],
+  },
   'noEmitOnError rebuild of affected files on checker threads': {
     files: {
       'tsconfig.json':

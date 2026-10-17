@@ -767,8 +767,14 @@ export class Orchestrator {
     times.bindTime = performance.now() - bindStart;
     const options = program.options;
     const count = mayUseThreads ? checkerThreads(options.checkers, options.singleThreaded, program) : 1;
-    if (count > 1 && oldSnapshot !== undefined)
-      return this.recheckOnThreads(task, checked, times, oldSnapshot, count, then);
+    if (count > 1 && oldSnapshot !== undefined) {
+      if (isIncremental(options)) return this.recheckOnThreads(task, checked, times, oldSnapshot, count, then);
+      // Build info of a project that is no longer incremental has no pending emit to give the threads,
+      // and every file is emitted again: this thread checks and emits, as before the threads checked
+      // rebuilds.
+      this.emitAndReport(task, checked, times, oldSnapshot, undefined);
+      return false;
+    }
     if (count > 1) {
       // Checker threads also emit the files they check; the incremental program records their
       // declaration signatures on this thread.
