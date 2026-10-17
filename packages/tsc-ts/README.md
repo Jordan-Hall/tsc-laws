@@ -10,15 +10,15 @@ npm install -D tsc-ts
 
 npm installs the executable for your platform from an optional dependency:
 
-| Platform             | Package                    |
-| -------------------- | -------------------------- |
-| macOS, Apple silicon | `@tsc-ts/darwin-arm64`     |
-| macOS, Intel         | `@tsc-ts/darwin-x64`       |
-| Linux arm64, glibc   | `@tsc-ts/linux-arm64-gnu`  |
-| Linux arm64, musl    | `@tsc-ts/linux-arm64-musl` |
-| Linux x64, glibc     | `@tsc-ts/linux-x64-gnu`    |
-| Linux x64, musl      | `@tsc-ts/linux-x64-musl`   |
-| Windows x64          | `@tsc-ts/win32-x64-msvc`   |
+| Platform                         | Package                    |
+| -------------------------------- | -------------------------- |
+| macOS, Apple silicon             | `@tsc-ts/darwin-arm64`     |
+| macOS, Intel                     | `@tsc-ts/darwin-x64`       |
+| Linux arm64, glibc 2.34 or later | `@tsc-ts/linux-arm64-gnu`  |
+| Linux arm64, musl                | `@tsc-ts/linux-arm64-musl` |
+| Linux x64, glibc 2.34 or later   | `@tsc-ts/linux-x64-gnu`    |
+| Linux x64, musl                  | `@tsc-ts/linux-x64-musl`   |
+| Windows x64                      | `@tsc-ts/win32-x64-msvc`   |
 
 Don't install with `--omit=optional` or `--no-optional`.
 

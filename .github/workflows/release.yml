@@ -54,9 +54,9 @@ jobs:
         include:
           - { platform: darwin-arm64, runner: macos-15 }
           - { platform: darwin-x64, runner: macos-15-intel }
-          - { platform: linux-arm64-gnu, runner: ubuntu-24.04-arm }
+          - { platform: linux-arm64-gnu, runner: ubuntu-24.04-arm, target: aarch64-linux-gnu.2.34 }
           - { platform: linux-arm64-musl, runner: ubuntu-24.04-arm, docker: 'node:24-alpine' }
-          - { platform: linux-x64-gnu, runner: ubuntu-24.04 }
+          - { platform: linux-x64-gnu, runner: ubuntu-24.04, target: x86_64-linux-gnu.2.34 }
           - { platform: linux-x64-musl, runner: ubuntu-24.04, docker: 'node:24-alpine' }
           - { platform: win32-x64-msvc, runner: windows-2025 }
     steps:
@@ -71,12 +71,22 @@ jobs:
           cache: npm
 
       - uses: vercel-labs/setup-zig@v1
-        if: matrix.platform == 'win32-x64-msvc'
+        if: ${{ matrix.platform == 'win32-x64-msvc' || matrix.target }}
         with:
           version: 0.16.0
 
       - name: Build and check
-        if: ${{ !matrix.docker }}
+        if: ${{ !matrix.docker && !matrix.target }}
+        run: |
+          npm ci
+          npm run pack:npm -w tsc-ts -- --check
+
+      # The glibc executables link with zig against a glibc 2.34 sysroot, so they run on glibc 2.34 and newer
+      # instead of requiring the runner's glibc. pack.mjs fails if one needs a newer glibc symbol version.
+      - name: Build and check (glibc 2.34)
+        if: ${{ matrix.target }}
+        env:
+          SCRIPTC_TARGET: ${{ matrix.target }}
         run: |
           npm ci
           npm run pack:npm -w tsc-ts -- --check
