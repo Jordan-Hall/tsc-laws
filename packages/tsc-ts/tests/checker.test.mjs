@@ -380,6 +380,21 @@ const cases = [
     ],
     expected: ["/input.ts 2322 1802 2 Type 'string | number' is not assignable to type 'string'."],
   },
+  {
+    name: 'infer type parameters in variadic elements of rest parameters',
+    source: [
+      'declare function access(path: string, callback: (err: Error | null) => void): void;',
+      'type Args<T> = T extends (...args: [...args: infer A, cb: (err: any) => void]) => void ? A : never;',
+      'type Spread<A extends unknown[]> = (...args: [...A, cb: (err: any) => void]) => void;',
+      'type SpreadArgs<T> = T extends Spread<infer A> ? A : never;',
+      'const a: Args<typeof access> = [1];',
+      'const b: SpreadArgs<typeof access> = [1];',
+    ],
+    expected: [
+      "/input.ts 2322 362 1 Type 'number' is not assignable to type 'string'.",
+      "/input.ts 2322 404 1 Type 'number' is not assignable to type 'string'.",
+    ],
+  },
 ];
 
 test(

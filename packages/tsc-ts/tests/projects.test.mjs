@@ -311,6 +311,35 @@ const projects = [
         '}\n',
     },
   ],
+  [
+    'conditional types inferring from the parameters of callback-taking functions',
+    {
+      'a.ts':
+        'declare function access(path: string, mode: number, callback: (err: Error | null) => void): void;\n' +
+        'declare function access(path: string, callback: (err: Error | null) => void): void;\n' +
+        'declare function read(path: string, callback: (err: Error | null, data: string) => void): void;\n' +
+        'interface Callback<E, A> { (err: E, a?: A): void }\n' +
+        'type WithCallback<Args extends any[], E, A> = [...args: Args, cb: Callback<E, A>];\n' +
+        'type Effectify<T> = T extends {\n' +
+        '  (...args: WithCallback<infer Args1, infer _E1, infer A1>): void;\n' +
+        '  (...args: WithCallback<infer Args2, infer _E2, infer A2>): void;\n' +
+        '} ? { (...args: Args1): A1; (...args: Args2): A2 }\n' +
+        '  : T extends (...args: WithCallback<infer Args, infer _E, infer A>) => void ? (...args: Args) => A\n' +
+        '  : never;\n' +
+        'declare const accessE: Effectify<typeof access>;\n' +
+        'declare const readE: Effectify<typeof read>;\n' +
+        'export const a1: string = accessE("a", 1);\n' +
+        'export const a2: string = accessE("a");\n' +
+        'export const r: number = readE("a");\n' +
+        'type Split<T> = T extends (...args: [...args: infer A, cb: infer C]) => void ? [A, C] : never;\n' +
+        'export const s: Split<typeof read> = 0;\n' +
+        'type Spread<A extends unknown[]> = (...args: [...A, cb: (err: Error | null, data: string) => void]) => void;\n' +
+        'type SpreadArgs<T> = T extends Spread<infer A> ? A : never;\n' +
+        'export const sa: SpreadArgs<typeof read> = 0;\n' +
+        'type Parts<T> = T extends (...args: infer A) => infer R ? [A, R] : "none";\n' +
+        'export const p: Parts<string> = 0;\n',
+    },
+  ],
 ];
 
 // Module specifiers of inferred types: `import("…")` types in declaration emit and the TS2883
