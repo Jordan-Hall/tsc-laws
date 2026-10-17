@@ -40,6 +40,18 @@ const projects = [
     },
   ],
   [
+    'compound assignments to elements under noUncheckedIndexedAccess',
+    {
+      'a.ts':
+        'declare const a: number[];\ndeclare const r: Record<string, number>;\n' +
+        'a[0] |= 1;\na[0] += 1;\na[0]++;\n--a[0];\na[0] = 1;\nr["x"] ??= 2;\nr.y += 1;\nexport const b = a[0] + 1;\n',
+      'tsconfig.json': JSON.stringify({
+        compilerOptions: { ...base, noUncheckedIndexedAccess: true },
+        files: ['a.ts'],
+      }),
+    },
+  ],
+  [
     'nested keys of a JSON module',
     {
       'a.ts':
