@@ -452,6 +452,23 @@ const cases = [
       "/input.ts 2322 84 1 Type 'number' is not assignable to type '{ a: number; b: number; c?: undefined; } | { b?: undefined; a?: undefined; c: number; }'.",
     ],
   },
+  {
+    // 70 type parameters: the mappers of the tuple reference and of the call look their sources up in an index.
+    name: 'instantiation with more than 64 type parameters',
+    source: [
+      `type T = [${Array.from({ length: 70 }, (_, i) => `"e${i}"`).join(', ')}];`,
+      'declare const t: T;',
+      'const a: 1 = t[0];',
+      'const b: 1 = t[69];',
+      `declare function f<${Array.from({ length: 70 }, (_, i) => `A${i}`).join(', ')}>(...args: [${Array.from({ length: 70 }, (_, i) => `A${i}`).join(', ')}]): [A69, A35, A0];`,
+      `const r: 1 = f<${Array.from({ length: 70 }, (_, i) => `"x${i}"`).join(', ')}>(${Array.from({ length: 70 }, (_, i) => `"x${i}"`).join(', ')});`,
+    ],
+    expected: [
+      "/input.ts 2322 517 1 Type '\"e0\"' is not assignable to type '1'.",
+      "/input.ts 2322 536 1 Type '\"e69\"' is not assignable to type '1'.",
+      '/input.ts 2322 1283 1 Type \'["x69", "x35", "x0"]\' is not assignable to type \'1\'.',
+    ],
+  },
 ];
 
 test(
