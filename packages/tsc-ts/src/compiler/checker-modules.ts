@@ -97,6 +97,7 @@ import { isNodeCoreModule } from './parser.js';
 import {
   combinePaths,
   extensionIsTs,
+  fileExtensionIsOneOf,
   getDirectoryPath,
   getNormalizedAbsolutePath,
   isDeclarationFileName,
@@ -2428,7 +2429,7 @@ export function checkExportAssignment(c: Checker, node: Node): void {
     !isExportEquals &&
     !ambient &&
     verbatimModuleSyntax &&
-    c.host.getImpliedNodeFormatForEmit(getSourceFileOfNode(node)) === ModuleKind.CommonJS;
+    c.host.getEmitModuleFormatOfFile(getSourceFileOfNode(node)) === ModuleKind.CommonJS;
   const expression = declaration.expression;
   if (expression.kind === SyntaxKind.Identifier) {
     const id = expression;
@@ -2461,11 +2462,7 @@ export function checkExportAssignment(c: Checker, node: Node): void {
         checkIsolatedModulesExportAssignment(c, node, sym, typeOnlyDeclaration, isExportEquals);
     } else checkExpressionCached(c, id);
   } else checkExpressionCached(c, expression);
-  if (isIllegalExportDefaultInCJS)
-    c.error(
-      node,
-      Diagnostics.ECMAScript_imports_and_exports_cannot_be_written_in_a_CommonJS_file_under_verbatimModuleSyntax_Adjust_the_type_field_in_the_nearest_package_json_to_make_this_file_an_ECMAScript_module_or_adjust_your_verbatimModuleSyntax_module_and_moduleResolution_settings_in_TypeScript,
-    );
+  if (isIllegalExportDefaultInCJS) c.error(node, verbatimModuleSyntaxErrorMessage(node));
   checkExternalModuleExports(c, container);
   // A JSDoc `@type` on `export default`.
   const typeNode = getType(node);
@@ -2666,11 +2663,36 @@ function checkIsolatedModulesAlias(
   }
   if (
     verbatimModuleSyntax &&
+    node.kind !== SyntaxKind.ImportEqualsDeclaration &&
+    !isInJSFile(node) &&
+    c.host.getEmitModuleFormatOfFile(getSourceFileOfNode(node)) === ModuleKind.CommonJS
+  )
+    c.error(node, verbatimModuleSyntaxErrorMessage(node));
+  else if (
+    getEmitModuleKind(c.compilerOptions) === ModuleKind.Preserve &&
+    node.kind !== SyntaxKind.ImportEqualsDeclaration &&
+    node.kind !== SyntaxKind.VariableDeclaration &&
+    c.host.getEmitModuleFormatOfFile(getSourceFileOfNode(node)) === ModuleKind.CommonJS
+  )
+    // Under `--module preserve` ESM syntax emits as ESM, so it is an error in a file that is CommonJS (.cts, .cjs).
+    c.error(
+      node,
+      Diagnostics.ECMAScript_module_syntax_is_not_allowed_in_a_CommonJS_module_when_module_is_set_to_preserve,
+    );
+  if (
+    verbatimModuleSyntax &&
     (targetFlags & SymbolFlags.ConstEnum) !== 0 &&
     target.valueDeclaration !== undefined &&
     (target.valueDeclaration.flags & NodeFlags.Ambient) !== 0
   )
     c.error(node, Diagnostics.Cannot_access_ambient_const_enums_when_0_is_enabled, getIsolatedModulesLikeFlagName(c));
+}
+
+/** The error for ESM syntax in a CommonJS file under `verbatimModuleSyntax`: shorter in a .cts or .cjs file. */
+function verbatimModuleSyntaxErrorMessage(node: Node): DiagnosticMessage {
+  return fileExtensionIsOneOf(getSourceFileOfNode(node).fileName, ['.cts', '.cjs'])
+    ? Diagnostics.ECMAScript_imports_and_exports_cannot_be_written_in_a_CommonJS_file_under_verbatimModuleSyntax
+    : Diagnostics.ECMAScript_imports_and_exports_cannot_be_written_in_a_CommonJS_file_under_verbatimModuleSyntax_Adjust_the_type_field_in_the_nearest_package_json_to_make_this_file_an_ECMAScript_module_or_adjust_your_verbatimModuleSyntax_module_and_moduleResolution_settings_in_TypeScript;
 }
 
 function isPartOfTypeOnlyImportOrExportDeclaration(node: Node): boolean {

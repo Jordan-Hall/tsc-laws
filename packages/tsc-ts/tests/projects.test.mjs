@@ -67,6 +67,55 @@ const projects = [
     },
   ],
   [
+    'ESM syntax in CommonJS files under verbatimModuleSyntax',
+    {
+      'main.ts':
+        'import { a } from "./dep";\nexport { a as b };\nexport default a;\nimport type { T } from "./dep";\nexport type { T };\n',
+      'dep.ts':
+        'export const a = 1;\nexport type T = number;\nexport namespace N {\n  export const n = 1;\n}\nexport namespace Types {\n  export type U = 1;\n}\n',
+      'package.json': '{ "type": "commonjs" }\n',
+      'tsconfig.json': JSON.stringify({
+        compilerOptions: { ...base, module: 'node16', verbatimModuleSyntax: true },
+        files: ['main.ts', 'dep.ts'],
+      }),
+    },
+  ],
+  [
+    'ESM syntax under verbatimModuleSyntax with module commonjs',
+    {
+      'main.ts':
+        'import { a } from "./dep";\nexport { a as b };\nexport default a;\nimport type { T } from "./dep";\nexport type { T };\n',
+      'dep.ts':
+        'export const a = 1;\nexport type T = number;\nexport namespace N {\n  export const n = 1;\n}\nexport namespace Types {\n  export type U = 1;\n}\n',
+      'tsconfig.json': JSON.stringify({
+        compilerOptions: { ...base, module: 'commonjs', verbatimModuleSyntax: true },
+        files: ['main.ts', 'dep.ts'],
+      }),
+    },
+  ],
+  [
+    'ESM syntax in .cts files under verbatimModuleSyntax',
+    {
+      'main.cts': 'import { a } from "./dep.cjs";\nexport { a as b };\nexport default a;\n',
+      'dep.cts': 'export const a = 1;\n',
+      'tsconfig.json': JSON.stringify({
+        compilerOptions: { ...base, module: 'nodenext', verbatimModuleSyntax: true },
+        files: ['main.cts', 'dep.cts'],
+      }),
+    },
+  ],
+  [
+    'ESM syntax in .cts files under module preserve',
+    {
+      'main.cts': 'import { a } from "./dep.cjs";\nexport { a as b };\n',
+      'dep.cts': 'export const a = 1;\n',
+      'tsconfig.json': JSON.stringify({
+        compilerOptions: { ...base, module: 'preserve', isolatedModules: true },
+        files: ['main.cts', 'dep.cts'],
+      }),
+    },
+  ],
+  [
     'object literal returned by a contextually generic arrow',
     {
       'a.ts':
