@@ -101,6 +101,7 @@ import {
 import { getLiteralTypeFromProperty } from './checker-type-operators.js';
 import { getTypeFromTypeNode } from './checker-type-nodes.js';
 import { getTypeOfExpression } from './checker-expressions.js';
+import { tryGetNameFromType } from './checker-narrowing.js';
 import { hasDynamicName, hasLateBindableName, isBindingPattern } from './checker-utilities.js';
 import {
   checkTypeAssignableTo,
@@ -371,7 +372,7 @@ function checkClassForStaticPropertyNameConflicts(c: Checker, node: Node): void 
   for (const member of getMembers(node)!.nodes) {
     const name = getName(member);
     if (name === undefined || !isStatic(member)) continue;
-    const memberName = getEffectivePropertyName(name);
+    const memberName = getEffectivePropertyName(c, name);
     if (memberName === 'name' || memberName === 'length' || memberName === 'caller' || memberName === 'arguments')
       c.error(
         name,
@@ -382,7 +383,8 @@ function checkClassForStaticPropertyNameConflicts(c: Checker, node: Node): void 
   }
 }
 
-function getEffectivePropertyName(name: Node): string | undefined {
+/** The property name a name denotes: a literal name, or the literal type of a computed name's expression. */
+function getEffectivePropertyName(c: Checker, name: Node): string | undefined {
   switch (name.kind) {
     case SyntaxKind.Identifier:
     case SyntaxKind.StringLiteral:
@@ -397,6 +399,7 @@ function getEffectivePropertyName(name: Node): string | undefined {
         e.kind === SyntaxKind.NoSubstitutionTemplateLiteral
       )
         return getText(e);
+      return tryGetNameFromType(getTypeOfExpression(c, e));
     }
   }
   return undefined;

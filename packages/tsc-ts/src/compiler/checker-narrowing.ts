@@ -2484,7 +2484,7 @@ export function tryGetNameFromEntityNameExpression(c: Checker, node: Node): stri
   return undefined;
 }
 
-function tryGetNameFromType(t: Type): string | undefined {
+export function tryGetNameFromType(t: Type): string | undefined {
   return (t.flags & (TypeFlags.UniqueESSymbol | TypeFlags.StringOrNumberLiteral)) !== 0
     ? getPropertyNameFromType(t)
     : undefined;
