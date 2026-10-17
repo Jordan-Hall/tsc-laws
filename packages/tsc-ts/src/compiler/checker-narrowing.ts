@@ -352,11 +352,16 @@ export function getFlowTypeOfReferenceAt(
   if (c.flowAnalysisDisabled) return c.errorType;
   if (flowNode === undefined) return declaredType;
   let f: FlowState;
-  if (c.freeFlowStates.length !== 0) {
-    f = c.freeFlowStates.pop()!;
+  const stateDepth = c.flowStateDepth;
+  if (stateDepth < c.flowStates.length) {
+    f = c.flowStates[stateDepth]!;
     f.reset(reference, declaredType, initialType, flowContainer);
-  } else f = new FlowState(reference, declaredType, initialType, flowContainer);
-  f.sharedFlowStart = c.sharedFlowNodes.length;
+  } else {
+    f = new FlowState(reference, declaredType, initialType, flowContainer);
+    c.flowStates.push(f);
+  }
+  c.flowStateDepth = stateDepth + 1;
+  f.sharedFlowStart = c.sharedFlowCount;
   c.flowInvocationCount++;
   f.keepsWalk =
     c.flowLoopStack.length === 0 &&
@@ -381,10 +386,8 @@ export function getFlowTypeOfReferenceAt(
       walk.depth = f.maxDepth;
     } else c.flowWalks.set(f.refKey!, new FlowWalk(anchor, evolvedType, f.maxDepth));
   }
-  c.sharedFlowNodes.length = f.sharedFlowStart;
-  c.sharedFlowTypes.length = f.sharedFlowStart;
-  c.sharedFlowIncomplete.length = f.sharedFlowStart;
-  c.freeFlowStates.push(f);
+  c.sharedFlowCount = f.sharedFlowStart;
+  c.flowStateDepth = stateDepth;
   // `x` in `x.length`, `x.push(v)`, `x.unshift(v)` or `x[n] = v` stays `any[]` so empty arrays may be
   // operated on and new element types inferred without implicit any or mismatch errors.
   const resultType =
@@ -438,7 +441,7 @@ export function getTypeAtFlowNode(c: Checker, f: FlowState, start: FlowNode): Ty
     const flags = flow.flags;
     if ((flags & FlowFlags.Shared) !== 0) {
       // Shared nodes are cached for the duration of one walk.
-      for (let i = f.sharedFlowStart; i < c.sharedFlowNodes.length; i++) {
+      for (let i = f.sharedFlowStart; i < c.sharedFlowCount; i++) {
         if (c.sharedFlowNodes[i]! === flow) {
           f.depth--;
           f.incomplete = c.sharedFlowIncomplete[i]!;
@@ -521,9 +524,17 @@ export function getTypeAtFlowNode(c: Checker, f: FlowState, start: FlowNode): Ty
       t = complete(f, convertAutoToAny(c, f.declaredType));
     }
     if (sharedFlow !== undefined) {
-      c.sharedFlowNodes.push(sharedFlow);
-      c.sharedFlowTypes.push(t);
-      c.sharedFlowIncomplete.push(f.incomplete);
+      const count = c.sharedFlowCount;
+      if (count < c.sharedFlowNodes.length) {
+        c.sharedFlowNodes[count] = sharedFlow;
+        c.sharedFlowTypes[count] = t;
+        c.sharedFlowIncomplete[count] = f.incomplete;
+      } else {
+        c.sharedFlowNodes.push(sharedFlow);
+        c.sharedFlowTypes.push(t);
+        c.sharedFlowIncomplete.push(f.incomplete);
+      }
+      c.sharedFlowCount = count + 1;
     }
     f.depth--;
     return t;

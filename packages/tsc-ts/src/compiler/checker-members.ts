@@ -200,7 +200,8 @@ function resolveTypeReferenceMembers(c: Checker, t: TypeReference): void {
   let padded = typeArguments;
   if (typeArguments.length === typeParameters.length - 1) {
     // The reference itself is the `this` type argument.
-    padded = typeArguments.slice();
+    padded = [];
+    for (const typeArgument of typeArguments) padded.push(typeArgument);
     padded.push(t as Type);
   }
   resolveObjectTypeMembers(c, membersHolder(c, t), source, typeParameters, padded);
@@ -1983,9 +1984,12 @@ export function getTypeWithThisArgument(
   if ((t.objectFlags & ObjectFlags.Reference) !== 0 && (t.flags & TypeFlags.Object) !== 0) {
     const target = (t as TypeReference).target as InterfaceType;
     const typeArguments = getTypeArguments(c, t);
-    if (target.typeParameters().length === typeArguments.length)
-      return createTypeReference(c, target, typeArguments.concat([thisArgument ?? target.thisType!]));
-    return t;
+    const count = typeArguments.length;
+    if (target.typeParameterCount() !== count) return t;
+    const withThis: Type[] = [];
+    for (let i = 0; i < count; i++) withThis.push(typeArguments[i]!);
+    withThis.push(thisArgument ?? target.thisType!);
+    return createTypeReference(c, target, withThis);
   }
   if ((t.flags & TypeFlags.Intersection) !== 0) {
     const types = typesOf(t);

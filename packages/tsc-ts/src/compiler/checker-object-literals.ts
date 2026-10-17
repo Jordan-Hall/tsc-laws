@@ -18,7 +18,15 @@ import { createDiagnosticForNode, type Checker } from './checker.js';
 import { Diagnostics } from './diagnostics.js';
 import { CheckFlags, type Symbol, SymbolFlags, internalSymbolNamePrefix, getSymbolId } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
-import { CheckMode, IndexInfo, ObjectFlags, type Type, TypeFlags } from './checker-types.js';
+import {
+  CheckMode,
+  emptyIndexInfos,
+  emptySignatures,
+  IndexInfo,
+  ObjectFlags,
+  type Type,
+  TypeFlags,
+} from './checker-types.js';
 import {
   checkCrossProductUnion,
   createAnonymousType,
@@ -92,13 +100,24 @@ class ObjectLiteralBuilder {
   }
 
   createType(c: Checker): Type {
-    const indexInfos: IndexInfo[] = [];
+    let indexInfos = emptyIndexInfos;
     const isReadonly = isConstContext(c, this.node);
-    const properties = this.properties.slice(this.offset);
-    if (this.hasComputedString) indexInfos.push(getObjectLiteralIndexInfo(c, isReadonly, properties, c.stringType));
-    if (this.hasComputedNumber) indexInfos.push(getObjectLiteralIndexInfo(c, isReadonly, properties, c.numberType));
-    if (this.hasComputedSymbol) indexInfos.push(getObjectLiteralIndexInfo(c, isReadonly, properties, c.esSymbolType));
-    const result = createAnonymousType(c, getSymbol(this.node), this.members, [], [], indexInfos);
+    if (this.hasComputedString || this.hasComputedNumber || this.hasComputedSymbol) {
+      // Index signatures cover the members since the last spread.
+      const properties = this.properties.slice(this.offset);
+      indexInfos = [];
+      if (this.hasComputedString) indexInfos.push(getObjectLiteralIndexInfo(c, isReadonly, properties, c.stringType));
+      if (this.hasComputedNumber) indexInfos.push(getObjectLiteralIndexInfo(c, isReadonly, properties, c.numberType));
+      if (this.hasComputedSymbol) indexInfos.push(getObjectLiteralIndexInfo(c, isReadonly, properties, c.esSymbolType));
+    }
+    const result = createAnonymousType(
+      c,
+      getSymbol(this.node),
+      this.members,
+      emptySignatures,
+      emptySignatures,
+      indexInfos,
+    );
     result.objectFlags |= this.objectFlags | ObjectFlags.ObjectLiteral | ObjectFlags.ContainsObjectOrArrayLiteral;
     if (this.isJSLiteral) result.objectFlags |= ObjectFlags.JSLiteral;
     if (this.patternWithComputedProperties)

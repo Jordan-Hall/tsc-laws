@@ -1360,7 +1360,13 @@ export function getOptionalType(c: Checker, t: Type, isProperty: boolean): Type 
   const missingOrUndefined = isProperty ? c.undefinedOrMissingType : c.undefinedType;
   if (t === missingOrUndefined || ((t.flags & TypeFlags.Union) !== 0 && typesOf(t)[0]! === missingOrUndefined))
     return t;
-  return getUnionType(c, [t, missingOrUndefined]);
+  const key = cachedTypeKey(isProperty ? CachedTypeKind.OptionalProperty : CachedTypeKind.Optional, t.id);
+  let result = c.cachedTypesById.get(key);
+  if (result === undefined) {
+    result = getUnionType(c, [t, missingOrUndefined]);
+    c.cachedTypesById.set(key, result);
+  }
+  return result;
 }
 
 export function addOptionalTypeMarker(c: Checker, t: Type): Type {

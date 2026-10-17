@@ -188,13 +188,23 @@ export function instantiateTypeWithAlias(
     c.error(c.currentNode, Diagnostics.Type_instantiation_is_excessively_deep_and_possibly_infinite);
     return c.errorType;
   }
-  const index = c.activeMappers.lastIndexOf(mapper);
+  const depth = c.activeMapperDepth;
+  const activeMappers = c.activeMappers;
+  let index = depth - 1;
+  while (index >= 0 && activeMappers[index]! !== mapper) index--;
   if (index === -1) {
     // A newly active mapper has no cached instantiations; its cache is created when a nested
     // instantiation with the same mapper stores one.
-    c.activeMappers.push(mapper);
-    c.activeMapperCaches.push(undefined);
-    c.activeMapperAliasCaches.push(undefined);
+    if (depth < activeMappers.length) {
+      activeMappers[depth] = mapper;
+      c.activeMapperCaches[depth] = undefined;
+      c.activeMapperAliasCaches[depth] = undefined;
+    } else {
+      activeMappers.push(mapper);
+      c.activeMapperCaches.push(undefined);
+      c.activeMapperAliasCaches.push(undefined);
+    }
+    c.activeMapperDepth = depth + 1;
   } else {
     let cached: Type | undefined = undefined;
     if (alias === undefined) {
@@ -211,17 +221,26 @@ export function instantiateTypeWithAlias(
   c.instantiationDepth++;
   const result = instantiateTypeWorker(c, type, mapper, alias);
   if (index === -1) {
-    c.activeMappers.pop();
-    const cache = c.activeMapperCaches.pop();
+    // The mapper's slot stays until it is reused; its caches are released now.
+    c.activeMapperDepth = depth;
+    const cache = c.activeMapperCaches[depth];
     if (cache !== undefined) {
       cache.clear();
-      c.freeMapperCaches.push(cache);
+      const free = c.freeMapperCacheCount;
+      if (free < c.freeMapperCaches.length) c.freeMapperCaches[free] = cache;
+      else c.freeMapperCaches.push(cache);
+      c.freeMapperCacheCount = free + 1;
+      c.activeMapperCaches[depth] = undefined;
     }
-    c.activeMapperAliasCaches.pop();
+    c.activeMapperAliasCaches[depth] = undefined;
   } else if (alias === undefined) {
     let cache = c.activeMapperCaches[index];
     if (cache === undefined) {
-      cache = c.freeMapperCaches.length !== 0 ? c.freeMapperCaches.pop()! : new Map<number, Type>();
+      const free = c.freeMapperCacheCount;
+      if (free !== 0) {
+        cache = c.freeMapperCaches[free - 1]!;
+        c.freeMapperCacheCount = free - 1;
+      } else cache = new Map<number, Type>();
       c.activeMapperCaches[index] = cache;
     }
     cache.set(type.id, result);
@@ -637,7 +656,8 @@ export function instantiateTypes(c: Checker, types: Type[], mapper: TypeMapper |
   for (let i = 0; i < types.length; i++) {
     const mapped = instantiateType(c, types[i]!, mapper);
     if (mapped !== types[i]!) {
-      const result = types.slice(0, i);
+      const result: Type[] = [];
+      for (let j = 0; j < i; j++) result.push(types[j]!);
       result.push(mapped);
       for (let j = i + 1; j < types.length; j++) result.push(instantiateType(c, types[j]!, mapper));
       return result;
@@ -650,7 +670,8 @@ export function instantiateSymbols(c: Checker, symbols: Symbol[], mapper: TypeMa
   for (let i = 0; i < symbols.length; i++) {
     const mapped = instantiateSymbol(c, symbols[i]!, mapper);
     if (mapped !== symbols[i]!) {
-      const result = symbols.slice(0, i);
+      const result: Symbol[] = [];
+      for (let j = 0; j < i; j++) result.push(symbols[j]!);
       result.push(mapped);
       for (let j = i + 1; j < symbols.length; j++) result.push(instantiateSymbol(c, symbols[j]!, mapper));
       return result;
@@ -663,7 +684,8 @@ export function instantiateSignatures(c: Checker, signatures: Signature[], mappe
   for (let i = 0; i < signatures.length; i++) {
     const mapped = instantiateSignature(c, signatures[i]!, mapper);
     if (mapped !== signatures[i]!) {
-      const result = signatures.slice(0, i);
+      const result: Signature[] = [];
+      for (let j = 0; j < i; j++) result.push(signatures[j]!);
       result.push(mapped);
       for (let j = i + 1; j < signatures.length; j++) result.push(instantiateSignature(c, signatures[j]!, mapper));
       return result;

@@ -305,7 +305,7 @@ export function getResolvedSignature(c: Checker, node: Node, checkMode: CheckMod
   if (cached !== undefined && cached !== c.resolvingSignature) return cached;
   const saveResolutionStart = c.resolutionStart;
   // Reset the resolution stack so inverted requests retry with the resolving marker in place.
-  if (cached === undefined) c.resolutionStart = c.resolutionTargets.length;
+  if (cached === undefined) c.resolutionStart = c.resolutionDepth;
   c.resolvedSignatures.set(node.id, c.resolvingSignature);
   let result = resolveSignature(c, node, checkMode);
   c.resolutionStart = saveResolutionStart;

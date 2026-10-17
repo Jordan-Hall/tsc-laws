@@ -213,7 +213,8 @@ export function checkPropertyAccessExpressionOrQualifiedName(
     checkDeprecatedProperty(c, node, right, prop);
     checkPropertyNotUsedBeforeDeclaration(c, prop, node, right);
     markPropertyAsReferenced(c, prop, node, isSelfTypeAccess(c, left, parentSymbol));
-    c.resolvedSymbols.set(node.id, prop);
+    // An access checked again (under another check mode) usually resolves to the same property.
+    if (c.resolvedSymbols.get(node.id) !== prop) c.resolvedSymbols.set(node.id, prop);
     checkPropertyAccessibility(
       c,
       node,
