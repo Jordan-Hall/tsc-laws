@@ -412,6 +412,11 @@ class TaskDiagnosticReporter extends DiagnosticReporter {
     this.task.errors.push(diagnostic);
     this.inner.report(diagnostic);
   }
+
+  reportAll(diagnostics: readonly Diagnostic[]): void {
+    for (const diagnostic of diagnostics) this.task.errors.push(diagnostic);
+    this.inner.reportAll(diagnostics);
+  }
 }
 
 class QuietSummary extends ErrorSummaryReporter {

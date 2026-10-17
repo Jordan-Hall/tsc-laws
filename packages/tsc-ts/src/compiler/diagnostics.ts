@@ -637,21 +637,38 @@ export function flattenDiagnosticMessage(diagnostic: Diagnostic, newLine: string
 
 /** `file(line,col): error TS1005: message`, as tsc prints without `--pretty`. */
 export function formatDiagnostic(diagnostic: Diagnostic, options: DiagnosticFormatOptions): string {
+  const file = diagnostic.file;
+  return formatDiagnosticIn(diagnostic, file !== undefined ? relativeFileName(file.fileName, options) : '', options);
+}
+
+/** `formatDiagnostic` where `fileName` is the relative name of the diagnostic's file, if it has one. */
+function formatDiagnosticIn(diagnostic: Diagnostic, fileName: string, options: DiagnosticFormatOptions): string {
   let result = '';
   const file = diagnostic.file;
   if (file !== undefined) {
     const lineStarts = file.getLineStarts();
     const line = computeLineOfPosition(lineStarts, diagnostic.pos);
     const character = diagnostic.pos - lineStarts[line];
-    result += `${relativeFileName(file.fileName, options)}(${line + 1},${character + 1}): `;
+    result += `${fileName}(${line + 1},${character + 1}): `;
   }
   result += `${categoryName(diagnostic.category)} TS${diagnostic.code}: `;
   return result + flattenDiagnosticMessage(diagnostic, options.newLine, options.locale) + options.newLine;
 }
 
+/** `formatDiagnostic` of each diagnostic. */
 export function formatDiagnostics(diagnostics: readonly Diagnostic[], options: DiagnosticFormatOptions): string {
   let result = '';
-  for (const diagnostic of diagnostics) result += formatDiagnostic(diagnostic, options);
+  // Sorted diagnostics come a file at a time: the relative name of the last file is kept.
+  let lastFile: DiagnosticFile | undefined = undefined;
+  let lastName = '';
+  for (const diagnostic of diagnostics) {
+    const file = diagnostic.file;
+    if (file !== undefined && file !== lastFile) {
+      lastFile = file;
+      lastName = relativeFileName(file.fileName, options);
+    }
+    result += formatDiagnosticIn(diagnostic, file !== undefined ? lastName : '', options);
+  }
   return result;
 }
 
