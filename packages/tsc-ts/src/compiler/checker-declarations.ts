@@ -135,6 +135,7 @@ import {
   isAmbientModule,
   isFunctionLike,
   isGlobalScopeAugmentation,
+  isInJSFile,
   nodeIsMissing,
   nodeIsPresent,
 } from './ast-utilities.js';
@@ -357,7 +358,7 @@ function checkParameter(c: Checker, node: Node): void {
   const name = getName(node);
   const paramName = name !== undefined && name.kind === SyntaxKind.Identifier ? getText(name) : '';
   if (hasSyntacticModifier(node, ModifierFlags.ParameterPropertyModifier)) {
-    if (c.compilerOptions.erasableSyntaxOnly === true && (node.flags & NodeFlags.Ambient) === 0)
+    if (shouldCheckErasableSyntax(c, node))
       c.error(node, Diagnostics.This_syntax_is_not_allowed_when_erasableSyntaxOnly_is_enabled);
     if (fn.kind !== SyntaxKind.Constructor || !nodeIsPresent(getBody(fn)))
       c.error(node, Diagnostics.A_parameter_property_is_only_allowed_in_a_constructor_implementation);
@@ -806,7 +807,7 @@ export function checkEnumDeclaration(c: Checker, node: Node): void {
   checkTypeNameIsReserved(c, name, Diagnostics.Enum_name_cannot_be_0);
   checkExportsOnMergedDeclarations(c, node);
   for (const member of (node as EnumDeclaration).members.nodes) checkSourceElement(c, member);
-  if (c.compilerOptions.erasableSyntaxOnly === true && (node.flags & NodeFlags.Ambient) === 0)
+  if (shouldCheckErasableSyntax(c, node) && (node.flags & NodeFlags.Ambient) === 0)
     c.error(node, Diagnostics.This_syntax_is_not_allowed_when_erasableSyntaxOnly_is_enabled);
   computeEnumMemberValues(c, node);
   const symbol = getSymbolOfDeclaration(c, node);
@@ -833,6 +834,11 @@ export function checkEnumDeclaration(c: Checker, node: Node): void {
       );
     else seenEnumMissingInitialInitializer = true;
   }
+}
+
+/** Whether erasableSyntaxOnly applies at `node`: it is set, and `node` is in a TypeScript file. */
+export function shouldCheckErasableSyntax(c: Checker, node: Node): boolean {
+  return c.compilerOptions.erasableSyntaxOnly === true && !isInJSFile(node);
 }
 
 export function checkModuleDeclaration(c: Checker, node: Node): void {
@@ -865,7 +871,7 @@ export function checkModuleDeclaration(c: Checker, node: Node): void {
     !inAmbientContext &&
     isInstantiatedModule(node, c.preserveConstEnums)
   ) {
-    if (c.compilerOptions.erasableSyntaxOnly === true)
+    if (shouldCheckErasableSyntax(c, node))
       c.error(node, Diagnostics.This_syntax_is_not_allowed_when_erasableSyntaxOnly_is_enabled);
     // Namespaces of global scripts can merge across files, which a transpiler of one file cannot see.
     if (c.isolatedModules && getSourceFileOfNode(node).externalModuleIndicator === undefined)

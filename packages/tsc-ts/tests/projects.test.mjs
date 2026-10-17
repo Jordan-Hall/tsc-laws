@@ -148,6 +148,20 @@ const projects = [
     },
   ],
   [
+    'erasable syntax',
+    {
+      'a.ts':
+        'export const n = <number>(1 as unknown);\nexport const t = <const>["a"];\n' +
+        'export const [d = <any>undefined] = [1];\n' +
+        'declare class C { constructor(public x: number); }\nexport enum E { A }\n' +
+        'namespace M { export const y = 1; }\nnamespace N { export = M; }\n',
+      'tsconfig.json': JSON.stringify({
+        compilerOptions: { ...base, module: 'ESNext', erasableSyntaxOnly: true },
+        files: ['a.ts'],
+      }),
+    },
+  ],
+  [
     'iterable walker built from a generic iterator factory',
     {
       'a.ts':
