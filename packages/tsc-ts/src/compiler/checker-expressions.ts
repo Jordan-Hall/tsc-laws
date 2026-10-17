@@ -1,5 +1,10 @@
 // Expression checking: types of expressions and the errors they produce.
-import { checkMetaProperty, markIdentifierAliasReferencedInExpression } from './checker-modules.js';
+import {
+  checkMetaProperty,
+  getIsolatedModulesLikeFlagName,
+  isValidTypeOnlyAliasUseSite,
+  markIdentifierAliasReferencedInExpression,
+} from './checker-modules.js';
 import { checkDeprecatedIdentifier } from './checker-deprecation.js';
 import { isWriteOnlyAccess } from './checker-unused.js';
 import {
@@ -123,6 +128,7 @@ import {
   getSymbolOfDeclaration,
   resolveEntityName,
   resolveName,
+  getFirstIdentifier,
   getCannotFindNameDiagnosticForName,
   getDeclarationOfAliasSymbol,
   TypeSystemPropertyName,
@@ -268,13 +274,16 @@ export function checkExpressionEx(c: Checker, node: Node, checkMode: CheckMode):
     checkExpressionWorker(c, node, checkMode),
     checkMode,
   );
-  if (isConstEnumObjectTypeLocal(t)) checkConstEnumAccess(c, node);
+  if (isConstEnumObjectTypeLocal(t)) checkConstEnumAccess(c, node, t);
   c.currentNode = saveCurrentNode;
   return t;
 }
 
-/** A const enum object can only be accessed, imported, exported or queried. */
-function checkConstEnumAccess(c: Checker, node: Node): void {
+/**
+ * A const enum object can only be accessed, imported, exported or queried. Under isolatedModules, an
+ * ambient one can't be used at all outside types.
+ */
+function checkConstEnumAccess(c: Checker, node: Node, t: Type): void {
   const parent = node.parent!;
   const ok =
     ((parent.kind === SyntaxKind.PropertyAccessExpression || parent.kind === SyntaxKind.ElementAccessExpression) &&
@@ -288,6 +297,18 @@ function checkConstEnumAccess(c: Checker, node: Node): void {
       node,
       Diagnostics.X_const_enums_can_only_be_used_in_property_or_index_access_expressions_or_the_right_hand_side_of_an_import_declaration_or_export_assignment_or_type_query,
     );
+  // Under verbatimModuleSyntax, only uses that don't resolve to an import are checked here; imports of
+  // ambient const enums are checked with the alias.
+  if (
+    c.compilerOptions.isolatedModules === true ||
+    (c.compilerOptions.verbatimModuleSyntax === true &&
+      ok &&
+      resolveName(c, node, getText(getFirstIdentifier(node)), SymbolFlags.Alias, undefined, false, true) === undefined)
+  ) {
+    const constEnumDeclaration = t.symbol!.valueDeclaration!;
+    if ((constEnumDeclaration.flags & NodeFlags.Ambient) !== 0 && !isValidTypeOnlyAliasUseSite(node))
+      c.error(node, Diagnostics.Cannot_access_ambient_const_enums_when_0_is_enabled, getIsolatedModulesLikeFlagName(c));
+  }
 }
 
 function isInRightSideOfImportOrExportAssignment(name: Node): boolean {

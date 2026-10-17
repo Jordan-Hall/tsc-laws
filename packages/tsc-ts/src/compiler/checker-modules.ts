@@ -1683,7 +1683,7 @@ export function checkTypeOnlyAliasUse(c: Checker, location: Node, result: Symbol
   addTypeOnlyDeclarationRelatedInfo(diagnostic, typeOnlyDeclaration, name);
 }
 
-function isValidTypeOnlyAliasUseSite(useSite: Node): boolean {
+export function isValidTypeOnlyAliasUseSite(useSite: Node): boolean {
   return (
     (useSite.flags & (NodeFlags.Ambient | NodeFlags.JSDoc)) !== 0 ||
     isPartOfTypeQuery(useSite) ||
@@ -1725,8 +1725,17 @@ function isShorthandPropertyNameUseSite(useSite: Node): boolean {
 
 // ---- Referenced aliases
 
+/**
+ * Whether aliases are marked as referenced, which decides the imports emit keeps. Under
+ * verbatimModuleSyntax, emit keeps every import that isn't type-only, so they aren't.
+ */
+function marksReferencedAliases(c: Checker): boolean {
+  return c.compilerOptions.verbatimModuleSyntax !== true;
+}
+
 /** Marks the aliases an identifier in an expression uses as referenced. */
 export function markIdentifierAliasReferencedInExpression(c: Checker, node: Node): void {
+  if (!marksReferencedAliases(c)) return;
   if ((node.flags & NodeFlags.Ambient) !== 0 || !shouldMarkIdentifierAliasReferenced(node)) return;
   markIdentifierAliasReferenced(c, node);
 }
@@ -1762,6 +1771,7 @@ export function markPropertyAliasReferenced(
   prop: Symbol | undefined,
   leftType: Type,
 ): void {
+  if (!marksReferencedAliases(c)) return;
   if ((location.flags & NodeFlags.Ambient) !== 0 || isPartOfImportEqualsModuleReference(location)) return;
   const left =
     location.kind === SyntaxKind.PropertyAccessExpression ? getExpression(location)! : (location as QualifiedName).left;
@@ -1803,6 +1813,7 @@ function markIdentifierAliasReferenced(c: Checker, location: Node): void {
 }
 
 function markAliasReferenced(c: Checker, symbol: Symbol, location: Node): void {
+  if (!marksReferencedAliases(c)) return;
   if (!isNonLocalAlias(symbol, SymbolFlags.Value) || isPartOfTypeQuery(location)) return;
   const target = resolveAlias(c, symbol);
   if ((getSymbolFlagsExcludingTypeOnly(c, symbol) & (SymbolFlags.Value | SymbolFlags.ExportValue)) === 0) return;
@@ -1834,6 +1845,7 @@ function markAliasSymbolAsReferenced(c: Checker, symbol: Symbol): void {
 }
 
 function markExportAsReferenced(c: Checker, node: Node): void {
+  if (!marksReferencedAliases(c)) return;
   const symbol = getSymbolOfDeclaration(c, node);
   if (symbol === undefined) return;
   const target = resolveAlias(c, symbol);
@@ -1851,6 +1863,7 @@ function markExportSpecifierAliasReferenced(
   symbol: Symbol | undefined,
   exportedName: Node,
 ): void {
+  if (!marksReferencedAliases(c)) return;
   if ((node.flags & NodeFlags.Ambient) !== 0 || getIsTypeOnly(node) || getIsTypeOnly(node.parent!.parent!)) return;
   let target = symbol;
   if (target !== undefined && (target.flags & SymbolFlags.Alias) !== 0) target = resolveAlias(c, target);
@@ -2833,7 +2846,7 @@ function isPartOfTypeOnlyImportOrExportDeclaration(node: Node): boolean {
   return false;
 }
 
-function getIsolatedModulesLikeFlagName(c: Checker): string {
+export function getIsolatedModulesLikeFlagName(c: Checker): string {
   return c.compilerOptions.verbatimModuleSyntax === true ? 'verbatimModuleSyntax' : 'isolatedModules';
 }
 
