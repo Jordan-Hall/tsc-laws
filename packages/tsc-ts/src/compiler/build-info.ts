@@ -176,7 +176,10 @@ export class BuildInfo {
   fileNames: string[] = [];
   fileInfos: BuildInfoFileInfo[] = [];
   fileIdsList: number[][] = [];
-  /** The ids of each `fileIdsList` entry joined with commas, when the writer of the build info kept them. */
+  /**
+   * The ids of each `fileIdsList` entry joined with commas, when the writer of the build info kept them,
+   * or the reader read them from text that has them so; empty otherwise.
+   */
   fileIdsListText: string[] = [];
   options: BuildInfoOption[] | undefined = undefined;
   referencedMap: BuildInfoReference[] = [];
@@ -451,9 +454,39 @@ function emitSignatureJson(s: BuildInfoEmitSignature): string {
   return `[${s.fileId},${signature}]`;
 }
 
+/**
+ * Writes `"key":value` pairs separated by commas, as parts joined once: for the build info, whose lists of
+ * file ids are most of its text.
+ */
+class PartsWriter {
+  private readonly parts: string[] = ['{'];
+  private first = true;
+
+  /** Starts the pair of `key`, whose value follows (`push`). */
+  key(key: string): void {
+    if (!this.first) this.parts.push(',');
+    this.first = false;
+    this.parts.push(quote(key), ':');
+  }
+
+  push(text: string): void {
+    this.parts.push(text);
+  }
+
+  add(key: string, value: string): void {
+    this.key(key);
+    this.parts.push(value);
+  }
+
+  done(): string {
+    this.parts.push('}');
+    return this.parts.join('');
+  }
+}
+
 /** The JSON text of a build info, with fields in tsgo's order and zero values left out. */
 export function buildInfoToJson(b: BuildInfo): string {
-  const w = new ObjectWriter();
+  const w = new PartsWriter();
   if (b.version !== '') w.add('version', quote(b.version));
   if (b.errors) w.add('errors', 'true');
   if (b.checkPending) w.add('checkPending', 'true');
@@ -464,10 +497,18 @@ export function buildInfoToJson(b: BuildInfo): string {
   if (b.fileInfos.length > 0) w.add('fileInfos', listJson(b.fileInfos, fileInfoJson));
   if (b.fileIdsList.length > 0) {
     const text = b.fileIdsListText;
-    w.add(
-      'fileIdsList',
-      text.length === b.fileIdsList.length ? listJson(text, (ids) => `[${ids}]`) : listJson(b.fileIdsList, numberArray),
-    );
+    const hasText = text.length === b.fileIdsList.length;
+    w.key('fileIdsList');
+    w.push('[');
+    for (let i = 0; i < b.fileIdsList.length; i++) {
+      if (i > 0) w.push(',');
+      if (hasText) {
+        w.push('[');
+        w.push(text[i]);
+        w.push(']');
+      } else w.push(numberArray(b.fileIdsList[i]));
+    }
+    w.push(']');
   }
   const options = b.options;
   if (options !== undefined) {
@@ -718,6 +759,7 @@ function readBuildInfoField(b: BuildInfo, key: string, v: JsonValue): void {
       break;
     case 'fileIdsList':
       b.fileIdsList = asArray(v).map(numbersOf);
+      b.fileIdsListText = [];
       break;
     case 'options': {
       const options: BuildInfoOption[] = [];
@@ -840,9 +882,11 @@ class BuildInfoTextReader {
   private readFast(b: BuildInfo, key: string): boolean {
     switch (key) {
       case 'fileIdsList': {
-        const lists = this.list(() => this.numbers());
+        const texts: string[] = [];
+        const lists = this.list(() => this.numbers(texts));
         if (lists === undefined) return false;
         b.fileIdsList = lists;
+        b.fileIdsListText = texts.length === lists.length ? texts : [];
         break;
       }
       case 'fileNames':
@@ -1065,18 +1109,22 @@ class BuildInfoTextReader {
 
   /**
    * `[n, ...]` of integers as the writer writes them (digits, at most 15, without a leading zero);
-   * `undefined` for anything else.
+   * `undefined` for anything else. With `texts`, adds the text between the brackets where it has no
+   * whitespace: the numbers joined with commas.
    */
-  private numbers(): number[] | undefined {
+  private numbers(texts?: string[]): number[] | undefined {
     const p = this.p;
     const text = p.text;
     const length = text.length;
     let pos = skipJsonWhitespace(text, p.pos);
     if (pos >= length || text.charCodeAt(pos) !== 0x5b) return undefined;
+    const open = pos;
     pos = skipJsonWhitespace(text, pos + 1);
+    let compact = pos === open + 1;
     const result: number[] = [];
     if (pos < length && text.charCodeAt(pos) === 0x5d) {
       p.pos = pos + 1;
+      if (texts !== undefined && compact) texts.push('');
       return result;
     }
     for (;;) {
@@ -1094,15 +1142,19 @@ class BuildInfoTextReader {
       if (c === 0x2e || c === 0x65 || c === 0x45) return undefined;
       result.push(value);
       if (c !== 0x2c && c !== 0x5d) {
+        compact = false;
         pos = skipJsonWhitespace(text, pos);
         c = pos < length ? text.charCodeAt(pos) : -1;
       }
       if (c === 0x5d) {
         p.pos = pos + 1;
+        if (texts !== undefined && compact) texts.push(text.slice(open + 1, pos));
         return result;
       }
       if (c !== 0x2c) return undefined;
-      pos = skipJsonWhitespace(text, pos + 1);
+      const next = pos + 1;
+      pos = skipJsonWhitespace(text, next);
+      if (pos !== next) compact = false;
     }
   }
 
