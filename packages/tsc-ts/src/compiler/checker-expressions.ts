@@ -1553,15 +1553,18 @@ function checkElementAccessExpression(c: Checker, node: ElementAccessExpression,
   const indexExpression = node.argumentExpression;
   const indexType = checkExpression(c, indexExpression);
   if (isErrorType(c, exprType) || exprType === c.silentNeverType) return exprType;
-  const isAssignment = getAssignmentTargetKind(node) !== AssignmentKind.None;
+  const assignmentKind = getAssignmentTargetKind(node);
+  const isAssignment = assignmentKind !== AssignmentKind.None;
   const objectType = isAssignment || isMethodAccessForCall(node) ? getWidenedType(c, exprType) : exprType;
   if (isConstEnumObjectTypeLocal(objectType) && !isStringLiteralLike(indexExpression)) {
     c.error(indexExpression, Diagnostics.A_const_enum_member_can_only_be_accessed_using_a_string_literal);
     return c.errorType;
   }
   const effectiveIndexType = isForInVariableForNumericPropertyNames(c, indexExpression) ? c.numberType : indexType;
+  // A compound assignment (`a[i] += 1`, `a[i]++`) also reads the element.
   const accessFlags = isAssignment
     ? AccessFlags.Writing |
+      (assignmentKind === AssignmentKind.Compound ? AccessFlags.ExpressionPosition : 0) |
       (isGenericObjectType(c, objectType) && !isThisTypeParameter(objectType) ? AccessFlags.NoIndexSignatures : 0)
     : AccessFlags.ExpressionPosition;
   const indexedAccessType =
