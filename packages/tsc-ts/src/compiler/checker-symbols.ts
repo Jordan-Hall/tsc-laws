@@ -26,7 +26,7 @@ import {
   getLocals,
 } from './ast.js';
 import { isAmbientModule, isGlobalScopeAugmentation, nodeIsMissing } from './ast-utilities.js';
-import { codePoints, levenshteinWithMax, utf8Length } from './spelling.js';
+import { CodePoints, distanceToCandidate, utf8Length } from './spelling.js';
 import { setValueDeclaration } from './binder.js';
 import { checkResolvedBlockScopedVariable, getEmitStandardClassFields } from './checker-declaration-order.js';
 import {
@@ -459,7 +459,8 @@ export function getSpellingSuggestionForName(
   symbols: readonly Symbol[],
   meaning: SymbolFlags,
 ): Symbol | undefined {
-  const nameCodePoints = codePoints(name);
+  const nameCodePoints = new CodePoints();
+  nameCodePoints.set(name);
   const maximumLengthDifference = Math.max(2, Math.floor(nameCodePoints.length * 0.34));
   let bestDistance = Math.floor(nameCodePoints.length * 0.4) + 0.9;
   let best: Symbol | undefined = undefined;
@@ -478,7 +479,7 @@ export function getSpellingSuggestionForName(
       continue;
     if (candidateName === name) continue;
     if (candidateLength < 3 && candidateName.toLowerCase() !== lowerName) continue;
-    const distance = levenshteinWithMax(nameCodePoints, codePoints(candidateName), bestDistance);
+    const distance = distanceToCandidate(nameCodePoints, candidateName, bestDistance);
     if (distance < 0) continue;
     if (distance < bestDistance) {
       bestDistance = distance;

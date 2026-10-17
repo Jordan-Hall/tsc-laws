@@ -137,7 +137,7 @@ import {
   getMembersOfSymbol,
   getSpellingSuggestionForName,
 } from './checker-symbols.js';
-import { codePoints, levenshteinWithMax, utf8Length } from './spelling.js';
+import { CodePoints, distanceToCandidate, utf8Length } from './spelling.js';
 import {
   getConstraintFromTypeParameter,
   getDeclaredTypeOfSymbol,
@@ -5106,7 +5106,8 @@ export function getExactOptionalUnassignableProperties(c: Checker, source: Type,
 /** The string literal member of `target` closest to the string literal `source`. */
 function getSuggestedTypeForNonexistentStringLiteralType(c: Checker, source: Type, target: Type): Type | undefined {
   const value = (source as LiteralType).stringValue;
-  const valueCodePoints = codePoints(value);
+  const valueCodePoints = new CodePoints();
+  valueCodePoints.set(value);
   const maximumLengthDifference = Math.max(2, Math.floor(valueCodePoints.length * 0.34));
   let bestDistance = Math.floor(valueCodePoints.length * 0.4) + 0.9;
   let best: Type | undefined = undefined;
@@ -5118,7 +5119,7 @@ function getSuggestedTypeForNonexistentStringLiteralType(c: Checker, source: Typ
     if (name === '' || Math.abs(nameLength - valueCodePoints.length) > maximumLengthDifference || name === value)
       continue;
     if (nameLength < 3 && name.toLowerCase() !== lowerValue) continue;
-    const distance = levenshteinWithMax(valueCodePoints, codePoints(name), bestDistance);
+    const distance = distanceToCandidate(valueCodePoints, name, bestDistance);
     if (distance < 0) continue;
     if (distance < bestDistance) {
       bestDistance = distance;
