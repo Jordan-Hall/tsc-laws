@@ -260,6 +260,11 @@ export class CheckedProgram {
    * emit. Set once every file is checked, when checker threads emit (parallel-check.ts).
    */
   emittedInParallel: (EmitResult | undefined)[] | undefined = undefined;
+  /**
+   * The global diagnostics of this thread's checker before it emitted files while checker threads
+   * checked (`emitUncheckedFiles`), reported instead of its current ones.
+   */
+  ownGlobalDiagnostics: Diagnostic[] | undefined = undefined;
 
   getSemanticDiagnostics(file: SourceFile | undefined): Diagnostic[] {
     const parallel = this.checkedInParallel;
@@ -348,8 +353,9 @@ export class CheckedProgram {
     if (this.program.getSourceFiles().length === 0) return [];
     const libraryChecker = this.libraryChecker;
     const parallel = withCheckerThreads ? this.parallelGlobalDiagnostics : [];
-    if (libraryChecker === undefined && parallel.length === 0) return this.checker.getGlobalDiagnostics();
-    const result = [...this.checker.getGlobalDiagnostics(), ...parallel];
+    const own = this.ownGlobalDiagnostics ?? this.checker.getGlobalDiagnostics();
+    if (libraryChecker === undefined && parallel.length === 0) return own;
+    const result = [...own, ...parallel];
     if (libraryChecker !== undefined) for (const d of libraryChecker.getGlobalDiagnostics()) result.push(d);
     return sortAndDeduplicateDiagnostics(result);
   }

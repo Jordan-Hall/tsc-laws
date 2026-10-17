@@ -29,9 +29,13 @@ const files = {
     'export class Model { @d name!: Name; @d run(@d at: Date): Promise<void> { return Promise.resolve(); } }\n',
   'src/data.json': '{ "name": "data", "values": [1, 2, 3] }\n',
   'src/plain.js': 'export function plain(a) { return a + 1; }\n',
+  // Not checked, but its declarations take the checker's inferred types.
+  'src/generated.ts':
+    '// @ts-nocheck\nimport { shapes } from "./shapes";\n' +
+    'export const pick = (n: number) => (n > 0 ? shapes[0] : { kind: "none", size: 0, missing: undefined });\n',
   'src/index.ts':
     'import data from "./data.json";\nimport { plain } from "./plain.js";\nimport { total } from "./area";\n' +
-    'export * from "./hidden";\nexport * from "./decorated";\n' +
+    'export * from "./hidden";\nexport * from "./decorated";\nexport * from "./generated";\n' +
     'export const summary = { name: data.name, total, next: plain(total) };\n',
   'tsconfig.json': JSON.stringify({
     compilerOptions: {
@@ -91,7 +95,7 @@ test('emit on checker threads matches emit on one checker', { skip: tscTsMissing
   const expected = run(cwd, ['--singleThreaded']);
   assert.ok(expected.stdout.includes('TS4094'), 'a declaration error is reported');
   assert.ok(expected.stdout.includes('TS2322'), 'a type error is reported');
-  assert.equal(Object.keys(expected.outputs).length, 27);
+  assert.equal(Object.keys(expected.outputs).length, 31);
   for (const checkers of ['3']) {
     const actual = run(cwd, ['--checkers', checkers]);
     assert.equal(actual.stdout, expected.stdout, `stdout with --checkers ${checkers}`);
