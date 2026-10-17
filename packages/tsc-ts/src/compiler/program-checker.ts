@@ -250,6 +250,12 @@ export class CheckedProgram {
    */
   declarationsInParallel: (Diagnostic[] | undefined)[] | undefined = undefined;
   /**
+   * The files each file checker threads checked depends on through its imports, references, type
+   * references and augmentations (`getDirectReferencedFiles`, incremental.ts), by file index; `undefined`
+   * for files they did not check. Set once every file is checked, for an incremental program.
+   */
+  referencesInParallel: (readonly string[] | undefined)[] | undefined = undefined;
+  /**
    * What checker threads emitted (PlainProgram), by file index; `undefined` for files they did not
    * emit. Set once every file is checked, when checker threads emit (parallel-check.ts).
    */
@@ -306,6 +312,12 @@ export class CheckedProgram {
   /** The declaration diagnostics checker threads computed for `file` (`declarationsInParallel`), if any. */
   declarationDiagnosticsInParallel(file: SourceFile): Diagnostic[] | undefined {
     const parallel = this.declarationsInParallel;
+    return parallel === undefined ? undefined : parallel[this.indexOfFile(file)];
+  }
+
+  /** The references checker threads found for `file` (`referencesInParallel`), if any. */
+  referencesInParallelOf(file: SourceFile): readonly string[] | undefined {
+    const parallel = this.referencesInParallel;
     return parallel === undefined ? undefined : parallel[this.indexOfFile(file)];
   }
 

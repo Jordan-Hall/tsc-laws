@@ -35,6 +35,7 @@ import {
   isBuildInfoFileNameDefaultLibrary,
   parseBuildInfo,
 } from './build-info.js';
+import type { Checker } from './checker.js';
 import {
   type DiagnosticDetails,
   modeMismatchDetails,
@@ -763,7 +764,8 @@ function addReferencedFileFromFileName(
 }
 
 /**
- * The files `file` depends on: imports, references, type references, augmentations, and the files that
+ * The files `file` depends on: imports, references, type references and augmentations
+ * (`getDirectReferencedFiles`, which checker threads find for the files they check), then the files that
  * declare ambient modules (`getAmbientModuleFiles`).
  */
 function getReferencedFiles(
@@ -771,8 +773,19 @@ function getReferencedFiles(
   file: SourceFile,
   ambientModuleFiles: readonly string[],
 ): Set<string> | undefined {
-  const program = checked.program;
-  const checker = checked.checker;
+  const onCheckers = checked.referencesInParallelOf(file);
+  const referenced =
+    onCheckers !== undefined ? new Set(onCheckers) : getDirectReferencedFiles(checked.checker, checked.program, file);
+  for (const path of ambientModuleFiles) if (path !== file.path) referenced.add(path);
+  return referenced.size > 0 ? referenced : undefined;
+}
+
+/**
+ * The files `file` depends on through its imports, references, type references and augmentations, in that
+ * order. The checker that resolves the imports may be any of the program's checkers: like tsgo, which
+ * takes the checker of each file, checker threads find these for the files they check (parallel-check.ts).
+ */
+export function getDirectReferencedFiles(checker: Checker, program: Program, file: SourceFile): Set<string> {
   const referenced = new Set<string>();
   // Every import is resolved. tsgo takes the symbol at each import name, which is undefined for a JavaScript `require`
   // call that does not initialize a variable (`exports.a = require("./a").a`), so its build info leaves out that
@@ -793,8 +806,7 @@ function getReferencedFiles(
     if (moduleName.kind !== SyntaxKind.StringLiteral) continue;
     addReferencedFilesFromSymbol(file, referenced, getSymbolAtLocation(checker, moduleName));
   }
-  for (const path of ambientModuleFiles) if (path !== file.path) referenced.add(path);
-  return referenced.size > 0 ? referenced : undefined;
+  return referenced;
 }
 
 /**
