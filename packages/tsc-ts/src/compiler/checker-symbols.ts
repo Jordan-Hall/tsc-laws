@@ -1719,6 +1719,13 @@ export function resolveEntityName(
     if (meaning === SymbolFlags.Namespace) {
       const found = resolveName(c, resolveLocation, text, meaning, undefined, true, false);
       symbol = found !== undefined ? getMergedSymbol(c, found) : undefined;
+      if (symbol === undefined) {
+        // Typedefs exported from CommonJS are stored on the module symbol, the parent of its `export=`. The
+        // lookup also marks an alias of the name as referenced.
+        const alias = resolveName(c, resolveLocation, text, SymbolFlags.Alias, undefined, true, false);
+        if (alias !== undefined && getMergedSymbol(c, alias).name === InternalSymbolName.ExportEquals)
+          symbol = getMergedSymbol(c, alias).parent;
+      }
       if (symbol === undefined && message !== undefined)
         resolveName(c, resolveLocation, text, meaning, message, true, false);
     } else {
