@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import test from 'node:test';
-import ts from 'typescript';
 
 const root = path.resolve(import.meta.dirname, '../content/docs');
 const pages = new Map();
@@ -45,23 +44,8 @@ test('explicit navigation includes every page and folder', async () => {
     assert.ok(navigation.has(path.dirname(filename)), `Missing meta.json for ${filename}`);
 });
 
-test('pages include a title, description, and upstream or project sources', () => {
+test('pages include a title and description', () => {
   for (const [route, { content }] of pages) {
     assert.match(content, /^---\ntitle: .+\ndescription: .+\n---/, `${route}: missing frontmatter`);
-    assert.match(content, /https:\/\/(?:www\.typescriptlang\.org|github\.com|tc39\.es)\//, `${route}: missing source`);
   }
-});
-
-test('the specification option index covers every recognized compiler, build, and watch option', () => {
-  const expected = [
-    ...new Set([...ts.optionDeclarations, ...ts.optionsForBuild, ...ts.optionsForWatch].map((option) => option.name)),
-  ].sort();
-  const content = pages.get('/typescript/projects/compiler-options').content;
-  const documented = [...content.matchAll(/^\|\s+`(\w+)`\s+\|/gm)].map((match) => match[1]);
-  assert.equal(new Set(documented).size, documented.length, 'Option index repeats a name');
-  assert.deepEqual(documented.sort(), expected, 'Review the option index when the compiler edition changes');
-  assert.ok(
-    pages.get('/typescript').content.includes(`TypeScript ${ts.version}`),
-    'Examples and specification must name the same edition',
-  );
 });

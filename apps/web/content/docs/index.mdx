@@ -1,38 +1,24 @@
 ---
 title: tsc-ts
-description: A native TypeScript compiler with documentation for checking projects, emitting files, and using the compiler API.
+description: A TypeScript compiler written in TypeScript and distributed as a native executable.
 ---
 
-tsc-ts is a TypeScript compiler written in TypeScript and compiled to a native executable with [scriptc](https://scriptc.dev). It reads `tsconfig.json`, checks your program, and emits JavaScript and declaration files according to your compiler options.
+tsc-ts is a TypeScript compiler written in TypeScript and distributed as a native executable.
 
-## Get started
+## Quick start
 
-Install tsc-ts as a development dependency and check an existing project:
+Install tsc-ts in your project and check it without writing output:
 
 ```sh
 npm install -D tsc-ts
 npx tsc-ts -p tsconfig.json --noEmit
 ```
 
-Run the command from your project directory. `--noEmit` checks types without writing files. Remove it to emit the outputs enabled by your configuration.
+## Guides
 
-The npm package installs a native executable for your operating system and architecture. See [getting started](/compiler/getting-started) for supported platforms and how to add tsc-ts to your package scripts.
+- [Getting started](/compiler/getting-started)
+- [Command line](/compiler/command-line)
+- [Compiler API](/compiler/api)
+- [Compatibility](/compiler/compatibility)
 
-## Compiler documentation
-
-| Guide                                        | What it covers                                                |
-| -------------------------------------------- | ------------------------------------------------------------- |
-| [Getting started](/compiler/getting-started) | Installation, native packages, and checking a project.        |
-| [Command line](/compiler/command-line)       | Project selection, compiler options, watch mode, and builds.  |
-| [API server](/compiler/api)                  | Using the TypeScript 7 compiler API over stdin and stdout.    |
-| [Compatibility](/compiler/compatibility)     | The upstream target, comparison tests, and known limitations. |
-
-## Compiler behavior
-
-tsc-ts is a port of the TypeScript-Go 7.0.2 compiler. Its tests compare diagnostics, emitted files, module resolution, and API responses with a pinned upstream revision. Read [compatibility](/compiler/compatibility) for the tested surfaces and how to investigate a difference.
-
-Source code, build instructions, and test results are in the [repository](https://github.com/vercel-labs/tsc-ts#readme).
-
-## TypeScript reference
-
-The [unofficial TypeScript reference](/typescript) explains language rules, types, inference, declarations, and project configuration with examples and links to upstream sources. Start with its [conventions and version scope](/typescript), or see [sources and verification](/typescript/sources) for how to check a claim.
+Source code and release information are in the [GitHub repository](https://github.com/vercel-labs/tsc-ts).

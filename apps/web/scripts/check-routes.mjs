@@ -93,13 +93,13 @@ try {
     checked += 1;
   }
 
-  const search = await fetch(`${origin}/api/search?query=variance`, { headers });
+  const search = await fetch(`${origin}/api/search?query=known%20differences`, { headers });
   assert.equal(search.status, 200);
-  assert.ok((await search.json()).some((result) => result.id === '/typescript/type-system/variance'));
+  assert.ok((await search.json()).some((result) => result.id === '/compiler/compatibility'));
   const all = await fetch(`${origin}/llms.txt`, { headers });
   assert.equal(all.status, 200);
   const full = await all.text();
-  assert.ok(full.includes('Conditional types') && full.includes('Getting started'));
+  assert.ok(full.includes('Compatibility') && full.includes('Getting started'));
 
   for (const route of ['/missing-page', '/missing-page.md']) {
     const response = await fetch(`${origin}${route}`, { headers });

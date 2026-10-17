@@ -17,10 +17,7 @@ export const config = defineConfig({
   navbarBrand: 'labs',
   github: { owner: 'vercel-labs', repo: 'tsc-ts', branch: 'main', editPath: 'apps/web/content/docs' },
   content: [{ id: 'docs', label: 'Documentation', dir: 'content/docs', route: '/' }],
-  nav: [
-    { label: 'TypeScript', href: '/typescript' },
-    { label: 'Compiler', href: '/compiler' },
-  ],
+  nav: [{ label: 'Compiler', href: '/compiler' }],
   ai: { enabled: false },
   feedback: { enabled: false },
   language: { enabled: false },

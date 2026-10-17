@@ -26,8 +26,6 @@ The [repository status table](https://github.com/vercel-labs/tsc-ts#compiler) re
 
 A match means the compared outputs agree for the tested inputs, options, and upstream revision. It does not prove equivalence for every TypeScript program, every platform, or every sequence of edits. An upstream bug can also be reproduced by both compilers.
 
-The generated checker and the standalone `relater` package are separate tools. Their benchmarks and limitations do not describe whole-compiler performance. In particular, synthetic assignability timings do not establish a speedup for compiling a project.
-
 ## Known differences
 
 These results differ from TypeScript-Go 7.0.2 by design:

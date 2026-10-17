@@ -12,8 +12,8 @@ import './globals.css';
 
 export const metadata: Metadata = {
   metadataBase: siteUrl ? new URL(siteUrl) : undefined,
-  title: { default: 'tsc-ts — TypeScript reference and compiler documentation', template: '%s | tsc-ts' },
-  description: 'An unofficial reference to the TypeScript language, with documentation for the tsc-ts compiler.',
+  title: { default: 'tsc-ts — native TypeScript compiler', template: '%s | tsc-ts' },
+  description: 'Install and use tsc-ts with guides to its command line, API, and compatibility.',
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

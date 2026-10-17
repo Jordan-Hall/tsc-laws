@@ -34,7 +34,7 @@ You cannot combine `--project` with source filenames.
 | `tsc-ts --build tsconfig.json`              | Build a project reference graph.     |
 | `tsc-ts --build --clean tsconfig.json`      | Remove outputs for the build graph.  |
 
-Read [project references](/typescript/projects/project-references) before using `--build`. Build mode and ordinary project mode have different orchestration behavior.
+Build mode follows a project reference graph; an ordinary invocation handles a project configuration.
 
 ## Output and diagnostics
 
@@ -46,4 +46,4 @@ Exit status distinguishes a successful invocation from a failed one. A failed in
 
 `TSC_TS_LIB_DIR` overrides the directory containing `lib.*.d.ts`. Changing those declarations can change diagnostics and inferred types. It does not change the JavaScript runtime.
 
-See the upstream [CLI reference](https://www.typescriptlang.org/docs/handbook/compiler-options.html) and [TSConfig reference](https://www.typescriptlang.org/tsconfig/) for compiler options. See [compatibility](/compiler/compatibility) for the command-line comparison coverage.
+See [compatibility](/compiler/compatibility) for the command-line behavior covered by comparisons.
