@@ -595,6 +595,11 @@ export class Checker {
   readonly sharedFlowIncomplete: boolean[] = [];
   sharedFlowCount = 0;
   /**
+   * For each walk in progress, by its depth (`flowStateDepth`), once it has cached
+   * `sharedFlowIndexThreshold` shared nodes: the index of each node's first entry in the cache above.
+   */
+  readonly sharedFlowIndexes: Map<FlowNode, number>[] = [];
+  /**
    * Flow states, reused as in tsgo's getFlowState/putFlowState: the first `flowStateDepth` belong
    * to walks in progress, the rest are free.
    */

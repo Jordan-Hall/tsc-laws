@@ -195,6 +195,25 @@ import {
   getTypeForBindingElementParent,
 } from './checker-destructuring.js';
 
+/**
+ * The number of shared nodes a walk caches before it indexes them. A walk through many consecutive
+ * conditions on one reference caches a node for each, and searching them all for each node made
+ * such walks cubic in the number of conditions. A walk's own entries stay in the cache until it
+ * ends, so a walk with at least this many is indexed.
+ */
+const sharedFlowIndexThreshold = 128;
+
+/** Indexes the entries of walk `f` in the shared flow cache by their first occurrence. */
+function indexSharedFlows(c: Checker, f: FlowState, walkDepth: number): void {
+  while (c.sharedFlowIndexes.length <= walkDepth) c.sharedFlowIndexes.push(new Map<FlowNode, number>());
+  const index = c.sharedFlowIndexes[walkDepth]!;
+  index.clear();
+  for (let i = f.sharedFlowStart; i < c.sharedFlowCount; i++) {
+    const node = c.sharedFlowNodes[i]!;
+    if (!index.has(node)) index.set(node, i);
+  }
+}
+
 /** The state of one `getFlowTypeOfReference` walk. `incomplete` describes the last returned type. */
 export class FlowState {
   reference: Node;
@@ -441,13 +460,21 @@ export function getTypeAtFlowNode(c: Checker, f: FlowState, start: FlowNode): Ty
     const flags = flow.flags;
     if ((flags & FlowFlags.Shared) !== 0) {
       // Shared nodes are cached for the duration of one walk.
-      for (let i = f.sharedFlowStart; i < c.sharedFlowCount; i++) {
-        if (c.sharedFlowNodes[i]! === flow) {
+      if (c.sharedFlowCount - f.sharedFlowStart >= sharedFlowIndexThreshold) {
+        const i = c.sharedFlowIndexes[c.flowStateDepth - 1]!.get(flow);
+        if (i !== undefined) {
           f.depth--;
           f.incomplete = c.sharedFlowIncomplete[i]!;
           return c.sharedFlowTypes[i]!;
         }
-      }
+      } else
+        for (let i = f.sharedFlowStart; i < c.sharedFlowCount; i++) {
+          if (c.sharedFlowNodes[i]! === flow) {
+            f.depth--;
+            f.incomplete = c.sharedFlowIncomplete[i]!;
+            return c.sharedFlowTypes[i]!;
+          }
+        }
       sharedFlow = flow;
     }
     let t: Type;
@@ -535,6 +562,11 @@ export function getTypeAtFlowNode(c: Checker, f: FlowState, start: FlowNode): Ty
         c.sharedFlowIncomplete.push(f.incomplete);
       }
       c.sharedFlowCount = count + 1;
+      const own = count + 1 - f.sharedFlowStart;
+      if (own > sharedFlowIndexThreshold) {
+        const index = c.sharedFlowIndexes[c.flowStateDepth - 1]!;
+        if (!index.has(sharedFlow)) index.set(sharedFlow, count);
+      } else if (own === sharedFlowIndexThreshold) indexSharedFlows(c, f, c.flowStateDepth - 1);
     }
     f.depth--;
     return t;
