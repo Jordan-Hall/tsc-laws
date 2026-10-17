@@ -171,12 +171,11 @@ export function resolveExternalModuleName(
   moduleReference: Node | undefined,
   ignoreErrors: boolean,
 ): Symbol | undefined {
-  const message = getCannotResolveModuleNameError(c, moduleReference);
   return resolveExternalModuleNameWorker(
     c,
     location,
     moduleReference,
-    ignoreErrors ? undefined : message,
+    ignoreErrors ? undefined : getCannotResolveModuleNameError(c, moduleReference),
     ignoreErrors,
     false,
   );
