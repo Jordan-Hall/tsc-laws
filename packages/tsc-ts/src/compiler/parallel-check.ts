@@ -37,7 +37,7 @@ import {
 import { Diagnostic, DiagnosticFile, RepopulateInfo } from './diagnostics.js';
 import { EmitOnly, EmitResult } from './emitter.js';
 import { getEmitDeclarations, isIncremental } from './options.js';
-import { DeclarationSignatureWriter, getDirectReferencedFiles } from './incremental.js';
+import { DeclarationSignatureWriter } from './incremental.js';
 import { useLazyJSDocTable } from './parser.js';
 import type { CheckedProgram } from './program-checker.js';
 import type { Program } from './program.js';
@@ -113,11 +113,6 @@ export class CheckerResult {
     /** The positions of a group the thread took and had not checked when it stopped at its file limit. */
     readonly reserved: number[] = [],
     readonly emits: EmitResult[] = [],
-    /**
-     * Of an incremental program, the files each of `files` depends on through its imports, references,
-     * type references and augmentations (`getDirectReferencedFiles`); empty otherwise.
-     */
-    readonly references: string[][] = [],
   ) {}
 }
 
@@ -138,8 +133,8 @@ export const recycleFiles: number = Math.max(0, Number(process.env.TSC_TS_RECYCL
 
 /**
  * A `CheckerResult` as plain data. `nums` holds, in order, the diagnostic lists of `files`, the
- * declaration diagnostic lists, the global diagnostics, the emit results and the reference lists, each
- * list as a count followed by that many items (a reference list as indices into `strs`). A diagnostic is file name (an index into `strs`, -1 for none), file
+ * declaration diagnostic lists, the global diagnostics and the emit results, each list as a count
+ * followed by that many items. A diagnostic is file name (an index into `strs`, -1 for none), file
  * text (index, -1 when the program has the file), pos, end, code, category, message,
  * skippedOnNoEmit, the argument count and indices, its repopulate kind (0 for none) followed by the
  * module reference (index), mode and package name (index) of other kinds, then its message chain and
@@ -181,7 +176,7 @@ class ResultPacker {
     for (const d of diagnostics) this.diagnostic(d);
   }
 
-  strList(texts: readonly string[]): void {
+  private strList(texts: readonly string[]): void {
     this.nums.push(texts.length);
     for (const text of texts) this.nums.push(this.str(text));
   }
@@ -230,8 +225,6 @@ export function packResult(result: CheckerResult, program: Program): PackedResul
   packer.list(result.globals);
   packer.nums.push(result.emits.length);
   for (const emit of result.emits) packer.emit(emit);
-  packer.nums.push(result.references.length);
-  for (const references of result.references) packer.strList(references);
   return {
     index: result.index,
     files: Int32Array.from(result.files),
@@ -309,7 +302,7 @@ class ResultUnpacker {
     return result;
   }
 
-  strList(into: string[]): void {
+  private strList(into: string[]): void {
     const n = this.next();
     for (let k = 0; k < n; k++) into.push(this.packed.strs[this.next()]!);
   }
@@ -342,13 +335,6 @@ export function unpackResult(
   const emits: EmitResult[] = [];
   const ne = unpacker.count();
   for (let k = 0; k < ne; k++) emits.push(unpacker.emit());
-  const references: string[][] = [];
-  const nr = unpacker.count();
-  for (let k = 0; k < nr; k++) {
-    const list: string[] = [];
-    unpacker.strList(list);
-    references.push(list);
-  }
   return new CheckerResult(
     packed.index,
     Array.from(packed.files),
@@ -360,7 +346,6 @@ export function unpackResult(
     packed.more,
     packed.reserved,
     emits,
-    references,
   );
 }
 
@@ -1541,11 +1526,6 @@ export function checkFromQueue(
   mark(`checked ${done.length} files`);
   // The main thread reports its own global diagnostics (CheckedProgram.getGlobalDiagnostics).
   const globals = onMainThread ? [] : checked.getGlobalDiagnostics().slice();
-  // The references an incremental program records of the files this checker checked, found after checking
-  // them all, where the program is checked in full before its incremental state is made (no `emitKinds`).
-  const references: string[][] = [];
-  if (emitKinds === undefined && isIncremental(checked.program.options))
-    for (const i of done) references.push([...getDirectReferencedFiles(checked.checker, checked.program, files[i]!)]);
   let stats: number[] = [];
   if (process.env.TSC_TS_CHECKERS_TRACE !== undefined) {
     const cpu = process.threadCpuUsage();
@@ -1582,7 +1562,6 @@ export function checkFromQueue(
     more,
     left,
     emits,
-    references,
   );
 }
 
@@ -1758,12 +1737,10 @@ export function startParallelCheck(
   const perFile: (Diagnostic[] | undefined)[] = [];
   const perFileDeclarations: (Diagnostic[] | undefined)[] = [];
   const perFileEmits: (EmitResult | undefined)[] = [];
-  const perFileReferences: (readonly string[] | undefined)[] = [];
   for (let i = 0; i < files.length; i++) {
     perFile.push(undefined);
     perFileDeclarations.push(undefined);
     perFileEmits.push(undefined);
-    perFileReferences.push(undefined);
   }
   const revival = shared ? undefined : new Revival(program);
   const mainChecks = mainThreadChecks(shared);
@@ -1783,7 +1760,6 @@ export function startParallelCheck(
     if (checkersReportDeclarations(checked)) checked.declarationsInParallel = perFileDeclarations;
     for (const [i, result] of emittedHere) perFileEmits[i] = result;
     if (checkersEmit(checked, emits)) checked.emittedInParallel = perFileEmits;
-    if (emitKinds === undefined && isIncremental(program.options)) checked.referencesInParallel = perFileReferences;
     done(performance.now() - start);
   };
   const record = (result: CheckerResult): void => {
@@ -1791,7 +1767,6 @@ export function startParallelCheck(
     for (let k = 0; k < result.declarations.length; k++)
       perFileDeclarations[result.files[k]!] = result.declarations[k]!;
     for (let k = 0; k < result.emits.length; k++) perFileEmits[result.files[k]!] = result.emits[k]!;
-    for (let k = 0; k < result.references.length; k++) perFileReferences[result.files[k]!] = result.references[k]!;
     for (const d of result.globals) checked.parallelGlobalDiagnostics.push(d);
     if (trace) {
       const st = result.stats;
@@ -1913,7 +1888,6 @@ class Revival {
       copy.more,
       copy.reserved,
       copy.emits.map((emit) => this.emit(emit)),
-      copy.references.map((references) => references.slice()),
     );
   }
 
