@@ -2,19 +2,28 @@
 import { resolvedReturnTypeOf } from './side-state.js';
 import { checkDeprecatedSignature } from './checker-deprecation.js';
 import {
+  type ConditionalTypeNode,
   type Decorator,
+  type IntersectionTypeNode,
+  type LiteralTypeNode,
   type Node,
+  type TypeReferenceNode,
+  type UnionTypeNode,
   FunctionTypeNode,
   KeywordTypeNode,
+  NodeFlags,
   NodeList,
   getBody,
+  getDotDotDotToken,
   getModifiers,
   getName,
   getParameters,
   getText,
+  getType,
 } from './ast.js';
 import { canHaveDecorators } from './ast-utilities.js';
 import {
+  getDeclarationOfKind,
   getSourceFileOfNode,
   getSourceTextOfNode,
   hasStaticModifier,
@@ -25,13 +34,22 @@ import {
 import { type DiagnosticMessage, Diagnostics } from './diagnostics.js';
 import { type Symbol, SymbolFlags, getSymbolId } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
-import type { Checker } from './checker.js';
+import { type Checker, createDiagnosticForNode } from './checker.js';
+import { ModuleKind, getEmitModuleKind } from './options.js';
+import { getFirstConstructorWithBody, getRestParameterElementType } from './transformers/decorator-utilities.js';
+import { isTypeOnlyImportOrExportDeclaration } from './checker-modules.js';
 import { ModifierFlags } from './ast.js';
 import { CheckMode, type Signature, SignatureFlags, type Type, TypeFlags } from './checker-types.js';
 import { getDeclaredTypeOfClassOrInterface, getDeclaredTypeOfSymbol } from './checker-declared-types.js';
 import { checkComputedPropertyName } from './checker-expressions.js';
-import { getSymbolOfDeclaration } from './checker-symbols.js';
-import { getTypeOfSymbol } from './checker-symbol-types.js';
+import {
+  getFirstIdentifier,
+  getSymbolOfDeclaration,
+  isAliasSymbolDeclaration,
+  resolveName,
+  symbolIsValue,
+} from './checker-symbols.js';
+import { getAnnotatedAccessorTypeNode, getTypeOfSymbol } from './checker-symbol-types.js';
 import {
   createAnonymousType,
   createTypeFromGenericGlobalType,
@@ -69,8 +87,124 @@ export function checkDecorators(c: Checker, node: Node): void {
   // Decorators on invalid targets were reported by the grammar checks.
   if (!canHaveDecorators(node) || !hasDecorators(node)) return;
   if (!nodeCanBeDecorated(c.legacyDecorators, node, node.parent, node.parent!.parent)) return;
+  checkDecoratorMetadataImports(c, node);
   for (const modifier of getModifiers(node)!.nodes)
     if (modifier.kind === SyntaxKind.Decorator) checkDecorator(c, modifier as Decorator);
+}
+
+/**
+ * Under emitDecoratorMetadata, the emitted metadata of a decorated declaration references the types of its
+ * signature at run time. With isolatedModules and an ES module emit, a type imported without `import type`
+ * can't be told apart from a value import in one file, so it is an error (TS1272).
+ */
+function checkDecoratorMetadataImports(c: Checker, node: Node): void {
+  const options = c.compilerOptions;
+  if (options.emitDecoratorMetadata !== true || options.verbatimModuleSyntax === true) return;
+  if (!c.isolatedModules || getEmitModuleKind(options) < ModuleKind.ES2015) return;
+  if ((node.flags & NodeFlags.Ambient) !== 0 && node.kind !== SyntaxKind.PropertyDeclaration) return;
+  switch (node.kind) {
+    case SyntaxKind.ClassDeclaration: {
+      const constructor = getFirstConstructorWithBody(node);
+      if (constructor !== undefined)
+        for (const p of getParameters(constructor)!.nodes) checkMetadataTypeImport(c, parameterTypeNode(p));
+      break;
+    }
+    case SyntaxKind.GetAccessor:
+    case SyntaxKind.SetAccessor: {
+      const otherKind = node.kind === SyntaxKind.GetAccessor ? SyntaxKind.SetAccessor : SyntaxKind.GetAccessor;
+      const otherAccessor = getDeclarationOfKind(getSymbolOfDeclaration(c, node)!, otherKind);
+      checkMetadataTypeImport(c, getAnnotatedAccessorTypeNode(node) ?? getAnnotatedAccessorTypeNode(otherAccessor));
+      break;
+    }
+    case SyntaxKind.MethodDeclaration:
+      for (const p of getParameters(node)!.nodes) checkMetadataTypeImport(c, parameterTypeNode(p));
+      checkMetadataTypeImport(c, getType(node));
+      break;
+    case SyntaxKind.PropertyDeclaration:
+      checkMetadataTypeImport(c, getType(node));
+      break;
+    case SyntaxKind.Parameter: {
+      checkMetadataTypeImport(c, parameterTypeNode(node));
+      const signature = node.parent!;
+      for (const p of getParameters(signature)!.nodes) checkMetadataTypeImport(c, parameterTypeNode(p));
+      checkMetadataTypeImport(c, getType(signature));
+      break;
+    }
+  }
+}
+
+/** The type a parameter's metadata serializes: the element type of a rest parameter. */
+function parameterTypeNode(node: Node): Node | undefined {
+  const typeNode = getType(node);
+  return getDotDotDotToken(node) !== undefined ? getRestParameterElementType(typeNode) : typeNode;
+}
+
+function checkMetadataTypeImport(c: Checker, typeNode: Node | undefined): void {
+  const typeName = entityNameForDecoratorMetadata(c, typeNode);
+  if (typeName === undefined || (typeName.kind !== SyntaxKind.Identifier && typeName.kind !== SyntaxKind.QualifiedName))
+    return;
+  const rootName = getFirstIdentifier(typeName);
+  const meaning =
+    (typeName.kind === SyntaxKind.Identifier ? SymbolFlags.Type : SymbolFlags.Namespace) | SymbolFlags.Alias;
+  const rootSymbol = resolveName(c, rootName, getText(rootName), meaning, undefined, true, false);
+  if (rootSymbol === undefined || (rootSymbol.flags & SymbolFlags.Alias) === 0 || symbolIsValue(c, rootSymbol)) return;
+  if (rootSymbol.declarations.some(isTypeOnlyImportOrExportDeclaration)) return;
+  const diagnostic = c.error(
+    typeName,
+    Diagnostics.A_type_referenced_in_a_decorated_signature_must_be_imported_with_import_type_or_a_namespace_import_when_isolatedModules_and_emitDecoratorMetadata_are_enabled,
+  );
+  const aliasDeclaration = rootSymbol.declarations.find(isAliasSymbolDeclaration);
+  if (aliasDeclaration !== undefined)
+    diagnostic.addRelatedInfo(
+      createDiagnosticForNode(aliasDeclaration, Diagnostics.X_0_was_imported_here, [getText(rootName)]),
+    );
+}
+
+/** The entity name the metadata of a type node references, as the metadata serializer chooses it. */
+function entityNameForDecoratorMetadata(c: Checker, node: Node | undefined): Node | undefined {
+  if (node === undefined) return undefined;
+  switch (node.kind) {
+    case SyntaxKind.IntersectionType:
+      return entityNameForDecoratorMetadataFromTypes(c, (node as IntersectionTypeNode).types.nodes);
+    case SyntaxKind.UnionType:
+      return entityNameForDecoratorMetadataFromTypes(c, (node as UnionTypeNode).types.nodes);
+    case SyntaxKind.ConditionalType:
+      return entityNameForDecoratorMetadataFromTypes(c, [
+        (node as ConditionalTypeNode).trueType,
+        (node as ConditionalTypeNode).falseType,
+      ]);
+    case SyntaxKind.ParenthesizedType:
+    case SyntaxKind.NamedTupleMember:
+      return entityNameForDecoratorMetadata(c, getType(node));
+    case SyntaxKind.TypeReference:
+      return (node as TypeReferenceNode).typeName;
+  }
+  return undefined;
+}
+
+/** The one identifier all of `types` reference, skipping `never` (and `null` and `undefined` without strictNullChecks). */
+function entityNameForDecoratorMetadataFromTypes(c: Checker, types: readonly Node[]): Node | undefined {
+  let common: Node | undefined;
+  for (const typeNode of types) {
+    if (typeNode.kind === SyntaxKind.NeverKeyword) continue;
+    if (
+      !c.strictNullChecks &&
+      ((typeNode.kind === SyntaxKind.LiteralType &&
+        (typeNode as LiteralTypeNode).literal.kind === SyntaxKind.NullKeyword) ||
+        typeNode.kind === SyntaxKind.UndefinedKeyword)
+    )
+      continue;
+    const name = entityNameForDecoratorMetadata(c, typeNode);
+    if (name === undefined) return undefined;
+    if (common === undefined) common = name;
+    else if (
+      common.kind !== SyntaxKind.Identifier ||
+      name.kind !== SyntaxKind.Identifier ||
+      getText(common) !== getText(name)
+    )
+      return undefined;
+  }
+  return common;
 }
 
 function checkDecorator(c: Checker, node: Decorator): void {
