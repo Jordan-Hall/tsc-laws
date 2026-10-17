@@ -29,7 +29,9 @@ import {
   getStatements,
   getText,
   getTypeArguments,
+  getModifiers,
 } from './ast.js';
+import { ModuleKind } from './options.js';
 import { isExternalModuleNameRelative } from './path.js';
 import { checkTypeNameIsReserved } from './checker-classes.js';
 import { getPropertyNameFromType, isBindingPattern, isTypeUsableAsPropertyName } from './checker-utilities.js';
@@ -852,6 +854,18 @@ export function checkModuleDeclaration(c: Checker, node: Node): void {
             Diagnostics.A_namespace_declaration_cannot_be_located_prior_to_a_class_or_function_with_which_it_is_merged,
           );
       }
+    }
+    if (
+      c.compilerOptions.verbatimModuleSyntax === true &&
+      node.parent!.kind === SyntaxKind.SourceFile &&
+      hasSyntacticModifier(node, ModifierFlags.Export) &&
+      c.host.getEmitModuleFormatOfFile(node.parent as SourceFile) === ModuleKind.CommonJS
+    ) {
+      const exportModifier = getModifiers(node)!.nodes.find((m) => m.kind === SyntaxKind.ExportKeyword)!;
+      c.error(
+        exportModifier,
+        Diagnostics.A_top_level_export_modifier_cannot_be_used_on_value_declarations_in_a_CommonJS_module_when_verbatimModuleSyntax_is_enabled,
+      );
     }
   }
   if (!isAmbientModule(node)) return;
