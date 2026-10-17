@@ -36,6 +36,10 @@ const repo = resolve(root, '../..');
 const out = join(root, 'dist/npm');
 const windows = process.platform === 'win32';
 
+// The oldest glibc the glibc packages support. The release builds link against
+// its sysroot (SCRIPTC_TARGET=<arch>-linux-gnu.2.34).
+const glibcMinimum = [2, 34];
+
 const { values, positionals } = parseArgs({
   allowPositionals: true,
   options: { binary: { type: 'string' }, check: { type: 'boolean' } },
@@ -79,6 +83,7 @@ function packPlatform() {
   const executable = join(lib, executableName());
   copyFileSync(values.binary ? resolve(values.binary) : build(), executable);
   chmodSync(executable, 0o755);
+  if (platform.libc === 'glibc') checkGlibcVersions(executable);
   const libs = typescriptLib();
   for (const name of readdirSync(libs))
     if (/^lib\..*\.d\.ts$/.test(name)) copyFileSync(join(libs, name), join(lib, name));
@@ -103,6 +108,24 @@ function build() {
   if (windows && existsSync(path + '.exe')) return path + '.exe';
   if (!existsSync(path)) throw new Error(`scriptc did not write ${path}`);
   return path;
+}
+
+// Fails if the executable needs a glibc symbol version newer than glibcMinimum,
+// which a host-toolchain build takes from the build machine's glibc.
+function checkGlibcVersions(executable) {
+  const symbols = run('objdump', ['-T', executable], { stdio: 'pipe' }).stdout;
+  const versionOf = (text) => /\bGLIBC_(\d+)\.(\d+)/.exec(text)?.slice(1).map(Number);
+  const lines = symbols.split('\n').filter((line) => versionOf(line) !== undefined);
+  const newer = lines.filter((line) => isNewerThan(versionOf(line), glibcMinimum));
+  if (newer.length > 0)
+    throw new Error(`${executable} needs glibc newer than ${glibcMinimum.join('.')}:\n${newer.join('\n')}`);
+  const highest = lines.map(versionOf).reduce((a, b) => (isNewerThan(b, a) ? b : a), [0, 0]);
+  console.log(`highest glibc symbol version: ${highest.join('.')}`);
+}
+
+// Compares [major, minor] versions.
+function isNewerThan([major, minor], [baseMajor, baseMinor]) {
+  return major > baseMajor || (major === baseMajor && minor > baseMinor);
 }
 
 // TypeScript 7.0.2's lib files, from the tsc bundled with the installed scriptc.
