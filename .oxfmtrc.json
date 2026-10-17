@@ -5,7 +5,6 @@
   "ignorePatterns": [
     "THIRD_PARTY_NOTICES.md",
     "LICENSE",
-    "packages/tsgo/tests/fixtures/**",
     "packages/tsc-ts/tests/fixtures/**",
     "**/dist/**",
     "**/.next/**",

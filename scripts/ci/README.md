@@ -16,8 +16,8 @@ comments), and on every full run, which includes scriptc upgrades (the lockfile 
 compiles the shipped native tsc-ts (`npm run build:native`, `packages/tsc-ts/dist/tsc`) and a native command line
 driver (`src/drivers/cli.ts`, `dist/cli`) next to the `build` job, with scriptc's runtime cache kept per scriptc
 version. The `native test` shards then run the native twins (`native:<unit>`) of the selected units of the test files
-that take a native build: `TSC_TS_BIN` for api, build, library-checking, parallel-emit, projects, scriptc and tsgo's
-tsc test, `TSC_TS_CLI` for program and command-line. Locally:
+that take a native build: `TSC_TS_BIN` for api, build, library-checking, parallel-emit, projects, scriptc and
+tsc-project, `TSC_TS_CLI` for program and command-line. Locally:
 
 ```sh
 (cd packages/tsc-ts && npm run build:native && npx scriptc build src/drivers/cli.ts --optimization=speed -o dist/cli)
@@ -35,7 +35,7 @@ all assets are uploaded. If that final job fails, rerun failed jobs to finish it
 
 | Script              | What it does                                                                                                    |
 | ------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `units.mjs`         | The test units (test files, parts of the split test files, corpus suites) and shard packing.                    |
+| `units.mjs`         | The test units (test files and parts of the split test files) and shard packing.                                |
 | `select-tests.mjs`  | Chooses the units for a change. `node scripts/ci/select-tests.mjs --base origin/main` shows what a branch runs. |
 | `run-tests.mjs`     | Runs units (`--set node`, the default, or `native`), retries a failed unit once, reports flaky and quarantined. |
 | `quarantine.txt`    | Tests that are known to flake: they run, but their failures do not fail the job.                                |

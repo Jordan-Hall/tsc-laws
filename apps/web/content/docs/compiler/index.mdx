@@ -26,11 +26,9 @@ tsc-ts targets TypeScript-Go 7.0.2. The [compatibility guide](/compiler/compatib
 
 ## Source layout
 
-| Package            | Purpose                                             |
-| ------------------ | --------------------------------------------------- |
-| `packages/tsc-ts`  | Compiler, command line, and API server.             |
-| `packages/tsgo`    | TypeScript generated from tsgo's Go implementation. |
-| `packages/gots`    | Go-to-TypeScript translator.                        |
-| `packages/relater` | Assignability checker over an exported type graph.  |
+| Package           | Purpose                                                  |
+| ----------------- | -------------------------------------------------------- |
+| `packages/tsc-ts` | Compiler, command line, and API server.                  |
+| `packages/tsgo`   | Reference builds of tsgo that the tests compare against. |
 
 The [repository README](https://github.com/vercel-labs/tsc-ts#readme) documents builds and tests. The compiler is licensed under [Apache-2.0](https://github.com/vercel-labs/tsc-ts/blob/main/LICENSE); upstream notices are in [THIRD_PARTY_NOTICES.md](https://github.com/vercel-labs/tsc-ts/blob/main/THIRD_PARTY_NOTICES.md).

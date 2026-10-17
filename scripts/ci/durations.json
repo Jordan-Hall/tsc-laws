@@ -21,8 +21,7 @@
     "native:packages/tsc-ts/tests/program.test.mjs#8/8": 50,
     "native:packages/tsc-ts/tests/projects.test.mjs": 12,
     "native:packages/tsc-ts/tests/scriptc.test.mjs": 4,
-    "native:packages/tsgo/tests/tsc.test.mjs": 2,
-    "packages/relater/tests/checker.test.mjs": 49,
+    "native:packages/tsc-ts/tests/tsc-project.test.mjs": 4,
     "packages/tsc-ts/tests/api.test.mjs": 18,
     "packages/tsc-ts/tests/binder.test.mjs": 140,
     "packages/tsc-ts/tests/build.test.mjs": 49,
@@ -58,14 +57,8 @@
     "packages/tsc-ts/tests/scanner.test.mjs": 220,
     "packages/tsc-ts/tests/scriptc.test.mjs": 9,
     "packages/tsc-ts/tests/shared-program.test.mjs": 2,
+    "packages/tsc-ts/tests/tsc-project.test.mjs": 8,
     "packages/tsc-ts/tests/undefined-properties.test.mjs": 1,
-    "packages/tsc-ts/tests/xxh3.test.mjs": 0,
-    "packages/tsgo/corpus/compiler": 130,
-    "packages/tsgo/corpus/conformance": 58,
-    "packages/tsgo/tests/binder.test.mjs": 12,
-    "packages/tsgo/tests/checker-diagnostics.test.mjs": 15,
-    "packages/tsgo/tests/parser.test.mjs": 19,
-    "packages/tsgo/tests/scanner.test.mjs": 16,
-    "packages/tsgo/tests/tsc.test.mjs": 30
+    "packages/tsc-ts/tests/xxh3.test.mjs": 0
   }
 }

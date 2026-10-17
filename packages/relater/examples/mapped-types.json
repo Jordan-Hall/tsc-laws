@@ -1,8 +1,0 @@
-{
-  "source": "type Unbox = <T>(x: { [P in keyof T]: { value: T[P] } }) => T; type NumberUnbox = (x: { a: { value: number } }) => { a: number }; type WrongUnbox = (x: { a: { value: number } }) => { a: string }; interface MakePartial<T> { value: Partial<T> } type NativePartial = MakePartial<{ a: number; b: string }>; type PlainPartial = { value: { a?: number; b?: string } };",
-  "queries": [
-    { "source": "Unbox", "target": "NumberUnbox" },
-    { "source": "Unbox", "target": "WrongUnbox" },
-    { "source": "NativePartial", "target": "PlainPartial" }
-  ]
-}

@@ -1,8 +1,0 @@
-{
-  "source": "type Flatten<T> = T extends readonly (infer U)[] ? Flatten<U> : T; type Flat = <T>(x: T) => Flatten<T>; type NumberFlat = (x: readonly number[][]) => number; type WrongFlat = (x: readonly number[][]) => string; interface Select<T> { value: Extract<T, number> } type Native = Select<number | string>; type Plain = { value: number };",
-  "queries": [
-    { "source": "Flat", "target": "NumberFlat" },
-    { "source": "Flat", "target": "WrongFlat" },
-    { "source": "Native", "target": "Plain" }
-  ]
-}

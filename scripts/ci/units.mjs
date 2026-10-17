@@ -1,9 +1,9 @@
 // The CI test units, their measured durations, and shard packing.
 //
 // A unit is one test file run with `node --test` in its package, one part of a test file that splits its runs
-// (program.test.mjs, command-line.test.mjs and library-checking.test.mjs take an `i/n` shard), one corpus suite, or
-// the native twin of a unit (`native:` and the unit's id), which runs the same test file against a native build.
-// Unit ids are stable strings such as `packages/tsc-ts/tests/program.test.mjs#2/8` and `packages/tsgo/corpus/compiler`.
+// (program.test.mjs, command-line.test.mjs and library-checking.test.mjs take an `i/n` shard), or the native twin of
+// a unit (`native:` and the unit's id), which runs the same test file against a native build. Unit ids are stable
+// strings such as `packages/tsc-ts/tests/program.test.mjs#2/8`.
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -27,7 +27,7 @@ const nativeFiles = {
   'packages/tsc-ts/tests/parallel-emit.test.mjs': 'TSC_TS_BIN',
   'packages/tsc-ts/tests/projects.test.mjs': 'TSC_TS_BIN',
   'packages/tsc-ts/tests/scriptc.test.mjs': 'TSC_TS_BIN',
-  'packages/tsgo/tests/tsc.test.mjs': 'TSC_TS_BIN',
+  'packages/tsc-ts/tests/tsc-project.test.mjs': 'TSC_TS_BIN',
   'packages/tsc-ts/tests/program.test.mjs': 'TSC_TS_CLI',
   'packages/tsc-ts/tests/command-line.test.mjs': 'TSC_TS_CLI',
 };
@@ -44,7 +44,7 @@ export const nativeBinaries = {
 export function allUnits() {
   /** @type {Unit[]} */
   const units = [];
-  for (const pkg of ['tsc-ts', 'relater', 'tsgo']) {
+  for (const pkg of ['tsc-ts']) {
     const dir = join(root, 'packages', pkg, 'tests');
     if (!existsSync(dir)) continue;
     for (const name of readdirSync(dir).sort()) {
@@ -74,15 +74,6 @@ export function allUnits() {
           });
     }
   }
-  for (const suite of ['compiler', 'conformance'])
-    units.push({
-      id: `packages/tsgo/corpus/${suite}`,
-      file: 'packages/tsgo/scripts/corpus.mjs',
-      cwd: 'packages/tsgo',
-      command: ['node', 'scripts/corpus.mjs', suite],
-      env: {},
-      native: false,
-    });
   return units;
 }
 

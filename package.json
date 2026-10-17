@@ -13,8 +13,6 @@
     "build:oracle": "turbo run build:oracle",
     "fetch:upstream": "node scripts/fetch-upstream.mjs",
     "test": "turbo run test",
-    "test:corpus": "turbo run test:corpus",
-    "translate": "turbo run translate",
     "lint": "oxlint",
     "format": "oxfmt",
     "format:check": "oxfmt --check"

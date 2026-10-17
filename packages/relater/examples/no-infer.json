@@ -1,8 +1,0 @@
-{
-  "source": "type Plain = <T>(value: T, hint: T) => T; type Blocked = <T>(value: T, hint: NoInfer<T>) => T; type Different = (value: 1, hint: 2) => 1 | 2; type Wrapped = <T>(value: T) => NoInfer<{ value: T }>; type NumberWrapped = (value: number) => { value: number };",
-  "queries": [
-    { "source": "Plain", "target": "Different" },
-    { "source": "Blocked", "target": "Different" },
-    { "source": "Wrapped", "target": "NumberWrapped" }
-  ]
-}
