@@ -573,6 +573,11 @@ export class Snapshot {
   private allFilesExcludingDefaultLibraryFile: SourceFile[] | undefined = undefined;
   hasChangedDtsFile = false;
   hasEmitDiagnostics = false;
+  /**
+   * The version (`computeHash` of the text) of each source file of the program, by file: a watch
+   * rebuild reuses the files that did not change, and takes their versions from here.
+   */
+  readonly versionsByFile = new Map<SourceFile, string>();
 
   constructor(options: CompilerOptions) {
     this.options = options;
@@ -1004,7 +1009,9 @@ function programToSnapshot(checked: CheckedProgram, oldSnapshot: Snapshot | unde
   for (const file of program.getSourceFiles()) {
     const path = file.path;
     const prepared = preparedVersion(file);
-    const version = prepared !== '' ? prepared : computeHash(file.text);
+    const reused = prepared !== '' ? prepared : (oldSnapshot?.versionsByFile.get(file) ?? '');
+    const version = reused !== '' ? reused : computeHash(file.text);
+    snapshot.versionsByFile.set(file, version);
     const impliedNodeFormat: number = program.sourceFileMetadata(path).impliedNodeFormat;
     const affectsGlobalScope = fileAffectsGlobalScope(file);
     let signature = '';

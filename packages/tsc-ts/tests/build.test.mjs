@@ -917,6 +917,53 @@ for (const args of [['--watch'], ['--build', '--watch']]) {
   );
 }
 
+// Natively, the first build and a rebuild whose change may affect enough files check on checker threads
+// (tsc-watch.ts), and a check that comes during a rebuild on threads runs once it is reported. Each edit changes the
+// type of a value that every other file imports, so every file is checked again; the second step writes the file
+// again once the rebuild started, so its event comes during the rebuild. The output is that of a watch on one thread.
+test('--watch rebuilds on checker threads', { skip: tscTsMissing, timeout: 120_000 }, async () => {
+  const files = {
+    'proj/tsconfig.json': '{"compilerOptions":{"outDir":"out","rootDir":"src","strict":true},"include":["src"]}',
+    'proj/src/shared.ts': 'export const shared: number = 1;\n',
+  };
+  for (let i = 0; i < 200; i++) {
+    files[`proj/src/m${i}.ts`] =
+      "import { shared } from './shared';\n" +
+      `type Digit${i} = '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9';\n` +
+      `type Code${i} = \`\${Digit${i}}\${Digit${i}}\${Digit${i}}-${i}\`;\n` +
+      `export const code${i}: Code${i} = '123-${i}';\n` +
+      `export const value${i}: number = shared;\n`;
+  }
+  const started = (child) =>
+    new Promise((resolve) => {
+      const listener = (chunk) => {
+        if (!String(chunk).includes('File change detected')) return;
+        child.stdout.off('data', listener);
+        resolve();
+      };
+      child.stdout.on('data', listener);
+    });
+  const steps = [
+    ['proj/src/shared.ts', 'export const shared: string = "s";\n'],
+    async (dir, child) => {
+      const rebuilding = started(child);
+      writeFiles(dir, { 'proj/src/shared.ts': 'export const shared: number = 1;\n' });
+      await rebuilding;
+      writeFiles(dir, { 'proj/src/shared.ts': 'export const shared: number = 1;\n' });
+    },
+    ['proj/src/shared.ts', 'export const shared: boolean = true;\n'],
+  ];
+  const run = (args) =>
+    watchSequence(['-p', 'proj', '--watch', ...args], steps, files, () => {}, { TSC_TS_WATCH_MEMORY: '0' });
+  const expected = await run(['--singleThreaded']);
+  const threaded = await run(['--checkers', '2']);
+  assert.equal((expected.output.match(/File change detected/g) ?? []).length, 3);
+  assert.equal((expected.output.match(/Found 200 errors/g) ?? []).length, 2);
+  assert.equal(threaded.output, expected.output);
+  assert.equal(threaded.files.length, 201);
+  assert.deepEqual(threaded.files, expected.files);
+});
+
 // A new process reads the config again: after a failed read of a changed config, the process builds on with the
 // config it has, as it does without restarts.
 test(
