@@ -54,6 +54,8 @@ import { SyntaxKind } from './syntax-kind.js';
 import { getMergedSymbol, getSymbolOfDeclaration } from './checker-symbols.js';
 import { getResolvedSymbol } from './checker-expressions.js';
 import { skipTrivia } from './scanner.js';
+import { getContainingFunctionOrClassStaticBlock } from './checker-grammar.js';
+import { nodeCanBeDecorated } from './checker-decorators.js';
 import { symbolToString } from './type-printer.js';
 import type { Type } from './checker-types.js';
 import { getLiteralTypeFromPropertyName } from './checker-type-operators.js';
@@ -222,7 +224,7 @@ function isFunctionLikeDeclaration(node: Node): boolean {
 /** Reports the unused identifiers of a checked file; declaration files have none. */
 export function checkUnusedIdentifiers(c: Checker, file: SourceFile): void {
   if (file.isDeclarationFile) return;
-  const collector = new PotentiallyUnusedCollector();
+  const collector = new PotentiallyUnusedCollector(c.legacyDecorators);
   collector.visitNode(file);
   for (const node of collector.nodes) checkUnusedIdentifiersOfNode(c, node);
 }
@@ -230,12 +232,35 @@ export function checkUnusedIdentifiers(c: Checker, file: SourceFile): void {
 /** The checked declarations and scopes that can declare unused identifiers. */
 class PotentiallyUnusedCollector extends NodeVisitor {
   readonly nodes: Node[] = [];
+  private readonly legacyDecorators: boolean;
+
+  constructor(legacyDecorators: boolean) {
+    super();
+    this.legacyDecorators = legacyDecorators;
+  }
 
   visitNode(node: Node): boolean {
     // The body of a `with` statement isn't checked.
     if (node.kind === SyntaxKind.WithStatement) this.visitNode(getExpression(node)!);
-    else node.forEachChild(this);
+    else if (!this.isUnchecked(node)) node.forEachChild(this);
     if (isPotentiallyUnusedContainer(node)) this.nodes.push(node);
+    return false;
+  }
+
+  /**
+   * Whether the checker skips the children of `node`: a `return` outside a function body, or in a class
+   * static block, and a decorator of a declaration that can't be decorated, are reported as errors and
+   * not checked further.
+   */
+  private isUnchecked(node: Node): boolean {
+    if (node.kind === SyntaxKind.ReturnStatement) {
+      const container = getContainingFunctionOrClassStaticBlock(node);
+      return container === undefined || container.kind === SyntaxKind.ClassStaticBlockDeclaration;
+    }
+    if (node.kind === SyntaxKind.Decorator) {
+      const declaration = node.parent!;
+      return !nodeCanBeDecorated(this.legacyDecorators, declaration, declaration.parent, declaration.parent?.parent);
+    }
     return false;
   }
 }

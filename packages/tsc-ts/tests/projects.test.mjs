@@ -93,6 +93,18 @@ const projects = [
     },
   ],
   [
+    'unused parameters in code the checker skips',
+    {
+      'a.ts':
+        'declare const d: any;\nexport class C {\n  m(@d((t: number) => 0) p: number) {}\n  @d((u: number) => 0) n() {}\n}\n',
+      'b.ts': 'return [1].map((role: number) => 1);\n',
+      'tsconfig.json': JSON.stringify({
+        compilerOptions: { ...base, noUnusedLocals: true, noUnusedParameters: true },
+        files: ['a.ts', 'b.ts'],
+      }),
+    },
+  ],
+  [
     'nested keys of a JSON module',
     {
       'a.ts':
