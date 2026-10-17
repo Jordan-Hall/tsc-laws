@@ -302,11 +302,16 @@ function isInRightSideOfImportOrExportAssignment(name: Node): boolean {
 export function checkExpressionCached(c: Checker, node: Node): Type {
   let type = c.resolvedTypes.get(node.id);
   if (type === undefined) {
+    // A type that is cached is computed without the control flow analysis in progress, whose variables may
+    // have transient types: loops being analyzed start over.
+    const saveFlowLoopStack = c.flowLoopStack;
     const saveFlowTypeCache = c.flowTypeCache;
+    if (saveFlowLoopStack.length !== 0) c.flowLoopStack = [];
     c.flowTypeCache = undefined;
     type = checkExpression(c, node);
     c.resolvedTypes.set(node.id, type);
     c.flowTypeCache = saveFlowTypeCache;
+    c.flowLoopStack = saveFlowLoopStack;
   }
   return type;
 }

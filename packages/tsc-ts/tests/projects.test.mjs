@@ -116,6 +116,13 @@ const projects = [
     },
   ],
   [
+    'variables of a loop referenced while their declarations are resolved',
+    {
+      'a.ts':
+        'declare const api: any;\nexport function f() {\n  let cursor: string | null = "";\n  while (cursor !== null) {\n    const response = api.req({ cursor });\n    cursor = response.next;\n  }\n}\nexport function g(api: { req(x: unknown): any }) {\n  let cursor: string | null = "";\n  while (cursor !== null) {\n    const [response] = api.req({ cursor });\n    cursor = response.next;\n  }\n}\n',
+    },
+  ],
+  [
     'object literal returned by a contextually generic arrow',
     {
       'a.ts':
