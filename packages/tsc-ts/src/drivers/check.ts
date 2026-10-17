@@ -84,11 +84,7 @@ class CheckHost extends CheckerHost {
   }
 
   getImpliedNodeFormatForEmit(file: SourceFile): ModuleKind {
-    return getImpliedNodeFormatForEmit(
-      file.fileName,
-      getEmitModuleKind(this.options),
-      this.metadataOf(file),
-    );
+    return getImpliedNodeFormatForEmit(file.fileName, getEmitModuleKind(this.options), this.metadataOf(file));
   }
 
   getEmitSyntaxForUsageLocation(file: SourceFile, usage: Node): ModuleKind {
