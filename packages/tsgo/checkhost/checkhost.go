@@ -127,8 +127,13 @@ func (p *Program) BindSourceFiles() {
 	}
 }
 
+// GetSourceFileMetaData returns what a program finds for a file without a package.json: lib
+// files are CommonJS scripts, and the input's format follows from its extension.
 func (p *Program) GetSourceFileMetaData(path tspath.Path) ast.SourceFileMetaData {
-	return ast.SourceFileMetaData{}
+	if p.libs[path] {
+		return ast.SourceFileMetaData{ImpliedNodeFormat: core.ResolutionModeCommonJS}
+	}
+	return ast.SourceFileMetaData{ImpliedNodeFormat: ast.GetImpliedNodeFormatForFile(string(path), "")}
 }
 
 func (p *Program) GetEmitModuleFormatOfFile(sourceFile ast.HasFileName) core.ModuleKind {
@@ -136,7 +141,7 @@ func (p *Program) GetEmitModuleFormatOfFile(sourceFile ast.HasFileName) core.Mod
 }
 
 func (p *Program) GetEmitSyntaxForUsageLocation(sourceFile ast.HasFileName, location *ast.StringLiteralLike) core.ResolutionMode {
-	return core.ResolutionModeESM
+	return emitSyntaxForUsageLocation(sourceFile.FileName(), p.GetSourceFileMetaData(sourceFile.Path()), location, p.options)
 }
 
 func (p *Program) GetImpliedNodeFormatForEmit(sourceFile ast.HasFileName) core.ModuleKind {
@@ -198,15 +203,71 @@ func (p *Program) GetNearestAncestorDirectoryWithPackageJson(dirname string) str
 func (p *Program) GetPackageJsonInfo(pkgJsonPath string) *packagejson.InfoCacheEntry { return nil }
 
 func (p *Program) GetDefaultResolutionModeForFile(file ast.HasFileName) core.ResolutionMode {
-	return core.ResolutionModeESM
+	if importSyntaxAffectsModuleResolution(p.options) {
+		return ast.GetImpliedNodeFormatForEmitWorker(file.FileName(), p.options.GetEmitModuleKind(), p.GetSourceFileMetaData(file.Path()))
+	}
+	return core.ResolutionModeNone
 }
 
 func (p *Program) GetResolvedModuleFromModuleSpecifier(file ast.HasFileName, moduleSpecifier *ast.StringLiteralLike) *module.ResolvedModule {
 	return nil
 }
 
-func (p *Program) GetModeForUsageLocation(file ast.HasFileName, moduleSpecifier *ast.StringLiteralLike) core.ResolutionMode {
-	return core.ResolutionModeESM
+// GetModeForUsageLocation, importSyntaxAffectsModuleResolution and emitSyntaxForUsageLocation are
+// those of the compiler package (fileloader.go).
+func (p *Program) GetModeForUsageLocation(file ast.HasFileName, usage *ast.StringLiteralLike) core.ResolutionMode {
+	if ast.IsImportDeclaration(usage.Parent) || usage.Parent.Kind == ast.KindJSImportDeclaration || ast.IsExportDeclaration(usage.Parent) || ast.IsJSDocImportTag(usage.Parent) {
+		if ast.IsExclusivelyTypeOnlyImportOrExport(usage.Parent) {
+			var override core.ResolutionMode
+			var ok bool
+			switch usage.Parent.Kind {
+			case ast.KindImportDeclaration, ast.KindJSImportDeclaration:
+				override, ok = usage.Parent.AsImportDeclaration().Attributes.GetResolutionModeOverride()
+			case ast.KindExportDeclaration:
+				override, ok = usage.Parent.AsExportDeclaration().Attributes.GetResolutionModeOverride()
+			case ast.KindJSDocImportTag:
+				override, ok = usage.Parent.AsJSDocImportTag().Attributes.GetResolutionModeOverride()
+			}
+			if ok {
+				return override
+			}
+		}
+	}
+	if ast.IsLiteralTypeNode(usage.Parent) && ast.IsImportTypeNode(usage.Parent.Parent) {
+		if override, ok := usage.Parent.Parent.AsImportTypeNode().Attributes.GetResolutionModeOverride(); ok {
+			return override
+		}
+	}
+	if importSyntaxAffectsModuleResolution(p.options) {
+		return emitSyntaxForUsageLocation(file.FileName(), p.GetSourceFileMetaData(file.Path()), usage, p.options)
+	}
+	return core.ResolutionModeNone
+}
+
+func importSyntaxAffectsModuleResolution(options *core.CompilerOptions) bool {
+	moduleResolution := options.GetModuleResolutionKind()
+	return core.ModuleResolutionKindNode16 <= moduleResolution && moduleResolution <= core.ModuleResolutionKindNodeNext ||
+		options.GetResolvePackageJsonExports() || options.GetResolvePackageJsonImports()
+}
+
+func emitSyntaxForUsageLocation(fileName string, meta ast.SourceFileMetaData, usage *ast.Node, options *core.CompilerOptions) core.ResolutionMode {
+	if ast.IsRequireCall(usage.Parent, false) || ast.IsExternalModuleReference(usage.Parent) && ast.IsImportEqualsDeclaration(usage.Parent.Parent) {
+		return core.ModuleKindCommonJS
+	}
+	fileEmitMode := ast.GetEmitModuleFormatOfFileWorker(fileName, options, meta)
+	if ast.IsImportCall(ast.WalkUpParenthesizedExpressions(usage.Parent)) {
+		if ast.ShouldTransformImportCall(fileName, options, fileEmitMode) {
+			return core.ModuleKindCommonJS
+		}
+		return core.ModuleKindESNext
+	}
+	if fileEmitMode == core.ModuleKindCommonJS {
+		return core.ModuleKindCommonJS
+	}
+	if fileEmitMode.IsNonNodeESM() || fileEmitMode == core.ModuleKindPreserve {
+		return core.ModuleKindESNext
+	}
+	return core.ModuleKindNone
 }
 
 var _ checker.Program = (*Program)(nil)

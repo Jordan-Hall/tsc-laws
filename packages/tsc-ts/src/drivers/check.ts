@@ -2,7 +2,9 @@
 // check oracle: `<file> <code> <pos> <len> <message>` with UTF-8 offsets.
 // A .tsx file is checked as `/input.tsx` with the JSX options of its `@jsx`, `@jsxFactory`,
 // `@jsxFragmentFactory` and `@jsxImportSource` directives. A test case whose files are all JavaScript
-// and that sets @checkJs is checked as `/input.js` with allowJs and checkJs.
+// and that sets @checkJs is checked as `/input.js` with allowJs and checkJs. TSC_TS_CHECK_OPTIONS lists
+// options for every input, separated by commas, as in the check oracle: names of boolean options to turn
+// on, and module, moduleResolution and target as name=value.
 // Usage: check FILE LIBDIR [--batch|--bench]
 //   --batch  FILE lists input files, one per line; each is printed after `== <path>`
 //   --bench  times parsing, binding and checking FILE
@@ -18,9 +20,26 @@ import {
 import { bindSourceFile } from '../compiler/binder.js';
 import { Checker, CheckerHost, disposeChecker } from '../compiler/checker.js';
 import { type Diagnostic, Locale } from '../compiler/diagnostics.js';
-import { type CompilerOptions, JsxEmit, ModuleKind, ScriptTarget } from '../compiler/options.js';
+import {
+  type CompilerOptions,
+  JsxEmit,
+  ModuleKind,
+  ModuleResolutionKind,
+  ScriptTarget,
+  getEmitModuleKind,
+} from '../compiler/options.js';
 import { parseSourceFile } from '../compiler/parser.js';
-import { getDefaultLibFileName, getLibFileName } from '../compiler/program-utilities.js';
+import {
+  SourceFileMetadata,
+  getDefaultLibFileName,
+  getDefaultResolutionModeForFile,
+  getEmitSyntaxForUsageLocation,
+  getImpliedNodeFormatForEmit,
+  getImpliedNodeFormatForFile,
+  getLibFileName,
+  getModeForUsageLocation,
+  libFileMetadata,
+} from '../compiler/program-utilities.js';
 import './lowering.js';
 
 const libDirectory = '/libs/';
@@ -53,8 +72,31 @@ class CheckHost extends CheckerHost {
     return undefined;
   }
 
-  getEmitSyntaxForUsageLocation(_file: SourceFile, _usage: Node): ModuleKind {
-    return ModuleKind.ESNext;
+  /** What a program finds for a file without a package.json: libs are CommonJS scripts, the input's format follows its extension. */
+  getSourceFileMetadata(file: SourceFile): SourceFileMetadata {
+    return this.libs.has(file)
+      ? libFileMetadata
+      : new SourceFileMetadata('', '', getImpliedNodeFormatForFile(file.fileName, ''));
+  }
+
+  getImpliedNodeFormatForEmit(file: SourceFile): ModuleKind {
+    return getImpliedNodeFormatForEmit(
+      file.fileName,
+      getEmitModuleKind(this.options),
+      this.getSourceFileMetadata(file),
+    );
+  }
+
+  getEmitSyntaxForUsageLocation(file: SourceFile, usage: Node): ModuleKind {
+    return getEmitSyntaxForUsageLocation(file.fileName, this.getSourceFileMetadata(file), usage, this.options);
+  }
+
+  getModeForUsageLocation(file: SourceFile, location: Node): ModuleKind {
+    return getModeForUsageLocation(file.fileName, this.getSourceFileMetadata(file), location, this.options);
+  }
+
+  getDefaultResolutionModeForFile(file: SourceFile): ModuleKind {
+    return getDefaultResolutionModeForFile(file.fileName, this.getSourceFileMetadata(file), this.options);
   }
 }
 
@@ -98,11 +140,110 @@ function parse(fileName: string, text: string): SourceFile {
   );
 }
 
+const moduleKinds = new Map<string, ModuleKind>([
+  ['commonjs', ModuleKind.CommonJS],
+  ['es2015', ModuleKind.ES2015],
+  ['es2020', ModuleKind.ES2020],
+  ['es2022', ModuleKind.ES2022],
+  ['esnext', ModuleKind.ESNext],
+  ['node16', ModuleKind.Node16],
+  ['node18', ModuleKind.Node18],
+  ['node20', ModuleKind.Node20],
+  ['nodenext', ModuleKind.NodeNext],
+  ['preserve', ModuleKind.Preserve],
+]);
+
+const moduleResolutionKinds = new Map<string, ModuleResolutionKind>([
+  ['node10', ModuleResolutionKind.Node10],
+  ['node16', ModuleResolutionKind.Node16],
+  ['nodenext', ModuleResolutionKind.NodeNext],
+  ['bundler', ModuleResolutionKind.Bundler],
+]);
+
+const scriptTargets = new Map<string, ScriptTarget>([
+  ['es5', ScriptTarget.ES5],
+  ['es2015', ScriptTarget.ES2015],
+  ['es2016', ScriptTarget.ES2016],
+  ['es2017', ScriptTarget.ES2017],
+  ['es2018', ScriptTarget.ES2018],
+  ['es2019', ScriptTarget.ES2019],
+  ['es2020', ScriptTarget.ES2020],
+  ['es2021', ScriptTarget.ES2021],
+  ['es2022', ScriptTarget.ES2022],
+  ['es2023', ScriptTarget.ES2023],
+  ['es2024', ScriptTarget.ES2024],
+  ['esnext', ScriptTarget.ESNext],
+]);
+
+/**
+ * Sets an entry of TSC_TS_CHECK_OPTIONS: the name of a boolean option to turn on, or `name=value` for
+ * module, moduleResolution and target. False for an entry it doesn't take.
+ */
+function setOption(options: CompilerOptions, entry: string): boolean {
+  const equals = entry.indexOf('=');
+  if (equals >= 0) {
+    const value = entry.substring(equals + 1);
+    switch (entry.substring(0, equals)) {
+      case 'module':
+        options.module = moduleKinds.get(value);
+        return options.module !== undefined;
+      case 'moduleResolution':
+        options.moduleResolution = moduleResolutionKinds.get(value);
+        return options.moduleResolution !== undefined;
+      case 'target':
+        options.target = scriptTargets.get(value);
+        return options.target !== undefined;
+    }
+    return false;
+  }
+  switch (entry) {
+    case 'exactOptionalPropertyTypes':
+      options.exactOptionalPropertyTypes = true;
+      break;
+    case 'noUncheckedIndexedAccess':
+      options.noUncheckedIndexedAccess = true;
+      break;
+    case 'isolatedModules':
+      options.isolatedModules = true;
+      break;
+    case 'verbatimModuleSyntax':
+      options.verbatimModuleSyntax = true;
+      break;
+    case 'erasableSyntaxOnly':
+      options.erasableSyntaxOnly = true;
+      break;
+    case 'noImplicitOverride':
+      options.noImplicitOverride = true;
+      break;
+    case 'noPropertyAccessFromIndexSignature':
+      options.noPropertyAccessFromIndexSignature = true;
+      break;
+    case 'noImplicitReturns':
+      options.noImplicitReturns = true;
+      break;
+    case 'noFallthroughCasesInSwitch':
+      options.noFallthroughCasesInSwitch = true;
+      break;
+    case 'noUnusedLocals':
+      options.noUnusedLocals = true;
+      break;
+    case 'noUnusedParameters':
+      options.noUnusedParameters = true;
+      break;
+    default:
+      return false;
+  }
+  return true;
+}
+
+const extraOptions = (process.env.TSC_TS_CHECK_OPTIONS ?? '').split(',').filter((name) => name !== '');
+
 function createOptions(): CompilerOptions {
   const options: CompilerOptions = {};
   options.strict = true;
   options.target = ScriptTarget.ESNext;
   options.noEmit = true;
+  for (const name of extraOptions) setOption(options, name);
   return options;
 }
 
@@ -244,6 +385,11 @@ function format(diagnostics: Diagnostic[], input: string, text: string, out: str
 }
 
 function main(): void {
+  for (const name of extraOptions)
+    if (!setOption({}, name)) {
+      writeSync(2, `unknown option in TSC_TS_CHECK_OPTIONS: ${name}\n`);
+      process.exit(2);
+    }
   const args = process.argv.slice(2);
   const path = args[0]!;
   const libDir = args[1]!;

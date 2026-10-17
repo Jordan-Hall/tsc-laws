@@ -2,14 +2,17 @@
 // check oracle, and reports how many files match exactly.
 //
 // Usage: node scripts/check-corpus.mjs [--native BINARY] [--jobs N] [--limit N] [--cache FILE]
-//                                      [--save FILE] [--list] [--show CODE] [--js] [compiler|conformance|DIR|FILE ...]
+//                                      [--save FILE] [--list] [--show CODE] [--js] [--options A,B]
+//                                      [compiler|conformance|DIR|FILE ...]
 //
 // Test cases are checked whole, as `/input.ts`, as `/input.tsx` with their JSX directives, or as
 // `/input.js` when all their files are JavaScript and they set @checkJs (--js checks only those).
 // Without --native, the checker runs under Node from a tsc build. --cache stores the oracle's
 // output, which only changes with the reference build.
 // --save writes the checker's output as JSON. --list prints the differing files; --show CODE prints
-// the files with mismatches of that code.
+// the files with mismatches of that code. --options turns on boolean options (such as
+// exactOptionalPropertyTypes or noUncheckedIndexedAccess) for every file in both compilers, through
+// TSC_TS_CHECK_OPTIONS; a --cache file holds the oracle's output for one set of options.
 import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { spawn, spawnSync } from 'node:child_process';
 import { availableParallelism } from 'node:os';
@@ -23,7 +26,7 @@ const option = (name, fallback) => {
   const at = args.indexOf(name);
   return at >= 0 ? args[at + 1] : fallback;
 };
-const valued = new Set(['--native', '--jobs', '--limit', '--cache', '--show', '--save']);
+const valued = new Set(['--native', '--jobs', '--limit', '--cache', '--show', '--save', '--options']);
 const jobs = Number(option('--jobs', Math.min(16, availableParallelism())));
 const limit = Number(option('--limit', Infinity));
 const cacheFile = option('--cache', undefined);
@@ -31,6 +34,8 @@ const show = option('--show', undefined);
 const saveFile = option('--save', undefined);
 const list = args.includes('--list');
 const jsOnly = args.includes('--js');
+const checkOptions = option('--options', '');
+const env = { ...process.env, TSC_TS_CHECK_OPTIONS: checkOptions };
 const inputs = args.filter((a, i) => !a.startsWith('--') && !valued.has(args[i - 1]));
 const libs = join(repo, 'upstream/typescript-go/internal/bundled/libs');
 const cases = join(repo, 'upstream/TypeScript/tests/cases');
@@ -65,7 +70,7 @@ function run(command, batch) {
   const listFile = join(work, `list-${Math.random().toString(36).slice(2)}.txt`);
   writeFileSync(listFile, batch.join('\n') + '\n');
   return new Promise((done) => {
-    const child = spawn(command[0], [...command.slice(1), listFile, libs, '--batch'], { timeout: 600_000 });
+    const child = spawn(command[0], [...command.slice(1), listFile, libs, '--batch'], { timeout: 600_000, env });
     const chunks = [];
     child.stdout.on('data', (d) => chunks.push(d));
     child.on('close', () => {
@@ -99,6 +104,9 @@ async function expectedResults(paths) {
     cacheFile !== undefined && existsSync(cacheFile)
       ? new Map(Object.entries(JSON.parse(readFileSync(cacheFile, 'utf8'))))
       : new Map();
+  // Entries for other options are stale.
+  if ((cached.get('#options')?.[0] ?? '') !== checkOptions) cached.clear();
+  cached.set('#options', [checkOptions]);
   // Entries from before JavaScript cases were checked as JavaScript are stale.
   if (!cached.has('#js')) for (const key of cached.keys()) if (existsSync(key) && isCheckedJS(key)) cached.delete(key);
   cached.set('#js', []);
