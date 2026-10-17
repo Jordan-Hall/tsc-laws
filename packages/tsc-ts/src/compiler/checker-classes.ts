@@ -1,4 +1,8 @@
 // Classes and interfaces.
+import { isNamedEvaluationSource } from './transformers/named-evaluation.js';
+import { classOrConstructorParameterIsDecorated } from './transformers/decorator-utilities.js';
+import { OuterExpressionKinds, isOuterExpression } from './transformers/utilities.js';
+import { ExternalEmitHelpers, checkExternalEmitHelpers } from './checker-emit-helpers.js';
 import {
   type ClassStaticBlockDeclaration,
   type ConstructorDeclaration,
@@ -27,6 +31,7 @@ import {
   getTypeParameters,
   getInitializer,
   getParameters,
+  getModifiers,
 } from './ast.js';
 import {
   declarationNameToString,
@@ -92,7 +97,7 @@ import {
   checkClassOrInterfaceForDuplicateIndexSignatures,
   checkInterfaceHeritage,
 } from './checker-heritage.js';
-import { checkDecorators } from './checker-decorators.js';
+import { checkDecorators, getFirstTransformableStaticClassElement } from './checker-decorators.js';
 
 export function checkClassDeclaration(c: Checker, node: Node): void {
   checkClassLikeDeclaration(c, node);
@@ -103,8 +108,36 @@ export function checkClassDeclaration(c: Checker, node: Node): void {
 export function checkClassExpression(c: Checker, node: Node): Type {
   checkClassLikeDeclaration(c, node);
   checkNodeDeferred(c, node);
+  checkClassExpressionExternalHelpers(c, node);
   const symbol = getSymbolOfDeclaration(c, node);
   return symbol !== undefined ? getTypeOfSymbol(c, symbol) : c.anyType;
+}
+
+/** An anonymous class expression whose emit sets its name (__setFunctionName), and computes the key (__propKey). */
+function checkClassExpressionExternalHelpers(c: Checker, node: Node): void {
+  if (getName(node) !== undefined) return;
+  let parent = node.parent;
+  while (parent !== undefined && isOuterExpression(parent, OuterExpressionKinds.All)) parent = parent.parent;
+  if (parent === undefined || !isNamedEvaluationSource(parent)) return;
+  const willTransformESDecorators = !c.legacyDecorators && c.languageVersion < ScriptTarget.ESNext;
+  let location: Node | undefined;
+  if (willTransformESDecorators && classOrConstructorParameterIsDecorated(false, node)) {
+    location = node;
+    for (const modifier of getModifiers(node)?.nodes ?? [])
+      if (modifier.kind === SyntaxKind.Decorator) {
+        location = modifier;
+        break;
+      }
+  } else location = getFirstTransformableStaticClassElement(c, node);
+  if (location === undefined) return;
+  checkExternalEmitHelpers(c, location, ExternalEmitHelpers.SetFunctionName);
+  if (
+    (parent.kind === SyntaxKind.PropertyAssignment ||
+      parent.kind === SyntaxKind.PropertyDeclaration ||
+      parent.kind === SyntaxKind.BindingElement) &&
+    getName(parent)!.kind === SyntaxKind.ComputedPropertyName
+  )
+    checkExternalEmitHelpers(c, location, ExternalEmitHelpers.PropKey);
 }
 
 export function checkClassLikeDeferred(c: Checker, node: Node): void {

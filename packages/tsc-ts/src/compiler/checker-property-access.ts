@@ -1,5 +1,7 @@
 // Property access: member lookup on `a.b` and `A.B`, accessibility and readonly checks, and
 // errors for missing members.
+import { ScriptTarget, getUseDefineForClassFields } from './options.js';
+import { ExternalEmitHelpers, checkExternalEmitHelpers } from './checker-emit-helpers.js';
 import {
   type Node,
   type PropertyAccessExpression,
@@ -120,6 +122,13 @@ export function checkPropertyAccessExpressionOrQualifiedName(
   const isPrivate = right.kind === SyntaxKind.PrivateIdentifier;
   let prop: Symbol | undefined = undefined;
   if (isPrivate) {
+    // Downleveled private names use __classPrivateFieldGet and __classPrivateFieldSet.
+    if (c.languageVersion < ScriptTarget.ESNext || !getUseDefineForClassFields(c.compilerOptions)) {
+      if (assignmentKind !== AssignmentKind.None)
+        checkExternalEmitHelpers(c, node, ExternalEmitHelpers.ClassPrivateFieldSet);
+      if (assignmentKind !== AssignmentKind.Definite)
+        checkExternalEmitHelpers(c, node, ExternalEmitHelpers.ClassPrivateFieldGet);
+    }
     const lexicallyScopedSymbol = lookupSymbolForPrivateIdentifierDeclaration(name, right);
     if (
       assignmentKind !== AssignmentKind.None &&

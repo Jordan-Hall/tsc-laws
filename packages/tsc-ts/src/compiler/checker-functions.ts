@@ -1,4 +1,6 @@
 // Functions: function expressions and arrows, bodies, inferred return types, generators, `await`.
+import { ScriptTarget } from './options.js';
+import { ExternalEmitHelpers, checkExternalEmitHelpers } from './checker-emit-helpers.js';
 import { resolvedReturnTypeOf, signatureSideOf } from './side-state.js';
 import { isJsxAttributesContextSensitive } from './checker-jsx.js';
 import {
@@ -354,6 +356,20 @@ export function getTypeOfObjectLiteralMethod(c: Checker, node: Node, checkMode: 
 
 /** Checks the type parameters, parameters and return type annotation of a function. */
 function checkFunctionLikeSignature(c: Checker, node: Node): void {
+  const functionFlags = getFunctionFlags(node);
+  if ((functionFlags & FunctionFlags.Invalid) === 0) {
+    // Async generators before ES2018 use __await and __asyncGenerator, and async functions before ES2017 __awaiter.
+    if (
+      (functionFlags & FunctionFlags.AsyncGenerator) === FunctionFlags.AsyncGenerator &&
+      c.languageVersion < ScriptTarget.ES2018
+    )
+      checkExternalEmitHelpers(c, node, ExternalEmitHelpers.AsyncGeneratorIncludes);
+    if (
+      (functionFlags & FunctionFlags.AsyncGenerator) === FunctionFlags.Async &&
+      c.languageVersion < ScriptTarget.ES2017
+    )
+      checkExternalEmitHelpers(c, node, ExternalEmitHelpers.Awaiter);
+  }
   checkTypeParameters(c, getTypeParameters(node));
   checkUnmatchedJSDocParameters(c, node);
   const params = getParameters(node);
@@ -558,6 +574,9 @@ export function checkYieldExpression(c: Checker, node: Node): Type {
   // Outside a generator `yield` is a syntax error.
   if ((functionFlags & FunctionFlags.Generator) === 0) return c.anyType;
   const isAsync = (functionFlags & FunctionFlags.Async) !== 0;
+  // `yield*` in an async generator before ES2018 uses __await, __asyncDelegator and __asyncValues.
+  if (yieldExpr.asteriskToken !== undefined && isAsync && c.languageVersion < ScriptTarget.ES2018)
+    checkExternalEmitHelpers(c, node, ExternalEmitHelpers.AsyncDelegatorIncludes);
   // Without an annotation the return type is computed from the yields, so there's nothing to check.
   let returnType = getReturnTypeFromAnnotation(c, func);
   if (returnType !== undefined && (returnType.flags & TypeFlags.Union) !== 0)

@@ -1,4 +1,5 @@
 // Operator checking: unary, binary, conditional, `delete`, and truthiness and nullishness tests.
+import { ExternalEmitHelpers, checkExternalEmitHelpers } from './checker-emit-helpers.js';
 import { skipTrivia } from './scanner.js';
 import {
   type BinaryExpression,
@@ -23,7 +24,7 @@ import {
 } from './binder-utilities.js';
 import { type Diagnostic, type DiagnosticMessage, Diagnostics } from './diagnostics.js';
 import { isAssignmentOperator, isInJSFile } from './ast-utilities.js';
-import { ScriptTarget } from './options.js';
+import { ScriptTarget, getUseDefineForClassFields } from './options.js';
 import { tokenToString } from './scanner.js';
 import { type Symbol, SymbolFlags, internalSymbolNamePrefix } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
@@ -941,6 +942,8 @@ export function getPropertyNameForKnownSymbolName(c: Checker, name: string): str
 function checkInExpression(c: Checker, left: Node, right: Node, leftType: Type, rightType: Type): Type {
   if (leftType === c.silentNeverType || rightType === c.silentNeverType) return c.silentNeverType;
   if (left.kind === SyntaxKind.PrivateIdentifier) {
+    if (c.languageVersion < ScriptTarget.ESNext || !getUseDefineForClassFields(c.compilerOptions))
+      checkExternalEmitHelpers(c, left, ExternalEmitHelpers.ClassPrivateFieldIn);
     // With the right side's type known, a private name that doesn't resolve is reported as missing on it.
     if (c.resolvedSymbols.get(left.id) === undefined && getContainingClass(left) !== undefined)
       reportNonexistentProperty(c, left, rightType);

@@ -9,6 +9,7 @@
 // - JSX: checker-jsx.ts
 // - grammar: checker-grammar.ts (checks the parser leaves to the checker)
 // - type nodes: `checkTypeNode` below
+import { checkPendingExternalEmitHelpers } from './checker-emit-helpers.js';
 import { resolveUntypedCall } from './checker-calls.js';
 import {
   type ImportTypeNode,
@@ -135,6 +136,7 @@ export function checkSourceFile(c: Checker, file: SourceFile, checkUnused = fals
 }
 
 function checkSourceFileWorker(c: Checker, file: SourceFile): void {
+  c.fileBeingChecked = file;
   c.saveDeferredDiagnostics = true;
   for (const statement of getStatements(file)!.nodes) checkSourceElement(c, statement);
   checkDeferredNodes(c, file);
@@ -145,6 +147,8 @@ function checkSourceFileWorker(c: Checker, file: SourceFile): void {
   checkGrammarSourceFile(c, file);
   // Expressions first checked by grammar checks may defer more nodes.
   checkDeferredNodes(c, file);
+  checkPendingExternalEmitHelpers(c, file);
+  c.fileBeingChecked = undefined;
   c.saveDeferredDiagnostics = false;
   produceDeferredIterationErrors(c);
   // The file's deferred nodes are all checked; later ones are not queued (checkNodeDeferred).
