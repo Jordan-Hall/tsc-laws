@@ -125,7 +125,8 @@ jobs:
         shell: bash
         run: |
           shopt -s nullglob
-          platform_packages=(packages/tsc-ts/dist/npm/tsc-ts-*-*.tgz)
+          # Platform names start with a letter; the launcher version starts with a digit.
+          platform_packages=(packages/tsc-ts/dist/npm/tsc-ts-[a-z]*-*.tgz)
           launcher_packages=(packages/tsc-ts/dist/npm/tsc-ts-[0-9]*.tgz)
           if [ "${#platform_packages[@]}" -ne 7 ] || [ "${#launcher_packages[@]}" -ne 1 ]; then
             echo "Expected seven platform packages and one launcher package"
