@@ -1,4 +1,5 @@
 // Destructuring: types of binding elements and the types implied by binding patterns.
+import { ExternalEmitHelpers, checkExternalEmitHelpers } from './checker-emit-helpers.js';
 import { checkGrammarRestTrailingComma } from './checker-grammar.js';
 import { markDestructuredPropertyAsReferenced } from './checker-unused.js';
 import {
@@ -614,6 +615,7 @@ function checkObjectLiteralDestructuringPropertyAssignment(
       c.error(property, Diagnostics.A_rest_element_must_be_last_in_a_destructuring_pattern);
       return;
     }
+    if (c.languageVersion < ScriptTarget.ES2018) checkExternalEmitHelpers(c, property, ExternalEmitHelpers.Rest);
     const nonRestNames: Node[] = [];
     for (const other of properties) if (other.kind !== SyntaxKind.SpreadAssignment) nonRestNames.push(getName(other)!);
     const t = getRestType(c, objectLiteralType, nonRestNames, objectLiteralType.symbol);

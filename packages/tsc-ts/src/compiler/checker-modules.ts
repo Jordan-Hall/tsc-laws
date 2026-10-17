@@ -115,6 +115,7 @@ import { InternalSymbolName, type Symbol, SymbolFlags, type SymbolTable, getSymb
 import { SyntaxKind } from './syntax-kind.js';
 import { isExpressionNode } from './transformers/alias-references.js';
 import { type Checker, type CheckerHost, createDiagnosticForNode } from './checker.js';
+import { ExternalEmitHelpers, checkExternalEmitHelpers } from './checker-emit-helpers.js';
 import { ObjectFlags, type Type, TypeFlags, SignatureKind } from './checker-types.js';
 import {
   createAnonymousType,
@@ -2321,14 +2322,23 @@ export function checkImportDeclaration(c: Checker, node: Node): void {
     if (clause.name !== undefined) checkImportBinding(c, clause);
     const namedBindings = clause.namedBindings;
     let resolvedModule: Symbol | undefined;
+    const emittedAsCommonJS = c.host.getEmitModuleFormatOfFile(getSourceFileOfNode(node)) === ModuleKind.CommonJS;
+    let needsImportStar = false;
     if (namedBindings !== undefined) {
-      if (namedBindings.kind === SyntaxKind.NamespaceImport) checkImportBinding(c, namedBindings);
-      else {
+      if (namedBindings.kind === SyntaxKind.NamespaceImport) {
+        checkImportBinding(c, namedBindings);
+        if (emittedAsCommonJS) {
+          needsImportStar = true;
+          checkExternalEmitHelpers(c, node, ExternalEmitHelpers.ImportStar);
+        }
+      } else {
         resolvedModule = resolveExternalModuleName(c, node, declaration.moduleSpecifier, false);
         if (resolvedModule !== undefined)
           for (const binding of (namedBindings as NamedImports).elements.nodes) checkImportBinding(c, binding);
       }
     }
+    if (clause.name !== undefined && !needsImportStar && emittedAsCommonJS)
+      checkExternalEmitHelpers(c, node, ExternalEmitHelpers.ImportDefault);
     const moduleKind = getEmitModuleKind(c.compilerOptions);
     if (
       !isTypeOnly(clause) &&
@@ -2366,6 +2376,12 @@ function hasTypeJsonImportAttribute(node: ImportDeclaration): boolean {
 
 function checkImportBinding(c: Checker, node: Node): void {
   checkAliasSymbol(c, node);
+  if (
+    node.kind === SyntaxKind.ImportSpecifier &&
+    moduleExportNameIsDefault(getPropertyNameOrName(node)) &&
+    c.host.getEmitModuleFormatOfFile(getSourceFileOfNode(node)) === ModuleKind.CommonJS
+  )
+    checkExternalEmitHelpers(c, node, ExternalEmitHelpers.ImportDefault);
 }
 
 /** Import attributes must be assignable to the global `ImportAttributes`. */
@@ -2462,6 +2478,12 @@ export function checkExportDeclaration(c: Checker, node: Node): void {
           symbolToString(c, moduleSymbol),
         );
       else if (clause !== undefined) checkAliasSymbol(c, clause);
+      if (c.host.getEmitModuleFormatOfFile(getSourceFileOfNode(node)) === ModuleKind.CommonJS)
+        checkExternalEmitHelpers(
+          c,
+          node,
+          clause !== undefined ? ExternalEmitHelpers.ImportStar : ExternalEmitHelpers.ExportStar,
+        );
     }
   }
   checkImportAttributes(c, node);
@@ -2469,7 +2491,14 @@ export function checkExportDeclaration(c: Checker, node: Node): void {
 
 function checkExportSpecifier(c: Checker, node: Node): void {
   checkAliasSymbol(c, node);
-  if ((node.parent!.parent as ExportDeclaration).moduleSpecifier !== undefined) return;
+  if ((node.parent!.parent as ExportDeclaration).moduleSpecifier !== undefined) {
+    if (
+      c.host.getEmitModuleFormatOfFile(getSourceFileOfNode(node)) === ModuleKind.CommonJS &&
+      moduleExportNameIsDefault(getPropertyNameOrName(node))
+    )
+      checkExternalEmitHelpers(c, node, ExternalEmitHelpers.ImportDefault);
+    return;
+  }
   const exportedName = getPropertyNameOrName(node);
   // `export { "x" }` is a syntax error.
   if (exportedName.kind === SyntaxKind.StringLiteral) return;

@@ -1,4 +1,5 @@
 // Declarations: variables, parameters, functions, type aliases, enums, namespaces, imports, exports.
+import { ExternalEmitHelpers, checkExternalEmitHelpers } from './checker-emit-helpers.js';
 import { convertAutoToAny } from './checker-narrowing.js';
 import { markPropertyAsReferenced } from './checker-unused.js';
 import {
@@ -31,7 +32,7 @@ import {
   getTypeArguments,
   getModifiers,
 } from './ast.js';
-import { ModuleKind } from './options.js';
+import { ModuleKind, ScriptTarget } from './options.js';
 import { isExternalModuleNameRelative } from './path.js';
 import { checkTypeNameIsReserved } from './checker-classes.js';
 import { getPropertyNameFromType, isBindingPattern, isTypeUsableAsPropertyName } from './checker-utilities.js';
@@ -149,6 +150,13 @@ export function checkVariableStatement(c: Checker, node: Node): void {
 }
 
 export function checkVariableDeclarationList(c: Checker, node: Node): void {
+  // `using` and `await using` before ESNext use __addDisposableResource and __disposeResources.
+  const blockScopeKind = getCombinedNodeFlags(node) & NodeFlags.BlockScoped;
+  if (
+    (blockScopeKind === NodeFlags.Using || blockScopeKind === NodeFlags.AwaitUsing) &&
+    c.languageVersion < ScriptTarget.ESNext
+  )
+    checkExternalEmitHelpers(c, node, ExternalEmitHelpers.AddDisposableResourceAndDisposeResources);
   for (const d of (node as VariableDeclarationList).declarations.nodes) checkVariableLikeDeclaration(c, d);
 }
 
@@ -433,6 +441,13 @@ function checkBindingElement(c: Checker, element: BindingElement): void {
     c.renamedBindingElementsInTypes.push(element);
     return;
   }
+  // An object rest binding before ES2018 uses __rest.
+  if (
+    element.parent!.kind === SyntaxKind.ObjectBindingPattern &&
+    element.dotDotDotToken !== undefined &&
+    c.languageVersion < ScriptTarget.ES2018
+  )
+    checkExternalEmitHelpers(c, element, ExternalEmitHelpers.Rest);
   if (element.propertyName !== undefined && element.propertyName.kind === SyntaxKind.ComputedPropertyName)
     checkComputedPropertyName(c, element.propertyName);
   // Private and protected properties can't be destructured outside their classes.

@@ -48,7 +48,10 @@ import { checkSourceElement } from './checker-source-file.js';
 import { checkVariableDeclarationList, checkVariableLikeDeclaration } from './checker-declarations.js';
 import { checkReturnExpression, isUnwrappedReturnTypeUndefinedVoidOrAny } from './checker-functions.js';
 import { unwrapReturnType } from './checker-iteration.js';
-import { getFunctionFlags, isBindingPattern } from './checker-utilities.js';
+import { FunctionFlags, getFunctionFlags, isBindingPattern } from './checker-utilities.js';
+import { getContainingFunctionOrClassStaticBlock } from './checker-grammar.js';
+import { ScriptTarget } from './options.js';
+import { ExternalEmitHelpers, checkExternalEmitHelpers } from './checker-emit-helpers.js';
 import { typeToString } from './type-printer.js';
 import { TypeFacts, getNonNullableType, hasTypeFacts } from './checker-flow.js';
 
@@ -143,6 +146,16 @@ function getIndexTypeOrString(c: Checker, t: Type): Type {
 
 export function checkForOfStatement(c: Checker, node: Node): void {
   const s = node as ForInOrOfStatement;
+  // for await..of in an async function before ES2018 uses __asyncValues.
+  if (s.awaitModifier !== undefined) {
+    const container = getContainingFunctionOrClassStaticBlock(node);
+    if (
+      (container === undefined || container.kind !== SyntaxKind.ClassStaticBlockDeclaration) &&
+      (getFunctionFlags(container) & (FunctionFlags.Invalid | FunctionFlags.Async)) === FunctionFlags.Async &&
+      c.languageVersion < ScriptTarget.ES2018
+    )
+      checkExternalEmitHelpers(c, node, ExternalEmitHelpers.ForAwaitOfIncludes);
+  }
   // A declaration checks the right side through its type; an expression is checked as a
   // destructuring assignment or a reference the iterated type must be assignable to.
   if (s.initializer.kind === SyntaxKind.VariableDeclarationList) {

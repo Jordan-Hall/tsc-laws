@@ -324,6 +324,54 @@ const dependency = (name, types) => ({
 
 projects.push(
   [
+    'emit helpers missing from tslib',
+    {
+      'a.ts':
+        'import * as fs from "./dep";\nimport d, { default as d2, x } from "./dep";\nexport * from "./dep";\nexport * as ns from "./dep";\nexport { default as dd } from "./dep";\nexport async function f() { await 1; }\nexport async function* g() { yield* [1]; for await (const v of [1]) { } }\nexport function rest(o: { a: number; b: number }) { const { a, ...others } = o; return [a, others]; }\nexport class C {\n  #p = 1;\n  static { }\n  m(o: C) { this.#p = 2; return this.#p + (#p in o ? 1 : 0); }\n}\nexport const K = class { static z = 1; };\nexport function u() { using res = { [Symbol.dispose]() {} }; return res; }\nexport const all = [fs, d, d2, x];\n',
+      'b.ts':
+        'declare function dec(...args: any[]): any;\n@dec export class D {\n  @dec m(a: number): string { return ""; }\n  constructor(@dec p: number) {}\n}\n',
+      'dep.ts': 'export const x = 1;\nexport default 2;\n',
+      ...dependency(
+        'tslib',
+        'export declare function __awaiter(...a: any[]): any;\nexport declare function __rest(...a: any[]): any;\nexport declare function __classPrivateFieldGet(a: any, b: any, c: any): any;\nexport declare function __importDefault(...a: any[]): any;\n',
+      ),
+      'tsconfig.json': JSON.stringify({
+        compilerOptions: {
+          ...base,
+          target: 'ES2015',
+          module: 'commonjs',
+          importHelpers: true,
+          esModuleInterop: true,
+          lib: ['esnext'],
+          experimentalDecorators: true,
+          emitDecoratorMetadata: true,
+        },
+        files: ['a.ts', 'b.ts', 'dep.ts'],
+      }),
+    },
+  ],
+  [
+    'emit helpers without tslib',
+    {
+      'a.ts':
+        'import * as fs from "./dep";\nimport d, { default as d2, x } from "./dep";\nexport * from "./dep";\nexport * as ns from "./dep";\nexport { default as dd } from "./dep";\nexport async function f() { await 1; }\nexport async function* g() { yield* [1]; for await (const v of [1]) { } }\nexport function rest(o: { a: number; b: number }) { const { a, ...others } = o; return [a, others]; }\nexport class C {\n  #p = 1;\n  static { }\n  m(o: C) { this.#p = 2; return this.#p + (#p in o ? 1 : 0); }\n}\nexport const K = class { static z = 1; };\nexport function u() { using res = { [Symbol.dispose]() {} }; return res; }\nexport const all = [fs, d, d2, x];\n',
+      'b.ts':
+        'declare function dec(...args: any[]): any;\n@dec export class D {\n  @dec m(a: number): string { return ""; }\n  constructor(@dec p: number) {}\n}\n',
+      'dep.ts': 'export const x = 1;\nexport default 2;\n',
+      'tsconfig.json': JSON.stringify({
+        compilerOptions: {
+          ...base,
+          target: 'ES2015',
+          module: 'commonjs',
+          importHelpers: true,
+          esModuleInterop: true,
+          lib: ['esnext'],
+        },
+        files: ['a.ts', 'b.ts', 'dep.ts'],
+      }),
+    },
+  ],
+  [
     'package name of a dependency of a dependency',
     {
       ...dependency('dep', 'export interface Inner { x: number }\n'),

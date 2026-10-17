@@ -29,6 +29,7 @@
 // | checker-elaboration.ts          | reporting relation errors at the failing subexpression  |
 // | checker-grammar.ts              | grammar checks                                          |
 // | checker-flow.ts                 | control flow narrowing                                  |
+import type { EmitHelperFileLinks } from './checker-emit-helpers.js';
 import { sideOf } from './side-state.js';
 import type { Node, PatternAmbientModule, SourceFile } from './ast.js';
 import { IntLinkTable, LinkTable, SparseLinkTable } from './link-tables.js';
@@ -145,6 +146,10 @@ export abstract class CheckerHost {
     return false;
   }
   /** The synthetic specifier of a file's implicit JSX runtime import, such as `react/jsx-runtime`, if any. */
+  /** The `tslib` import the program adds to `file` under --importHelpers. */
+  getImportHelpersImportSpecifier(_file: SourceFile): Node | undefined {
+    return undefined;
+  }
   getJSXRuntimeImportSpecifier(_file: SourceFile): Node | undefined {
     return undefined;
   }
@@ -613,6 +618,10 @@ export class Checker {
   readonly typeNodeVisitor: TypeNodeVisitor;
 
   readonly jsx = new JsxState();
+  /** Per file: its tslib module and the emit helpers checked against it (checkExternalEmitHelpers). */
+  readonly emitHelperFileLinks = new Map<SourceFile, EmitHelperFileLinks>();
+  /** The file checkSourceFile is checking. */
+  fileBeingChecked: SourceFile | undefined = undefined;
 
   // Ambient modules
   readonly ambientModuleSymbols: Symbol[] = [];

@@ -2526,7 +2526,7 @@ function getContainingFunction(node: Node): Node | undefined {
   return current;
 }
 
-function getContainingFunctionOrClassStaticBlock(node: Node): Node | undefined {
+export function getContainingFunctionOrClassStaticBlock(node: Node): Node | undefined {
   let current = node.parent;
   while (current !== undefined && !isFunctionLike(current) && current.kind !== SyntaxKind.ClassStaticBlockDeclaration)
     current = current.parent;

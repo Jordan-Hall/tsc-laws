@@ -79,6 +79,10 @@ export class ProgramCheckerHost extends CheckerHost {
     return this.program.host.fs.fileExists(path);
   }
 
+  getImportHelpersImportSpecifier(file: SourceFile): Node | undefined {
+    return this.program.importHelpersImportSpecifier(file.path);
+  }
+
   getJSXRuntimeImportSpecifier(file: SourceFile): Node | undefined {
     return this.program.jsxRuntimeImportSpecifier(file.path);
   }

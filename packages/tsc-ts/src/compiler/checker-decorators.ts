@@ -1,4 +1,5 @@
 // Decorators: their applicability, resolution as calls and return types.
+import { ExternalEmitHelpers, checkExternalEmitHelpers } from './checker-emit-helpers.js';
 import { resolvedReturnTypeOf } from './side-state.js';
 import { checkDeprecatedSignature } from './checker-deprecation.js';
 import {
@@ -20,6 +21,8 @@ import {
   getParameters,
   getText,
   getType,
+  getInitializer,
+  getMembers,
 } from './ast.js';
 import { canHaveDecorators } from './ast-utilities.js';
 import {
@@ -30,13 +33,20 @@ import {
   hasSyntacticModifier,
   isClassLike,
   isStatic,
+  isPrivateIdentifierClassElementDeclaration,
+  isAutoAccessorPropertyDeclaration,
 } from './binder-utilities.js';
 import { type DiagnosticMessage, Diagnostics } from './diagnostics.js';
 import { type Symbol, SymbolFlags, getSymbolId } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
 import { type Checker, createDiagnosticForNode } from './checker.js';
-import { ModuleKind, getEmitModuleKind } from './options.js';
-import { getFirstConstructorWithBody, getRestParameterElementType } from './transformers/decorator-utilities.js';
+import { ModuleKind, getEmitModuleKind, ScriptTarget, getUseDefineForClassFields } from './options.js';
+import {
+  getFirstConstructorWithBody,
+  getRestParameterElementType,
+  classElementOrClassElementParameterIsDecorated,
+  classOrConstructorParameterIsDecorated,
+} from './transformers/decorator-utilities.js';
 import { isTypeOnlyImportOrExportDeclaration } from './checker-modules.js';
 import { ModifierFlags } from './ast.js';
 import { CheckMode, type Signature, SignatureFlags, type Type, TypeFlags } from './checker-types.js';
@@ -87,9 +97,80 @@ export function checkDecorators(c: Checker, node: Node): void {
   // Decorators on invalid targets were reported by the grammar checks.
   if (!canHaveDecorators(node) || !hasDecorators(node)) return;
   if (!nodeCanBeDecorated(c.legacyDecorators, node, node.parent, node.parent!.parent)) return;
+  checkDecoratorEmitHelpers(c, node);
   checkDecoratorMetadataImports(c, node);
   for (const modifier of getModifiers(node)!.nodes)
     if (modifier.kind === SyntaxKind.Decorator) checkDecorator(c, modifier as Decorator);
+}
+
+function firstDecorator(node: Node): Node | undefined {
+  for (const modifier of getModifiers(node)!.nodes) if (modifier.kind === SyntaxKind.Decorator) return modifier;
+  return undefined;
+}
+
+/** The emit helpers the decorators of `node` use (checkExternalEmitHelpers). */
+function checkDecoratorEmitHelpers(c: Checker, node: Node): void {
+  const decorator = firstDecorator(node);
+  if (decorator === undefined) return;
+  if (c.legacyDecorators) {
+    checkExternalEmitHelpers(c, decorator, ExternalEmitHelpers.Decorate);
+    if (node.kind === SyntaxKind.Parameter) checkExternalEmitHelpers(c, decorator, ExternalEmitHelpers.Param);
+  } else if (c.languageVersion < ScriptTarget.ESNext) {
+    checkExternalEmitHelpers(c, decorator, ExternalEmitHelpers.ESDecorateAndRunInitializers);
+    if (node.kind === SyntaxKind.ClassDeclaration) {
+      if (getName(node) === undefined || getFirstTransformableStaticClassElement(c, node) !== undefined)
+        checkExternalEmitHelpers(c, decorator, ExternalEmitHelpers.SetFunctionName);
+    } else if (node.kind !== SyntaxKind.ClassExpression) {
+      const name = getName(node)!;
+      if (
+        name.kind === SyntaxKind.PrivateIdentifier &&
+        (node.kind === SyntaxKind.MethodDeclaration ||
+          node.kind === SyntaxKind.GetAccessor ||
+          node.kind === SyntaxKind.SetAccessor ||
+          isAutoAccessorPropertyDeclaration(node))
+      )
+        checkExternalEmitHelpers(c, decorator, ExternalEmitHelpers.SetFunctionName);
+      if (name.kind === SyntaxKind.ComputedPropertyName)
+        checkExternalEmitHelpers(c, decorator, ExternalEmitHelpers.PropKey);
+    }
+  }
+}
+
+/**
+ * The first element of a class whose emit moves its static elements out of the class body: a decorated
+ * element of a class that ECMAScript decorators transform, or a static block, static private element or
+ * (without standard class fields) initialized static property when they are transformed.
+ */
+export function getFirstTransformableStaticClassElement(c: Checker, node: Node): Node | undefined {
+  const willTransformStaticElementsOfDecoratedClass =
+    !c.legacyDecorators &&
+    c.languageVersion < ScriptTarget.ESNext &&
+    classOrConstructorParameterIsDecorated(false, node);
+  const willTransformPrivateElementsOrClassStaticBlocks = c.languageVersion < ScriptTarget.ESNext;
+  const willTransformInitializers = !(
+    getUseDefineForClassFields(c.compilerOptions) && c.languageVersion >= ScriptTarget.ES2022
+  );
+  if (!willTransformStaticElementsOfDecoratedClass && !willTransformPrivateElementsOrClassStaticBlocks)
+    return undefined;
+  for (const member of getMembers(node)!.nodes) {
+    if (
+      willTransformStaticElementsOfDecoratedClass &&
+      classElementOrClassElementParameterIsDecorated(false, member, node)
+    )
+      return firstDecorator(node) ?? node;
+    if (willTransformPrivateElementsOrClassStaticBlocks) {
+      if (member.kind === SyntaxKind.ClassStaticBlockDeclaration) return member;
+      if (
+        isStatic(member) &&
+        (isPrivateIdentifierClassElementDeclaration(member) ||
+          (willTransformInitializers &&
+            member.kind === SyntaxKind.PropertyDeclaration &&
+            getInitializer(member) !== undefined))
+      )
+        return member;
+    }
+  }
+  return undefined;
 }
 
 /**
@@ -100,8 +181,9 @@ export function checkDecorators(c: Checker, node: Node): void {
 function checkDecoratorMetadataImports(c: Checker, node: Node): void {
   const options = c.compilerOptions;
   if (options.emitDecoratorMetadata !== true || options.verbatimModuleSyntax === true) return;
-  if (!c.isolatedModules || getEmitModuleKind(options) < ModuleKind.ES2015) return;
   if ((node.flags & NodeFlags.Ambient) !== 0 && node.kind !== SyntaxKind.PropertyDeclaration) return;
+  checkExternalEmitHelpers(c, firstDecorator(node)!, ExternalEmitHelpers.Metadata);
+  if (!c.isolatedModules || getEmitModuleKind(options) < ModuleKind.ES2015) return;
   switch (node.kind) {
     case SyntaxKind.ClassDeclaration: {
       const constructor = getFirstConstructorWithBody(node);
