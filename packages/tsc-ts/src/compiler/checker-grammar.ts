@@ -3530,6 +3530,8 @@ function checkGrammarPrivateIdentifierExpression(g: GrammarChecker, node: Node):
 
 function checkGrammarBigIntLiteral(g: GrammarChecker, node: Node): boolean {
   const parent = node.parent!;
+  // Like tsgo, only BigInt literals checked as expressions are reported, not property or member names.
+  if (getName(parent) === node) return false;
   const isLiteralType =
     parent.kind === SyntaxKind.LiteralType ||
     (parent.kind === SyntaxKind.PrefixUnaryExpression && parent.parent!.kind === SyntaxKind.LiteralType);

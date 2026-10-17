@@ -27,6 +27,13 @@ const nestedKeyOf =
 /** Projects as `[name, files, args]`; files without a tsconfig.json get one with `base` options. */
 const projects = [
   [
+    'BigInt literals as names and values below ES2020',
+    {
+      'a.ts': 'export enum E {\n  0n = 0,\n}\nexport const o = { 1n: 1 };\nexport const v = 2n;\nexport type T = 3n;\n',
+      'tsconfig.json': JSON.stringify({ compilerOptions: { ...base, target: 'ES2015' }, files: ['a.ts'] }),
+    },
+  ],
+  [
     'JSON default import',
     {
       'a.ts':
