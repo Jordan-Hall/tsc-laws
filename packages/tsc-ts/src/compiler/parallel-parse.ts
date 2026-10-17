@@ -175,7 +175,7 @@ export class ParallelParse {
   /** The names of the prepared files the FileLoader took. */
   readonly taken = new Set<string>();
   /** The `package.json` lookups of the parse threads' module resolution, of all prepared files. */
-  readonly packageJsons: PackageJsonLookup[] = [];
+  packageJsons: PackageJsonLookup[] = [];
   /** The hashes of large library files (`LibraryHash` jobs), by file name. */
   readonly libraryHashes = new Map<string, LibraryHash>();
 }
@@ -192,7 +192,8 @@ export function clearPreparedFiles(): void {
   parallelParse.missed = 0;
   parallelParse.unprepared = 0;
   parallelParse.taken.clear();
-  parallelParse.packageJsons.length = 0;
+  // A new list: a program shared with checker threads holds the old one (`preparedPackageJsonLookups`).
+  parallelParse.packageJsons = [];
   parallelParse.libraryHashes.clear();
 }
 

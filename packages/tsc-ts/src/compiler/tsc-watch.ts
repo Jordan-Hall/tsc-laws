@@ -14,7 +14,7 @@ import {
   type MessageWithArgs,
 } from './diagnostics.js';
 import { type ExternalModuleIndicatorOptions, ParseOptions, ScriptKind, type SourceFile } from './ast.js';
-import { CompilerHost } from './file-loader.js';
+import { CompilerHost, FileLoader } from './file-loader.js';
 import { CachedFileSystem } from './file-system.js';
 import { clearLibGlobalsCache } from './checker-symbols.js';
 import { forgetLazyJSDocFile, parseSourceFile } from './parser.js';
@@ -30,11 +30,17 @@ import {
   type DirectoryWatch,
   ErrorSummaryReporter,
   outputLocale,
+  rootFilesPerChunk,
   type System,
   SystemFileSystem,
 } from './tsc-cli.js';
+import { isIncremental } from './options.js';
+import { ParseSession, clearPreparedFiles, parallelParse, takePreparedFile } from './parallel-parse.js';
+import { checkerThreads, parseThreads, shareWithCheckers, startParallelCheck } from './parallel-check.js';
+import { assignSymbolIdsAtCreation } from './symbol.js';
 import { Orchestrator, StatusReporter, startWatchRebuild } from './tsc-build.js';
-import { emitFilesAndReportErrors, SystemTimeStamps, SystemWriter } from './tsc-compile.js';
+import { mark } from './timeline.js';
+import { emitFilesAndReportErrors, rechecksOnThreads, SystemTimeStamps, SystemWriter } from './tsc-compile.js';
 
 /** How often inputs are polled, in milliseconds, where their directories can't be watched. */
 const pollInterval = 250;
@@ -221,18 +227,43 @@ function includeDirectories(config: ParsedCommandLine): { path: string; recursiv
   return result;
 }
 
+/** A copy of `config` with its own lazily computed parts and errors, for a program shared with checker threads. */
+function copyCommandLine(config: ParsedCommandLine): ParsedCommandLine {
+  return new ParsedCommandLine(
+    config.options,
+    config.typeAcquisition,
+    config.fileNames,
+    config.projectReferences,
+    config.configFile,
+    config.errors.slice(),
+    config.currentDirectory,
+    config.useCaseSensitiveFileNames,
+    config.literalFileNamesLength,
+  );
+}
+
+/** The key of a source file in `WatchSourceFiles`: a file parses the same for the same name, path and options. */
+function watchFileKey(fileName: string, path: string, options: ExternalModuleIndicatorOptions): string {
+  return fileName + '\u0000' + path + (options.jsx ? '\u0000j' : '\u0000') + (options.force ? 'f' : '');
+}
+
 /**
  * The source files of the last build, by name, path and module detection options, for the next build
  * to take where their text is unchanged (`WatchCompilerHost`).
  */
 class WatchSourceFiles {
-  previous = new Map<string, SourceFile>();
-  current = new Map<string, SourceFile>();
+  readonly current = new Map<string, SourceFile>();
+  /** The paths of the files this build parsed rather than took from the last one. */
+  readonly parsed: string[] = [];
 
-  /** Starts a build: the files of the last one are what it can take. */
-  next(): void {
-    this.previous = this.current;
-    this.current = new Map<string, SourceFile>();
+  constructor(readonly previous: ReadonlyMap<string, SourceFile> = new Map<string, SourceFile>()) {}
+
+  /**
+   * The files of the next build, which can take these. A new object: a program shared with checker
+   * threads holds its host's.
+   */
+  next(): WatchSourceFiles {
+    return new WatchSourceFiles(this.current);
   }
 }
 
@@ -258,23 +289,23 @@ class WatchCompilerHost extends CompilerHost {
     path: string,
     externalModuleIndicatorOptions: ExternalModuleIndicatorOptions,
   ): SourceFile | undefined {
+    // A file that parse threads prepared for a first build on threads (`Watcher.buildOnThreads`).
+    const prepared = takePreparedFile(fileName, path, externalModuleIndicatorOptions);
+    if (prepared !== undefined) return prepared;
     const text = this.fs.readFile(fileName);
     if (text === undefined) return undefined;
-    const key =
-      fileName +
-      '\u0000' +
-      path +
-      (externalModuleIndicatorOptions.jsx ? '\u0000j' : '\u0000') +
-      (externalModuleIndicatorOptions.force ? 'f' : '');
+    const key = watchFileKey(fileName, path, externalModuleIndicatorOptions);
     let file = this.files.current.get(key);
     if (file !== undefined && file.text === text) return file;
     file = this.files.previous.get(key);
-    if (file === undefined || file.text !== text)
+    if (file === undefined || file.text !== text) {
       file = parseSourceFile(
         fileName,
         text,
         new ParseOptions(path, ScriptKind.Unknown, externalModuleIndicatorOptions),
       );
+      this.files.parsed.push(path);
+    }
     this.files.current.set(key, file);
     return file;
   }
@@ -383,8 +414,11 @@ class Watcher {
   private readonly locale: Locale;
   private readonly reporter: DiagnosticReporter;
   private readonly status: WatchStatusReporter;
-  private readonly files = new WatchSourceFiles();
+  private files = new WatchSourceFiles();
   private readonly changes: ChangeWatcher;
+  /** Whether a rebuild is running (`poll`), and whether a check came during it. */
+  private building = false;
+  private checkPending = false;
 
   constructor(
     private readonly sys: System,
@@ -420,9 +454,79 @@ class Watcher {
         ? Diagnostics.File_change_detected_Starting_incremental_compilation
         : Diagnostics.Starting_compilation_in_watch_mode,
     );
-    this.build();
-    watchRestart.firstBuildDone();
-    this.changes.watch([this.stamps, this.configStamps]);
+    const watchChanges = (): void => {
+      watchRestart.firstBuildDone();
+      this.changes.watch([this.stamps, this.configStamps]);
+    };
+    // A program shared with checker threads is never written: symbols get their ids when created.
+    const options = this.config.options;
+    if (parallelParse.spawn !== undefined && checkerThreads(options.checkers, options.singleThreaded) > 1)
+      assignSymbolIdsAtCreation();
+    const threads = this.firstBuildThreads();
+    if (threads > 1) this.buildOnThreads(threads, watchChanges);
+    else this.build(watchChanges);
+  }
+
+  /**
+   * The checker threads of the first build: those of a compile (`compileThreads`), or 1 to build on this
+   * thread. A first build without old state checks every file, as a compile does; rebuilds check what a
+   * change affects (`rebuildThreads`). With build info (`--incremental`), the first build stays here.
+   */
+  private firstBuildThreads(): number {
+    const options = this.config.options;
+    if (this.snapshot !== undefined || isIncremental(options) || parallelParse.spawn === undefined) return 1;
+    return checkerThreads(options.checkers, options.singleThreaded);
+  }
+
+  /**
+   * Builds the first program as a compile does: parse threads load its files, and checker threads check
+   * it (parallel-check.ts) unless it checks little. The program is shared with them, so it gets its own
+   * copy of the config and a host of its own. Its files go to the watch's file maps for rebuilds to take,
+   * and are never written again: rebuilds check them with the checker's side tables. Calls `done` once
+   * the build is reported.
+   */
+  private buildOnThreads(threads: number, done: () => void): void {
+    releaseProgramCaches();
+    const sys = this.sys;
+    const config = copyCommandLine(this.config);
+    const options = config.options;
+    const session = new ParseSession(
+      parseThreads(threads),
+      options,
+      sys.currentDirectory,
+      config.configName,
+      config.fileNames.length > 0,
+    );
+    const host = new WatchCompilerHost(
+      sys,
+      new CachedFileSystem(new SystemFileSystem(sys)),
+      this.locale,
+      new WatchSourceFiles(),
+    );
+    const loader = new FileLoader(host, config);
+    let rootFilesAdded = false;
+    session.onIdle = (batch) => {
+      if (!rootFilesAdded) rootFilesAdded = loader.addRootFiles(rootFilesPerChunk);
+      loader.takeAhead(batch.files);
+    };
+    session.start(config.fileNames, () => {
+      const program = new Program(config, host, loader);
+      this.files = this.files.next();
+      for (const file of program.getSourceFiles()) {
+        const indicator = file.externalModuleIndicatorOptions;
+        this.files.current.set(watchFileKey(file.fileName, file.path, indicator), file);
+      }
+      const checked = new CheckedProgram(program);
+      const finish = (): void => {
+        this.finishBuild(checked);
+        // Rebuilds parse what changed themselves.
+        clearPreparedFiles();
+        done();
+      };
+      const count = checkerThreads(options.checkers, options.singleThreaded, program);
+      if (count > 1) startParallelCheck(checked, count, finish);
+      else finish();
+    });
   }
 
   private configFiles(): string[] {
@@ -432,20 +536,33 @@ class Watcher {
   }
 
   private poll(): void {
-    this.rebuildIfChanged();
-    this.changes.watch([this.stamps, this.configStamps]);
+    // A build on checker threads lets events through; a check during it runs once the build is reported.
+    if (this.building) {
+      this.checkPending = true;
+      return;
+    }
+    this.building = true;
+    this.rebuildIfChanged(() => {
+      this.building = false;
+      this.changes.watch([this.stamps, this.configStamps]);
+      if (this.checkPending) {
+        this.checkPending = false;
+        this.poll();
+      }
+    });
   }
 
-  private rebuildIfChanged(): void {
+  /** Rebuilds if inputs changed, then calls `done`. */
+  private rebuildIfChanged(done: () => void): void {
     const configChanged = this.configStamps.changed();
-    if (!configChanged && !this.stamps.changed()) return;
+    if (!configChanged && !this.stamps.changed()) return done();
     // A changed config is read here, where errors in it keep the last one. A new process would read the
     // config again, so a process whose last read of it failed builds on with the config it has; after a
     // read that succeeded, a config change restarts the process like any other change.
-    if (configChanged && !this.reloadConfig()) return;
-    if (this.configRead && watchRestart.restartsBeforeRebuild()) return;
+    if (configChanged && !this.reloadConfig()) return done();
+    if (this.configRead && watchRestart.restartsBeforeRebuild()) return done();
     this.status.report(Diagnostics.File_change_detected_Starting_incremental_compilation);
-    this.build();
+    this.build(done);
   }
 
   /** Rereads the config file; false (after reporting) if it can't be used. */
@@ -468,7 +585,8 @@ class Watcher {
     return true;
   }
 
-  private build(): void {
+  /** Builds, on checker threads when the change affects many files, then calls `done`. */
+  private build(done: () => void): void {
     releaseProgramCaches();
     const sys = this.sys;
     const fs = new CachedFileSystem(new SystemFileSystem(sys));
@@ -482,15 +600,102 @@ class Watcher {
       );
       if (parsed !== undefined) this.config = parsed;
     }
-    this.files.next();
-    const program = new Program(this.config, new WatchCompilerHost(sys, fs, this.locale, this.files));
+    this.files = this.files.next();
+    // A copy: a program shared with checker threads holds its config's errors (`copyCommandLine`).
+    const program = new Program(copyCommandLine(this.config), new WatchCompilerHost(sys, fs, this.locale, this.files));
     const checked = new CheckedProgram(program);
+    const threads = this.rebuildThreads(program);
+    if (threads > 1) return this.recheckOnThreads(checked, threads, done);
+    this.finishBuild(checked);
+    done();
+  }
+
+  /**
+   * The checker threads for a rebuild of `program`, or 1 to check it on this thread: threads where the
+   * change may affect enough files for them (`rechecksOnThreads`), counting each changed file and every
+   * file that references it, transitively, in the last build, or every file for a change to a file that
+   * affects the global scope. That is what the change affects at most; `recheckOnThreads` then takes
+   * what it does affect.
+   */
+  private rebuildThreads(program: Program): number {
+    const snapshot = this.snapshot;
+    const options = program.options;
+    if (snapshot === undefined || parallelParse.spawn === undefined || options.composite === true) return 1;
+    const threads = checkerThreads(options.checkers, options.singleThreaded, program);
+    if (threads <= 1) return 1;
+    const affected = new Set<string>();
+    const queue: string[] = [];
+    for (const path of this.files.parsed) {
+      const info = snapshot.fileInfos.get(path);
+      if (info === undefined || info.affectsGlobalScope) return threads;
+      if (!affected.has(path)) {
+        affected.add(path);
+        queue.push(path);
+      }
+    }
+    while (queue.length > 0)
+      for (const importer of snapshot.referencedMap.getReferencedBy(queue.pop()!))
+        if (!affected.has(importer)) {
+          affected.add(importer);
+          queue.push(importer);
+        }
+    const files: SourceFile[] = [];
+    for (const path of affected) {
+      const file = program.getSourceFileByPath(path);
+      if (file !== undefined) files.push(file);
+    }
+    mark(`${files.length} files the change may affect`);
+    return rechecksOnThreads(files, threads, options.checkers !== undefined) ? threads : 1;
+  }
+
+  /**
+   * Rechecks `checked` as a compile with build info does (`recheckInParallel`, tsc-compile.ts): its
+   * program is shared with checker threads before its checker does more than merge the globals, and the
+   * threads check the files the change affects when they are many enough, emitting what the incremental
+   * program would; otherwise this thread checks them.
+   */
+  private recheckOnThreads(checked: CheckedProgram, threads: number, done: () => void): void {
+    const sys = this.sys;
+    const program = checked.program;
+    shareWithCheckers(checked);
     const incremental = new IncrementalProgram(checked, new CompileTimes(), this.snapshot, new SystemTimeStamps(sys));
+    const options = program.options;
+    if (
+      options.listFilesOnly !== true &&
+      incremental.getSyntacticDiagnostics().length === 0 &&
+      incremental.getProgramDiagnostics().length === 0 &&
+      incremental.getGlobalDiagnostics(false).length === 0
+    ) {
+      const files = incremental.filesToCheck();
+      mark(`${files.length} files to check`);
+      if (rechecksOnThreads(files, threads, options.checkers !== undefined)) {
+        checked.checkOnly = new Set(files);
+        const finish = (): void => {
+          this.report(incremental);
+          done();
+        };
+        startParallelCheck(checked, threads, finish, true, incremental.emitKindsOnCheckers(files));
+        return;
+      }
+    }
+    this.report(incremental);
+    done();
+  }
+
+  /** Checks (where checker threads didn't), emits and reports `checked`, and watches its inputs. */
+  private finishBuild(checked: CheckedProgram): void {
+    this.report(new IncrementalProgram(checked, new CompileTimes(), this.snapshot, new SystemTimeStamps(this.sys)));
+  }
+
+  /** Checks (where checker threads didn't), emits and reports `incremental`, and watches its inputs. */
+  private report(incremental: IncrementalProgram): void {
+    const sys = this.sys;
+    const program = incremental.program;
     const result = emitFilesAndReportErrors(
       sys,
       incremental,
       this.reporter,
-      new ErrorSummaryReporter(sys, this.config.options, this.locale),
+      new ErrorSummaryReporter(sys, program.options, this.locale),
       new SystemWriter(sys),
       this.locale,
     );

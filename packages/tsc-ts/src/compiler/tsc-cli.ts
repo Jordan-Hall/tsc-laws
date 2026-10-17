@@ -499,7 +499,7 @@ function executeCompile(sys: System, commandLine: ParsedCommandLine): CommandLin
 }
 
 /** Root file tasks the main thread adds each time a parse thread returns a chunk (`FileLoader.addRootFiles`). */
-const rootFilesPerChunk = 32;
+export const rootFilesPerChunk = 32;
 
 /**
  * Whether threads parse and bind the files of a program with `options` ahead of it (parallel-parse.ts):
