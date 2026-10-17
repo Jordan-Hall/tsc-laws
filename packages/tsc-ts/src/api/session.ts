@@ -176,11 +176,14 @@ export class Session {
   private readonly openFiles = new Map<string, OpenFile>();
   private inferred: LoadedProject | undefined;
   private timing: ServerTiming | undefined;
+  // File contents and parsed files kept across snapshots.
+  private readonly files: backend.SessionFiles;
 
   constructor(
     private readonly options: SessionOptions,
     collectTiming: boolean,
   ) {
+    this.files = new backend.SessionFiles((fileName) => this.toPath(fileName), options.useCaseSensitiveFileNames);
     if (collectTiming) {
       this.timing = { enabled: true, totals: { requestCount: 0, totalProcessingTimeMs: 0 }, recentRequests: [] };
     }
@@ -446,6 +449,7 @@ export class Session {
     if (this.inferred !== undefined) projects.push(this.inferred);
     const snapshot = new SnapshotData(this.nextSnapshotId++, projects);
     this.snapshots.set(snapshot.id, snapshot);
+    this.files.retain(projects.map((p) => p.project));
     this.latestSnapshot = snapshot.id;
     return {
       snapshot: snapshot.id,
@@ -529,16 +533,28 @@ export class Session {
   // Reloads the projects a set of file changes can affect.
   private applyFileChanges(changes: proto.FileChanges | undefined): void {
     if (changes === undefined) return;
-    const changed = [...(changes.changed ?? []), ...(changes.deleted ?? [])].map((d) =>
-      this.toPath(documentFileName(d)),
+    const fileNames = [...(changes.changed ?? []), ...(changes.deleted ?? [])].map((d) =>
+      normalizeAbsolutePath(documentFileName(d), this.options.currentDirectory),
     );
+    if (changes.invalidateAll === true) this.files.invalidateAll();
+    const changed = this.files.invalidate(fileNames);
     const reloadAll = changes.invalidateAll === true || (changes.created ?? []).length > 0;
     if (!reloadAll && changed.length === 0) return;
+    // A change affects the projects that read or looked up the file, as their config, an extended config,
+    // a source file, a package.json or a module resolution candidate.
     const affected = (loaded: LoadedProject): boolean =>
-      reloadAll || changed.includes(loaded.id) || changed.some((path) => containsFile(loaded, path));
+      reloadAll || changed.some((path) => loaded.project.depends(path));
+    // Without created or deleted files, a project whose config files are unchanged keeps its config.
+    const keepsConfig = (loaded: LoadedProject): boolean =>
+      !reloadAll && (changes.deleted ?? []).length === 0 && !changed.some((path) => loaded.project.configDepends(path));
     // Reloading re-inserts entries, so iterate over a copy.
     for (const loaded of Array.from(this.loaded.values())) {
       if (!affected(loaded)) continue;
+      if (keepsConfig(loaded)) {
+        const project = loaded.project.reload(this.projectHost());
+        this.loaded.set(loaded.id, { id: loaded.id, configFileName: loaded.configFileName, project });
+        continue;
+      }
       this.loaded.delete(loaded.id);
       this.loadProject(loaded.configFileName);
     }
@@ -549,7 +565,8 @@ export class Session {
 
   private parseConfigFile(params: proto.FileParams): proto.ConfigFileResponse {
     const fileName = normalizeAbsolutePath(documentFileName(params.file), this.options.currentDirectory);
-    const config = backend.parseConfigFile(this.projectHost(), fileName);
+    // The config is read again, not taken from the session's files.
+    const config = backend.parseConfigFile({ ...this.projectHost(), files: undefined }, fileName);
     if (config === undefined) throw new ClientError(`could not read file "${fileName}"`);
     return { fileNames: config.fileNames, options: config.options };
   }
@@ -1080,6 +1097,7 @@ export class Session {
       currentDirectory: this.options.currentDirectory,
       defaultLibraryPath: this.options.defaultLibraryPath,
       useCaseSensitiveFileNames: this.options.useCaseSensitiveFileNames,
+      files: this.files,
     };
   }
 

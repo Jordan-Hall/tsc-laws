@@ -132,6 +132,11 @@ export class CachedFileSystem extends FileSystem {
     return real;
   }
 
+  /** Whether `fileExists` was called for `path`. */
+  lookedUpFile(path: string): boolean {
+    return this.caches.files.has(this.key(path));
+  }
+
   private key(path: string): string {
     return getCanonicalFileName(path, this.useCaseSensitiveFileNames);
   }
