@@ -24,7 +24,14 @@ tsc test, `TSC_TS_CLI` for program and command-line. Locally:
 node scripts/ci/run-tests.mjs --set native
 ```
 
-`release.yml` builds packages only for a commit whose push run on main succeeded in every job.
+`release.yml` builds packages only for a commit whose push run on main succeeded in every job. Before preparing
+a release, update `packages/tsc-ts/package.json` and put that version's notes between the `release:start` and
+`release:end` markers in the root `CHANGELOG.md`. Keep previous entries below the markers. CI checks that the
+marked entry matches the package version with `node scripts/release-notes.mjs`.
+
+After npm publishing succeeds, the workflow creates a GitHub release for the existing version tag, uses the
+marked changelog entry as its body, and attaches the eight published npm tarballs. The release stays a draft until
+all assets are uploaded. If that final job fails, rerun failed jobs to finish it without publishing to npm again.
 
 | Script              | What it does                                                                                                    |
 | ------------------- | --------------------------------------------------------------------------------------------------------------- |

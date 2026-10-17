@@ -61,6 +61,8 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: npm run format:check
       - run: npm run lint
+      - name: Check release notes
+        run: node scripts/release-notes.mjs
 
   build:
     name: build
