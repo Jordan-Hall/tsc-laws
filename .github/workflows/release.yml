@@ -41,9 +41,9 @@ jobs:
           - { platform: darwin-arm64, runner: macos-15 }
           - { platform: darwin-x64, runner: macos-15-intel }
           - { platform: linux-arm64-gnu, runner: ubuntu-24.04-arm }
-          - { platform: linux-arm64-musl, runner: ubuntu-24.04-arm, docker: node:24-alpine }
+          - { platform: linux-arm64-musl, runner: ubuntu-24.04-arm, docker: 'node:24-alpine' }
           - { platform: linux-x64-gnu, runner: ubuntu-24.04 }
-          - { platform: linux-x64-musl, runner: ubuntu-24.04, docker: node:24-alpine }
+          - { platform: linux-x64-musl, runner: ubuntu-24.04, docker: 'node:24-alpine' }
           - { platform: win32-x64-msvc, runner: windows-2025 }
     steps:
       - uses: actions/checkout@v4
@@ -80,3 +80,59 @@ jobs:
           name: tsc-ts
           path: packages/tsc-ts/dist/npm/tsc-ts-[0-9]*.tgz
           if-no-files-found: error
+
+  publish:
+    name: Publish to npm
+    needs: [ci-green, package]
+    if: github.repository == 'vercel-labs/tsc-ts' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: Release
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+
+      - name: Check release version
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          VERSION=$(node -p "require('./packages/tsc-ts/package.json').version")
+          if [ "$TAG" != "v$VERSION" ]; then
+            echo "Tag $TAG does not match packages/tsc-ts version $VERSION"
+            exit 1
+          fi
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: tsc-ts*
+          path: packages/tsc-ts/dist/npm
+          merge-multiple: true
+
+      # Configure npm trusted publishing for tsc-ts and all seven @tsc-ts
+      # platform packages: owner vercel-labs, repository tsc-ts, workflow
+      # release.yml, environment Release. This job uses GitHub OIDC and
+      # --provenance; it needs no npm token secret. Node 24 supplies the npm
+      # version required for trusted publishing.
+      - name: Publish platform packages and launcher
+        shell: bash
+        run: |
+          shopt -s nullglob
+          platform_packages=(packages/tsc-ts/dist/npm/tsc-ts-*-*.tgz)
+          launcher_packages=(packages/tsc-ts/dist/npm/tsc-ts-[0-9]*.tgz)
+          if [ "${#platform_packages[@]}" -ne 7 ] || [ "${#launcher_packages[@]}" -ne 1 ]; then
+            echo "Expected seven platform packages and one launcher package"
+            ls -l packages/tsc-ts/dist/npm
+            exit 1
+          fi
+          for package in "${platform_packages[@]}"; do
+            npm publish "$package" --provenance --access public
+          done
+          npm publish "${launcher_packages[0]}" --provenance --access public
