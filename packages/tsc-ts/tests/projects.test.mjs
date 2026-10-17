@@ -40,6 +40,28 @@ const projects = [
     },
   ],
   [
+    'contextually typed attributes of generic JSX elements',
+    {
+      'node_modules/react/package.json': JSON.stringify({ name: 'react', version: '1.0.0', types: 'index.d.ts' }),
+      'node_modules/react/index.d.ts': 'export {};\n',
+      'node_modules/react/jsx-runtime.d.ts':
+        'export declare function jsx(...args: any[]): any;\nexport declare const Fragment: any;\n',
+      'a.tsx':
+        'type Props = { onKey?: (e: { key: string }) => void; value: string; children?: (n: number) => string };\n' +
+        'interface Polymorphic {\n' +
+        '  <As extends string | void = void>(props: { as?: As } & ([As] extends [string] ? unknown : Props)): any;\n' +
+        '}\n' +
+        'declare const P: Polymorphic;\n' +
+        'export const a = <P value="" onKey={(event) => { event.key; }} />;\n' +
+        'export const b = <P value="">{(n) => n.toFixed()}</P>;\n' +
+        'export const c = <P as="span" onKey={(event) => {}} />;\n',
+      'tsconfig.json': JSON.stringify({
+        compilerOptions: { ...base, jsx: 'react-jsx', module: 'esnext', moduleResolution: 'bundler' },
+        files: ['a.tsx'],
+      }),
+    },
+  ],
+  [
     'compound assignments to elements under noUncheckedIndexedAccess',
     {
       'a.ts':

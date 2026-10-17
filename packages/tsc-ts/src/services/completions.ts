@@ -2518,7 +2518,7 @@ function getContextualTypeForCompletions(
         case SyntaxKind.BinaryExpression:
           return getTypeAtLocation(c, (parent as BinaryExpression).left);
         case SyntaxKind.JsxAttribute:
-          return getContextualTypeForJsxAttribute(c, parent);
+          return getContextualTypeForJsxAttribute(c, parent, ContextFlags.None);
       }
       return undefined;
     case SyntaxKind.NewKeyword:
@@ -2531,7 +2531,7 @@ function getContextualTypeForCompletions(
         parent.parent!.kind !== SyntaxKind.JsxElement &&
         parent.parent!.kind !== SyntaxKind.JsxFragment
       )
-        return getContextualTypeForJsxAttribute(c, parent.parent!);
+        return getContextualTypeForJsxAttribute(c, parent.parent!, ContextFlags.None);
       return undefined;
     case SyntaxKind.OpenBracketToken:
       // `[/*here*/]`: the first element's contextual type.

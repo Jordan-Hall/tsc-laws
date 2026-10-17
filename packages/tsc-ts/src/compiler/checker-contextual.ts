@@ -411,13 +411,13 @@ export function getContextualTypeEx(c: Checker, node: Node, contextFlags: Contex
     case SyntaxKind.NonNullExpression:
       return getContextualTypeEx(c, parent, contextFlags);
     case SyntaxKind.JsxExpression:
-      return getContextualTypeForJsxExpression(c, parent);
+      return getContextualTypeForJsxExpression(c, parent, contextFlags);
     case SyntaxKind.JsxAttribute:
     case SyntaxKind.JsxSpreadAttribute:
-      return getContextualTypeForJsxAttribute(c, parent);
+      return getContextualTypeForJsxAttribute(c, parent, contextFlags);
     case SyntaxKind.JsxOpeningElement:
     case SyntaxKind.JsxSelfClosingElement:
-      return getContextualJsxElementAttributesType(c, parent);
+      return getContextualJsxElementAttributesType(c, parent, contextFlags);
   }
   return undefined;
 }
