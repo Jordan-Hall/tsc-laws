@@ -72,7 +72,7 @@ export function checkResolvedBlockScopedVariable(c: Checker, resolved: Symbol, e
     );
   else if ((result.flags & SymbolFlags.Class) !== 0)
     diagnostic = c.error(errorLocation, Diagnostics.Class_0_used_before_its_declaration, declarationName);
-  else if ((result.flags & SymbolFlags.RegularEnum) !== 0 || c.compilerOptions.isolatedModules === true)
+  else if ((result.flags & SymbolFlags.RegularEnum) !== 0 || c.isolatedModules)
     diagnostic = c.error(errorLocation, Diagnostics.Enum_0_used_before_its_declaration, declarationName);
   if (diagnostic !== undefined)
     diagnostic.addRelatedInfo(

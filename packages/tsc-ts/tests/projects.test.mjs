@@ -67,6 +67,30 @@ const projects = [
     },
   ],
   [
+    'ambient const enums under isolatedModules',
+    {
+      'a.ts': 'declare const enum E { X = 1 }\nexport const y = E.X;\nexport type T = typeof E;\n',
+      'tsconfig.json': JSON.stringify({
+        compilerOptions: { ...base, module: 'ESNext', isolatedModules: true },
+        files: ['a.ts'],
+      }),
+    },
+  ],
+  [
+    'const enums and import aliases under verbatimModuleSyntax',
+    {
+      'a.ts':
+        'export function f() {\n  return E.A;\n  const enum E { A }\n}\n' +
+        'declare global { const enum G { A } }\nexport const g = G.A;\n' +
+        'namespace x { export interface c {} }\nexport import a = x.c;\n' +
+        'import Foo = SomeMissingName;\nexport { Foo };\n',
+      'tsconfig.json': JSON.stringify({
+        compilerOptions: { ...base, module: 'ESNext', verbatimModuleSyntax: true },
+        files: ['a.ts'],
+      }),
+    },
+  ],
+  [
     'ESM syntax in CommonJS files under verbatimModuleSyntax',
     {
       'main.ts':
