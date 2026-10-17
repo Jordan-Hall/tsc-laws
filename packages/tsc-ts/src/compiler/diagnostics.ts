@@ -104,7 +104,11 @@ export function localizeMessage(locale: Locale, message: DiagnosticMessage, args
   return formatMessage(translated !== '' ? translated : textOf(Locale.Default, message), args);
 }
 
-/** Replaces `{n}` placeholders in `text` with `args[n]`. With no arguments, `text` is returned as is. */
+/**
+ * Replaces `{n}` placeholders in `text` with `args[n]`. With no arguments, `text` is returned as is. A
+ * placeholder without an argument stays as it is. tsgo panics there instead ("Invalid formatting
+ * placeholder"), which ends the run before it reports the rest of its diagnostics.
+ */
 export function formatMessage(text: string, args: readonly string[]): string {
   if (args.length === 0) return text;
   let result = '';
@@ -114,7 +118,7 @@ export function formatMessage(text: string, args: readonly string[]): string {
     while (close < text.length && isDigit(text.charCodeAt(close))) close++;
     if (close === open + 1 || close >= text.length || text.charCodeAt(close) !== 0x7d) continue;
     const index = Number(text.slice(open + 1, close));
-    if (index >= args.length) throw new Error('Invalid formatting placeholder');
+    if (index >= args.length) continue;
     result += text.slice(start, open) + toWellFormed(args[index]!);
     start = close + 1;
     open = close;
