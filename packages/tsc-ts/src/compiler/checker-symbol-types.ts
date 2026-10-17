@@ -11,6 +11,7 @@ import {
   ModifierFlags,
   NodeVisitor,
   type ObjectLiteralExpression,
+  type PrefixUnaryExpression,
   type Node,
   NodeFlags,
   getArguments,
@@ -40,6 +41,7 @@ import {
   getNameOfDeclaration,
   getRootDeclaration,
   getSourceFileOfNode,
+  getSourceTextOfNode,
   hasStaticModifier,
   hasSyntacticModifier,
   isCatchClauseVariableDeclarationOrBindingElement,
@@ -952,7 +954,7 @@ class SiblingPropertyScan extends NodeVisitor {
       const returned = callee !== undefined ? this.returned.get(callee) : undefined;
       if (returned !== undefined) this.widenRoot(returned);
     }
-    this.widen(root.alternatives);
+    this.widen(root.alternatives, true);
   }
 
   /**
@@ -994,18 +996,25 @@ class SiblingPropertyScan extends NodeVisitor {
     return functions !== undefined && name.kind === SyntaxKind.Identifier ? functions.get(getText(name)) : undefined;
   }
 
-  /** Records the unions of the alternatives of one widened expression, and of their nested values. */
-  private widen(alternatives: Node[]): void {
-    const literals: ObjectLiteralExpression[] = [];
+  /**
+   * Records the unions of the alternatives of one widened expression, and of their nested values.
+   * With `reduced`, the alternatives make up one union with subtype reduction (the alternatives of an
+   * expression, the elements of an array literal), which drops a literal whose widened type is the
+   * type of an earlier one (`removeSubtypes` removes the later of two identical types). The values of
+   * a property across literals are not reduced: their union is one of each literal's value.
+   */
+  private widen(alternatives: Node[], reduced: boolean): void {
+    let literals: ObjectLiteralExpression[] = [];
     for (const a of alternatives)
       if (a.kind === SyntaxKind.ObjectLiteralExpression) literals.push(a as ObjectLiteralExpression);
       else if (a.kind === SyntaxKind.ArrayLiteralExpression) {
         const elements: Node[] = [];
         for (const e of (a as ArrayLiteralExpression).elements.nodes)
           if (e.kind !== SyntaxKind.SpreadElement) addAlternatives(e, elements);
-        this.widen(elements);
+        this.widen(elements, true);
       }
     if (literals.length === 0) return;
+    if (reduced) literals = withoutRepeatedLiterals(literals);
     if (literals.length > 1) this.record(literals);
     const values = new Map<string, Node[]>();
     for (const literal of literals)
@@ -1015,9 +1024,11 @@ class SiblingPropertyScan extends NodeVisitor {
         if (name === undefined) continue;
         let list = values.get(name);
         if (list === undefined) values.set(name, (list = []));
-        addAlternatives((member as PropertyAssignment).initializer, list);
+        // A value's own alternatives make up one reduced union, one member of the property's values.
+        const own = addAlternatives((member as PropertyAssignment).initializer, []);
+        for (const value of withoutRepeatedLiterals(own)) list.push(value);
       }
-    for (const list of values.values()) this.widen(list);
+    for (const list of values.values()) this.widen(list, false);
   }
 
   /**
@@ -1048,6 +1059,77 @@ class SiblingPropertyScan extends NodeVisitor {
       this.members.set(name, member);
     }
   }
+}
+
+/**
+ * `nodes` without the object literals whose widened types are certainly those of an earlier one:
+ * the same property names, each with a value of the same widened type (`widenedTypeKey`).
+ */
+function withoutRepeatedLiterals<T extends Node>(nodes: T[]): T[] {
+  let keys: string[] | undefined;
+  let result: T[] | undefined;
+  for (let i = 0; i < nodes.length; i++) {
+    const node = nodes[i]!;
+    const key = node.kind === SyntaxKind.ObjectLiteralExpression ? widenedTypeKey(node) : undefined;
+    if (key !== undefined) {
+      if (keys === undefined) keys = [];
+      else if (keys.includes(key)) {
+        if (result === undefined) result = nodes.slice(0, i);
+        continue;
+      }
+      keys.push(key);
+    }
+    result?.push(node);
+  }
+  return result ?? nodes;
+}
+
+/**
+ * A key that two expressions of one file share only when their types widen to the same type, or
+ * undefined where that isn't known from the syntax: literals by their widened type, object literals
+ * by their properties' names and keys, and other expressions by their text.
+ */
+function widenedTypeKey(node: Node): string | undefined {
+  switch (node.kind) {
+    case SyntaxKind.StringLiteral:
+    case SyntaxKind.NoSubstitutionTemplateLiteral:
+    case SyntaxKind.TemplateExpression:
+      return 'string';
+    case SyntaxKind.NumericLiteral:
+      return 'number';
+    case SyntaxKind.BigIntLiteral:
+      return 'bigint';
+    case SyntaxKind.TrueKeyword:
+    case SyntaxKind.FalseKeyword:
+      return 'boolean';
+    case SyntaxKind.RegularExpressionLiteral:
+      return 'RegExp';
+    case SyntaxKind.PrefixUnaryExpression: {
+      const unary = node as PrefixUnaryExpression;
+      const operand = unary.operand.kind;
+      if (unary.operator === SyntaxKind.MinusToken || unary.operator === SyntaxKind.PlusToken) {
+        if (operand === SyntaxKind.NumericLiteral) return 'number';
+        if (operand === SyntaxKind.BigIntLiteral && unary.operator === SyntaxKind.MinusToken) return 'bigint';
+      }
+      return undefined;
+    }
+    case SyntaxKind.Identifier:
+    case SyntaxKind.PropertyAccessExpression:
+      return 'text ' + getSourceTextOfNode(getSourceFileOfNode(node), node);
+    case SyntaxKind.ObjectLiteralExpression: {
+      const members: string[] = [];
+      for (const member of (node as ObjectLiteralExpression).properties.nodes) {
+        if (member.kind !== SyntaxKind.PropertyAssignment) return undefined;
+        const name = staticPropertyName(member);
+        const value = widenedTypeKey((member as PropertyAssignment).initializer);
+        if (name === undefined || value === undefined) return undefined;
+        members.push(JSON.stringify(name) + ': ' + value);
+      }
+      members.sort();
+      return '{' + members.join(', ') + '}';
+    }
+  }
+  return undefined;
 }
 
 /** Collects the calls in an expression, innermost first, outside the functions in it. */
