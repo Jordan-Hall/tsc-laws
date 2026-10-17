@@ -594,7 +594,13 @@ export function getTypeFromClassOrInterfaceReference(c: Checker, node: Node, sym
     minTypeArgumentCount,
     isJs,
   );
-  return createTypeReferenceEx(c, t, t.outerTypeParameters().concat(localTypeArguments), ObjectFlags.FromTypeNode);
+  // localTypeArguments is a new list, so without outer type parameters it is the reference's own.
+  const outerCount = t.outerTypeParameterCount;
+  if (outerCount === 0) return createTypeReferenceEx(c, t, localTypeArguments, ObjectFlags.FromTypeNode);
+  const typeArguments: Type[] = [];
+  for (let i = 0; i < outerCount; i++) typeArguments.push(t.allTypeParameters[i]!);
+  for (const typeArgument of localTypeArguments) typeArguments.push(typeArgument);
+  return createTypeReferenceEx(c, t, typeArguments, ObjectFlags.FromTypeNode);
 }
 
 export function checkNoTypeArguments(c: Checker, node: Node, symbol: Symbol | undefined): boolean {

@@ -543,13 +543,19 @@ export class Checker {
   instantiationCount = 0;
   /** Instantiations over the checker's lifetime (statistics). */
   totalInstantiations = 0;
+  /** Mappers of the instantiations in progress: the first `activeMapperDepth` entries are live. */
   readonly activeMappers: TypeMapper[] = [];
+  activeMapperDepth = 0;
   /** Per active mapper: its instantiations by type id, created on the first nested write. */
   readonly activeMapperCaches: (Map<number, Type> | undefined)[] = [];
   /** Per active mapper: its instantiations with an alias, by type id and alias key. */
   readonly activeMapperAliasCaches: (Map<string, Type> | undefined)[] = [];
-  /** Cleared caches of popped mappers, reused as tsgo's pushActiveMapper reuses the maps popActiveMapper clears. */
+  /**
+   * Cleared caches of popped mappers, reused as tsgo's pushActiveMapper reuses the maps
+   * popActiveMapper clears: the first `freeMapperCacheCount` are free.
+   */
   readonly freeMapperCaches: Map<number, Type>[] = [];
+  freeMapperCacheCount = 0;
   conditionalConstraintDepth = 0;
 
   readonly suggestionResolver: SuggestionNameResolver;
@@ -586,11 +592,20 @@ export class Checker {
   // Control flow analysis
   flowAnalysisDisabled = false;
   inlineLevel = 0;
+  /**
+   * Shared flow nodes cached by the walks in progress, with their types: the first
+   * `sharedFlowCount` entries are live, later slots are reused.
+   */
   readonly sharedFlowNodes: FlowNode[] = [];
-  /** Flow states of finished walks, reused as in tsgo's getFlowState/putFlowState. */
-  readonly freeFlowStates: FlowState[] = [];
   readonly sharedFlowTypes: Type[] = [];
   readonly sharedFlowIncomplete: boolean[] = [];
+  sharedFlowCount = 0;
+  /**
+   * Flow states, reused as in tsgo's getFlowState/putFlowState: the first `flowStateDepth` belong
+   * to walks in progress, the rest are free.
+   */
+  readonly flowStates: FlowState[] = [];
+  flowStateDepth = 0;
   readonly flowLoopCaches = new Map<FlowNode, Map<string, Type>>();
   /** The last long walk of each reference key outside loops: see `FlowWalk`. */
   readonly flowWalks = new Map<string, FlowWalk>();
@@ -632,9 +647,11 @@ export class Checker {
   readonly patternAmbientModuleAugmentations = new Map<string, Symbol>();
 
   readonly inferenceCaches = new InferenceCaches();
+  /** The type resolution stack: the first `resolutionDepth` entries are live, later slots are reused. */
   readonly resolutionTargets: (Symbol | Type | Signature | Node)[] = [];
   readonly resolutionResults: boolean[] = [];
   readonly resolutionPropertyNames: number[] = [];
+  resolutionDepth = 0;
   /** The number of resolution cycles found (`pushTypeResolution`). */
   resolutionCycleCount = 0;
 

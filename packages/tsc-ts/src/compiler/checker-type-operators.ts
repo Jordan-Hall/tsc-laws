@@ -765,7 +765,7 @@ function getPropertyTypeForIndexType(
             indexNode,
             Diagnostics.Tuple_type_0_of_length_1_has_no_element_at_index_2,
             typeToString(c, objectType),
-            String(tupleTargetOf(objectType).typeParameters().length),
+            String(tupleTargetOf(objectType).typeParameterCount()),
             propName,
           );
         } else
@@ -1062,7 +1062,7 @@ export function getElementTypeOfSliceOfTupleType(
   writing: boolean,
   noReductions: boolean,
 ): Type | undefined {
-  const length = tupleTargetOf(t).typeParameters().length - endSkipCount;
+  const length = tupleTargetOf(t).typeParameterCount() - endSkipCount;
   const infos = tupleTargetOf(t).elementInfos;
   if (index >= length) return undefined;
   const typeArguments = getTypeArguments(c, t);
@@ -2329,6 +2329,17 @@ export function getFalseTypeFromConditionalType(c: Checker, t: ConditionalType):
   if (side.resolvedFalseType === undefined)
     side.resolvedFalseType = instantiateType(c, getTypeFromTypeNode(c, conditionalNode(t.root).falseType), t.mapper);
   return side.resolvedFalseType;
+}
+
+/** `[getTrueTypeFromConditionalType(t), getFalseTypeFromConditionalType(t)]`, created once. */
+export function getBranchTypesFromConditionalType(c: Checker, t: ConditionalType): Type[] {
+  const side = sideOf(c, t);
+  let types = side.resolvedBranchTypes;
+  if (types === undefined) {
+    types = [getTrueTypeFromConditionalType(c, t), getFalseTypeFromConditionalType(c, t)];
+    side.resolvedBranchTypes = types;
+  }
+  return types;
 }
 
 export function getInferredTrueTypeFromConditionalType(c: Checker, t: ConditionalType): Type {

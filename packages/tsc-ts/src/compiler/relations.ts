@@ -1128,8 +1128,11 @@ export class Relater extends TypeComparer {
   relatedInfo: Diagnostic[] = [];
   readonly maybeKeys: number[] = [];
   readonly maybeKeysSet = new Set<number>();
+  /** Recursion stacks: the first `sourceDepth` and `targetDepth` entries are live. */
   readonly sourceStack: Type[] = [];
   readonly targetStack: Type[] = [];
+  sourceDepth = 0;
+  targetDepth = 0;
   expandingFlags: ExpandingFlags = ExpandingFlags.None;
   overflow = false;
   relationCount = 0;
@@ -1156,8 +1159,8 @@ export class Relater extends TypeComparer {
     if (this.relatedInfo.length !== 0) this.relatedInfo = [];
     this.maybeKeys.length = 0;
     this.maybeKeysSet.clear();
-    this.sourceStack.length = 0;
-    this.targetStack.length = 0;
+    this.sourceDepth = 0;
+    this.targetDepth = 0;
     this.expandingFlags = ExpandingFlags.None;
     this.overflow = false;
     this.relationCount = 0;
@@ -1691,7 +1694,9 @@ export class Relater extends TypeComparer {
       ).key;
       if (this.maybeKeysSet.has(broadest)) return Ternary.Maybe;
     }
-    if (this.sourceStack.length === 100 || this.targetStack.length === 100) {
+    const sourceDepth = this.sourceDepth;
+    const targetDepth = this.targetDepth;
+    if (sourceDepth === 100 || targetDepth === 100) {
       this.overflow = true;
       return Ternary.False;
     }
@@ -1700,13 +1705,21 @@ export class Relater extends TypeComparer {
     this.maybeKeysSet.add(id);
     const saveExpandingFlags = this.expandingFlags;
     if ((recursionFlags & RecursionFlags.Source) !== 0) {
-      this.sourceStack.push(source);
-      if ((this.expandingFlags & ExpandingFlags.Source) === 0 && isDeeplyNestedType(c, source, this.sourceStack, 3))
+      setStackEntry(this.sourceStack, sourceDepth, source);
+      this.sourceDepth = sourceDepth + 1;
+      if (
+        (this.expandingFlags & ExpandingFlags.Source) === 0 &&
+        isDeeplyNestedType(c, source, this.sourceStack, sourceDepth + 1, 3)
+      )
         this.expandingFlags |= ExpandingFlags.Source;
     }
     if ((recursionFlags & RecursionFlags.Target) !== 0) {
-      this.targetStack.push(target);
-      if ((this.expandingFlags & ExpandingFlags.Target) === 0 && isDeeplyNestedType(c, target, this.targetStack, 3))
+      setStackEntry(this.targetStack, targetDepth, target);
+      this.targetDepth = targetDepth + 1;
+      if (
+        (this.expandingFlags & ExpandingFlags.Target) === 0 &&
+        isDeeplyNestedType(c, target, this.targetStack, targetDepth + 1, 3)
+      )
         this.expandingFlags |= ExpandingFlags.Target;
     }
     const saveReliabilityFlags = c.reliabilityFlags;
@@ -1717,11 +1730,11 @@ export class Relater extends TypeComparer {
         : this.structuredTypeRelatedTo(source, target, reportErrors, intersectionState);
     const propagatingVarianceFlags = c.reliabilityFlags;
     c.reliabilityFlags |= saveReliabilityFlags;
-    if ((recursionFlags & RecursionFlags.Source) !== 0) this.sourceStack.pop();
-    if ((recursionFlags & RecursionFlags.Target) !== 0) this.targetStack.pop();
+    this.sourceDepth = sourceDepth;
+    this.targetDepth = targetDepth;
     this.expandingFlags = saveExpandingFlags;
     if (result !== Ternary.False) {
-      if (result === Ternary.True || (this.sourceStack.length === 0 && this.targetStack.length === 0)) {
+      if (result === Ternary.True || (sourceDepth === 0 && targetDepth === 0)) {
         // True results, and Maybe results at depth 0, succeed; Unknown is never recorded.
         this.resetMaybeStack(maybeStart, propagatingVarianceFlags, result === Ternary.True || result === Ternary.Maybe);
       }
@@ -2102,7 +2115,7 @@ export class Relater extends TypeComparer {
       }
     } else if ((target.flags & TypeFlags.Conditional) !== 0) {
       // Ten nested levels of one conditional type are assumed infinitely expanding.
-      if (isDeeplyNestedType(c, target, this.targetStack, 10)) return Ternary.Maybe;
+      if (isDeeplyNestedType(c, target, this.targetStack, this.targetDepth, 10)) return Ternary.Maybe;
       const t = target as ConditionalType;
       if (
         t.root.inferTypeParameters.length === 0 &&
@@ -2226,7 +2239,7 @@ export class Relater extends TypeComparer {
         if (result !== Ternary.False) return result;
       }
     } else if ((source.flags & TypeFlags.Conditional) !== 0) {
-      if (isDeeplyNestedType(c, source, this.sourceStack, 10)) return Ternary.Maybe;
+      if (isDeeplyNestedType(c, source, this.sourceStack, this.sourceDepth, 10)) return Ternary.Maybe;
       const s = source as ConditionalType;
       const saveErrorChain = this.errorChain;
       if ((target.flags & TypeFlags.Conditional) !== 0) {
@@ -4254,20 +4267,39 @@ function typeCouldHaveTopLevelSingletonTypes(c: Checker, t: Type): boolean {
   return isUnitType(t) || (t.flags & (TypeFlags.TemplateLiteral | TypeFlags.StringMapping)) !== 0;
 }
 
-/** Deeply nested: `maxDepth` or more same-identity types on the stack, each newer than the last. */
-export function isDeeplyNestedType(c: Checker, t: Type, stack: readonly Type[], maxDepth: number): boolean {
-  if (stack.length < maxDepth) return false;
+/**
+ * Puts `t` at `stack[depth]`. Recursion stacks keep their entries from `depth` on as stale slots,
+ * which avoids releasing an entry on every pop.
+ */
+export function setStackEntry(stack: Type[], depth: number, t: Type): void {
+  if (depth < stack.length) stack[depth] = t;
+  else stack.push(t);
+}
+
+/**
+ * Deeply nested: `maxDepth` or more same-identity types in `stack[0..depth)`, each newer than the
+ * last.
+ */
+export function isDeeplyNestedType(
+  c: Checker,
+  t: Type,
+  stack: readonly Type[],
+  depth: number,
+  maxDepth: number,
+): boolean {
+  if (depth < maxDepth) return false;
   if (
     (t.objectFlags & ObjectFlags.InstantiatedMapped) === ObjectFlags.InstantiatedMapped &&
     (t.flags & TypeFlags.Object) !== 0
   )
     t = getMappedTargetWithSymbol(c, t);
   if ((t.flags & TypeFlags.Intersection) !== 0)
-    for (const u of typesOf(t)) if (isDeeplyNestedType(c, u, stack, maxDepth)) return true;
+    for (const u of typesOf(t)) if (isDeeplyNestedType(c, u, stack, depth, maxDepth)) return true;
   const identity = getRecursionIdentity(t);
   let count = 0;
   let lastTypeId = 0;
-  for (const s of stack) {
+  for (let i = 0; i < depth; i++) {
+    const s = stack[i]!;
     if (hasMatchingRecursionIdentity(c, s, identity)) {
       if (s.id >= lastTypeId) {
         count++;
@@ -4379,7 +4411,7 @@ function getVariancesWorker(c: Checker, symbol: Symbol, typeParameters: readonly
   const saveResolutionStart = c.resolutionStart;
   if (!c.inVarianceComputation) {
     c.inVarianceComputation = true;
-    c.resolutionStart = c.resolutionTargets.length;
+    c.resolutionStart = c.resolutionDepth;
   }
   links.variances = [];
   const variances: VarianceFlags[] = [];

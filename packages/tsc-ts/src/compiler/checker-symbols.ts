@@ -1288,7 +1288,7 @@ export function getGlobalType(c: Checker, name: string, arity: number, reportErr
   if (symbol !== undefined) {
     if ((symbol.flags & (SymbolFlags.Class | SymbolFlags.Interface)) !== 0) {
       const type = getDeclaredTypeOfSymbol(c, symbol);
-      if ((type as InterfaceType).typeParameters().length === arity) return type;
+      if ((type as InterfaceType).typeParameterCount() === arity) return type;
       if (reportErrors)
         c.error(
           getGlobalTypeDeclaration(symbol),
@@ -1944,20 +1944,28 @@ export function pushTypeResolution(
   const start = findResolutionCycleStartIndex(c, target, propertyName);
   if (start >= 0) {
     c.resolutionCycleCount++;
-    for (let i = start; i < c.resolutionResults.length; i++) c.resolutionResults[i] = false;
+    for (let i = start; i < c.resolutionDepth; i++) c.resolutionResults[i] = false;
     return false;
   }
-  c.resolutionTargets.push(target);
-  c.resolutionPropertyNames.push(propertyName);
-  c.resolutionResults.push(true);
+  const depth = c.resolutionDepth;
+  if (depth < c.resolutionTargets.length) {
+    c.resolutionTargets[depth] = target;
+    c.resolutionPropertyNames[depth] = propertyName;
+    c.resolutionResults[depth] = true;
+  } else {
+    c.resolutionTargets.push(target);
+    c.resolutionPropertyNames.push(propertyName);
+    c.resolutionResults.push(true);
+  }
+  c.resolutionDepth = depth + 1;
   return true;
 }
 
 /** Pops the last resolution; false if it was part of a cycle. */
 export function popTypeResolution(c: Checker): boolean {
-  c.resolutionTargets.pop();
-  c.resolutionPropertyNames.pop();
-  return c.resolutionResults.pop()!;
+  const depth = c.resolutionDepth - 1;
+  c.resolutionDepth = depth;
+  return c.resolutionResults[depth]!;
 }
 
 export function findResolutionCycleStartIndex(
@@ -1965,7 +1973,7 @@ export function findResolutionCycleStartIndex(
   target: ResolutionTarget,
   propertyName: TypeSystemPropertyName,
 ): number {
-  for (let i = c.resolutionTargets.length - 1; i >= c.resolutionStart; i--) {
+  for (let i = c.resolutionDepth - 1; i >= c.resolutionStart; i--) {
     if (resolutionHasProperty(c, c.resolutionTargets[i]!, c.resolutionPropertyNames[i]!)) return -1;
     if (c.resolutionTargets[i]! === target && c.resolutionPropertyNames[i]! === propertyName) return i;
   }

@@ -129,6 +129,7 @@ import { Diagnostic, DiagnosticCategory, type DiagnosticMessage, messageCategory
 import { ModuleKind, ScriptTarget, getEmitModuleKind } from './options.js';
 import { fileExtensionIsOneOf, isExternalModuleNameRelative } from './path.js';
 import { SourceFileMetadata, getEmitModuleFormatOfFile, getImpliedNodeFormatForEmit } from './program-utilities.js';
+import { CharacterCodes } from './character-codes.js';
 import { Scanner, ScannerErrorReporter, computeLineOfPosition, skipTrivia, tokenToString } from './scanner.js';
 import { SymbolFlags } from './symbol.js';
 import { typeToString } from './type-printer.js';
@@ -2853,7 +2854,9 @@ function checkGrammarTypeReference(g: GrammarChecker, node: TypeReferenceNode): 
   const typeArguments = node.typeArguments;
   if ((node.flags & NodeFlags.JSDoc) !== 0 || typeArguments === undefined || node.typeName.end === typeArguments.pos)
     return;
-  // `Foo.<T>` is JSDoc syntax.
+  // `Foo.<T>` is JSDoc syntax. A token starting with `<`, as in `Foo<T>`, is not a dot, which
+  // saves creating a scanner over the file.
+  if (g.file.text.charCodeAt(node.typeName.end) === CharacterCodes.lessThan) return;
   const scanner = g.getScanner();
   scanner.resetTokenState(node.typeName.end);
   if (scanner.scan() === SyntaxKind.DotToken)

@@ -193,9 +193,17 @@ export const enum ContextFlags {
 
 export function pushContextualType(c: Checker, node: Node, t: Type | undefined, isCache: boolean): void {
   const caches = c.inferenceCaches;
-  caches.contextualNodes.push(node);
-  caches.contextualTypes.push(t);
-  caches.contextualIsCache.push(isCache);
+  const depth = caches.contextualDepth;
+  if (depth < caches.contextualNodes.length) {
+    caches.contextualNodes[depth] = node;
+    caches.contextualTypes[depth] = t;
+    caches.contextualIsCache[depth] = isCache;
+  } else {
+    caches.contextualNodes.push(node);
+    caches.contextualTypes.push(t);
+    caches.contextualIsCache.push(isCache);
+  }
+  caches.contextualDepth = depth + 1;
 }
 
 /** Caches the contextual type of `node` for the contextual types of its elements. */
@@ -204,35 +212,43 @@ export function pushCachedContextualType(c: Checker, node: Node): void {
 }
 
 export function popContextualType(c: Checker): void {
-  const caches = c.inferenceCaches;
-  caches.contextualNodes.pop();
-  caches.contextualTypes.pop();
-  caches.contextualIsCache.pop();
+  c.inferenceCaches.contextualDepth--;
 }
 
 /** The index of the contextual type pushed onto `node`, or -1. */
 export function findContextualNode(c: Checker, node: Node, includeCaches: boolean): number {
   const caches = c.inferenceCaches;
   const nodes = caches.contextualNodes;
-  for (let i = 0; i < nodes.length; i++)
-    if (nodes[i]! === node && (includeCaches || !caches.contextualIsCache[i])) return i;
+  const depth = caches.contextualDepth;
+  for (let i = 0; i < depth; i++) if (nodes[i]! === node && (includeCaches || !caches.contextualIsCache[i])) return i;
   return -1;
 }
 
 export function pushInferenceContext(c: Checker, node: Node, context: InferenceContext | undefined): void {
-  c.inferenceCaches.inferenceNodes.push(node);
-  c.inferenceCaches.inferenceContexts.push(context);
+  const caches = c.inferenceCaches;
+  const depth = caches.inferenceDepth;
+  if (depth < caches.inferenceNodes.length) {
+    caches.inferenceNodes[depth] = node;
+    caches.inferenceContexts[depth] = context;
+  } else {
+    caches.inferenceNodes.push(node);
+    caches.inferenceContexts.push(context);
+  }
+  caches.inferenceDepth = depth + 1;
 }
 
 export function popInferenceContext(c: Checker): void {
-  c.inferenceCaches.inferenceNodes.pop();
-  c.inferenceCaches.inferenceContexts.pop();
+  const caches = c.inferenceCaches;
+  const depth = caches.inferenceDepth - 1;
+  // The context is released when popped; the node slot stays until it is reused.
+  caches.inferenceContexts[depth] = undefined;
+  caches.inferenceDepth = depth;
 }
 
 /** The inference context of the innermost call argument containing `node`. */
 export function getInferenceContext(c: Checker, node: Node): InferenceContext | undefined {
   const caches = c.inferenceCaches;
-  for (let i = caches.inferenceNodes.length - 1; i >= 0; i--)
+  for (let i = caches.inferenceDepth - 1; i >= 0; i--)
     if (isNodeDescendantOf(node, caches.inferenceNodes[i]!)) return caches.inferenceContexts[i];
   return undefined;
 }

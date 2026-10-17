@@ -359,6 +359,8 @@ export const enum CachedTypeKind {
   Widened,
   RegularObjectLiteral,
   PromisedTypeOfPromise,
+  Optional,
+  OptionalProperty,
 }
 
 export function cachedTypeKey(kind: CachedTypeKind, id: number): number {
@@ -760,6 +762,12 @@ export class InterfaceType extends TypeReference {
     const all = this.allTypeParameters;
     return all.length === 0 ? emptyTypes : all.slice(0, all.length - 1);
   }
+
+  /** `typeParameters().length`, without copying them. */
+  typeParameterCount(): number {
+    const count = this.allTypeParameters.length;
+    return count === 0 ? 0 : count - 1;
+  }
 }
 
 export class TupleElementInfo {
@@ -1096,6 +1104,8 @@ export class ConditionalType extends Type {
   readonly extendsType: Type;
   resolvedTrueType: Type | undefined;
   resolvedFalseType: Type | undefined;
+  /** The true and false types, as one list (getBranchTypesFromConditionalType). */
+  resolvedBranchTypes: Type[] | undefined;
   resolvedInferredTrueType: Type | undefined;
   resolvedDefaultConstraint: Type | undefined;
   resolvedConstraintOfDistributive: Type | undefined;
@@ -1116,6 +1126,7 @@ export class ConditionalType extends Type {
     this.extendsType = extendsType;
     this.resolvedTrueType = undefined;
     this.resolvedFalseType = undefined;
+    this.resolvedBranchTypes = undefined;
     this.resolvedInferredTrueType = undefined;
     this.resolvedDefaultConstraint = undefined;
     this.resolvedConstraintOfDistributive = undefined;

@@ -103,6 +103,7 @@ import {
   MappedTypeModifiers,
   applyStringMapping,
   getActualTypeVariable,
+  getBranchTypesFromConditionalType,
   getConstraintFromConditionalType,
   getConstraintOfConditionalType,
   getConstraintTypeFromMappedType,
@@ -181,6 +182,7 @@ import {
   getVariances,
   isUnmatchedProperty,
   isDeeplyNestedType,
+  setStackEntry,
   isObjectTypeWithInferableIndex,
   isTypeAssignableTo,
   isTypeIdenticalTo,
@@ -502,8 +504,10 @@ class InferenceState {
   /** invokeOnce's pairs by packed type ids (`visitKey`), or spelled when an id is too large to pack. */
   visited: Map<number, InferencePriority> | undefined = undefined;
   visitedSpelled: Map<string, InferencePriority> | undefined = undefined;
+  /** invokeOnce's recursion stacks; the first `stackDepth` entries of each are live. */
   readonly sourceStack: Type[] = [];
   readonly targetStack: Type[] = [];
+  stackDepth = 0;
   depth = 0;
 
   constructor(
@@ -783,10 +787,14 @@ class InferenceState {
     this.inferencePriority = InferencePriority.MaxValue;
     // Duplicate recursion identities on both sides mean a circularity.
     const saveExpandingFlags = this.expandingFlags;
-    this.sourceStack.push(source);
-    this.targetStack.push(target);
-    if (isDeeplyNestedType(this.c, source, this.sourceStack, 2)) this.expandingFlags |= ExpandingFlags.Source;
-    if (isDeeplyNestedType(this.c, target, this.targetStack, 2)) this.expandingFlags |= ExpandingFlags.Target;
+    const stackDepth = this.stackDepth;
+    setStackEntry(this.sourceStack, stackDepth, source);
+    setStackEntry(this.targetStack, stackDepth, target);
+    this.stackDepth = stackDepth + 1;
+    if (isDeeplyNestedType(this.c, source, this.sourceStack, stackDepth + 1, 2))
+      this.expandingFlags |= ExpandingFlags.Source;
+    if (isDeeplyNestedType(this.c, target, this.targetStack, stackDepth + 1, 2))
+      this.expandingFlags |= ExpandingFlags.Target;
     if (this.expandingFlags !== ExpandingFlags.Both) {
       switch (action) {
         case InferenceAction.ConditionalType:
@@ -800,8 +808,7 @@ class InferenceState {
           break;
       }
     } else this.inferencePriority = InferencePriority.Circularity;
-    this.targetStack.pop();
-    this.sourceStack.pop();
+    this.stackDepth = stackDepth;
     this.expandingFlags = saveExpandingFlags;
     this.setVisited(source, target, key, this.inferencePriority);
     this.inferencePriority = Math.min(this.inferencePriority, saveInferencePriority);
@@ -924,10 +931,9 @@ class InferenceState {
       this.inferFromTypes(getTrueTypeFromConditionalType(c, s), getTrueTypeFromConditionalType(c, target));
       this.inferFromTypes(getFalseTypeFromConditionalType(c, s), getFalseTypeFromConditionalType(c, target));
     } else {
-      const targetTypes = [getTrueTypeFromConditionalType(c, target), getFalseTypeFromConditionalType(c, target)];
       const savePriority = this.priority;
       this.priority |= this.contravariant ? InferencePriority.ContravariantConditional : 0;
-      this.inferToMultipleTypes(source, targetTypes, target.flags);
+      this.inferToMultipleTypes(source, getBranchTypesFromConditionalType(c, target), target.flags);
       this.priority = savePriority;
     }
   }
@@ -1969,12 +1975,14 @@ export function inferReverseMappedType(
   const key = source.id + ',' + target.id + ',' + constraint.id;
   const caches = c.inferenceCaches;
   if (caches.reverseMapped.has(key)) return caches.reverseMapped.get(key) ?? c.unknownType;
-  caches.reverseSourceStack.push(source);
-  caches.reverseTargetStack.push(target as Type);
+  const stackDepth = caches.reverseStackDepth;
+  setStackEntry(caches.reverseSourceStack, stackDepth, source);
+  setStackEntry(caches.reverseTargetStack, stackDepth, target as Type);
+  caches.reverseStackDepth = stackDepth + 1;
   const saveExpandingFlags = caches.reverseExpandingFlags;
-  if (isDeeplyNestedType(c, source, caches.reverseSourceStack, 2))
+  if (isDeeplyNestedType(c, source, caches.reverseSourceStack, stackDepth + 1, 2))
     caches.reverseExpandingFlags |= ExpandingFlags.Source;
-  if (isDeeplyNestedType(c, target, caches.reverseTargetStack, 2))
+  if (isDeeplyNestedType(c, target, caches.reverseTargetStack, stackDepth + 1, 2))
     caches.reverseExpandingFlags |= ExpandingFlags.Target;
   let t: Type | undefined = undefined;
   if (caches.reverseExpandingFlags !== ExpandingFlags.Both) {
@@ -1984,8 +1992,7 @@ export function inferReverseMappedType(
     inferTypes(c, [inference], source, templateType, InferencePriority.None, false);
     t = getWidenedType(c, getTypeFromInference(c, inference) ?? c.unknownType);
   }
-  caches.reverseSourceStack.pop();
-  caches.reverseTargetStack.pop();
+  caches.reverseStackDepth = stackDepth;
   caches.reverseExpandingFlags = saveExpandingFlags;
   caches.reverseMapped.set(key, t);
   return t;
@@ -2403,13 +2410,18 @@ export function inferTypesForConditional(
 
 /** Caches and stacks for inference, contextual typing and call resolution. */
 export class InferenceCaches {
-  /** Contextual types pushed for nodes being checked, innermost last. */
+  /**
+   * Contextual types pushed for nodes being checked, innermost last. The first `contextualDepth`
+   * entries are live; popping keeps the slots after them for reuse.
+   */
   readonly contextualNodes: Node[] = [];
   readonly contextualTypes: (Type | undefined)[] = [];
   readonly contextualIsCache: boolean[] = [];
-  /** Inference contexts pushed for arguments being checked, innermost last. */
+  contextualDepth = 0;
+  /** Inference contexts pushed for arguments being checked, innermost last; `inferenceDepth` are live. */
   readonly inferenceNodes: Node[] = [];
   readonly inferenceContexts: (InferenceContext | undefined)[] = [];
+  inferenceDepth = 0;
   readonly optionalCallSignatures = new Map<Signature, Map<string, Signature>>();
   readonly discriminatedContextualTypes = new Map<string, Type>();
   /** `discriminatedContextualTypes` by node and type id packed into one number, when they fit. */
@@ -2419,8 +2431,10 @@ export class InferenceCaches {
   readonly contextFreeTypes = new Map<Node, Type>();
   readonly reverseMapped = new Map<string, Type | undefined>();
   readonly reverseHomomorphicMapped = new Map<string, Type | undefined>();
+  /** inferReverseMappedType's recursion stacks; the first `reverseStackDepth` entries of each are live. */
   readonly reverseSourceStack: Type[] = [];
   readonly reverseTargetStack: Type[] = [];
+  reverseStackDepth = 0;
   reverseExpandingFlags: number = ExpandingFlags.None;
 }
 

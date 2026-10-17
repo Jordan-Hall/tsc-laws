@@ -1029,9 +1029,16 @@ export function filterType(c: Checker, type: Type, f: (t: Type) => boolean): Typ
   if ((type.flags & TypeFlags.Union) !== 0) {
     const union = type as UnionType;
     const types = union.types;
+    // The list is copied from the first constituent removed; most filters keep every one.
+    let removed = 0;
+    while (removed < types.length && f(types[removed]!)) removed++;
+    if (removed === types.length) return type;
     const filtered: Type[] = [];
-    for (const t of types) if (f(t)) filtered.push(t);
-    if (filtered.length === types.length) return type;
+    for (let i = 0; i < removed; i++) filtered.push(types[i]!);
+    for (let i = removed + 1; i < types.length; i++) {
+      const t = types[i]!;
+      if (f(t)) filtered.push(t);
+    }
     const origin = union.origin;
     let newOrigin: Type | undefined;
     if (origin !== undefined && (origin.flags & TypeFlags.Union) !== 0) {
@@ -2176,7 +2183,7 @@ export function isMutableArrayOrTuple(c: Checker, t: Type): boolean {
 }
 
 export function getTypeReferenceArity(t: Type): number {
-  return ((t as TypeReference).target as InterfaceType).typeParameters().length;
+  return ((t as TypeReference).target as InterfaceType).typeParameterCount();
 }
 
 export function getElementTypes(c: Checker, t: Type): Type[] {
@@ -2440,7 +2447,7 @@ export function getTypeArguments(c: Checker, t: Type): Type[] {
   const target = ref.target as InterfaceType;
   const errors = (): Type[] => {
     const result: Type[] = [];
-    for (let i = 0; i < target.typeParameters().length; i++) result.push(c.errorType);
+    for (let i = 0; i < target.typeParameterCount(); i++) result.push(c.errorType);
     return result;
   };
   if (!pushTypeResolution(c, t, TypeSystemPropertyName.ResolvedTypeArguments)) return errors();
