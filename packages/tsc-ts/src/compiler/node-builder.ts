@@ -448,6 +448,8 @@ export class NodeBuilder {
    * source wrote where that denotes the checker's type.
    */
   pseudo: PseudoChecker | undefined = undefined;
+  /** Set for declaration emit, which writes unions in an order that doesn't depend on the checker's history. */
+  declarationOrder = false;
 
   constructor(
     c: Checker,
@@ -1011,8 +1013,9 @@ export class NodeBuilder {
         (u.flags & TypeFlags.Union) !== 0
           ? formatUnionTypes(c, (u as UnionOrIntersectionType).types, false)
           : (u as UnionOrIntersectionType).types;
-      // Declaration emit writes unions in an order that doesn't depend on the checker's history.
-      if (this.pseudo !== undefined && (u.flags & TypeFlags.Union) !== 0) types = inDeclarationOrder(c, types);
+      // Declaration emit writes unions in an order that doesn't depend on the checker's history; type
+      // text in messages keeps the union's order.
+      if (this.declarationOrder && (u.flags & TypeFlags.Union) !== 0) types = inDeclarationOrder(c, types);
       if (types.length === 1) return this.typeToTypeNode(types[0]!);
       const typeNodes = this.mapToTypeNodes(types, true);
       if (typeNodes !== undefined && typeNodes.nodes.length > 0)

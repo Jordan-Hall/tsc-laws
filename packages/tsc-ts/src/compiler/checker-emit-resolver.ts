@@ -418,6 +418,7 @@ export class CheckerDeclarationEmitResolver extends DeclarationEmitResolver {
       context,
     );
     b.pseudo = newPseudoChecker(this.checker);
+    b.declarationOrder = true;
     return b;
   }
 
