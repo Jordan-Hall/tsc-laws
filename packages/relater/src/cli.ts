@@ -7,12 +7,12 @@ function run(): void {
   const args = process.argv.slice(2);
   if (args.length === 0 || args[0] === '--help') {
     console.log(
-      'relater — experimental tsgo assignability port, compiled statically with scriptc v0.3.4\nUsage: relater graph.json [--rounds N] [--cold]\nInput: relater.type-graph.v11 resolved type arena.',
+      'relater — experimental tsgo assignability port, compiled statically with scriptc v0.3.5\nUsage: relater graph.json [--rounds N] [--cold]\nInput: relater.type-graph.v11 resolved type arena.',
     );
     return;
   }
   if (args[0] === '--version') {
-    console.log('relater 0.0.0 (scriptc 0.3.4)');
+    console.log('relater 0.0.0 (scriptc 0.3.5)');
     return;
   }
   const graph = JSON.parse(readFileSync(args[0], 'utf8')) as Graph;
