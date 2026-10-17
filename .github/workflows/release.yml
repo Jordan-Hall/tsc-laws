@@ -1,26 +1,75 @@
 name: Release
 
-# Builds and publishes the npm packages after every job of CI passes on the release commit's push to main.
-# Push a version tag to release it, or dispatch from main with `release_tag` to retry without moving the tag.
-# `node scripts/ci/ci-status.mjs latest-green` prints the latest commit that meets the CI gate.
+# A version bump merged to main releases after that commit's CI succeeds.
+# The GitHub release creates the tag automatically. Dispatch from main to retry;
+# `release_tag` optionally selects an existing tag instead of the current main commit.
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       release_tag:
         description: Existing version tag to build and publish from a manual run
         required: false
         type: string
-  push:
-    tags: ['v*']
+
+# Finish publishing before another main push checks whether the version is released.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 permissions:
   contents: read
 
 jobs:
+  check-release:
+    name: Check for new version
+    if: github.repository == 'vercel-labs/tsc-ts' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      should_release: ${{ steps.check.outputs.should_release }}
+      version: ${{ steps.check.outputs.version }}
+      sha: ${{ steps.check.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_tag || github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Check GitHub release completion
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          VERSION=$(node -p "require('./packages/tsc-ts/package.json').version")
+          TAG="v$VERSION"
+          if [ -n "$RELEASE_TAG" ] && [ "$RELEASE_TAG" != "$TAG" ]; then
+            echo "Tag $RELEASE_TAG does not match packages/tsc-ts version $VERSION"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          RELEASE_DRAFT=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft 2>/dev/null || echo missing)
+          if [ "$RELEASE_DRAFT" = false ]; then
+            echo "Release $TAG is complete"
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Release $TAG needs publishing or completion"
+            # A retry of an existing tag must keep its source commit, even if main has moved.
+            SHA=$(git rev-parse --verify "refs/tags/$TAG^{commit}" 2>/dev/null || git rev-parse HEAD)
+            echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+            echo "should_release=true" >> "$GITHUB_OUTPUT"
+          fi
+
   ci-green:
     name: CI is green on this commit
+    needs: check-release
+    if: needs.check-release.outputs.should_release == 'true'
     runs-on: ubuntu-latest
-    # A tag pushed right after a merge arrives while CI still runs on the commit; this waits up to 90 minutes for it.
+    # The release and CI start on the same main push; wait up to 90 minutes for CI.
     timeout-minutes: 100
     permissions:
       actions: read
@@ -28,7 +77,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.release_tag || github.ref }}
+          ref: ${{ needs.check-release.outputs.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -45,7 +94,7 @@ jobs:
 
   package:
     name: ${{ matrix.platform }}
-    needs: ci-green
+    needs: [check-release, ci-green]
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 180
     strategy:
@@ -62,7 +111,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.release_tag || github.ref }}
+          ref: ${{ needs.check-release.outputs.sha }}
 
       - uses: actions/setup-node@v4
         if: ${{ !matrix.docker }}
@@ -114,11 +163,10 @@ jobs:
 
   publish:
     name: Publish to npm
-    needs: [ci-green, package]
+    needs: [check-release, ci-green, package]
     if: >-
       github.repository == 'vercel-labs/tsc-ts' &&
-      (startsWith(github.ref, 'refs/tags/v') ||
-      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && startsWith(inputs.release_tag, 'v')))
+      github.ref == 'refs/heads/main' && needs.check-release.outputs.should_release == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: Release
@@ -129,7 +177,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.release_tag || github.ref }}
+          ref: ${{ needs.check-release.outputs.sha }}
 
       - uses: actions/setup-node@v4
         with:
@@ -138,7 +186,7 @@ jobs:
 
       - name: Check release version
         env:
-          TAG: ${{ inputs.release_tag || github.ref_name }}
+          TAG: v${{ needs.check-release.outputs.version }}
         run: |
           VERSION=$(node -p "require('./packages/tsc-ts/package.json').version")
           if [ "$TAG" != "v$VERSION" ]; then
@@ -176,7 +224,7 @@ jobs:
 
   github-release:
     name: Create GitHub Release
-    needs: publish
+    needs: [check-release, publish]
     if: needs.publish.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -200,10 +248,11 @@ jobs:
       - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ inputs.release_tag || github.ref_name }}
+          TAG: v${{ needs.check-release.outputs.version }}
+          RELEASE_SHA: ${{ needs.check-release.outputs.sha }}
         run: |
           if ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
-            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --verify-tag \
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$RELEASE_SHA" \
               --title "$TAG" --draft --notes-file "$RUNNER_TEMP/release-notes.md"
           fi
           gh release upload "$TAG" "$RUNNER_TEMP"/npm/*.tgz --repo "$GITHUB_REPOSITORY" --clobber

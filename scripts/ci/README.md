@@ -24,14 +24,20 @@ tsc test, `TSC_TS_CLI` for program and command-line. Locally:
 node scripts/ci/run-tests.mjs --set native
 ```
 
-`release.yml` builds packages only for a commit whose push run on main succeeded in every job. Before preparing
-a release, update `packages/tsc-ts/package.json` and put that version's notes between the `release:start` and
-`release:end` markers in the root `CHANGELOG.md`. Keep previous entries below the markers. CI checks that the
-marked entry matches the package version with `node scripts/release-notes.mjs`.
+`release.yml` checks for an unreleased package version on every push to main. To prepare a release, update
+`packages/tsc-ts/package.json` and its entry in `package-lock.json`, and put that version's notes between the
+`release:start` and `release:end` markers in the root `CHANGELOG.md`. Keep previous entries below the markers.
+CI checks that the marked entry matches the package version with `node scripts/release-notes.mjs`.
 
-After npm publishing succeeds, the workflow creates a GitHub release for the existing version tag, uses the
-marked changelog entry as its body, and attaches the eight published npm tarballs. The release stays a draft until
-all assets are uploaded. If that final job fails, rerun failed jobs to finish it without publishing to npm again.
+Merge the version bump to main to start the release. The workflow waits for that commit's full CI run to succeed,
+builds the packages, and waits for approval in the `Release` environment before publishing to npm. It then creates
+the version tag and GitHub release automatically, uses the marked changelog entry as its body, and attaches the
+eight published npm tarballs. No manual tag or workflow dispatch is needed. The release stays a draft until all
+assets are uploaded; later main pushes skip versions with a completed GitHub release.
+
+If the GitHub release job fails, rerun failed jobs to finish it without publishing to npm again. A manual workflow
+dispatch from main can start a release for main's current version; the optional `release_tag` input selects an
+existing tag for a retry. Runs use a fixed source commit, and retries of an existing tag keep that tag's commit.
 
 | Script              | What it does                                                                                                    |
 | ------------------- | --------------------------------------------------------------------------------------------------------------- |
