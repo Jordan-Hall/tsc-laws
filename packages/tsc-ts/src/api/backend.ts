@@ -1,6 +1,12 @@
 // The compiler behind the API server. Everything it exports is plain data or
 // an opaque reference that callers pass back in.
-import type { Node as AstNode, SourceFile as AstSourceFile } from '../compiler/ast.js';
+import {
+  type ExternalModuleIndicatorOptions,
+  type Node as AstNode,
+  ParseOptions,
+  ScriptKind,
+  type SourceFile as AstSourceFile,
+} from '../compiler/ast.js';
 import { getTouchingPropertyName } from '../compiler/astnav.js';
 import { getSourceFileOfNode } from '../compiler/binder-utilities.js';
 import type { Checker } from '../compiler/checker.js';
@@ -84,6 +90,7 @@ import {
   ModuleResolutionKind,
   ScriptTarget,
 } from '../compiler/options.js';
+import { parseSourceFile } from '../compiler/parser.js';
 import { EmitContext } from '../compiler/printer/emit-context.js';
 import { Printer, PrinterOptions } from '../compiler/printer/printer.js';
 import { Program, sortAndDeduplicateDiagnostics } from '../compiler/program.js';
@@ -118,6 +125,8 @@ export interface ProjectHost {
   currentDirectory: string;
   defaultLibraryPath: string;
   useCaseSensitiveFileNames: boolean;
+  /** The session's files; without them, every read goes to `fs`. */
+  files?: SessionFiles;
 }
 
 // A literal type's value, as sent to API clients.
@@ -334,20 +343,28 @@ export const enum SignatureKind {
 export class Project {
   private readonly checked: CheckedProgram;
   private readonly checker: Checker;
+  private readonly fs: CachedFileSystem;
 
   private constructor(
     private readonly config: ParsedCommandLine,
     host: ProjectHost,
+    // The paths of the files read or looked up for the config.
+    private readonly configSeen: readonly string[],
   ) {
     const fs = new CachedFileSystem(new HostFileSystem(host));
-    const program = new Program(config, new CompilerHost(fs, host.currentDirectory, host.defaultLibraryPath));
+    this.fs = fs;
+    const program = new Program(
+      config,
+      new ProjectCompilerHost(fs, host.currentDirectory, host.defaultLibraryPath, host.files),
+    );
     this.checked = new CheckedProgram(program);
     this.checker = this.checked.createChecker();
   }
 
   static open(host: ProjectHost, configFileName: string): Project {
     const errors: CompilerDiagnostic[] = [];
-    const fs = new HostFileSystem(host);
+    const seen = new Set<string>();
+    const fs = new HostFileSystem(host, seen);
     const config =
       new ConfigParser(fs, host.currentDirectory).parseConfigFile(configFileName, undefined, undefined, errors) ??
       new ParsedCommandLine(
@@ -361,7 +378,7 @@ export class Project {
         host.useCaseSensitiveFileNames,
         0,
       );
-    return new Project(config, host);
+    return new Project(config, host, Array.from(seen));
   }
 
   // The project of open files that no config file contains, with tsgo's
@@ -391,7 +408,7 @@ export class Project {
       host.useCaseSensitiveFileNames,
       rootFileNames.length,
     );
-    return new Project(config, host);
+    return new Project(config, host, []);
   }
 
   private get program(): Program {
@@ -400,6 +417,32 @@ export class Project {
 
   rootFiles(): string[] {
     return this.config.fileNames.slice();
+  }
+
+  /**
+   * Whether a change to the file at `path` can affect the project: the config read it, the program has it,
+   * or loading the program looked it up (a package.json or a module resolution candidate; the compiler
+   * reads no other file without looking it up first).
+   */
+  depends(path: string): boolean {
+    return (
+      this.configSeen.includes(path) ||
+      this.fs.lookedUpFile(path) ||
+      this.program.getSourceFileByPath(path) !== undefined
+    );
+  }
+
+  /** Whether reading the config read or looked up the file at `path`. */
+  configDepends(path: string): boolean {
+    return this.configSeen.includes(path);
+  }
+
+  /**
+   * The project with a new program from the same config, for changes that leave the config's files and
+   * the files its patterns match as they were.
+   */
+  reload(host: ProjectHost): Project {
+    return new Project(this.config, host, this.configSeen);
   }
 
   compilerOptions(): CompilerOptions {
@@ -774,17 +817,162 @@ export function parseConfigFile(host: ProjectHost, configFileName: string): Pars
   return { fileNames: config.fileNames.slice(), options: compilerOptionsOf(config.options) };
 }
 
-// The client's file system, as the compiler reads it.
+/**
+ * The file contents and parsed files a session keeps across snapshots, as tsgo does. A file read
+ * once is read again only after the client reports it changed or deleted (`fileChanges`) or sends
+ * `invalidateAll`; until then it exists with the contents first read. A file read through a symbolic
+ * link in node_modules is also invalidated by a change reported for its real path. A parsed file is
+ * reused while its name, path, module detection options and text are unchanged: a file parses the same
+ * for the same inputs, and binding a bound file does nothing.
+ */
+export class SessionFiles {
+  private readonly contents = new Map<string, string>();
+  // The paths of files read through a symbolic link in node_modules, by real path.
+  private readonly linkedPaths = new Map<string, string[]>();
+  // Paths `realpath` returned, which are their own real paths.
+  private readonly realPaths = new Set<string>();
+  private readonly parsed = new Map<string, SourceFile>();
+
+  constructor(
+    private readonly toPath: (fileName: string) => string,
+    private readonly useCaseSensitiveFileNames: boolean,
+  ) {}
+
+  /** The path of a file name from the compiler, which is absolute and normalized. */
+  pathOf(fileName: string): string {
+    return this.useCaseSensitiveFileNames ? fileName : fileName.toLowerCase();
+  }
+
+  /** The text of `fileName`, whose path is `path`. */
+  readFile(fs: ClientFileSystem, fileName: string, path: string): string | undefined {
+    const cached = this.contents.get(path);
+    if (cached !== undefined) return cached;
+    const text = fs.readFile(fileName);
+    if (text === undefined) return undefined;
+    this.contents.set(path, text);
+    if (path.includes('/node_modules/') && !this.realPaths.has(path)) {
+      const realPath = this.toPath(fs.realpath(fileName));
+      if (realPath !== path) {
+        const paths = this.linkedPaths.get(realPath);
+        if (paths === undefined) this.linkedPaths.set(realPath, [path]);
+        else if (!paths.includes(path)) paths.push(path);
+      }
+    }
+    return text;
+  }
+
+  /** The real path of `fileName`, recorded so that reading it later needs no `realpath`. */
+  realpath(fs: ClientFileSystem, fileName: string): string {
+    const realPath = fs.realpath(fileName);
+    this.realPaths.add(this.toPath(realPath));
+    return realPath;
+  }
+
+  /** Whether `fileName`, whose path is `path`, exists. */
+  fileExists(fs: ClientFileSystem, fileName: string, path: string): boolean {
+    return this.contents.has(path) || fs.fileExists(fileName);
+  }
+
+  /**
+   * Forgets the contents of changed or deleted files; returns their paths, with the paths they were read
+   * through in node_modules.
+   */
+  invalidate(fileNames: readonly string[]): string[] {
+    const paths: string[] = [];
+    for (const fileName of fileNames) {
+      const path = this.toPath(fileName);
+      paths.push(path);
+      this.contents.delete(path);
+      for (const linked of this.linkedPaths.get(path) ?? []) {
+        paths.push(linked);
+        this.contents.delete(linked);
+      }
+    }
+    return paths;
+  }
+
+  /** Forgets the contents of every file. */
+  invalidateAll(): void {
+    this.contents.clear();
+  }
+
+  /** The parsed file of `text`, reused from an earlier parse with the same inputs. */
+  sourceFile(
+    fileName: string,
+    path: string,
+    externalModuleIndicatorOptions: ExternalModuleIndicatorOptions,
+    text: string,
+  ): SourceFile {
+    const key =
+      fileName +
+      '\u0000' +
+      path +
+      (externalModuleIndicatorOptions.jsx ? '\u0000j' : '\u0000') +
+      (externalModuleIndicatorOptions.force ? 'f' : '');
+    const cached = this.parsed.get(key);
+    if (cached !== undefined && cached.text === text) return cached;
+    const file = parseSourceFile(
+      fileName,
+      text,
+      new ParseOptions(path, ScriptKind.Unknown, externalModuleIndicatorOptions),
+    );
+    this.parsed.set(key, file);
+    return file;
+  }
+
+  /** Keeps only the parsed files of `projects`, the projects of the latest snapshot. */
+  retain(projects: readonly Project[]): void {
+    const used = new Set<SourceFile>();
+    for (const project of projects) for (const file of project.sourceFiles()) used.add(file);
+    const unused: string[] = [];
+    for (const [key, file] of this.parsed) if (!used.has(file)) unused.push(key);
+    for (const key of unused) this.parsed.delete(key);
+  }
+}
+
+// A compiler host that takes parsed files from the session's files.
+class ProjectCompilerHost extends CompilerHost {
+  constructor(
+    fs: FileSystem,
+    currentDirectory: string,
+    defaultLibraryPath: string,
+    private readonly files: SessionFiles | undefined,
+  ) {
+    super(fs, currentDirectory, defaultLibraryPath);
+  }
+
+  getSourceFile(
+    fileName: string,
+    path: string,
+    externalModuleIndicatorOptions: ExternalModuleIndicatorOptions,
+  ): SourceFile | undefined {
+    if (this.files === undefined) return super.getSourceFile(fileName, path, externalModuleIndicatorOptions);
+    const text = this.fs.readFile(fileName);
+    if (text === undefined) return undefined;
+    return this.files.sourceFile(fileName, path, externalModuleIndicatorOptions, text);
+  }
+}
+
+// The client's file system, as the compiler reads it, with the session's file contents. With `seen`, it
+// records the paths of the files it reads or looks up.
 class HostFileSystem extends FileSystem {
   private readonly fs: ClientFileSystem;
+  private readonly files: SessionFiles | undefined;
 
-  constructor(host: ProjectHost) {
+  constructor(
+    host: ProjectHost,
+    private readonly seen?: Set<string>,
+  ) {
     super(host.useCaseSensitiveFileNames);
     this.fs = host.fs;
+    this.files = host.files;
   }
 
   fileExists(path: string): boolean {
-    return this.fs.fileExists(path);
+    if (this.files === undefined) return this.fs.fileExists(path);
+    const key = this.files.pathOf(path);
+    this.seen?.add(key);
+    return this.files.fileExists(this.fs, path, key);
   }
 
   directoryExists(path: string): boolean {
@@ -792,7 +980,10 @@ class HostFileSystem extends FileSystem {
   }
 
   readFile(path: string): string | undefined {
-    return this.fs.readFile(path);
+    if (this.files === undefined) return this.fs.readFile(path);
+    const key = this.files.pathOf(path);
+    this.seen?.add(key);
+    return this.files.readFile(this.fs, path, key);
   }
 
   getAccessibleEntries(path: string): DirectoryEntries {
@@ -801,7 +992,7 @@ class HostFileSystem extends FileSystem {
   }
 
   realpath(path: string): string {
-    return this.fs.realpath(path);
+    return this.files !== undefined ? this.files.realpath(this.fs, path) : this.fs.realpath(path);
   }
 }
 

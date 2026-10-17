@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { cpSync, existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import test from 'node:test';
 import { Differential, explore, exploreServices } from './differential.mjs';
@@ -154,6 +154,77 @@ test('tsc-ts --api tracks projects and open files like tsc --api', { skip, timeo
   }
   report(d);
 });
+
+// File contents are kept across snapshots: an edit is seen once the client reports the file, its real
+// path (for a file read through a symbolic link in node_modules) or invalidateAll.
+test(
+  'tsc-ts --api reads changed files when the client reports them, like tsc --api',
+  { skip, timeout: 300_000 },
+  async () => {
+    const dir = tempDir('tsc-ts-api-');
+    writeFileSync(join(dir, 'base.json'), '{"compilerOptions":{"strict":true}}');
+    writeFileSync(
+      join(dir, 'tsconfig.json'),
+      '{"extends":"./base.json","compilerOptions":{"types":[],"module":"nodenext"},"files":["a.ts","b.ts","c.ts"]}',
+    );
+    writeFileSync(join(dir, 'a.ts'), 'export const a = 1;\n');
+    writeFileSync(
+      join(dir, 'b.ts'),
+      "import { a } from './a.js';\nimport { p } from 'pkg';\nexport const b = a + p;\n",
+    );
+    writeFileSync(join(dir, 'c.ts'), 'export function c(x) { return x; }\n');
+    mkdirSync(join(dir, 'packages/pkg'), { recursive: true });
+    writeFileSync(join(dir, 'packages/pkg/package.json'), '{"name":"pkg","types":"index.d.ts"}');
+    writeFileSync(join(dir, 'packages/pkg/index.d.ts'), 'export declare const p: number;\n');
+    writeFileSync(join(dir, 'packages/pkg/other.d.ts'), 'export declare const p: string;\n');
+    mkdirSync(join(dir, 'node_modules'));
+    symlinkSync(join(dir, 'packages/pkg'), join(dir, 'node_modules/pkg'));
+    const d = new Differential([realTsc], tscTs, dir, env);
+    try {
+      await d.call('initialize');
+      const config = join(dir, 'tsconfig.json');
+      let update = await d.call('updateSnapshot', { openProjects: [config] });
+      const project = update.projects[0].id;
+      const query = async (snapshot) => {
+        const base = { snapshot, project };
+        await d.call('getSourceFileNames', base);
+        for (const name of ['a.ts', 'b.ts', 'c.ts']) {
+          await d.call('getSyntacticDiagnostics', { ...base, file: join(dir, name) });
+          await d.call('getSemanticDiagnostics', { ...base, file: join(dir, name) });
+        }
+      };
+      // a.ts changes without a report; b.ts is reported.
+      writeFileSync(join(dir, 'a.ts'), 'export const a = ;\n');
+      writeFileSync(
+        join(dir, 'b.ts'),
+        "import { a } from './a.js';\nimport { p } from 'pkg';\nexport const b = a + p + 1;\n",
+      );
+      update = await d.call('updateSnapshot', { fileChanges: { changed: [join(dir, 'b.ts')] } });
+      await query(update.snapshot);
+      update = await d.call('updateSnapshot', { fileChanges: { changed: [join(dir, 'a.ts')] } });
+      await query(update.snapshot);
+      // The package.json read through node_modules/pkg changes, reported by its real path.
+      writeFileSync(join(dir, 'packages/pkg/package.json'), '{"name":"pkg","types":"other.d.ts"}');
+      update = await d.call('updateSnapshot', { fileChanges: { changed: [join(dir, 'packages/pkg/package.json')] } });
+      await query(update.snapshot);
+      // The extended config changes.
+      writeFileSync(join(dir, 'base.json'), '{"compilerOptions":{"strict":false}}');
+      update = await d.call('updateSnapshot', { fileChanges: { changed: [join(dir, 'base.json')] } });
+      await query(update.snapshot);
+      // c.ts is deleted; then a.ts changes without a report, and invalidateAll rereads it.
+      rmSync(join(dir, 'c.ts'));
+      update = await d.call('updateSnapshot', { fileChanges: { deleted: [join(dir, 'c.ts')] } });
+      await d.call('getProgramDiagnostics', { snapshot: update.snapshot, project });
+      writeFileSync(join(dir, 'c.ts'), 'export function c(x: number) { return x; }\n');
+      writeFileSync(join(dir, 'a.ts'), 'export const a = 2;\n');
+      update = await d.call('updateSnapshot', { fileChanges: { invalidateAll: true } });
+      await query(update.snapshot);
+    } finally {
+      await d.close();
+    }
+    report(d);
+  },
+);
 
 // `await (legacy())` parses as a call of `await` until the file turns out to be a module, so
 // its statement is reparsed in an await context; the statements around it are retained with
