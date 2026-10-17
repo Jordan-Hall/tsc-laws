@@ -21,6 +21,8 @@ import {
   getElements,
   getExpression,
   getText,
+  type InferTypeNode,
+  type TypeReferenceNode,
 } from './ast.js';
 import { Diagnostics, Diagnostic } from './diagnostics.js';
 import { CheckFlags, InternalSymbolName, type Symbol, SymbolFlags, getSymbolId } from './symbol.js';
@@ -56,6 +58,10 @@ import {
   newTypeMapper,
   IntrinsicType,
   type ReverseMappedType,
+  ReferenceArgKind,
+  ReferenceArgs,
+  type TypeReference,
+  VarianceFlags,
 } from './checker-types.js';
 import {
   UnionReduction,
@@ -150,8 +156,10 @@ import {
   instantiateType,
   instantiateTypeAlias,
   isTypeParameterPossiblyReferenced,
+  containsTypeParameterReference,
+  isNodeDescendantOf,
 } from './instantiation.js';
-import { isTypeAssignableTo } from './relations.js';
+import { getVariances, isMarkerType, isTypeAssignableTo } from './relations.js';
 import { symbolToString, typeToString } from './type-printer.js';
 import { getSourceFileOfNode, isAssignmentTarget, isEntityNameExpression } from './binder-utilities.js';
 import { getTextOfNodeFromSourceText } from './ast-utilities.js';
@@ -2037,24 +2045,30 @@ export function getConditionalType(
       isSimpleTupleType(extendsTypeNode) &&
       getElements(checkTypeNode)!.nodes.length === getElements(extendsTypeNode)!.nodes.length;
     const checkTypeDeferred = isDeferredType(c, checkType, checkTuples);
+    const falseForEveryInference =
+      root.inferTypeParameters.length !== 0 &&
+      !checkTypeDeferred &&
+      !forConstraint &&
+      isFalseForEveryInference(c, root, checkType, extendsType);
     let combinedMapper: TypeMapper | undefined;
-    if (root.inferTypeParameters.length !== 0) {
+    if (root.inferTypeParameters.length !== 0 && !falseForEveryInference) {
       const inferenceMapper = inferTypesForConditional(c, root, checkType, extendsType, mapper, checkTypeDeferred);
       if (inferenceMapper === undefined) return c.errorType;
       combinedMapper = mapper !== undefined ? combineTypeMappers(c, inferenceMapper, mapper) : inferenceMapper;
     }
     const inferredExtendsType =
       combinedMapper !== undefined ? instantiateType(c, root.extendsType, combinedMapper) : extendsType;
-    if (!checkTypeDeferred && !isDeferredType(c, inferredExtendsType, checkTuples)) {
+    if (falseForEveryInference || (!checkTypeDeferred && !isDeferredType(c, inferredExtendsType, checkTuples))) {
       // Definitely false when even permissive instantiations aren't related.
       if (
-        (inferredExtendsType.flags & TypeFlags.AnyOrUnknown) === 0 &&
-        ((checkType.flags & TypeFlags.Any) !== 0 ||
-          !isTypeAssignableTo(
-            c,
-            getPermissiveInstantiation(c, checkType),
-            getPermissiveInstantiation(c, inferredExtendsType),
-          ))
+        falseForEveryInference ||
+        ((inferredExtendsType.flags & TypeFlags.AnyOrUnknown) === 0 &&
+          ((checkType.flags & TypeFlags.Any) !== 0 ||
+            !isTypeAssignableTo(
+              c,
+              getPermissiveInstantiation(c, checkType),
+              getPermissiveInstantiation(c, inferredExtendsType),
+            )))
       ) {
         if (
           (checkType.flags & TypeFlags.Any) !== 0 ||
@@ -2123,6 +2137,155 @@ export function getConditionalType(
     break;
   }
   return extraTypes !== undefined ? getUnionType(c, extraTypes.concat([result])) : result;
+}
+
+/**
+ * Whether the extends check of a conditional type with `infer` type parameters is false for every
+ * inference, so that inference can be skipped and the false branch taken as it would be. This is so
+ * when the check and extends types are references to the same class or interface, which are related
+ * by the variances of its type parameters, and a type argument without `infer` type parameters is a
+ * primitive or literal type that doesn't relate to the check type's: relating the type arguments
+ * then fails whatever is inferred for the others. The relation doesn't fall back to comparing
+ * structure: no variance is unmeasurable or unreliable, and no covariant type argument can be
+ * `void` after inference.
+ */
+function isFalseForEveryInference(c: Checker, root: ConditionalRoot, checkType: Type, extendsType: Type): boolean {
+  if (
+    (checkType.flags & TypeFlags.Object) === 0 ||
+    (extendsType.flags & TypeFlags.Object) === 0 ||
+    (checkType.objectFlags & ObjectFlags.Reference) === 0 ||
+    (extendsType.objectFlags & ObjectFlags.Reference) === 0
+  )
+    return false;
+  const target = (checkType as TypeReference).target!;
+  if (target !== (extendsType as TypeReference).target) return false;
+  const args = getReferenceArgs(c, root);
+  if (args === null || isMarkerType(c, checkType) || isMarkerType(c, extendsType)) return false;
+  const variances = getVariances(c, target);
+  if (variances.length === 0) return false;
+  for (const v of variances) if ((v & VarianceFlags.AllowsStructuralFallback) !== 0) return false;
+  const sourceArgs = getTypeArguments(c, checkType);
+  const targetArgs = getTypeArguments(c, extendsType);
+  let unrelated = false;
+  for (let i = 0; i < args.kinds.length; i++) {
+    const kind = args.kinds[i]!;
+    const variance = i < variances.length ? variances[i]! & VarianceFlags.VarianceMask : VarianceFlags.Covariant;
+    if (variance === VarianceFlags.Covariant) {
+      if (kind === ReferenceArgKind.Other) return false;
+      if (kind === ReferenceArgKind.Fixed && (targetArgs[i]!.flags & TypeFlags.Void) !== 0) return false;
+      // An `infer` type parameter that occurs once infers the check type's type argument, or its
+      // constraint if that isn't assignable to it.
+      if (kind === ReferenceArgKind.Infer) {
+        if (someType(sourceArgs[i]!, (t) => (t.flags & TypeFlags.Void) !== 0)) return false;
+        const constraint = getConstraintOfTypeParameter(c, args.inferTypeParameters[i]!);
+        if (constraint !== undefined && (constraint.flags & (TypeFlags.Void | TypeFlags.Instantiable)) !== 0)
+          return false;
+      }
+    }
+    if (
+      !unrelated &&
+      kind === ReferenceArgKind.Fixed &&
+      variance !== VarianceFlags.Independent &&
+      isPrimitiveOrLiteralTypeArgument(sourceArgs[i]!) &&
+      isPrimitiveOrLiteralTypeArgument(targetArgs[i]!)
+    )
+      unrelated = !isTypeArgumentRelated(c, sourceArgs[i]!, targetArgs[i]!, variance);
+  }
+  return unrelated;
+}
+
+/** A primitive or literal type, or a union of them: relating them doesn't relate any structure. */
+function isPrimitiveOrLiteralTypeArgument(t: Type): boolean {
+  if ((t.flags & TypeFlags.Union) === 0) return (t.flags & TypeFlags.StructuredOrInstantiable) === 0;
+  for (const u of typesOf(t)) if ((u.flags & TypeFlags.StructuredOrInstantiable) !== 0) return false;
+  return true;
+}
+
+/** Whether type arguments relate by `variance`, as when relating references to the same type. */
+function isTypeArgumentRelated(c: Checker, s: Type, t: Type, variance: VarianceFlags): boolean {
+  switch (variance) {
+    case VarianceFlags.Covariant:
+      return isTypeAssignableTo(c, s, t);
+    case VarianceFlags.Contravariant:
+      return isTypeAssignableTo(c, t, s);
+    case VarianceFlags.Bivariant:
+      return isTypeAssignableTo(c, t, s) || isTypeAssignableTo(c, s, t);
+    default:
+      return isTypeAssignableTo(c, s, t) && isTypeAssignableTo(c, t, s);
+  }
+}
+
+function getReferenceArgs(c: Checker, root: ConditionalRoot): ReferenceArgs | null {
+  if (root.referenceArgs === undefined) root.referenceArgs = computeReferenceArgs(c, root);
+  return root.referenceArgs;
+}
+
+function computeReferenceArgs(c: Checker, root: ConditionalRoot): ReferenceArgs | null {
+  const declared = root.extendsType;
+  if ((declared.objectFlags & ObjectFlags.Reference) === 0 || declared.alias !== undefined || isTupleType(declared))
+    return null;
+  const target = (declared as TypeReference).target!;
+  if (
+    target === c.globalArrayType ||
+    target === c.globalReadonlyArrayType ||
+    target.symbol === undefined ||
+    (target.symbol.flags & (SymbolFlags.Class | SymbolFlags.Interface)) === 0
+  )
+    return null;
+  const node = skipTypeParentheses(conditionalNode(root).extendsType);
+  if (node.kind !== SyntaxKind.TypeReference) return null;
+  const argNodes = (node as TypeReferenceNode).typeArguments?.nodes ?? [];
+  const typeArgs = getTypeArguments(c, declared);
+  if (typeArgs.length !== argNodes.length) return null;
+  const kinds: ReferenceArgKind[] = [];
+  const inferTypeParameters: (Type | undefined)[] = [];
+  for (let i = 0; i < argNodes.length; i++) {
+    const argNode = argNodes[i]!;
+    let kind = ReferenceArgKind.Fixed;
+    let inferTypeParameter: Type | undefined;
+    for (const tp of root.inferTypeParameters) {
+      const declaration = tp.symbol?.declarations[0];
+      if (
+        declaration === undefined ||
+        isNodeDescendantOf(declaration, argNode) ||
+        containsTypeParameterReference(c, tp, argNode)
+      ) {
+        kind = ReferenceArgKind.Other;
+        break;
+      }
+    }
+    if (kind === ReferenceArgKind.Other) {
+      const inner = skipTypeParentheses(argNode);
+      if (inner.kind === SyntaxKind.InferType) {
+        const tp = root.inferTypeParameters.find(
+          (t) => t.symbol!.declarations[0] === (inner as InferTypeNode).typeParameter,
+        );
+        if (tp !== undefined && tp.symbol!.declarations.length === 1 && !isReferencedInOtherArg(c, tp, argNodes, i)) {
+          kind = ReferenceArgKind.Infer;
+          inferTypeParameter = tp;
+        }
+      } else if (isObjectTypeWithObjectInstantiations(typeArgs[i]!)) kind = ReferenceArgKind.Object;
+    }
+    kinds.push(kind);
+    inferTypeParameters.push(inferTypeParameter);
+  }
+  return new ReferenceArgs(kinds, inferTypeParameters);
+}
+
+function isReferencedInOtherArg(c: Checker, tp: Type, argNodes: readonly Node[], index: number): boolean {
+  for (let j = 0; j < argNodes.length; j++)
+    if (j !== index && containsTypeParameterReference(c, tp, argNodes[j]!)) return true;
+  return false;
+}
+
+/** References other than tuples and anonymous object types other than mapped types instantiate to object types. */
+function isObjectTypeWithObjectInstantiations(t: Type): boolean {
+  return (
+    (t.flags & TypeFlags.Object) !== 0 &&
+    (t.objectFlags & (ObjectFlags.Reference | ObjectFlags.Anonymous)) !== 0 &&
+    (t.objectFlags & (ObjectFlags.Mapped | ObjectFlags.ReverseMapped)) === 0 &&
+    !isTupleType(t)
+  );
 }
 
 class TailRoot {
