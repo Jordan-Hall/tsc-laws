@@ -3,7 +3,9 @@
 // checked as /input.tsx with the JSX options of its @jsx, @jsxFactory,
 // @jsxFragmentFactory and @jsxImportSource directives. A test case whose files
 // are all JavaScript and that sets @checkJs is checked as /input.js with
-// allowJs and checkJs.
+// allowJs and checkJs. TSC_TS_CHECK_OPTIONS lists options for every input,
+// separated by commas: names of boolean options to turn on, and module,
+// moduleResolution and target as name=value.
 package main
 
 import (
@@ -19,6 +21,101 @@ import (
 	"github.com/microsoft/typescript-go/internal/checkhost"
 	"github.com/microsoft/typescript-go/internal/core"
 )
+
+var moduleKinds = map[string]core.ModuleKind{
+	"commonjs": core.ModuleKindCommonJS,
+	"es2015":   core.ModuleKindES2015,
+	"es2020":   core.ModuleKindES2020,
+	"es2022":   core.ModuleKindES2022,
+	"esnext":   core.ModuleKindESNext,
+	"node16":   core.ModuleKindNode16,
+	"node18":   core.ModuleKindNode18,
+	"node20":   core.ModuleKindNode20,
+	"nodenext": core.ModuleKindNodeNext,
+	"preserve": core.ModuleKindPreserve,
+}
+
+var moduleResolutionKinds = map[string]core.ModuleResolutionKind{
+	"node10":   core.ModuleResolutionKindNode10,
+	"node16":   core.ModuleResolutionKindNode16,
+	"nodenext": core.ModuleResolutionKindNodeNext,
+	"bundler":  core.ModuleResolutionKindBundler,
+}
+
+var scriptTargets = map[string]core.ScriptTarget{
+	"es5":    core.ScriptTargetES5,
+	"es2015": core.ScriptTargetES2015,
+	"es2016": core.ScriptTargetES2016,
+	"es2017": core.ScriptTargetES2017,
+	"es2018": core.ScriptTargetES2018,
+	"es2019": core.ScriptTargetES2019,
+	"es2020": core.ScriptTargetES2020,
+	"es2021": core.ScriptTargetES2021,
+	"es2022": core.ScriptTargetES2022,
+	"es2023": core.ScriptTargetES2023,
+	"es2024": core.ScriptTargetES2024,
+	"esnext": core.ScriptTargetESNext,
+}
+
+// setOption sets an entry of TSC_TS_CHECK_OPTIONS (a boolean option's name, or name=value), and
+// reports whether it is one TSC_TS_CHECK_OPTIONS takes.
+func setOption(options *core.CompilerOptions, entry string) bool {
+	if name, value, ok := strings.Cut(entry, "="); ok {
+		switch name {
+		case "module":
+			kind, ok := moduleKinds[value]
+			options.Module = kind
+			return ok
+		case "moduleResolution":
+			kind, ok := moduleResolutionKinds[value]
+			options.ModuleResolution = kind
+			return ok
+		case "target":
+			target, ok := scriptTargets[value]
+			options.Target = target
+			return ok
+		}
+		return false
+	}
+	switch entry {
+	case "exactOptionalPropertyTypes":
+		options.ExactOptionalPropertyTypes = core.TSTrue
+	case "noUncheckedIndexedAccess":
+		options.NoUncheckedIndexedAccess = core.TSTrue
+	case "isolatedModules":
+		options.IsolatedModules = core.TSTrue
+	case "verbatimModuleSyntax":
+		options.VerbatimModuleSyntax = core.TSTrue
+	case "erasableSyntaxOnly":
+		options.ErasableSyntaxOnly = core.TSTrue
+	case "noImplicitOverride":
+		options.NoImplicitOverride = core.TSTrue
+	case "noPropertyAccessFromIndexSignature":
+		options.NoPropertyAccessFromIndexSignature = core.TSTrue
+	case "noImplicitReturns":
+		options.NoImplicitReturns = core.TSTrue
+	case "noFallthroughCasesInSwitch":
+		options.NoFallthroughCasesInSwitch = core.TSTrue
+	case "noUnusedLocals":
+		options.NoUnusedLocals = core.TSTrue
+	case "noUnusedParameters":
+		options.NoUnusedParameters = core.TSTrue
+	default:
+		return false
+	}
+	return true
+}
+
+var extraOptions = strings.FieldsFunc(os.Getenv("TSC_TS_CHECK_OPTIONS"), func(r rune) bool { return r == ',' })
+
+// newOptions returns the default options with those of TSC_TS_CHECK_OPTIONS turned on.
+func newOptions() *core.CompilerOptions {
+	options := checkhost.DefaultOptions()
+	for _, name := range extraOptions {
+		setOption(options, name)
+	}
+	return options
+}
 
 var directive = regexp.MustCompile(`(?im)^[ \t]*//[ \t]*@(\w+)[ \t]*:([^\r\n]*)`)
 
@@ -54,14 +151,14 @@ func isCheckedJS(text string) bool {
 func check(path string, text string, readLib func(name string) (string, bool)) []*ast.Diagnostic {
 	if !strings.HasSuffix(path, ".tsx") {
 		if isCheckedJS(text) {
-			options := checkhost.DefaultOptions()
+			options := newOptions()
 			options.AllowJs = core.TSTrue
 			options.CheckJs = core.TSTrue
 			return checkhost.CheckWithOptions("/input.js", text, options, readLib)
 		}
-		return checkhost.Check("/input.ts", text, readLib)
+		return checkhost.CheckWithOptions("/input.ts", text, newOptions(), readLib)
 	}
-	options := checkhost.DefaultOptions()
+	options := newOptions()
 	for _, m := range directive.FindAllStringSubmatch(text, -1) {
 		value := strings.TrimSpace(strings.Split(m[2], ",")[0])
 		switch strings.ToLower(m[1]) {
@@ -79,6 +176,12 @@ func check(path string, text string, readLib func(name string) (string, bool)) [
 }
 
 func main() {
+	for _, name := range extraOptions {
+		if !setOption(checkhost.DefaultOptions(), name) {
+			fmt.Fprintf(os.Stderr, "unknown option in TSC_TS_CHECK_OPTIONS: %s\n", name)
+			os.Exit(2)
+		}
+	}
 	data, err := os.ReadFile(os.Args[1])
 	if err != nil {
 		panic(err)

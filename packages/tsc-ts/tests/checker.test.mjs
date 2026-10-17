@@ -14,7 +14,33 @@ const oracle = join(repo, 'packages/tsgo/dist/check-oracle');
 const filler = (prefix, n = 40, indent = '') =>
   Array.from({ length: n }, (_, i) => `${indent}const _${prefix}${i} = ${i};`);
 
+// `options` lists options for TSC_TS_CHECK_OPTIONS, separated by commas: boolean options, and module, moduleResolution
+// and target as name=value.
 const cases = [
+  {
+    name: 'module and target from TSC_TS_CHECK_OPTIONS',
+    options: 'module=es2015,target=es5',
+    source: ['export const s = "a".at(0);', 'export const m = import("./m");'],
+    expected: [
+      "/input.ts 2550 21 2 Property 'at' does not exist on type '\"a\"'. Do you need to change your target library? Try changing the 'lib' compiler option to 'es2022' or later.",
+      "/input.ts 1323 45 13 Dynamic imports are only supported when the '--module' flag is set to 'es2020', 'es2022', 'esnext', 'commonjs', 'amd', 'system', 'umd', 'node16', 'node18', 'node20', or 'nodenext'.",
+      "/input.ts 2307 52 5 Cannot find module './m' or its corresponding type declarations.",
+    ],
+  },
+  {
+    name: 'options from TSC_TS_CHECK_OPTIONS',
+    options: 'noUncheckedIndexedAccess,noImplicitOverride',
+    source: [
+      'declare const a: number[];',
+      'const n: number = a[0];',
+      'class B { m() {} }',
+      'class C extends B { m() {} }',
+    ],
+    expected: [
+      "/input.ts 2322 33 1 Type 'number | undefined' is not assignable to type 'number'.",
+      "/input.ts 4114 90 1 This member must have an 'override' modifier because it overrides a member in the base class 'B'.",
+    ],
+  },
   {
     name: 'assignability, missing properties and arity',
     source: [
@@ -411,16 +437,18 @@ test(
   { skip: !existsSync(libs) && 'needs upstream sources', timeout: 300_000 },
   () => {
     const out = compileSources('tsc-ts-check-', ['drivers/check.ts']);
-    for (const { name, file: fileName = 'input.ts', source, expected } of cases) {
+    for (const { name, file: fileName = 'input.ts', options = '', source, expected } of cases) {
       const file = join(out, fileName);
       writeFileSync(file, source.join('\n') + '\n');
+      const env = { ...process.env, TSC_TS_CHECK_OPTIONS: options };
       const actual = execFileSync(process.execPath, ['--stack-size=16000', join(out, 'drivers/check.js'), file, libs], {
         encoding: 'utf8',
+        env,
       });
       const lines = actual.split('\n').filter((l) => l !== '');
       assert.deepEqual(lines, expected, name);
       if (existsSync(oracle)) {
-        const reference = execFileSync(oracle, [file, libs], { encoding: 'utf8' })
+        const reference = execFileSync(oracle, [file, libs], { encoding: 'utf8', env })
           .split('\n')
           .filter((l) => l !== '');
         assert.deepEqual(lines, reference, name + ' (oracle)');
