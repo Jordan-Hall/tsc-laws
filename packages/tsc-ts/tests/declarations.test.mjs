@@ -260,6 +260,27 @@ test(
 );
 
 test(
+  'optional undefined properties of widened object literals skip array literals without the global Array type',
+  { skip: !existsSync(tsgo) && 'needs packages/tsgo/dist/tsgo' },
+  async () => {
+    // With --noLib, an array literal is an empty object type, so `[...][0]` widens no union and y's
+    // `b?: undefined` takes y's own `b`.
+    const { expected, actual } = await emitBoth(
+      {
+        'a.ts': [
+          'export const x = [{ a: 0 }, { a: 1, b: "x" }][0];',
+          'export const y = true ? { a: 0, b: 0 } : { c: 1 };',
+        ],
+      },
+      'a.d.ts',
+      baseFlags,
+    );
+    assert.match(expected, /\} \| \{\n {4}a\?: undefined;\n {4}b\?: undefined;\n {4}c: number;\n\};/);
+    assert.equal(actual, expected);
+  },
+);
+
+test(
   'optional undefined properties of widened object literals follow the functions a returned call infers first',
   { skip: !existsSync(tsgo) && 'needs packages/tsgo/dist/tsgo' },
   async () => {
