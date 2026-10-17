@@ -251,6 +251,46 @@ test(
 );
 
 test(
+  'literals are dropped by widened type only where the syntax shows it',
+  { skip: !existsSync(tsgo) && 'needs packages/tsgo/dist/tsgo' },
+  async () => {
+    const { expected, actual } = await emitBoth(
+      {
+        'e.ts': ['export enum E { A, B, C }'],
+        'a.ts': [
+          "import { E } from './e';",
+          "type K = { kind: 'x' | 'y'; t?: string; u?: number };",
+          // Different members of an imported enum widen to the enum: the third literal is the first's.
+          'export function rule(x: number) {',
+          "  if (x === 0) return { before: 'a', after: 'b', action: { kind: E.C, text: ' * ' } };",
+          "  if (x === 1) return { previous: 'c', before: 'd', action: { kind: E.B } };",
+          "  return { before: 'e', after: 'f', action: { kind: E.A, text: '\\t' } };",
+          '}',
+          // The same reference narrowed to other types: the third literal stays.
+          'export function narrowed(v: string | number, x: number) {',
+          "  if (typeof v === 'string') return { a: v, b: 1 };",
+          "  if (x === 1) return { c: 'c', a: 1 };",
+          '  return { a: v, b: 2 };',
+          '}',
+          // `satisfies` keeps the literal types of the properties: the third literal stays.
+          'export function kept(x: number) {',
+          "  if (x === 0) return { kind: 'x', t: 'a' } satisfies K;",
+          "  if (x === 1) return { kind: 'y', u: 1 } satisfies K;",
+          "  return { kind: 'y', t: 'b' } satisfies K;",
+          '}',
+        ],
+      },
+      'a.d.ts',
+      baseFlags,
+    );
+    assert.match(expected, /\| \{\n {4}after\?: undefined;\n {4}previous: string;/);
+    assert.match(expected, /\| \{\n {4}c\?: undefined;\n {4}a: number;\n {4}b: number;\n\}/);
+    assert.match(expected, /\| \{\n {4}u\?: undefined;\n {4}kind: "y";\n {4}t: string;\n\}/);
+    assert.equal(actual, expected);
+  },
+);
+
+test(
   'optional undefined properties of widened object literals are ordered as in tsgo',
   { skip: !existsSync(tsgo) && 'needs packages/tsgo/dist/tsgo' },
   async () => {
