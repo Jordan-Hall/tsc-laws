@@ -2038,7 +2038,10 @@ export function getConditionalType(
       getElements(checkTypeNode)!.nodes.length === getElements(extendsTypeNode)!.nodes.length;
     const checkTypeDeferred = isDeferredType(c, checkType, checkTuples);
     let combinedMapper: TypeMapper | undefined;
-    if (root.inferTypeParameters.length !== 0) {
+    if (
+      root.inferTypeParameters.length !== 0 &&
+      !isFalseForEveryInference(c, root, checkType, extendsType, checkTypeDeferred, forConstraint)
+    ) {
       const inferenceMapper = inferTypesForConditional(c, root, checkType, extendsType, mapper, checkTypeDeferred);
       if (inferenceMapper === undefined) return c.errorType;
       combinedMapper = mapper !== undefined ? combineTypeMappers(c, inferenceMapper, mapper) : inferenceMapper;
@@ -2123,6 +2126,35 @@ export function getConditionalType(
     break;
   }
   return extraTypes !== undefined ? getUnionType(c, extraTypes.concat([result])) : result;
+}
+
+/**
+ * Whether the extends check of a conditional type with `infer` type parameters is definitely false
+ * whatever they infer, so inference can be skipped and the false branch taken as it would be. The
+ * permissive instantiations map the `infer` type parameters to the wildcard type, which relates to
+ * every type, so a check that fails with them fails with any inference. Only for an extends type
+ * that is an object type other than a mapped or tuple type, which no inference makes deferred, and
+ * when the false branch does not use the inferences (a check type other than `any`, outside
+ * constraints).
+ */
+function isFalseForEveryInference(
+  c: Checker,
+  root: ConditionalRoot,
+  checkType: Type,
+  extendsType: Type,
+  checkTypeDeferred: boolean,
+  forConstraint: boolean,
+): boolean {
+  if (checkTypeDeferred || forConstraint || (checkType.flags & TypeFlags.Any) !== 0) return false;
+  const declared = root.extendsType;
+  if (
+    (declared.flags & TypeFlags.Object) === 0 ||
+    (declared.objectFlags & (ObjectFlags.Reference | ObjectFlags.Anonymous)) === 0 ||
+    (declared.objectFlags & (ObjectFlags.Mapped | ObjectFlags.ReverseMapped)) !== 0 ||
+    isTupleType(declared)
+  )
+    return false;
+  return !isTypeAssignableTo(c, getPermissiveInstantiation(c, checkType), getPermissiveInstantiation(c, extendsType));
 }
 
 class TailRoot {
