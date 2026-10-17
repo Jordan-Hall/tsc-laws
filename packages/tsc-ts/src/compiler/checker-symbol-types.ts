@@ -1146,7 +1146,8 @@ function widenedTypeKey(c: Checker, node: Node): string | undefined {
 
 /**
  * The enum of `E.Member` where `E` names an enum, directly or through an import, in the scopes around
- * the access (`getLocals`, as `calledFunction` finds names) and `Member` is one of its members.
+ * the access (`getLocals`, as `calledFunction` finds names) and `Member` is one of its members, not
+ * an export of a namespace merged with it.
  */
 function enumOfMemberAccess(c: Checker, node: Node): Symbol | undefined {
   const target = getExpression(node)!;
@@ -1164,7 +1165,9 @@ function enumOfMemberAccess(c: Checker, node: Node): Symbol | undefined {
     symbol = getMergedSymbol(c, symbol);
     if ((symbol.flags & SymbolFlags.Alias) !== 0) symbol = resolveAlias(c, symbol);
     if ((symbol.flags & SymbolFlags.Enum) === 0) return undefined;
-    return symbol.exports?.has(getText(member)) === true ? symbol : undefined;
+    // An enum merged with a namespace also exports the namespace's values.
+    const memberSymbol = symbol.exports?.get(getText(member));
+    return memberSymbol !== undefined && (memberSymbol.flags & SymbolFlags.EnumMember) !== 0 ? symbol : undefined;
   }
   return undefined;
 }

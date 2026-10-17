@@ -278,6 +278,14 @@ test(
           "  if (x === 1) return { kind: 'y', u: 1 } satisfies K;",
           "  return { kind: 'y', t: 'b' } satisfies K;",
           '}',
+          // A namespace merged with an enum exports other values: the third literal stays.
+          'export enum N { A, B }',
+          "export namespace N { export const text = 'x'; export const count = 1; }",
+          'export function merged(x: number) {',
+          '  if (x === 0) return { a: 1, v: N.text };',
+          "  if (x === 1) return { b: 'b', v: N.A };",
+          '  return { a: 2, v: N.count };',
+          '}',
         ],
       },
       'a.d.ts',
@@ -286,6 +294,7 @@ test(
     assert.match(expected, /\| \{\n {4}after\?: undefined;\n {4}previous: string;/);
     assert.match(expected, /\| \{\n {4}c\?: undefined;\n {4}a: number;\n {4}b: number;\n\}/);
     assert.match(expected, /\| \{\n {4}u\?: undefined;\n {4}kind: "y";\n {4}t: string;\n\}/);
+    assert.match(expected, /\| \{\n {4}b\?: undefined;\n {4}a: number;\n {4}v: number;\n\}/);
     assert.equal(actual, expected);
   },
 );
