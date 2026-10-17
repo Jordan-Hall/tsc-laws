@@ -840,6 +840,13 @@ export function checkModuleDeclaration(c: Checker, node: Node): void {
   ) {
     if (c.compilerOptions.erasableSyntaxOnly === true)
       c.error(node, Diagnostics.This_syntax_is_not_allowed_when_erasableSyntaxOnly_is_enabled);
+    // Namespaces of global scripts can merge across files, which a transpiler of one file cannot see.
+    if (c.isolatedModules && getSourceFileOfNode(node).externalModuleIndicator === undefined)
+      c.error(
+        module.name,
+        Diagnostics.Namespaces_are_not_allowed_in_global_script_files_when_0_is_enabled_If_this_file_is_not_intended_to_be_a_global_script_set_moduleDetection_to_force_or_add_an_empty_export_statement,
+        c.compilerOptions.verbatimModuleSyntax === true ? 'verbatimModuleSyntax' : 'isolatedModules',
+      );
     if (symbol.declarations.length > 1) {
       const classOrFunction = getFirstNonAmbientClassOrFunctionDeclaration(symbol);
       if (classOrFunction !== undefined) {

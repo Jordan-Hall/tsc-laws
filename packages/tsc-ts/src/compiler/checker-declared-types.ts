@@ -86,7 +86,7 @@ import { isContextSensitive } from './checker-functions.js';
 import { getTypeOfSymbol } from './checker-symbol-types.js';
 import { getIndexedAccessType, isGenericMappedType } from './checker-type-operators.js';
 import { getSignatureInstantiation } from './checker-signatures.js';
-import { evaluateEnumMember, EvaluatedKind } from './checker-evaluator.js';
+import { evaluateEnumMember, EvaluatedFlags, EvaluatedKind } from './checker-evaluator.js';
 import { checkTypeAssignableTo } from './relations.js';
 
 export { getParentOfSymbol };
@@ -448,17 +448,25 @@ export function computeEnumMemberValues(c: Checker, node: Node): void {
   nodeLinks.flags |= 1 << 10;
   let hasAuto = true;
   let autoValue = 0;
+  let previous: Node | undefined;
   for (const member of (node as EnumDeclaration).members.nodes) {
     const links = c.nodeLinks(member);
-    computeEnumMemberValue(c, member, hasAuto, autoValue);
+    computeEnumMemberValue(c, member, hasAuto, autoValue, previous);
     if (links.enumValueKind === EvaluatedKind.Number) {
       autoValue = links.enumNumberValue + 1;
       hasAuto = true;
     } else hasAuto = false;
+    previous = member;
   }
 }
 
-function computeEnumMemberValue(c: Checker, member: Node, hasAuto: boolean, autoValue: number): void {
+function computeEnumMemberValue(
+  c: Checker,
+  member: Node,
+  hasAuto: boolean,
+  autoValue: number,
+  previous: Node | undefined,
+): void {
   const links = c.nodeLinks(member);
   const name = getName(member)!;
   if (name.kind === SyntaxKind.ComputedPropertyName && !isLiteralComputed(name))
@@ -484,6 +492,18 @@ function computeEnumMemberValue(c: Checker, member: Node, hasAuto: boolean, auto
     links.enumValueKind = EvaluatedKind.None;
     return;
   }
+  // A transpiler can count on from the previous member only when its value is a number of this file.
+  if (c.isolatedModules && previous !== undefined && getInitializer(previous) !== undefined) {
+    const previousLinks = c.nodeLinks(previous);
+    if (
+      previousLinks.enumValueKind !== EvaluatedKind.Number ||
+      (previousLinks.enumValueFlags & EvaluatedFlags.ResolvedOtherFiles) !== 0
+    )
+      c.error(
+        name,
+        Diagnostics.Enum_member_following_a_non_literal_numeric_member_must_have_an_initializer_when_isolatedModules_is_enabled,
+      );
+  }
   links.enumValueKind = EvaluatedKind.Number;
   links.enumNumberValue = autoValue;
 }
@@ -495,6 +515,7 @@ function computeConstantEnumMemberValue(c: Checker, member: Node, initializer: N
   links.enumValueKind = result.kind;
   links.enumStringValue = result.stringValue;
   links.enumNumberValue = result.numberValue;
+  links.enumValueFlags = result.flags;
   if (result.kind !== EvaluatedKind.None) {
     if (isConstEnum && result.kind === EvaluatedKind.Number && !Number.isFinite(result.numberValue))
       c.error(
@@ -502,6 +523,17 @@ function computeConstantEnumMemberValue(c: Checker, member: Node, initializer: N
         result.numberValue !== result.numberValue
           ? Diagnostics.X_const_enum_member_initializer_was_evaluated_to_disallowed_value_NaN
           : Diagnostics.X_const_enum_member_initializer_was_evaluated_to_a_non_finite_value,
+      );
+    // A transpiler emits a string member without a reverse mapping only when it sees a string.
+    if (
+      c.isolatedModules &&
+      result.kind === EvaluatedKind.String &&
+      (result.flags & EvaluatedFlags.SyntacticallyString) === 0
+    )
+      c.error(
+        initializer,
+        Diagnostics.X_0_has_a_string_type_but_must_have_syntactically_recognizable_string_syntax_when_isolatedModules_is_enabled,
+        getText(getName(member.parent!)!) + '.' + getText(getName(member)!),
       );
   } else if (isConstEnum)
     c.error(initializer, Diagnostics.X_const_enum_member_initializers_must_be_constant_expressions);

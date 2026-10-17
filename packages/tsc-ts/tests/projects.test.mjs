@@ -127,6 +127,20 @@ const projects = [
     },
   ],
   [
+    'enum members and namespaces under isolatedModules',
+    {
+      'a.ts':
+        'import { S, N, O } from "./other";\nconst s = "x";\nconst n = 3;\nexport enum E1 { A = `${S}a`, B = S + "b", C = "c" + S, D = (S), E = s, F = `${s}`, G = O.B, H = O["B"] }\nexport enum E2 { A = -N, B, C = n, D, E = O.A, F, G = O["A"], H }\nexport enum E3 { A = "a", B = E3.A, C = E3["A"] + "", D = s as string, E = 1 + 2, F }\nexport const enum E4 { A = S, B = N, C }\ndeclare enum E5 { A = S, B }\nexport enum E6 { A = N * 2, B, C = ~N, D }\n',
+      'other.ts': 'export const S = "s";\nexport const N = 2;\nexport enum O { A = 1, B = "b" }\n',
+      'script.ts':
+        'namespace Global { export const x = 1; }\nnamespace TypesOnly { export type T = 1; }\ndeclare namespace Ambient { const y: number; }\n',
+      'tsconfig.json': JSON.stringify({
+        compilerOptions: { ...base, module: 'ESNext', isolatedModules: true },
+        files: ['a.ts', 'other.ts', 'script.ts'],
+      }),
+    },
+  ],
+  [
     'iterable walker built from a generic iterator factory',
     {
       'a.ts':
