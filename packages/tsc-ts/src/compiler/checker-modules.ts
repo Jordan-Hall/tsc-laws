@@ -161,6 +161,7 @@ import { isValidSpreadType } from './checker-destructuring.js';
 import { createPromiseType } from './checker-iteration.js';
 import { symbolToString, typeToString } from './type-printer.js';
 import { checkTypeAssignableToAndOptionallyElaborate } from './checker-expressions.js';
+import { grammarErrorOnNode } from './checker-operators.js';
 
 // ---- Resolution
 
@@ -2476,6 +2477,21 @@ function getFirstIdentifierOfEntityName(node: Node): Node {
   return current;
 }
 
+/** The string literal name of `export * as "x" from`, which module es2015 and es2020 don't support. */
+function checkNamespaceExportName(c: Checker, name: Node | undefined): void {
+  if (name === undefined || name.kind !== SyntaxKind.StringLiteral) return;
+  const moduleKind = getEmitModuleKind(c.compilerOptions);
+  if (
+    (moduleKind === ModuleKind.ES2015 || moduleKind === ModuleKind.ES2020) &&
+    !getSourceFileOfNode(name).isDeclarationFile
+  )
+    grammarErrorOnNode(
+      c,
+      name,
+      Diagnostics.String_literal_import_and_export_names_are_not_supported_when_the_module_flag_is_set_to_es2015_or_es2020,
+    );
+}
+
 export function checkExportDeclaration(c: Checker, node: Node): void {
   if (!isInModuleElementContext(node)) return;
   const declaration = node as ExportDeclaration;
@@ -2491,7 +2507,10 @@ export function checkExportDeclaration(c: Checker, node: Node): void {
           Diagnostics.Module_0_uses_export_and_cannot_be_used_with_export_Asterisk,
           symbolToString(c, moduleSymbol),
         );
-      else if (clause !== undefined) checkAliasSymbol(c, clause);
+      else if (clause !== undefined) {
+        checkAliasSymbol(c, clause);
+        checkNamespaceExportName(c, getName(clause));
+      }
       if (c.host.getEmitModuleFormatOfFile(getSourceFileOfNode(node)) === ModuleKind.CommonJS)
         checkExternalEmitHelpers(
           c,

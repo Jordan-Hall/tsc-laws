@@ -413,6 +413,14 @@ const projects = [
     },
   ],
   [
+    'string literal export names under module es2015',
+    {
+      'a.ts': 'export * as "x-y" from "./b";\nexport * as z from "./b";\nexport { v as "w-v" } from "./b";\n',
+      'b.ts': 'export const v = 1;\n',
+      'tsconfig.json': JSON.stringify({ compilerOptions: { ...base, module: 'ES2015' }, files: ['a.ts', 'b.ts'] }),
+    },
+  ],
+  [
     'JSON imports into ES modules under nodenext',
     {
       'a.ts':
