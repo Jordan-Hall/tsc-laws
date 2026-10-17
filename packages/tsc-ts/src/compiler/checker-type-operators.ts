@@ -164,7 +164,7 @@ import { symbolToString, typeToString } from './type-printer.js';
 import { getSourceFileOfNode, isAssignmentTarget, isEntityNameExpression } from './binder-utilities.js';
 import { getTextOfNodeFromSourceText } from './ast-utilities.js';
 import { getMinArgumentCount, getSingleCallSignature, getTypeAtPosition } from './checker-signatures.js';
-import { getAssignmentTargetKind } from './checker-narrowing.js';
+import { AssignmentKind, getAssignmentTargetKind, getFlowTypeOfReference } from './checker-narrowing.js';
 import {
   getSuggestionForNonexistentProperty,
   isAssignmentToReadonlyEntity,
@@ -744,6 +744,9 @@ function getPropertyTypeForIndexType(
       }
       const propType =
         (accessFlags & AccessFlags.Writing) !== 0 ? getWriteTypeOfSymbol(c, prop) : getTypeOfSymbol(c, prop);
+      // Each property an element access reads is narrowed by itself, as a reference to that property.
+      if (accessExpression !== undefined && getAssignmentTargetKind(accessExpression) !== AssignmentKind.Definite)
+        return getFlowTypeOfReference(c, accessExpression, propType, propType, undefined);
       if (accessNode !== undefined && accessNode.kind === SyntaxKind.IndexedAccessType && containsMissing(c, propType))
         return getUnionType(c, [propType, c.undefinedType]);
       return propType;
