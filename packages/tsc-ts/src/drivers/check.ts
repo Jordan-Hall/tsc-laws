@@ -72,8 +72,12 @@ class CheckHost extends CheckerHost {
     return undefined;
   }
 
+  getSourceFileMetadata(file: SourceFile): SourceFileMetadata | undefined {
+    return this.metadataOf(file);
+  }
+
   /** What a program finds for a file without a package.json: libs are CommonJS scripts, the input's format follows its extension. */
-  getSourceFileMetadata(file: SourceFile): SourceFileMetadata {
+  metadataOf(file: SourceFile): SourceFileMetadata {
     return this.libs.has(file)
       ? libFileMetadata
       : new SourceFileMetadata('', '', getImpliedNodeFormatForFile(file.fileName, ''));
@@ -83,20 +87,20 @@ class CheckHost extends CheckerHost {
     return getImpliedNodeFormatForEmit(
       file.fileName,
       getEmitModuleKind(this.options),
-      this.getSourceFileMetadata(file),
+      this.metadataOf(file),
     );
   }
 
   getEmitSyntaxForUsageLocation(file: SourceFile, usage: Node): ModuleKind {
-    return getEmitSyntaxForUsageLocation(file.fileName, this.getSourceFileMetadata(file), usage, this.options);
+    return getEmitSyntaxForUsageLocation(file.fileName, this.metadataOf(file), usage, this.options);
   }
 
   getModeForUsageLocation(file: SourceFile, location: Node): ModuleKind {
-    return getModeForUsageLocation(file.fileName, this.getSourceFileMetadata(file), location, this.options);
+    return getModeForUsageLocation(file.fileName, this.metadataOf(file), location, this.options);
   }
 
   getDefaultResolutionModeForFile(file: SourceFile): ModuleKind {
-    return getDefaultResolutionModeForFile(file.fileName, this.getSourceFileMetadata(file), this.options);
+    return getDefaultResolutionModeForFile(file.fileName, this.metadataOf(file), this.options);
   }
 }
 
