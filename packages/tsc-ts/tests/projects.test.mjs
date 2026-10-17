@@ -234,6 +234,17 @@ const projects = [
     },
   ],
   [
+    'type-only default import used as a namespace',
+    {
+      'a.ts': 'import type yargs from "./y";\nexport const x: yargs.T = 1;\n',
+      'y.ts': 'declare const y: { a: number };\nexport default y;\nexport type T = number;\n',
+      'tsconfig.json': JSON.stringify({
+        compilerOptions: { ...base, module: 'preserve', moduleResolution: 'bundler', noUnusedLocals: true },
+        files: ['a.ts', 'y.ts'],
+      }),
+    },
+  ],
+  [
     'JSON required from checked JavaScript',
     {
       'a.js':
