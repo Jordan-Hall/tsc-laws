@@ -35,13 +35,7 @@ import { sideOf } from './side-state.js';
 import type { Node, PatternAmbientModule, SourceFile } from './ast.js';
 import { IntLinkTable, LinkTable, SparseLinkTable } from './link-tables.js';
 import { getErrorRangeForNode, getSourceFileOfNode } from './binder-utilities.js';
-import {
-  Diagnostic,
-  type DiagnosticMessage,
-  Diagnostics,
-  compareDiagnostics,
-  createCompilerDiagnostic,
-} from './diagnostics.js';
+import { Diagnostic, type DiagnosticMessage, Diagnostics, compareDiagnostics } from './diagnostics.js';
 import {
   type CompilerOptions,
   ModuleKind,
@@ -1079,10 +1073,8 @@ export function createDiagnosticForNode(
   message: DiagnosticMessage,
   args: string[],
 ): Diagnostic {
-  if (node === undefined) {
-    const diagnostic = createCompilerDiagnostic(message);
-    return new Diagnostic(diagnostic.file, diagnostic.pos, diagnostic.end, message, args);
-  }
+  // Without a node, the diagnostic has no file and an empty range at 0, as in tsgo.
+  if (node === undefined) return new Diagnostic(undefined, 0, 0, message, args);
   const file = getSourceFileOfNode(node);
   const range = getErrorRangeForNode(file, node);
   return new Diagnostic(file.diagnosticFile(), range.pos, range.end, message, args);
