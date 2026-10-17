@@ -28,10 +28,20 @@ export const enum EvaluatedKind {
   String = 2,
 }
 
+/** How a value was evaluated, for the isolatedModules checks of enum members. */
+export const enum EvaluatedFlags {
+  None = 0,
+  /** Written as a string: a string literal, a template, or `+` with one. */
+  SyntacticallyString = 1 << 0,
+  /** Read from a declaration in another file. */
+  ResolvedOtherFiles = 1 << 1,
+}
+
 export class EvaluatorResult {
   kind: EvaluatedKind = EvaluatedKind.None;
   numberValue = 0;
   stringValue = '';
+  flags: EvaluatedFlags = EvaluatedFlags.None;
 
   static number(value: number): EvaluatorResult {
     const r = new EvaluatorResult();
@@ -53,6 +63,11 @@ function none(): EvaluatorResult {
   return new EvaluatorResult();
 }
 
+function withFlags(result: EvaluatorResult, flags: EvaluatedFlags): EvaluatorResult {
+  result.flags = flags;
+  return result;
+}
+
 /** The constant value of an enum member initializer, if it has one. */
 export function evaluateEnumMember(c: Checker, expr: Node, member: Node): EvaluatorResult {
   return evaluate(c, expr, member);
@@ -65,13 +80,14 @@ export function evaluate(c: Checker, expr: Node, location: Node): EvaluatorResul
       const operand = evaluate(c, (expr as PrefixUnaryExpression).operand, location);
       if (operand.kind !== EvaluatedKind.Number) return none();
       const v = operand.numberValue;
+      const flags = operand.flags & EvaluatedFlags.ResolvedOtherFiles;
       switch ((expr as PrefixUnaryExpression).operator) {
         case SyntaxKind.PlusToken:
-          return EvaluatorResult.number(v);
+          return withFlags(EvaluatorResult.number(v), flags);
         case SyntaxKind.MinusToken:
-          return EvaluatorResult.number(-v);
+          return withFlags(EvaluatorResult.number(-v), flags);
         case SyntaxKind.TildeToken:
-          return EvaluatorResult.number(~v);
+          return withFlags(EvaluatorResult.number(~v), flags);
       }
       return none();
     }
@@ -80,34 +96,37 @@ export function evaluate(c: Checker, expr: Node, location: Node): EvaluatorResul
       const left = evaluate(c, shape.left, location);
       const right = evaluate(c, shape.right, location);
       const op = shape.operatorToken.kind;
+      const flags =
+        ((left.flags | right.flags) & EvaluatedFlags.ResolvedOtherFiles) |
+        (op === SyntaxKind.PlusToken ? (left.flags | right.flags) & EvaluatedFlags.SyntacticallyString : 0);
       if (left.kind === EvaluatedKind.Number && right.kind === EvaluatedKind.Number) {
         const l = left.numberValue;
         const r = right.numberValue;
         switch (op) {
           case SyntaxKind.BarToken:
-            return EvaluatorResult.number(l | r);
+            return withFlags(EvaluatorResult.number(l | r), flags);
           case SyntaxKind.AmpersandToken:
-            return EvaluatorResult.number(l & r);
+            return withFlags(EvaluatorResult.number(l & r), flags);
           case SyntaxKind.GreaterThanGreaterThanToken:
-            return EvaluatorResult.number(l >> r);
+            return withFlags(EvaluatorResult.number(l >> r), flags);
           case SyntaxKind.GreaterThanGreaterThanGreaterThanToken:
-            return EvaluatorResult.number(l >>> r);
+            return withFlags(EvaluatorResult.number(l >>> r), flags);
           case SyntaxKind.LessThanLessThanToken:
-            return EvaluatorResult.number(l << r);
+            return withFlags(EvaluatorResult.number(l << r), flags);
           case SyntaxKind.CaretToken:
-            return EvaluatorResult.number(l ^ r);
+            return withFlags(EvaluatorResult.number(l ^ r), flags);
           case SyntaxKind.AsteriskToken:
-            return EvaluatorResult.number(l * r);
+            return withFlags(EvaluatorResult.number(l * r), flags);
           case SyntaxKind.SlashToken:
-            return EvaluatorResult.number(l / r);
+            return withFlags(EvaluatorResult.number(l / r), flags);
           case SyntaxKind.PlusToken:
-            return EvaluatorResult.number(l + r);
+            return withFlags(EvaluatorResult.number(l + r), flags);
           case SyntaxKind.MinusToken:
-            return EvaluatorResult.number(l - r);
+            return withFlags(EvaluatorResult.number(l - r), flags);
           case SyntaxKind.PercentToken:
-            return EvaluatorResult.number(l % r);
+            return withFlags(EvaluatorResult.number(l % r), flags);
           case SyntaxKind.AsteriskAsteriskToken:
-            return EvaluatorResult.number(l ** r);
+            return withFlags(EvaluatorResult.number(l ** r), flags);
         }
         return none();
       }
@@ -117,22 +136,24 @@ export function evaluate(c: Checker, expr: Node, location: Node): EvaluatorResul
         right.kind !== EvaluatedKind.None &&
         (left.kind === EvaluatedKind.String || right.kind === EvaluatedKind.String)
       )
-        return EvaluatorResult.string(valueText(left) + valueText(right));
+        return withFlags(EvaluatorResult.string(valueText(left) + valueText(right)), flags);
       return none();
     }
     case SyntaxKind.StringLiteral:
     case SyntaxKind.NoSubstitutionTemplateLiteral:
-      return EvaluatorResult.string(getText(expr));
+      return withFlags(EvaluatorResult.string(getText(expr)), EvaluatedFlags.SyntacticallyString);
     case SyntaxKind.TemplateExpression: {
       const shape = expr as TemplateExpression;
       let text = getText(shape.head);
+      let flags = EvaluatedFlags.SyntacticallyString;
       for (const span of shape.templateSpans.nodes) {
         const s = span as TemplateSpan;
         const value = evaluate(c, s.expression, location);
         if (value.kind === EvaluatedKind.None) return none();
         text += valueText(value) + getText(s.literal);
+        flags |= value.flags & EvaluatedFlags.ResolvedOtherFiles;
       }
-      return EvaluatorResult.string(text);
+      return withFlags(EvaluatorResult.string(text), flags);
     }
     case SyntaxKind.NumericLiteral:
       return EvaluatorResult.number(Number(getText(expr)));
@@ -162,8 +183,13 @@ export function evaluate(c: Checker, expr: Node, location: Node): EvaluatorResul
         getInitializer(declaration) !== undefined &&
         declaration !== location &&
         isBlockScopedNameDeclaredBeforeUse(c, declaration, location)
-      )
-        return evaluate(c, getInitializer(declaration)!, declaration);
+      ) {
+        const result = evaluate(c, getInitializer(declaration)!, declaration);
+        // A transpiler sees only this file, so a constant from another file is not written as a string here.
+        if (getSourceFileOfNode(location) !== getSourceFileOfNode(declaration))
+          result.flags = EvaluatedFlags.ResolvedOtherFiles;
+        return result;
+      }
       return none();
     }
     case SyntaxKind.ElementAccessExpression: {
@@ -205,8 +231,10 @@ function evaluateEnumMemberReference(
   }
   computeEnumMemberValues(c, declaration.parent!);
   const links = c.nodeLinks(declaration);
-  if (links.enumValueKind === EvaluatedKind.Number) return EvaluatorResult.number(links.enumNumberValue);
-  if (links.enumValueKind === EvaluatedKind.String) return EvaluatorResult.string(links.enumStringValue);
+  if (links.enumValueKind === EvaluatedKind.Number)
+    return withFlags(EvaluatorResult.number(links.enumNumberValue), links.enumValueFlags);
+  if (links.enumValueKind === EvaluatedKind.String)
+    return withFlags(EvaluatorResult.string(links.enumStringValue), links.enumValueFlags);
   return none();
 }
 

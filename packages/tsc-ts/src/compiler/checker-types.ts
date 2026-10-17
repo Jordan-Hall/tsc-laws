@@ -1822,6 +1822,16 @@ export class NodeLinks implements ProgramLifetime {
     this.rare().enumValueKind = value;
   }
 
+  get enumValueFlags(): number {
+    const rare = this.rareLinks;
+    return rare === undefined ? 0 : rare.enumValueFlags;
+  }
+
+  set enumValueFlags(value: number) {
+    if (value === 0 && this.rareLinks === undefined) return;
+    this.rare().enumValueFlags = value;
+  }
+
   get hasReportedStatementInAmbientContext(): boolean {
     const rare = this.rareLinks;
     return rare === undefined ? false : rare.hasReportedStatementInAmbientContext;
@@ -1941,6 +1951,8 @@ export class RareNodeLinks implements ProgramLifetime {
   enumStringValue: string;
   enumNumberValue: number;
   enumValueKind: number;
+  /** EvaluatedFlags of the enum member value. */
+  enumValueFlags: number;
   hasReportedStatementInAmbientContext: boolean;
   declarationRequiresScopeChange: number;
   /** For source files: whether the file has been checked, and its nodes waiting for a deferred check. */
@@ -1965,6 +1977,7 @@ export class RareNodeLinks implements ProgramLifetime {
     this.enumStringValue = '';
     this.enumNumberValue = 0;
     this.enumValueKind = 0;
+    this.enumValueFlags = 0;
     this.hasReportedStatementInAmbientContext = false;
     this.declarationRequiresScopeChange = 0;
     this.typeChecked = false;
