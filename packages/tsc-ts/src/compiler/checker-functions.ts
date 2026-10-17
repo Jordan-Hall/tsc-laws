@@ -1,4 +1,5 @@
 // Functions: function expressions and arrows, bodies, inferred return types, generators, `await`.
+import { checkCollisionsForDeclarationName } from './checker-generated-code.js';
 import { ScriptTarget } from './options.js';
 import { ExternalEmitHelpers, checkExternalEmitHelpers } from './checker-emit-helpers.js';
 import { resolvedReturnTypeOf, signatureSideOf } from './side-state.js';
@@ -139,6 +140,7 @@ import {
 
 export function checkFunctionExpressionOrObjectLiteralMethod(c: Checker, node: Node, checkMode: CheckMode): Type {
   checkNodeDeferred(c, node);
+  if (node.kind === SyntaxKind.FunctionExpression) checkCollisionsForDeclarationName(c, node, getName(node));
   if (node.kind === SyntaxKind.GetAccessor || node.kind === SyntaxKind.SetAccessor) return c.anyType;
   if ((checkMode & CheckMode.SkipContextSensitive) !== 0 && isContextSensitive(c, node)) {
     // Skip parameters, but keep a return type with the non-contextual parts so that inferences can

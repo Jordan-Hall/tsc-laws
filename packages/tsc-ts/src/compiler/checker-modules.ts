@@ -3,6 +3,7 @@
 //
 // Module-not-found errors are reported on every resolution with an error node, as tsgo does: an
 // unresolved `import { a } from "m"` reports once for the declaration and again for each use of `a`.
+import { checkCollisionsForDeclarationName } from './checker-generated-code.js';
 import { checkDeprecatedImportSpecifier } from './checker-deprecation.js';
 import {
   type BinaryExpression,
@@ -2375,6 +2376,7 @@ function hasTypeJsonImportAttribute(node: ImportDeclaration): boolean {
 }
 
 function checkImportBinding(c: Checker, node: Node): void {
+  checkCollisionsForDeclarationName(c, node, getName(node));
   checkAliasSymbol(c, node);
   if (
     node.kind === SyntaxKind.ImportSpecifier &&
@@ -2526,7 +2528,7 @@ function checkExportSpecifier(c: Checker, node: Node): void {
   else markExportSpecifierAliasReferenced(c, node, symbol, exportedName);
 }
 
-function getDeclarationContainer(node: Node): Node {
+export function getDeclarationContainer(node: Node): Node {
   let current = getRootDeclaration(node);
   for (;;) {
     const parent = current.parent;

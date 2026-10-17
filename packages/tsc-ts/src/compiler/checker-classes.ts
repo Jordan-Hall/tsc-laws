@@ -1,4 +1,5 @@
 // Classes and interfaces.
+import { checkCollisionsForDeclarationName, markPrivateIdentifierScope } from './checker-generated-code.js';
 import { isNamedEvaluationSource } from './transformers/named-evaluation.js';
 import { classOrConstructorParameterIsDecorated } from './transformers/decorator-utilities.js';
 import { OuterExpressionKinds, isOuterExpression } from './transformers/utilities.js';
@@ -150,6 +151,7 @@ function checkClassMembers(c: Checker, node: Node): void {
 
 function checkClassLikeDeclaration(c: Checker, node: Node): void {
   checkDecorators(c, node);
+  checkCollisionsForDeclarationName(c, node, getName(node));
   if (node.kind === SyntaxKind.ClassDeclaration) checkExportsOnMergedDeclarations(c, node);
   const typeParameters = getTypeParameters(node);
   checkTypeParameters(c, typeParameters);
@@ -210,6 +212,13 @@ function checkHeritageClauses(c: Checker, clauses: Node[], isClass: boolean): vo
 
 function checkClassMember(c: Checker, member: Node): void {
   checkJSDocLinksOfNode(c, member);
+  if (
+    member.kind === SyntaxKind.PropertyDeclaration ||
+    member.kind === SyntaxKind.MethodDeclaration ||
+    member.kind === SyntaxKind.GetAccessor ||
+    member.kind === SyntaxKind.SetAccessor
+  )
+    markPrivateIdentifierScope(c, member);
   switch (member.kind) {
     case SyntaxKind.PropertyDeclaration:
       checkVariableLikeDeclaration(c, member);

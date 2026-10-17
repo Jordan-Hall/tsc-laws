@@ -277,7 +277,7 @@ function isInAmbientOrTypeNode(node: Node): boolean {
   return false;
 }
 
-function getEnclosingBlockScopeContainer(node: Node): Node | undefined {
+export function getEnclosingBlockScopeContainer(node: Node): Node | undefined {
   for (let current = node.parent; current !== undefined; current = current.parent) {
     switch (current.kind) {
       case SyntaxKind.SourceFile:

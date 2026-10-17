@@ -29,6 +29,7 @@
 // | checker-elaboration.ts          | reporting relation errors at the failing subexpression  |
 // | checker-grammar.ts              | grammar checks                                          |
 // | checker-flow.ts                 | control flow narrowing                                  |
+import type { DeferredCollisionCheck } from './checker-generated-code.js';
 import type { EmitHelperFileLinks } from './checker-emit-helpers.js';
 import { sideOf } from './side-state.js';
 import type { Node, PatternAmbientModule, SourceFile } from './ast.js';
@@ -558,6 +559,8 @@ export class Checker {
   /** Whether diagnostics can be deferred to the end of the file being checked. */
   saveDeferredDiagnostics = false;
   deferredIterationErrors: DeferredIterationError[] = [];
+  /** Collision checks waiting for the end of the file (checker-generated-code.ts). */
+  deferredCollisionChecks: DeferredCollisionCheck[] = [];
   /** Binding patterns whose implied type is being computed as a contextual type. */
   readonly contextualBindingPatterns: Node[] = [];
   /** The binding pattern or assignment pattern that implied each type. */
@@ -1033,6 +1036,7 @@ export function disposeChecker(c: Checker): void {
   c.cachedTypesByPair.clear();
   c.iterationTypesCache.clear();
   c.deferredIterationErrors = [];
+  c.deferredCollisionChecks = [];
   c.errorTypes.clear();
   c.globalTypeCache.clear();
   c.globalSymbolCache.clear();
