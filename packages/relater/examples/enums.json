@@ -1,8 +1,0 @@
-{
-  "source": "enum Mode { Read = 0, Write = 1 } enum OtherMode { Read = 0, Write = 1 } type Zero = 0; type Read = Mode.Read; type OtherRead = OtherMode.Read; interface EnumKeys<T> { keys: keyof T } type NativeKeys = EnumKeys<typeof Mode>; type PlainKeys = { keys: \"Read\" | \"Write\" };",
-  "queries": [
-    { "source": "Zero", "target": "Read" },
-    { "source": "Read", "target": "OtherRead" },
-    { "source": "NativeKeys", "target": "PlainKeys" }
-  ]
-}

@@ -77,9 +77,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: '1.26'
-          cache-dependency-path: |
-            packages/gots/go.sum
-            packages/tsc-ts/tests/xxh3-vectors/go.sum
+          cache-dependency-path: packages/tsc-ts/tests/xxh3-vectors/go.sum
       - uses: actions/cache@v4
         with:
           path: upstream
@@ -91,13 +89,13 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: .turbo/cache
-          key: turbo-oracles-${{ hashFiles('upstream.json', 'packages/tsgo/oracles/**', 'packages/tsgo/checkhost/**', 'packages/*/scripts/build-oracle.mjs', 'packages/relater/oracle/**', 'package-lock.json', 'turbo.json', 'packages/tsgo/package.json', 'packages/relater/package.json') }}
+          key: turbo-oracles-${{ hashFiles('upstream.json', 'packages/tsgo/oracles/**', 'packages/tsgo/checkhost/**', 'packages/tsgo/scripts/build-oracle.mjs', 'package-lock.json', 'turbo.json', 'packages/tsgo/package.json') }}
       - run: npm ci
       - run: npm run fetch:upstream
       - run: npx turbo run build build:oracle --filter='!@tsc-ts/web'
       - run: node scripts/ci/compile-tests.mjs packages/tsc-ts/dist/test-build
       # A tar keeps the executable bits that artifacts drop.
-      - run: tar -cf build.tar packages/tsc-ts/dist packages/tsgo/dist packages/relater/dist
+      - run: tar -cf build.tar packages/tsc-ts/dist packages/tsgo/dist
       - uses: actions/upload-artifact@v4
         with:
           name: build

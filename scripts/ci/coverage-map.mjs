@@ -36,7 +36,7 @@ cpSync(join(root, 'packages/tsc-ts'), pkg, {
   filter: (path) => !/[\\/](dist|node_modules)$/.test(path),
 });
 for (const name of ['node_modules', 'upstream', 'package.json']) symlinkSync(join(root, name), join(work, name));
-for (const name of ['tsgo', 'relater', 'gots']) symlinkSync(join(root, 'packages', name), join(work, 'packages', name));
+symlinkSync(join(root, 'packages/tsgo'), join(work, 'packages/tsgo'));
 
 function walk(dir, out = []) {
   for (const name of readdirSync(dir)) {

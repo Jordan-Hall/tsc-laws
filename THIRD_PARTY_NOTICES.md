@@ -9,7 +9,7 @@ tsc-ts includes material from the projects below.
 - Copyright (c) Microsoft Corporation
 - License: Apache-2.0
 
-The type checker in `packages/relater/src/checker` is ported from TypeScript-Go. `packages/relater/src/checker/flags.ts` and `packages/relater/src/checker/case-mappings.ts` are generated from it. `packages/tsgo/src/tsgo` is translated from it by `packages/gots`. `packages/relater/oracle` and `packages/tsgo/oracles` build against it.
+The compiler in `packages/tsc-ts/src` is ported from TypeScript-Go. `packages/tsgo/oracles` and `packages/tsgo/checkhost` build against it.
 
 TypeScript-Go's NOTICE file follows.
 

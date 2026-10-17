@@ -1,15 +1,4 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "ignorePatterns": [
-    "packages/tsgo/src/tsgo/**",
-    "packages/tsgo/src/go/runtime.ts",
-    "packages/tsgo/tests/fixtures/**",
-    "packages/tsc-ts/tests/fixtures/**",
-    "packages/relater/src/checker/flags.ts",
-    "packages/relater/src/checker/case-mappings.ts",
-    "upstream/**",
-    "**/dist/**",
-    "**/.next/**",
-    "**/.source/**"
-  ]
+  "ignorePatterns": ["packages/tsc-ts/tests/fixtures/**", "upstream/**", "**/dist/**", "**/.next/**", "**/.source/**"]
 }

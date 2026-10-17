@@ -31,7 +31,8 @@ const files = [
   join(cases, 'compiler/largeControlFlowGraph.ts'),
   join(cases, 'compiler/manyConstExports.ts'),
 ].filter((f) => existsSync(f));
-const projects = [join(repo, 'packages/relater')];
+// The tsc-ts sources, the self-check project.
+const projects = [resolve('.')];
 
 const median = (values) => values.toSorted((a, b) => a - b)[Math.floor(values.length / 2)];
 

@@ -3,11 +3,10 @@ dist/
 .scriptc/
 upstream/
 *.dSYM/
-packages/relater/benchmarks/generated/
 isolate-*.log
 .turbo/
 .next/
 .source/
 next-env.d.ts
 *.tsbuildinfo
-!packages/tsgo/tests/fixtures/tsc-project/node_modules/
+!packages/tsc-ts/tests/fixtures/tsc-project/node_modules/

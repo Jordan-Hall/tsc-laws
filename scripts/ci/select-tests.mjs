@@ -13,7 +13,6 @@
 //   have fall back to the test files that ran any function in the file.
 // - Changed test files run. Changed test helpers run the test files that import them, and changed test data runs
 //   the test files that refer to its directory.
-// - Other changes in packages/relater and packages/tsgo run that package's tests (and the corpus for tsgo).
 // - apps/web runs the documentation job. Markdown, lint configuration, code generators and corpus tools select
 //   nothing beyond the jobs that always run.
 // A smoke set of short units always runs. When a change reaches runtime code of tsc-ts (or the full matrix runs),
@@ -50,11 +49,6 @@ const rules = [
   [/^packages\/tsc-ts\/scripts\/pack\.mjs$/, 'full'],
   // Code generators (their output is checked in) and corpus and benchmark tools, which CI does not run.
   [/^packages\/tsc-ts\/scripts\//, 'nothing'],
-  [/^packages\/relater\//, 'relater'],
-  [/^packages\/tsgo\/(oracles|checkhost)\/|^packages\/tsgo\/scripts\/build-oracle\.mjs$/, 'full'],
-  [/^packages\/tsgo\//, 'tsgo'],
-  // Built by the build job.
-  [/^packages\/gots\//, 'nothing'],
   // CI configuration, root scripts and manifests, the lockfile, upstream.json, and anything else.
   [/./, 'full'],
 ];
@@ -64,7 +58,6 @@ const everyUnit = allUnits();
 const units = everyUnit.filter((unit) => !unit.native);
 const unitsOf = (file) => units.filter((unit) => unit.file === file).map((unit) => unit.id);
 const tscTsUnits = () => units.filter((unit) => unit.id.startsWith('packages/tsc-ts/')).map((unit) => unit.id);
-const packageUnits = (pkg) => units.filter((unit) => unit.cwd === `packages/${pkg}`).map((unit) => unit.id);
 
 function git(...args) {
   return execFileSync('git', ['-C', root, ...args], { encoding: 'utf8', maxBuffer: 1 << 28 });
@@ -428,7 +421,6 @@ export function select(base, head, changes, full = false) {
     } else if (rule === 'nothing') notes.push(`${path}: no tests`);
     else if (rule === 'source') sourceUnits(base, head, change, reasons);
     else if (rule === 'tests') testUnits(change, reasons);
-    else if (rule === 'relater' || rule === 'tsgo') reasons.add(packageUnits(rule), `${path}: ${rule} tests`);
     else reasons.full(path);
   }
   if (full) native = true;

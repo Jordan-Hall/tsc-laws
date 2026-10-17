@@ -3,34 +3,15 @@
   "agentGuidance": false,
   "tasks": {
     "build": {
-      "outputs": ["dist/relater", "dist/build.json", "dist/cli.ll"]
+      "outputs": []
     },
     "build:oracle": {
       "outputs": ["dist/*-oracle", "dist/tsgo", "dist/oracle-build.json"],
-      "inputs": ["oracle/**", "oracles/**", "checkhost/**", "scripts/build-oracle.mjs", "$TURBO_ROOT$/upstream.json"]
-    },
-    "@tsc-ts/tsgo#build:oracle": {
-      "dependsOn": ["@tsc-ts/relater#build:oracle"],
-      "outputs": ["dist/*-oracle", "dist/tsgo", "dist/oracle-build.json"],
-      "inputs": ["oracle/**", "oracles/**", "checkhost/**", "scripts/build-oracle.mjs", "$TURBO_ROOT$/upstream.json"]
-    },
-    "translate": {
-      "dependsOn": ["^build"],
-      "cache": false
-    },
-    "build:check": {
-      "outputs": ["dist/check"]
+      "inputs": ["oracles/**", "checkhost/**", "scripts/build-oracle.mjs", "$TURBO_ROOT$/upstream.json"]
     },
     "test": {
       "dependsOn": ["build", "build:oracle"],
       "cache": false
-    },
-    "test:corpus": {
-      "dependsOn": ["build:oracle"],
-      "cache": false
-    },
-    "@tsc-ts/gots#build": {
-      "outputs": []
     },
     "tsc-ts#build": {
       "outputs": ["dist/**"]

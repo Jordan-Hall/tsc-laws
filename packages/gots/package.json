@@ -1,8 +1,0 @@
-{
-  "name": "@tsc-ts/gots",
-  "version": "0.0.0",
-  "private": true,
-  "scripts": {
-    "build": "go build -o /dev/null ."
-  }
-}
