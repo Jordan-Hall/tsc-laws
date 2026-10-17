@@ -134,3 +134,44 @@ test('under noEmitOnError, emit on checker threads matches emit on one checker',
     assert.deepEqual(actual.outputs, expected.outputs);
   }
 });
+
+// A union's constituents tie in compareTypes when they differ only in their mappers, as two
+// instantiations of one mapped type do, and are then ordered by type id, which follows the order in
+// which the emitting checker created them. With one checker, `defs.ts` is checked first and creates
+// `a` before `b`; with checker threads, the checker of `pick.ts` may not have checked `defs.ts`, and
+// `pick.ts` needs `b` first. Declaration files are written in the same order either way.
+test('declaration files are the same with any number of checkers', { skip: tscTsMissing }, () => {
+  const cwd = tempDir('tsc-ts-parallel-declaration-order-');
+  const project = {
+    'src/view.ts': 'export function view<F>(fields: F): { readonly [K in keyof F]: F[K] } {\n  return fields;\n}\n',
+    'src/defs.ts':
+      'import { view } from "./view";\n' +
+      'export const a = view({ kind: "a" as const, x: 1 });\n' +
+      'export const b = view({ kind: "b" as const, y: "s" });\n',
+    'src/pick.ts':
+      'import { a, b } from "./defs";\nexport const first = b;\nexport const pick = Math.random() > 0.5 ? a : b;\n',
+    'tsconfig.json': JSON.stringify({
+      compilerOptions: {
+        target: 'ES2022',
+        strict: true,
+        types: [],
+        module: 'commonjs',
+        declaration: true,
+        emitDeclarationOnly: true,
+        rootDir: 'src',
+        outDir: 'out',
+      },
+      include: ['src'],
+    }),
+  };
+  for (const [path, content] of Object.entries(project)) {
+    mkdirSync(dirname(join(cwd, path)), { recursive: true });
+    writeFileSync(join(cwd, path), content);
+  }
+  const expected = run(cwd, ['--singleThreaded']);
+  assert.match(expected.outputs['pick.d.ts'], /pick: \{\n {4}readonly kind: "a";[^]*\} \| \{\n {4}readonly kind: "b";/);
+  for (const checkers of ['2', '3', '4']) {
+    const actual = run(cwd, ['--checkers', checkers]);
+    assert.deepEqual(actual.outputs, expected.outputs, `outputs with --checkers ${checkers}`);
+  }
+});
