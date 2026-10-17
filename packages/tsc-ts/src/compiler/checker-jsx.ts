@@ -112,10 +112,13 @@ import {
   checkExpressionForMutableLocationEx,
 } from './checker-expressions.js';
 import {
+  ContextFlags,
   checkExpressionWithContextualType,
   findContextualNode,
   getApparentTypeOfContextualType,
+  getApparentTypeOfContextualTypeEx,
   getContextualType,
+  getContextualTypeEx,
   getTypeOfPropertyOfContextualType,
   getInferenceContext,
 } from './checker-contextual.js';
@@ -1585,28 +1588,42 @@ function checkGrammarJsxExpression(c: Checker, node: JsxExpression): boolean {
 
 // ---- Contextual types
 
-export function getContextualTypeForJsxExpression(c: Checker, node: Node): Type | undefined {
+export function getContextualTypeForJsxExpression(
+  c: Checker,
+  node: Node,
+  contextFlags: ContextFlags,
+): Type | undefined {
   const parent = node.parent!;
   if (parent.kind === SyntaxKind.JsxAttribute || parent.kind === SyntaxKind.JsxSpreadAttribute)
-    return getContextualType(c, node);
-  if (parent.kind === SyntaxKind.JsxElement) return getContextualTypeForChildJsxExpression(c, parent, node);
+    return getContextualTypeEx(c, node, contextFlags);
+  if (parent.kind === SyntaxKind.JsxElement)
+    return getContextualTypeForChildJsxExpression(c, parent, node, contextFlags);
   return undefined;
 }
 
-export function getContextualTypeForJsxAttribute(c: Checker, attribute: Node): Type | undefined {
+export function getContextualTypeForJsxAttribute(
+  c: Checker,
+  attribute: Node,
+  contextFlags: ContextFlags,
+): Type | undefined {
   // While a function component's signature is tried, its attributes carry the parameter type.
   if (attribute.kind === SyntaxKind.JsxAttribute) {
-    const attributesType = getApparentTypeOfContextualType(c, attribute.parent!);
+    const attributesType = getApparentTypeOfContextualTypeEx(c, attribute.parent!, contextFlags);
     if (attributesType === undefined || (attributesType.flags & TypeFlags.Any) !== 0) return undefined;
     return getTypeOfPropertyOfContextualType(c, attributesType, jsxNameText((attribute as JsxAttribute).name));
   }
-  return getContextualType(c, attribute.parent!);
+  return getContextualTypeEx(c, attribute.parent!, contextFlags);
 }
 
-export function getContextualJsxElementAttributesType(c: Checker, node: Node): Type | undefined {
+export function getContextualJsxElementAttributesType(
+  c: Checker,
+  node: Node,
+  contextFlags: ContextFlags,
+): Type | undefined {
   if (node.kind === SyntaxKind.JsxOpeningElement) {
     // Contextual types of an element's attributes are pushed onto the element, which spans the children.
-    const index = findContextualNode(c, node.parent!, true);
+    // Cached contextual types were obtained without flags.
+    const index = findContextualNode(c, node.parent!, contextFlags === ContextFlags.None);
     if (index >= 0) return c.inferenceCaches.contextualTypes[index];
   }
   const signature =
@@ -1616,9 +1633,14 @@ export function getContextualJsxElementAttributesType(c: Checker, node: Node): T
   return getEffectiveFirstArgumentForJsxSignature(c, signature, node);
 }
 
-function getContextualTypeForChildJsxExpression(c: Checker, node: Node, child: Node): Type | undefined {
+function getContextualTypeForChildJsxExpression(
+  c: Checker,
+  node: Node,
+  child: Node,
+  contextFlags: ContextFlags,
+): Type | undefined {
   const element = node as JsxElement;
-  const attributesType = getApparentTypeOfContextualType(c, element.openingElement.attributes);
+  const attributesType = getApparentTypeOfContextualTypeEx(c, element.openingElement.attributes, contextFlags);
   // Children are the `children` attribute (named by `JSX.ElementChildrenAttribute`).
   const jsxChildrenPropertyName = getJsxElementChildrenPropertyName(c, getJsxNamespaceAt(c, node));
   if (
