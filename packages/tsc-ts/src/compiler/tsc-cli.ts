@@ -8,6 +8,7 @@ import {
   createCompilerDiagnostic,
   Diagnostics,
   formatDiagnostic,
+  formatDiagnostics,
   formatDiagnosticWithColorAndContext,
   formatErrorSummary,
   localizeMessage,
@@ -198,8 +199,16 @@ export class DiagnosticReporter {
     else this.sys.write(formatDiagnostic(diagnostic, this.format));
   }
 
+  /** Writes the diagnostics at once: a write for each costs more than formatting it. */
   reportAll(diagnostics: readonly Diagnostic[]): void {
-    for (const diagnostic of diagnostics) this.report(diagnostic);
+    if (this.quiet || diagnostics.length === 0) return;
+    if (!this.pretty) {
+      this.sys.write(formatDiagnostics(diagnostics, this.format));
+      return;
+    }
+    let text = '';
+    for (const diagnostic of diagnostics) text += formatDiagnosticWithColorAndContext(diagnostic, this.format) + '\n';
+    this.sys.write(text);
   }
 }
 
