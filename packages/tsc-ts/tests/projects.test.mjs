@@ -62,6 +62,18 @@ const projects = [
     },
   ],
   [
+    'static properties named like Function properties without standard class fields',
+    {
+      'a.ts':
+        'const names = { name: "name", length: "length" } as const;\n' +
+        'export class C {\n  static [names.name]: number;\n  static [names.length]() {}\n  static caller = 1;\n  static ["arguments"] = 2;\n}\n',
+      'tsconfig.json': JSON.stringify({
+        compilerOptions: { ...base, target: 'ES2015' },
+        files: ['a.ts'],
+      }),
+    },
+  ],
+  [
     'compound assignments to elements under noUncheckedIndexedAccess',
     {
       'a.ts':
