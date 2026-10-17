@@ -195,6 +195,18 @@ const projects = [
     },
   ],
   [
+    'property initializers that reference constructor locals without standard class fields',
+    {
+      'a.ts':
+        'export class C {\n  a = x;\n  b: typeof x = 0;\n  constructor(x: number) {}\n}\n' +
+        'export class D {\n  y = aaa;\n  z = w;\n  w = 1;\n  constructor() {\n    var aaa = 1;\n    var w = 2;\n  }\n}\n',
+      'tsconfig.json': JSON.stringify({
+        compilerOptions: { ...base, target: 'ES2015' },
+        files: ['a.ts'],
+      }),
+    },
+  ],
+  [
     'variables of a loop referenced while their declarations are resolved',
     {
       'a.ts':

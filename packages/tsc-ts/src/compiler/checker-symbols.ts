@@ -28,7 +28,7 @@ import {
 import { isAmbientModule, isGlobalScopeAugmentation, nodeIsMissing } from './ast-utilities.js';
 import { codePoints, levenshteinWithMax, utf8Length } from './spelling.js';
 import { setValueDeclaration } from './binder.js';
-import { checkResolvedBlockScopedVariable } from './checker-declaration-order.js';
+import { checkResolvedBlockScopedVariable, getEmitStandardClassFields } from './checker-declaration-order.js';
 import {
   declarationNameToString,
   getNameOfDeclaration,
@@ -129,6 +129,33 @@ export class CheckerNameResolver extends NameResolver {
 
   setRequiresScopeChangeCache(node: Node, value: Tristate): void {
     this.checker.nodeLinks(node).declarationRequiresScopeChange = value;
+  }
+
+  /**
+   * A property initializer that references a local of the constructor, where the initializer is emitted
+   * when class fields aren't standard: reports a missing `this.` when the name resolves to nothing, else
+   * that the initializer (or the property's type) can't reference it.
+   */
+  onPropertyWithInvalidInitializer(
+    location: Node,
+    name: string,
+    declaration: Node,
+    result: Symbol | undefined,
+  ): boolean {
+    const c = this.checker;
+    if (getEmitStandardClassFields(c)) return false;
+    if (result === undefined && checkAndReportErrorForMissingPrefix(c, location, name)) return true;
+    const typeNode = getType(declaration);
+    const inType = typeNode !== undefined && typeNode.pos <= location.pos && location.pos <= typeNode.end;
+    c.error(
+      location,
+      inType
+        ? Diagnostics.Type_of_instance_member_variable_0_cannot_reference_identifier_1_declared_in_the_constructor
+        : Diagnostics.Initializer_of_instance_member_variable_0_cannot_reference_identifier_1_declared_in_the_constructor,
+      declarationNameToString(getSourceFileOfNode(declaration), getName(declaration)!),
+      name,
+    );
+    return true;
   }
 
   onFailedToResolveSymbol(

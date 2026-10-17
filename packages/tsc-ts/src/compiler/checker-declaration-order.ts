@@ -148,7 +148,7 @@ function getUseDefineForClassFields(c: Checker): boolean {
   return c.compilerOptions.useDefineForClassFields ?? c.languageVersion >= ScriptTarget.ES2022;
 }
 
-function getEmitStandardClassFields(c: Checker): boolean {
+export function getEmitStandardClassFields(c: Checker): boolean {
   return c.compilerOptions.useDefineForClassFields !== false && c.languageVersion >= ScriptTarget.ES2022;
 }
 
