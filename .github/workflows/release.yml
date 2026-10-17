@@ -1,10 +1,15 @@
 name: Release
 
-# Builds the npm packages on each platform and uploads them as artifacts.
-# Nothing is published. The packages are built only for a commit whose CI run for its push to main succeeded in
-# every job (scripts/ci/ci-status.mjs); `node scripts/ci/ci-status.mjs latest-green` prints the latest such commit.
+# Builds and publishes the npm packages after every job of CI passes on the release commit's push to main.
+# Push a version tag to release it, or dispatch from main with `release_tag` to retry without moving the tag.
+# `node scripts/ci/ci-status.mjs latest-green` prints the latest commit that meets the CI gate.
 on:
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing version tag to build and publish from a manual run
+        required: false
+        type: string
   push:
     tags: ['v*']
 
@@ -22,10 +27,12 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_tag || github.ref }}
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - run: node scripts/ci/ci-status.mjs require-green "$GITHUB_SHA" --wait 90
+      - run: node scripts/ci/ci-status.mjs require-green "$(git rev-parse HEAD)" --wait 90
         env:
           GITHUB_TOKEN: ${{ github.token }}
 
@@ -47,12 +54,19 @@ jobs:
           - { platform: win32-x64-msvc, runner: windows-2025 }
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_tag || github.ref }}
 
       - uses: actions/setup-node@v4
         if: ${{ !matrix.docker }}
         with:
           node-version: 24
           cache: npm
+
+      - uses: vercel-labs/setup-zig@v1
+        if: matrix.platform == 'win32-x64-msvc'
+        with:
+          version: 0.16.0
 
       - name: Build and check
         if: ${{ !matrix.docker }}
@@ -66,7 +80,7 @@ jobs:
         if: ${{ matrix.docker }}
         run: >
           docker run --rm -v "$PWD:/repo" -w /repo ${{ matrix.docker }}
-          sh -c 'apk add --no-cache clang lld musl-dev && npm ci && npm run pack:npm -w tsc-ts -- --check'
+          sh -c 'apk add --no-cache clang lld musl-dev zig && npm ci && npm run pack:npm -w tsc-ts -- --check'
 
       - uses: actions/upload-artifact@v4
         with:
@@ -84,7 +98,10 @@ jobs:
   publish:
     name: Publish to npm
     needs: [ci-green, package]
-    if: github.repository == 'vercel-labs/tsc-ts' && startsWith(github.ref, 'refs/tags/v')
+    if: >-
+      github.repository == 'vercel-labs/tsc-ts' &&
+      (startsWith(github.ref, 'refs/tags/v') ||
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && startsWith(inputs.release_tag, 'v')))
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: Release
@@ -94,6 +111,8 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_tag || github.ref }}
 
       - uses: actions/setup-node@v4
         with:
@@ -102,7 +121,7 @@ jobs:
 
       - name: Check release version
         env:
-          TAG: ${{ github.ref_name }}
+          TAG: ${{ inputs.release_tag || github.ref_name }}
         run: |
           VERSION=$(node -p "require('./packages/tsc-ts/package.json').version")
           if [ "$TAG" != "v$VERSION" ]; then
