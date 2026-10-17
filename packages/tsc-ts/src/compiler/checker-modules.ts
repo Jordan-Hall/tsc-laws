@@ -45,6 +45,7 @@ import {
   isAmbientModule,
   isImportCall,
   isFunctionLike,
+  isGlobalScopeAugmentation,
   isInJSFile,
   isLiteralImportTypeNode,
   isRequireCall,
@@ -63,6 +64,7 @@ import {
   getSourceFileOfNode,
   hasSyntacticModifier,
   isGlobalSourceFile,
+  isJsonSourceFile,
   isModuleAugmentationExternal,
   isPartOfTypeQuery,
   isVariableDeclarationInitializedToRequire,
@@ -91,13 +93,14 @@ import {
   getTypesPackageName,
   mangleScopedPackageName,
 } from './module-resolution-types.js';
-import { getResolutionModeOverride } from './program-utilities.js';
+import { getResolutionModeOverride, moduleKindName } from './program-utilities.js';
 import { hasExtension } from './vfs-match.js';
 import { isNodeCoreModule } from './parser.js';
 import {
   combinePaths,
   extensionIsTs,
   fileExtensionIsOneOf,
+  getDeclarationFileExtension,
   getDirectoryPath,
   getNormalizedAbsolutePath,
   isDeclarationFileName,
@@ -737,6 +740,8 @@ export function resolveESModuleSymbol(
     ? (referenceParent as CallExpression).arguments.nodes[0]!
     : getModuleSpecifier(referenceParent)!;
   const type = getTypeOfSymbol(c, symbol);
+  const defaultOnlyType = getTypeWithSyntheticDefaultOnly(c, type, symbol, moduleSymbol, reference);
+  if (defaultOnlyType !== undefined) return cloneTypeAsModuleType(c, symbol, defaultOnlyType);
   if (hasSignatures(c, type) || getPropertyOfTypeEx(c, type, InternalSymbolName.Default, true, false) !== undefined) {
     const moduleType =
       (type.flags & TypeFlags.StructuredType) !== 0
@@ -758,6 +763,51 @@ function hasSignatures(c: Checker, type: Type): boolean {
     getSignaturesOfStructuredType(c, type, SignatureKind.Call).length > 0 ||
     getSignaturesOfStructuredType(c, type, SignatureKind.Construct).length > 0
   );
+}
+
+/**
+ * Whether the module `usage` names is a JSON module imported into an ES module under `--module node16` to
+ * `nodenext`, which Node.js gives only a default export.
+ */
+function isOnlyImportableAsDefault(c: Checker, usage: Node, resolvedModule: Symbol | undefined): boolean {
+  const moduleKind = getEmitModuleKind(c.compilerOptions);
+  if (moduleKind < ModuleKind.Node16 || moduleKind > ModuleKind.NodeNext) return false;
+  if (getEmitSyntaxForModuleSpecifierExpression(c, usage) !== ModuleKind.ESNext) return false;
+  const moduleSymbol = resolvedModule ?? resolveExternalModuleName(c, usage, usage, true);
+  const targetFile = moduleSymbol !== undefined ? getSourceFileOfModuleSymbol(moduleSymbol) : undefined;
+  return (
+    targetFile !== undefined &&
+    (isJsonSourceFile(targetFile) || getDeclarationFileExtension(targetFile.fileName) === '.d.json.ts')
+  );
+}
+
+/** The source file that declares a module: its value declaration, or its first declaration that is not an augmentation. */
+function getSourceFileOfModuleSymbol(symbol: Symbol): SourceFile | undefined {
+  let declaration = symbol.valueDeclaration;
+  if (declaration === undefined)
+    for (const d of symbol.declarations)
+      if (!(isAmbientModule(d) && isModuleAugmentationExternal(d)) && !isGlobalScopeAugmentation(d)) {
+        declaration = d;
+        break;
+      }
+  return declaration !== undefined ? getSourceFileOfNode(declaration) : undefined;
+}
+
+/** For a module only importable as default, the type of its namespace: an object with only `default`. */
+function getTypeWithSyntheticDefaultOnly(
+  c: Checker,
+  type: Type,
+  symbol: Symbol,
+  originalSymbol: Symbol,
+  moduleSpecifier: Node,
+): Type | undefined {
+  if (!isOnlyImportableAsDefault(c, moduleSpecifier, undefined) || isErrorType(c, type)) return undefined;
+  const key = 'defaultOnly:' + type.id;
+  const cached = c.moduleTypeCache.get(key);
+  if (cached !== undefined) return cached;
+  const result = createDefaultPropertyWrapperForModule(c, symbol, originalSymbol, undefined);
+  c.moduleTypeCache.set(key, result);
+  return result;
 }
 
 /** `type` with a `default` member for the module, when the module may not have a real one. */
@@ -1061,8 +1111,9 @@ function getTargetOfModuleDefault(
     ? undefined
     : resolveExportByName(c, moduleSymbol, InternalSymbolName.Default, node, dontResolveAlias);
   if (specifier === undefined) return exportDefaultSymbol;
+  const hasDefaultOnly = isOnlyImportableAsDefault(c, specifier, moduleSymbol);
   const hasSyntheticDefault = canHaveSyntheticDefault(c, file, moduleSymbol, dontResolveAlias, specifier);
-  if (exportDefaultSymbol === undefined && !hasSyntheticDefault) {
+  if (exportDefaultSymbol === undefined && !hasSyntheticDefault && !hasDefaultOnly) {
     if (node.kind === SyntaxKind.ImportClause) reportNonDefaultExport(c, moduleSymbol, node);
     else {
       const name =
@@ -1071,7 +1122,7 @@ function getTargetOfModuleDefault(
           : getName(node)!;
       errorNoModuleMemberSymbol(c, moduleSymbol, moduleSymbol, node, name);
     }
-  } else if (hasSyntheticDefault) {
+  } else if (hasSyntheticDefault || hasDefaultOnly) {
     // A synthetic default overrides a real `default` member without an `__esModule` marker.
     const resolved =
       resolveExternalModuleSymbol(c, moduleSymbol, dontResolveAlias) ??
@@ -1205,7 +1256,14 @@ export function getExternalModuleMember(
   if (
     symbolFromModule === undefined &&
     nameText === InternalSymbolName.Default &&
-    canHaveSyntheticDefault(c, getSourceFileDeclaration(moduleSymbol), moduleSymbol, dontResolveAlias, moduleSpecifier!)
+    (isOnlyImportableAsDefault(c, moduleSpecifier!, moduleSymbol) ||
+      canHaveSyntheticDefault(
+        c,
+        getSourceFileDeclaration(moduleSymbol),
+        moduleSymbol,
+        dontResolveAlias,
+        moduleSpecifier!,
+      ))
   )
     symbolFromModule =
       resolveExternalModuleSymbol(c, moduleSymbol, dontResolveAlias) ??
@@ -1216,7 +1274,17 @@ export function getExternalModuleMember(
       : symbolFromVariable === undefined
         ? symbolFromModule
         : combineValueAndTypeSymbols(c, symbolFromVariable, symbolFromModule);
-  if (symbol === undefined) errorNoModuleMemberSymbol(c, moduleSymbol, targetSymbol, node, name);
+  if (
+    (specifier.kind === SyntaxKind.ImportSpecifier || specifier.kind === SyntaxKind.ExportSpecifier) &&
+    nameText !== InternalSymbolName.Default &&
+    isOnlyImportableAsDefault(c, moduleSpecifier!, moduleSymbol)
+  )
+    c.error(
+      name,
+      Diagnostics.Named_imports_from_a_JSON_file_into_an_ECMAScript_module_are_not_allowed_when_module_is_set_to_0,
+      moduleKindName(getEmitModuleKind(c.compilerOptions)),
+    );
+  else if (symbol === undefined) errorNoModuleMemberSymbol(c, moduleSymbol, targetSymbol, node, name);
   return symbol;
 }
 
@@ -2084,13 +2152,20 @@ export function checkImportCallExpression(c: Checker, node: Node): Type {
       return createPromiseReturnType(
         c,
         node,
-        getTypeWithSyntheticDefaultImportType(
+        getTypeWithSyntheticDefaultOnly(
           c,
           getTypeOfSymbol(c, esModuleSymbol),
           esModuleSymbol,
           moduleSymbol,
           specifier,
-        ),
+        ) ??
+          getTypeWithSyntheticDefaultImportType(
+            c,
+            getTypeOfSymbol(c, esModuleSymbol),
+            esModuleSymbol,
+            moduleSymbol,
+            specifier,
+          ),
       );
   }
   return createPromiseReturnType(c, node, c.anyType);
@@ -2245,11 +2320,28 @@ export function checkImportDeclaration(c: Checker, node: Node): void {
   if (clause !== undefined && !hasImportClauseGrammarError(clause)) {
     if (clause.name !== undefined) checkImportBinding(c, clause);
     const namedBindings = clause.namedBindings;
+    let resolvedModule: Symbol | undefined;
     if (namedBindings !== undefined) {
       if (namedBindings.kind === SyntaxKind.NamespaceImport) checkImportBinding(c, namedBindings);
-      else if (resolveExternalModuleName(c, node, declaration.moduleSpecifier, false) !== undefined)
-        for (const binding of (namedBindings as NamedImports).elements.nodes) checkImportBinding(c, binding);
+      else {
+        resolvedModule = resolveExternalModuleName(c, node, declaration.moduleSpecifier, false);
+        if (resolvedModule !== undefined)
+          for (const binding of (namedBindings as NamedImports).elements.nodes) checkImportBinding(c, binding);
+      }
     }
+    const moduleKind = getEmitModuleKind(c.compilerOptions);
+    if (
+      !isTypeOnly(clause) &&
+      moduleKind >= ModuleKind.Node18 &&
+      moduleKind <= ModuleKind.NodeNext &&
+      isOnlyImportableAsDefault(c, declaration.moduleSpecifier, resolvedModule) &&
+      !hasTypeJsonImportAttribute(declaration)
+    )
+      c.error(
+        declaration.moduleSpecifier,
+        Diagnostics.Importing_a_JSON_file_into_an_ECMAScript_module_requires_a_type_Colon_json_import_attribute_when_module_is_set_to_0,
+        moduleKindName(moduleKind),
+      );
   } else if (clause === undefined && c.compilerOptions.noUncheckedSideEffectImports !== false)
     resolveExternalModuleNameWorker(
       c,
@@ -2260,6 +2352,16 @@ export function checkImportDeclaration(c: Checker, node: Node): void {
       false,
     );
   checkImportAttributes(c, node);
+}
+
+function hasTypeJsonImportAttribute(node: ImportDeclaration): boolean {
+  const attributes = getImportAttributes(node) as ImportAttributes | undefined;
+  if (attributes === undefined) return false;
+  for (const attribute of attributes.attributes.nodes) {
+    const value = (attribute as ImportAttribute).value;
+    if (getText(getName(attribute)!) === 'type' && isStringLiteralLike(value) && getText(value) === 'json') return true;
+  }
+  return false;
 }
 
 function checkImportBinding(c: Checker, node: Node): void {
