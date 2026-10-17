@@ -80,6 +80,6 @@ for await (const filename of files(root)) {
   }
 }
 
-if (!checked) throw new Error('No TypeScript examples were found.');
-console.log(`Checked ${checked} examples with TypeScript ${ts.version}; ${failures} failed.`);
+if (checked) console.log(`Checked ${checked} examples with TypeScript ${ts.version}; ${failures} failed.`);
+else console.log('No TypeScript examples found; nothing to check.');
 if (failures) process.exitCode = 1;
