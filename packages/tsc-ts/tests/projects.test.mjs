@@ -91,6 +91,39 @@ const projects = [
     },
   ],
   [
+    'narrowing of element accesses with union keys',
+    {
+      'a.ts':
+        'class A { clear() {} }\n' +
+        'class B { other() {} }\n' +
+        'declare const r: { a: A; b: B; c?: string; d: string | number };\n' +
+        'declare const k: "a" | "b";\n' +
+        'declare let lk: "a" | "b" | "d";\n' +
+        'if ("clear" in r[k]) { const t: number = r[k]; }\n' +
+        'if (r["c"]) { const t: number = r["c"]; }\n' +
+        'if (typeof r["d"] === "string") { const t: number = r["d"]; }\n' +
+        'if (typeof r[lk] === "string") { const t: number = r[lk]; }\n' +
+        'const key = Math.random() ? "c" : "d";\n' +
+        'if (typeof r[key] === "string") { const t: number = r[key]; }\n' +
+        'declare const tup: [string | undefined, number];\n' +
+        'if (tup[0]) { const t: number = tup[0]; }\n' +
+        'const m: { [k: string]: number | undefined } = {};\n' +
+        'if (m["x"]) { const t: string = m["x"]; }\n' +
+        'function g(o: { x: string | null; y: number | null }, kk: "x" | "y") {\n' +
+        '  if (o[kk] !== null) { const t: boolean = o[kk]; }\n' +
+        '  o[kk] = null;\n' +
+        '  const u: boolean = o[kk];\n' +
+        '  o.x = "s";\n' +
+        '  const w: boolean = o[kk];\n' +
+        '}\n' +
+        'class Store { a = new A(); b = new B(); run(key: "a" | "b") { if ("clear" in this[key]) this[key].clear(); } }\n' +
+        'let obj = { p: 1 as number | string };\n' +
+        'obj["p"] = "s";\n' +
+        'const v: boolean = obj["p"];\n' +
+        'obj["p"] += 1;\n',
+    },
+  ],
+  [
     'ESM syntax in CommonJS files under verbatimModuleSyntax',
     {
       'main.ts':
