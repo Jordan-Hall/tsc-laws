@@ -126,6 +126,27 @@ test('tsc-ts --api answers like tsc --api', { skip, timeout: 600_000 }, async ()
   report(d);
 });
 
+test('tsc-ts --api reports global diagnostics like tsc --api', { skip, timeout: 300_000 }, async () => {
+  // Below ES2022 the libs have no Disposable, so `using` reports global diagnostics, which have no node.
+  const dir = tempDir('tsc-ts-api-');
+  writeFileSync(
+    join(dir, 'tsconfig.json'),
+    '{"compilerOptions":{"target":"ES2015","strict":true,"types":[]},"files":["a.ts"]}',
+  );
+  writeFileSync(join(dir, 'a.ts'), 'export function f(d: any) {\n  using x = d;\n}\n');
+  const d = new Differential([realTsc], tscTs, dir, env);
+  try {
+    await d.call('initialize');
+    const update = await d.call('updateSnapshot', { openProjects: [join(dir, 'tsconfig.json')] });
+    const base = { snapshot: update.snapshot, project: update.projects[0].id };
+    await d.call('getSemanticDiagnostics', { ...base, file: join(dir, 'a.ts') });
+    await d.call('getGlobalDiagnostics', base);
+  } finally {
+    await d.close();
+  }
+  report(d);
+});
+
 test('tsc-ts --api tracks projects and open files like tsc --api', { skip, timeout: 300_000 }, async () => {
   const dir = tempDir('tsc-ts-api-');
   cpSync(resolve('tests/fixtures/project'), join(dir, 'a'), { recursive: true });
