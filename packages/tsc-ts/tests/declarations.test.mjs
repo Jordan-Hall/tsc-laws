@@ -224,6 +224,82 @@ async function emitBoth(files, name, flags) {
 }
 
 test(
+  'a literal that subtype reduction drops gives no property to a missing name',
+  { skip: !existsSync(tsgo) && 'needs packages/tsgo/dist/tsgo' },
+  async () => {
+    // The return type drops the third literal, whose widened type is the first one's, so the second
+    // literal's `after?: undefined` and `text?: undefined` take the first literal's properties and come
+    // before its own (the third literal's would come after them).
+    const { expected, actual } = await emitBoth(
+      {
+        'a.ts': [
+          'export enum E { A, B, C }',
+          'export function rule(x: number) {',
+          "  if (x === 0) return { before: 'a', after: 'b', action: { kind: E.C, text: ' * ' } };",
+          "  if (x === 1) return { previous: 'c', before: 'd', action: { kind: E.B } };",
+          "  return { before: 'e', after: 'f', action: { kind: E.C, text: '\\t' } };",
+          '}',
+        ],
+      },
+      'a.d.ts',
+      baseFlags,
+    );
+    assert.match(expected, /\| \{\n {4}after\?: undefined;\n {4}previous: string;/);
+    assert.match(expected, /action: \{\n {8}text\?: undefined;\n {8}kind: E;/);
+    assert.equal(actual, expected);
+  },
+);
+
+test(
+  'literals are dropped by widened type only where the syntax shows it',
+  { skip: !existsSync(tsgo) && 'needs packages/tsgo/dist/tsgo' },
+  async () => {
+    const { expected, actual } = await emitBoth(
+      {
+        'e.ts': ['export enum E { A, B, C }'],
+        'a.ts': [
+          "import { E } from './e';",
+          "type K = { kind: 'x' | 'y'; t?: string; u?: number };",
+          // Different members of an imported enum widen to the enum: the third literal is the first's.
+          'export function rule(x: number) {',
+          "  if (x === 0) return { before: 'a', after: 'b', action: { kind: E.C, text: ' * ' } };",
+          "  if (x === 1) return { previous: 'c', before: 'd', action: { kind: E.B } };",
+          "  return { before: 'e', after: 'f', action: { kind: E.A, text: '\\t' } };",
+          '}',
+          // The same reference narrowed to other types: the third literal stays.
+          'export function narrowed(v: string | number, x: number) {',
+          "  if (typeof v === 'string') return { a: v, b: 1 };",
+          "  if (x === 1) return { c: 'c', a: 1 };",
+          '  return { a: v, b: 2 };',
+          '}',
+          // `satisfies` keeps the literal types of the properties: the third literal stays.
+          'export function kept(x: number) {',
+          "  if (x === 0) return { kind: 'x', t: 'a' } satisfies K;",
+          "  if (x === 1) return { kind: 'y', u: 1 } satisfies K;",
+          "  return { kind: 'y', t: 'b' } satisfies K;",
+          '}',
+          // A namespace merged with an enum exports other values: the third literal stays.
+          'export enum N { A, B }',
+          "export namespace N { export const text = 'x'; export const count = 1; }",
+          'export function merged(x: number) {',
+          '  if (x === 0) return { a: 1, v: N.text };',
+          "  if (x === 1) return { b: 'b', v: N.A };",
+          '  return { a: 2, v: N.count };',
+          '}',
+        ],
+      },
+      'a.d.ts',
+      baseFlags,
+    );
+    assert.match(expected, /\| \{\n {4}after\?: undefined;\n {4}previous: string;/);
+    assert.match(expected, /\| \{\n {4}c\?: undefined;\n {4}a: number;\n {4}b: number;\n\}/);
+    assert.match(expected, /\| \{\n {4}u\?: undefined;\n {4}kind: "y";\n {4}t: string;\n\}/);
+    assert.match(expected, /\| \{\n {4}b\?: undefined;\n {4}a: number;\n {4}v: number;\n\}/);
+    assert.equal(actual, expected);
+  },
+);
+
+test(
   'optional undefined properties of widened object literals are ordered as in tsgo',
   { skip: !existsSync(tsgo) && 'needs packages/tsgo/dist/tsgo' },
   async () => {

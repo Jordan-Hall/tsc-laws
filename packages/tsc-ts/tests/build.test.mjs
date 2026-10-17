@@ -612,6 +612,30 @@ const scenarios = {
       { args: [], edit: { 'src/0.ts': null } },
     ],
   },
+  // Every file references the files that declare ambient modules. Step 2 changes a signature that two files
+  // depend on, step 3 adds an ambient module and step 4 removes it, which changes the references of every
+  // file. Step 5 deletes e.ts: the references of d.ts stay the same, and d.ts is emitted again (listed by
+  // listEmittedFiles) as a file that references a deleted file.
+  'references with ambient modules across rebuilds': {
+    files: {
+      'tsconfig.json':
+        '{"compilerOptions":{"incremental":true,"outDir":"out","rootDir":"src","listEmittedFiles":true},"include":["src"]}',
+      'src/ambient.d.ts': 'declare module "m" { export const m: number; }\n',
+      'src/a.ts': 'import { m } from "m";\nimport { b } from "./b";\nexport const a = m + b;\n',
+      'src/b.ts': 'export const b = 1;\n',
+      'src/c.ts': 'import { a } from "./a";\nexport const c = a;\n',
+      'src/d.ts': '/// <reference path="./e.ts" />\nexport const d = 1;\n',
+      'src/e.ts': 'export const e = 1;\n',
+    },
+    steps: [
+      { args: [] },
+      { args: [], edit: { 'src/b.ts': 'export const b = "b";\n' } },
+      { args: [], edit: { 'src/ambient2.d.ts': 'declare module "n" { export const n: number; }\n' } },
+      { args: [], edit: { 'src/ambient2.d.ts': null } },
+      { args: [], edit: { 'src/e.ts': null } },
+      { args: [] },
+    ],
+  },
   'explainFiles and statistics': {
     files: {
       'tsconfig.json': '{"compilerOptions":{"outDir":"out"},"files":["a.ts"]}',
