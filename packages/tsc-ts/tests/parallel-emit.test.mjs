@@ -5,7 +5,7 @@
 // one directory, and compares stdout (with --listEmittedFiles), the exit status and every output.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -14,6 +14,8 @@ import { tscTs, tscTsMissing } from './toolchain.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const bundledLibs = join(resolve(here, '../../..'), 'upstream/typescript-go/internal/bundled/libs');
+const tsgo = join(resolve(here, '../../..'), 'packages/tsgo/dist/tsgo');
+const tsgoMissing = !existsSync(tsgo) && 'needs packages/tsgo/dist/tsgo';
 
 const files = {
   'src/shapes.ts':
@@ -174,4 +176,34 @@ test('declaration files are the same with any number of checkers', { skip: tscTs
     const actual = run(cwd, ['--checkers', checkers]);
     assert.deepEqual(actual.outputs, expected.outputs, `outputs with --checkers ${checkers}`);
   }
+});
+
+// Type text in diagnostics lists a union's constituents in the union's order, as tsgo does; only
+// declaration files reorder the ones the union orders by type id (above). The function expression has
+// a written return type, so its body is checked after the file's statements, and `a` is created after
+// `b`, which is declared later: the message has `b | a`.
+test('diagnostics list union constituents in the order tsgo does', { skip: tscTsMissing || tsgoMissing }, () => {
+  const cwd = tempDir('tsc-ts-diagnostic-union-order-');
+  const project = {
+    'src/pick.ts':
+      'function view<F>(fields: F): { readonly [K in keyof F]: F[K] } {\n  return fields;\n}\n' +
+      'export const f = (): number => {\n' +
+      "  const a = view({ kind: 'a' as const, x: 1 });\n  const n: number = Math.random() > 0.5 ? a : b;\n" +
+      '  return n;\n};\n' +
+      "const b = view({ kind: 'b' as const, y: 's' });\n",
+    'tsconfig.json': JSON.stringify({
+      compilerOptions: { target: 'ES2022', strict: true, types: [], declaration: true, rootDir: 'src', outDir: 'out' },
+      include: ['src'],
+    }),
+  };
+  for (const [path, content] of Object.entries(project)) {
+    mkdirSync(dirname(join(cwd, path)), { recursive: true });
+    writeFileSync(join(cwd, path), content);
+  }
+  const actual = run(cwd, ['--singleThreaded']);
+  rmSync(join(cwd, 'out'), { recursive: true, force: true });
+  const expected = spawnSync(tsgo, ['-p', '.', '--pretty', 'false', '--singleThreaded'], { cwd, encoding: 'utf8' });
+  assert.match(expected.stdout, /Type '\{ readonly kind: "b"; readonly y: string; \} \| \{ readonly kind: "a";/);
+  assert.equal(actual.stdout, expected.stdout);
+  assert.equal(actual.status, expected.status);
 });
