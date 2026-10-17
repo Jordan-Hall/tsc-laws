@@ -260,9 +260,21 @@ class PathReader {
   }
 }
 
+/** The components a pattern can be at after the directory `prefix` (`GlobPattern.frontierFrom`). */
+class Frontier {
+  /** The directory, ending in `/`; `undefined` before the first. */
+  prefix: string | undefined = undefined;
+  readonly indices: number[] = [];
+  /** Whether matching ended with a match within `prefix`. */
+  matched = false;
+}
+
 /** A compiled glob spec such as `src/**\/*.ts`. */
 class GlobPattern {
   private readonly reader = new PathReader();
+  /** Where matching files, and directories (`prefixOnly`), of the last directory got to. */
+  private readonly fileFrontier = new Frontier();
+  private readonly directoryFrontier = new Frontier();
 
   private constructor(
     private readonly components: readonly Component[],
@@ -286,7 +298,58 @@ class GlobPattern {
 
   /** Whether `prefix + suffix` matches, or with `prefixOnly`, whether files below it could. */
   matches(prefix: string, suffix: string, prefixOnly: boolean): boolean {
-    return this.matchFrom(prefix, suffix, 0, 0, prefixOnly);
+    if (prefix.charCodeAt(prefix.length - 1) !== 0x2f || suffix === '')
+      return this.matchFrom(prefix, suffix, 0, 0, prefixOnly);
+    // The names of a directory share its prefix: matching goes through it once, to the components
+    // matching can be at when it reaches the name.
+    const frontier = prefixOnly ? this.directoryFrontier : this.fileFrontier;
+    if (frontier.prefix !== prefix) {
+      frontier.prefix = prefix;
+      frontier.indices.length = 0;
+      frontier.matched = this.frontierFrom(prefix, 0, 0, prefixOnly, frontier.indices);
+    }
+    if (frontier.matched) return true;
+    for (const index of frontier.indices)
+      if (this.matchFrom(prefix, suffix, prefix.length, index, prefixOnly)) return true;
+    return false;
+  }
+
+  /**
+   * `matchFrom` over the components of `prefix`, a directory ending in `/`, up to the name after it:
+   * adds to `indices` the components matching can be at there, and returns whether matching ends with a
+   * match before it.
+   */
+  private frontierFrom(prefix: string, offset: number, index: number, prefixOnly: boolean, indices: number[]): boolean {
+    const reader = this.reader;
+    const components = this.components;
+    for (;;) {
+      // Any name after `prefix` reads the same components of it.
+      if (!reader.read(prefix, '*', offset)) return false;
+      if (reader.next > prefix.length) {
+        if (!indices.includes(index)) indices.push(index);
+        return false;
+      }
+      if (index >= components.length) return this.isExclude && !prefixOnly;
+      const text = reader.text;
+      const start = reader.start;
+      const end = reader.end;
+      const next = reader.next;
+      const component = components[index];
+      if (component.kind === ComponentKind.DoubleAsterisk) {
+        if (this.frontierFrom(prefix, offset, index + 1, prefixOnly, indices)) return true;
+        if (!this.isExclude && (isHidden(text, start, end) || isPackageFolder(text, start, end))) return false;
+        offset = next;
+        continue;
+      }
+      if (component.kind === ComponentKind.Literal) {
+        if (!this.equalAt(component.literal, text, start, end)) return false;
+      } else {
+        if (component.skipPackageFolders && isPackageFolder(text, start, end)) return false;
+        if (!this.matchWildcard(component, text, start, end)) return false;
+      }
+      offset = next;
+      index++;
+    }
   }
 
   private matchFrom(prefix: string, suffix: string, offset: number, index: number, prefixOnly: boolean): boolean {

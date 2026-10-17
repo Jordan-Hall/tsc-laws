@@ -2,6 +2,7 @@
 import { mark, markMemory } from '../compiler/timeline.js';
 import { spawn, spawnSync } from 'node:child_process';
 import {
+  type Dirent,
   type FSWatcher,
   mkdirSync,
   readdirSync,
@@ -30,6 +31,14 @@ import type { OutputWriter } from '../compiler/compile-program.js';
 import { compile, compileInParallel, compileThreads, SystemWriter } from '../compiler/tsc-compile.js';
 import { buildWithThreads } from '../compiler/tsc-build.js';
 import { watch, watchBuild, watchRestart } from '../compiler/tsc-watch.js';
+
+/** What a directory entry is (`NodeSystem.getAccessibleEntries`). */
+const enum EntryKind {
+  Other,
+  Directory,
+  File,
+  Symlink,
+}
 
 const bundledPrefix = 'bundled:///libs/';
 
@@ -109,20 +118,36 @@ class NodeSystem extends System {
     const files: string[] = [];
     const directories: string[] = [];
     const symlinks = new Set<string>();
-    let entries;
+    let entries: Dirent[];
     try {
       entries = readdirSync(this.toOsPath(path), { withFileTypes: true });
     } catch {
       return new DirectoryEntries(files, directories, symlinks);
     }
-    const names = entries.map((entry) => entry.name).sort(compareUtf8);
-    const byName = new Map(entries.map((entry) => [entry.name, entry]));
-    for (const name of names) {
-      const entry = byName.get(name);
-      if (entry === undefined) continue;
-      if (entry.isDirectory()) directories.push(name);
-      else if (entry.isFile()) files.push(name);
-      else if (entry.isSymbolicLink()) {
+    // Each entry's name and kind, read once, then the entries by name.
+    const names: string[] = [];
+    const kinds: number[] = [];
+    for (const entry of entries) {
+      names.push(entry.name);
+      kinds.push(
+        entry.isDirectory()
+          ? EntryKind.Directory
+          : entry.isFile()
+            ? EntryKind.File
+            : entry.isSymbolicLink()
+              ? EntryKind.Symlink
+              : EntryKind.Other,
+      );
+    }
+    const order: number[] = [];
+    for (let i = 0; i < names.length; i++) order.push(i);
+    order.sort((a, b) => compareUtf8(names[a]!, names[b]!));
+    for (const i of order) {
+      const name = names[i]!;
+      const kind = kinds[i]!;
+      if (kind === EntryKind.Directory) directories.push(name);
+      else if (kind === EntryKind.File) files.push(name);
+      else if (kind === EntryKind.Symlink) {
         try {
           const stat = statSync(this.toOsPath(path) + '/' + name);
           if (stat.isDirectory()) directories.push(name);

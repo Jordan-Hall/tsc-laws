@@ -147,6 +147,28 @@ export function fixtureProjects() {
     'deep/i.d.ts': '',
     'deep/i.ts': '',
   });
+  // Several includes over the same directories, matched a directory at a time.
+  add('include-shared-directories', {
+    'tsconfig.json': json({
+      compilerOptions: { allowJs: true },
+      include: ['src/*/lib/*', 'src/a?/**/*', 'src/deep/**/est/*', 'test/**/*', '*.ts'],
+      exclude: ['**/fixtures/**', 'src/a2/other', '**/*.test.ts'],
+    }),
+    'a.ts': '',
+    'a.tsx': '',
+    'src/a1/lib/m.ts': '',
+    'src/a1/lib/m.js': '',
+    'src/a2/lib/n.ts': '',
+    'src/a2/other/o.ts': '',
+    'src/b1/lib/.hidden.ts': '',
+    'src/b1/lib/z.min.js': '',
+    'src/deep/er/est/p.ts': '',
+    'src/deep/er/est/p.test.ts': '',
+    'src/deep/node_modules/est/q.ts': '',
+    'test/t.ts': '',
+    'test/fixtures/f.ts': '',
+    'test/.dot/d.ts': '',
+  });
   add('include-default-excludes', {
     'tsconfig.json': json({ compilerOptions: { outDir: 'build', declarationDir: 'types', declaration: true } }),
     'a.ts': '',
