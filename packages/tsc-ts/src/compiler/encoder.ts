@@ -258,20 +258,63 @@ class ByteWriter {
     this.bytes.set(data, at);
   }
 
-  /** Appends a node record. */
-  node(kind: number, pos: number, end: number, parent: number, data: number, flags: number): void {
-    const at = this.reserve(nodeSize);
-    this.setU32(at, kind);
-    this.setU32(at + 4, pos);
-    this.setU32(at + 8, end);
-    this.setU32(at + 12, 0);
-    this.setU32(at + 16, parent);
-    this.setU32(at + 20, data);
-    this.setU32(at + 24, flags);
-  }
-
   view(): Uint8Array {
     return this.bytes.subarray(0, this.length);
+  }
+}
+
+/** Whether typed arrays store numbers little-endian, as the encoding does. */
+const littleEndian = new Uint8Array(new Uint32Array([1]).buffer)[0] === 1;
+
+/** Node records: seven 32-bit fields each (`nodeSize` bytes), written a field at a time. */
+class NodeRecords {
+  private words: Uint32Array;
+  count = 0;
+
+  constructor(capacity: number) {
+    this.words = new Uint32Array((capacity < 2 ? 2 : capacity) * 7);
+  }
+
+  /** The records' size in bytes. */
+  get length(): number {
+    return this.count * nodeSize;
+  }
+
+  push(kind: number, pos: number, end: number, parent: number, data: number, flags: number): void {
+    const at = this.count * 7;
+    if (at + 7 > this.words.length) {
+      const grown = new Uint32Array(this.words.length * 2);
+      grown.set(this.words);
+      this.words = grown;
+    }
+    const words = this.words;
+    words[at] = kind;
+    words[at + 1] = pos;
+    words[at + 2] = end;
+    words[at + 3] = 0;
+    words[at + 4] = parent;
+    words[at + 5] = data;
+    words[at + 6] = flags;
+    this.count++;
+  }
+
+  /** Sets the `next` field of record `index`. */
+  setNext(index: number, next: number): void {
+    this.words[index * 7 + 3] = next;
+  }
+
+  /** The records as little-endian bytes. */
+  view(): Uint8Array {
+    if (littleEndian) return new Uint8Array(this.words.buffer, 0, this.length);
+    const bytes = new Uint8Array(this.length);
+    for (let i = 0; i < this.count * 7; i++) {
+      const value = this.words[i];
+      bytes[i * 4] = value & 0xff;
+      bytes[i * 4 + 1] = (value >>> 8) & 0xff;
+      bytes[i * 4 + 2] = (value >>> 16) & 0xff;
+      bytes[i * 4 + 3] = (value >>> 24) & 0xff;
+    }
+    return bytes;
   }
 }
 
@@ -326,6 +369,22 @@ function encodeUTF8(text: string): Uint8Array {
   return bytes;
 }
 
+function hasLoneSurrogate(text: string): boolean {
+  for (let i = 0; i < text.length; i++) {
+    const ch = text.charCodeAt(i);
+    if (ch < 0xd800 || ch > 0xdfff) continue;
+    if (ch <= 0xdbff && i + 1 < text.length) {
+      const low = text.charCodeAt(i + 1);
+      if (low >= 0xdc00 && low <= 0xdfff) {
+        i++;
+        continue;
+      }
+    }
+    return true;
+  }
+  return false;
+}
+
 function isASCII(text: string): boolean {
   for (let i = 0; i < text.length; i++) if (text.charCodeAt(i) >= 0x80) return false;
   return true;
@@ -343,7 +402,10 @@ class StringTable {
   readonly others: ByteWriter;
   count: number;
 
-  constructor(text: string, fileText: Uint8Array) {
+  constructor(
+    private readonly text: string,
+    fileText: Uint8Array,
+  ) {
     this.fileText = fileText;
     this.asciiFile = fileText.length === text.length;
     this.offsets8 = this.asciiFile ? undefined : utf8Offsets(text);
@@ -374,17 +436,33 @@ class StringTable {
 
   add(text: string, kind: SyntaxKind, pos: number, end: number): number {
     const fileText = this.fileText;
-    const ascii = isASCII(text);
-    const length = ascii ? text.length : utf8Length(text);
     const pos8 = this.utf8(pos);
     let end8 = this.utf8(end);
     if (end8 - pos8 > 0 && end8 <= fileText.length) {
+      // A closing quote takes one byte and one UTF-16 unit.
+      let end16 = end;
       if (
         kind === SyntaxKind.StringLiteral ||
         kind === SyntaxKind.TemplateTail ||
         kind === SyntaxKind.NoSubstitutionTemplateLiteral
-      )
+      ) {
         end8 -= 1;
+        end16 -= 1;
+      }
+      // Where the text is the file text before `end16`, its UTF-8 bytes are those of that slice, unless it
+      // has lone surrogates: `encodeUTF8` writes them as WTF-8, and the file's UTF-8 has none.
+      const start16 = end16 - text.length;
+      if (
+        start16 >= 0 &&
+        end16 <= this.text.length &&
+        this.text.startsWith(text, start16) &&
+        (this.asciiFile || !hasLoneSurrogate(text))
+      )
+        return this.push(this.utf8(start16), end8);
+    }
+    const ascii = isASCII(text);
+    const length = ascii ? text.length : utf8Length(text);
+    if (end8 - pos8 > 0 && end8 <= fileText.length) {
       const start8 = end8 - length;
       if (start8 >= 0 && this.matches(text, ascii, start8, end8)) return this.push(start8, end8);
     }
@@ -1427,11 +1505,13 @@ class Encoder extends NodeVisitor {
   /** The file whose JSDoc comments are encoded, if any. */
   readonly file: SourceFile | undefined;
   readonly strings: StringTable;
-  readonly nodes: ByteWriter;
+  readonly nodes: NodeRecords;
   readonly extended: ByteWriter;
   readonly structured: ByteWriter;
   /** Node indices of imports, module augmentations and the external module indicator. */
   readonly tracked: Map<Node, number>;
+  /** Whether a node of each kind is tracked (`track`), so that other nodes need no lookup. */
+  private readonly trackedKinds = new Uint8Array(512);
   nodeCount: number;
   parentIndex: number;
   prevIndex: number;
@@ -1440,7 +1520,7 @@ class Encoder extends NodeVisitor {
     super();
     this.file = file;
     this.strings = new StringTable(text, fileText);
-    this.nodes = new ByteWriter((nodeCount + 2) * nodeSize);
+    this.nodes = new NodeRecords(nodeCount + 2);
     this.extended = new ByteWriter(256);
     this.structured = new ByteWriter(64);
     this.tracked = new Map<Node, number>();
@@ -1449,16 +1529,22 @@ class Encoder extends NodeVisitor {
     this.prevIndex = 0;
   }
 
+  /** Records the index `node` gets (`tracked`). */
+  track(node: Node): void {
+    this.tracked.set(node, 0);
+    this.trackedKinds[node.kind] = 1;
+  }
+
   /** Points the previous sibling's `next` at the record about to be written. */
   private linkSibling(index: number): void {
-    if (this.prevIndex !== 0) this.nodes.setU32(this.prevIndex * nodeSize + 12, index);
+    if (this.prevIndex !== 0) this.nodes.setNext(this.prevIndex, index);
   }
 
   visitNode(node: Node): boolean {
     const index = ++this.nodeCount;
     this.linkSibling(index);
-    this.nodes.node(node.kind, node.pos, node.end, this.parentIndex, this.nodeData(node), node.flags);
-    if (this.tracked.size > 0 && this.tracked.has(node)) this.tracked.set(node, index);
+    this.nodes.push(node.kind, node.pos, node.end, this.parentIndex, this.nodeData(node), node.flags);
+    if (this.trackedKinds[node.kind] === 1 && this.tracked.has(node)) this.tracked.set(node, index);
     const saveParent = this.parentIndex;
     this.prevIndex = 0;
     this.parentIndex = index;
@@ -1471,7 +1557,7 @@ class Encoder extends NodeVisitor {
   visitList(list: NodeList): boolean {
     const index = ++this.nodeCount;
     this.linkSibling(index);
-    this.nodes.node(nodeListKind, list.pos, list.end, this.parentIndex, list.nodes.length, 0);
+    this.nodes.push(nodeListKind, list.pos, list.end, this.parentIndex, list.nodes.length, 0);
     const saveParent = this.parentIndex;
     this.prevIndex = 0;
     this.parentIndex = index;
@@ -1507,10 +1593,10 @@ class Encoder extends NodeVisitor {
   /** Writes the nil record and the root, then the root's descendants. */
   encodeRoot(root: Node): void {
     const nodes = this.nodes;
-    nodes.node(0, 0, 0, 0, 0, 0);
+    nodes.push(0, 0, 0, 0, 0, 0);
     this.nodeCount = 1;
     this.parentIndex = 1;
-    nodes.node(root.kind, root.pos, root.end, 0, this.nodeData(root), root.flags);
+    nodes.push(root.kind, root.pos, root.end, 0, this.nodeData(root), root.flags);
     this.visitChildren(root);
   }
 
@@ -1709,10 +1795,10 @@ export function encodeSourceFile(file: SourceFile): Uint8Array {
   const fileText = utf8Encoder.encode(file.text);
   const encoder = new Encoder(file, file.text, fileText, file.nodeCount);
   const tracked = encoder.tracked;
-  for (const node of file.imports) tracked.set(node, 0);
-  for (const node of file.moduleAugmentations) tracked.set(node, 0);
+  for (const node of file.imports) encoder.track(node);
+  for (const node of file.moduleAugmentations) encoder.track(node);
   const indicator = file.externalModuleIndicator;
-  if (indicator !== undefined && indicator !== file) tracked.set(indicator, 0);
+  if (indicator !== undefined && indicator !== file) encoder.track(indicator);
 
   // The root's extended data starts its section.
   encoder.encodeRoot(file);
