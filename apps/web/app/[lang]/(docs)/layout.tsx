@@ -13,8 +13,18 @@ export default async function DocsLayout({
 }) {
   const { lang } = await params;
   if (lang !== 'en') notFound();
+  const tree = source.getPageTree(lang);
+
+  function flattenSidebar(items: typeof tree.children): typeof tree.children {
+    return items.flatMap((item) => {
+      if (item.type !== 'folder') return [item];
+      return [...(item.index ? [item.index] : []), ...flattenSidebar(item.children)];
+    });
+  }
+
+  const sidebarTree = { ...tree, children: flattenSidebar(tree.children) };
   return (
-    <GeistdocsDocsLayout config={config} tree={source.getPageTree(lang)}>
+    <GeistdocsDocsLayout config={config} tree={sidebarTree}>
       {children}
     </GeistdocsDocsLayout>
   );
