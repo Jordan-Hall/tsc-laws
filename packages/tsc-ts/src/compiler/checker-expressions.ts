@@ -779,7 +779,7 @@ export function checkIdentifier(c: Checker, node: Identifier, checkMode: CheckMo
       }
       return convertAutoToAny(c, flowType);
     }
-  } else if (!assumeInitialized && !containsUndefinedType(c, t) && containsUndefinedType(c, flowType)) {
+  } else if (!assumeInitialized && !containsUndefinedType(t) && containsUndefinedType(flowType)) {
     c.error(node, Diagnostics.Variable_0_is_used_before_being_assigned, symbolToString(c, symbol));
     return t;
   }
@@ -872,9 +872,10 @@ function hasContextualTypeWithNoGenericTypes(c: Checker, node: Node, checkMode: 
   return contextualType !== undefined && !isGenericType(c, contextualType);
 }
 
-function containsUndefinedType(c: Checker, t: Type): boolean {
+/** Whether `t` is or includes undefined, which includes the missing type of an optional property or element. */
+function containsUndefinedType(t: Type): boolean {
   const u = (t.flags & TypeFlags.Union) !== 0 ? (t as UnionType).types[0]! : t;
-  return (u.flags & TypeFlags.Undefined) !== 0 && u !== c.missingType;
+  return (u.flags & TypeFlags.Undefined) !== 0;
 }
 
 function isDescendantOf(node: Node, ancestor: Node): boolean {
@@ -1526,7 +1527,7 @@ export function getFlowTypeOfAccessExpression(
   }
   const initialType = assumeUninitialized ? getOptionalType(c, propType, false) : propType;
   const flowType = getFlowTypeOfReference(c, node, propType, initialType, undefined);
-  if (assumeUninitialized && !containsUndefinedType(c, propType) && containsUndefinedType(c, flowType)) {
+  if (assumeUninitialized && !containsUndefinedType(propType) && containsUndefinedType(flowType)) {
     c.error(errorNode, Diagnostics.Property_0_is_used_before_being_assigned, symbolToString(c, prop!));
     return propType;
   }

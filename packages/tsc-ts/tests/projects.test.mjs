@@ -186,6 +186,19 @@ const projects = [
     },
   ],
   [
+    'auto-typed variables assigned an unchecked element',
+    {
+      'a.ts':
+        'declare const segs: string[];\n' +
+        'export function f(i: number): number {\n  let path;\n  path = segs[i];\n  return path.length;\n}\n' +
+        'export function g(i: number): string {\n  let s;\n  s = segs[i];\n  return s;\n}\n',
+      'tsconfig.json': JSON.stringify({
+        compilerOptions: { ...base, noUncheckedIndexedAccess: true },
+        files: ['a.ts'],
+      }),
+    },
+  ],
+  [
     'narrowing a NoInfer parameter',
     {
       'a.ts':
