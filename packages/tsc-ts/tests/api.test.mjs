@@ -226,6 +226,90 @@ test(
   },
 );
 
+// A change to one program file whose imports and references are unchanged replaces the file in the program;
+// other changes load the program again.
+test('tsc-ts --api updates a program for a changed file like tsc --api', { skip, timeout: 300_000 }, async () => {
+  const dir = tempDir('tsc-ts-api-');
+  writeFileSync(
+    join(dir, 'tsconfig.json'),
+    JSON.stringify({
+      compilerOptions: {
+        strict: true,
+        types: [],
+        module: 'esnext',
+        moduleResolution: 'bundler',
+        jsx: 'react-jsx',
+        allowJs: true,
+        importHelpers: true,
+        isolatedModules: false,
+      },
+      files: ['a.ts', 'b.ts', 'c.tsx', 'd.js', 'e.ts'],
+    }),
+  );
+  const write = (name, text) => writeFileSync(join(dir, name), text);
+  write('a.ts', 'export const a = 1;\nexport function f(x: number) { return x; }\n');
+  write('b.ts', "import { a, f } from './a';\nexport const b: string = f(a);\n");
+  write('c.tsx', 'export const c = <div>{1}</div>;\n');
+  write('d.js', '// @ts-check\nexport const d = 1;\nd.toFixed(1);\n');
+  write('e.ts', 'export class E { x = 1; }\n');
+  mkdirSync(join(dir, 'node_modules/react'), { recursive: true });
+  write('node_modules/react/package.json', '{"name":"react","types":"index.d.ts"}');
+  write('node_modules/react/index.d.ts', 'export {};\n');
+  write(
+    'node_modules/react/jsx-runtime.d.ts',
+    'export declare function jsx(...args: any[]): any;\ndeclare global { namespace JSX { interface IntrinsicElements { [name: string]: any } } }\n',
+  );
+  const d = new Differential([realTsc], tscTs, dir, env);
+  try {
+    await d.call('initialize');
+    let update = await d.call('updateSnapshot', { openProjects: [join(dir, 'tsconfig.json')] });
+    const project = update.projects[0].id;
+    const query = async (snapshot) => {
+      const base = { snapshot, project };
+      await d.call('getSourceFileNames', base);
+      await d.call('getProgramDiagnostics', base);
+      await d.call('getGlobalDiagnostics', base);
+      for (const name of ['a.ts', 'b.ts', 'c.tsx', 'd.js', 'e.ts']) {
+        await d.call('getSyntacticDiagnostics', { ...base, file: join(dir, name) });
+        await d.call('getSemanticDiagnostics', { ...base, file: join(dir, name) });
+      }
+    };
+    const change = async (...names) => {
+      update = await d.call('updateSnapshot', { fileChanges: { changed: names.map((name) => join(dir, name)) } });
+      await query(update.snapshot);
+    };
+    await query(update.snapshot);
+    // A body edit, then an edit that changes an exported signature.
+    write('a.ts', 'export const a = 1;\nexport function f(x: number) { return x + 1; }\n');
+    await change('a.ts');
+    write('a.ts', 'export const a = 1;\nexport function f(x: number) { return String(x); }\n');
+    await change('a.ts');
+    // A new import, and two files at once.
+    write(
+      'b.ts',
+      "import { a, f } from './a';\nimport { E } from './e';\nexport const b: string = f(a) + new E().x;\n",
+    );
+    await change('b.ts');
+    // tsgo lists changed files in map order, so only one of the two reported files changes.
+    write('a.ts', 'export const a = 2;\nexport function f(x: number) { return String(x); }\n');
+    await change('a.ts', 'e.ts');
+    write('e.ts', 'export class E { x = "1"; }\n');
+    await change('e.ts');
+    // A JSX import source pragma, which is not an import of the file.
+    write('c.tsx', '/** @jsxImportSource preact */\nexport const c = <div>{1}</div>;\n');
+    await change('c.tsx');
+    // A JavaScript file that is no longer checked.
+    write('d.js', 'export const d = 1;\nd.toFixed(1);\n');
+    await change('d.js');
+    // A file that is no longer a module, so it no longer imports tslib.
+    write('e.ts', 'class E { x = "1"; }\n');
+    await change('e.ts');
+  } finally {
+    await d.close();
+  }
+  report(d);
+});
+
 // `await (legacy())` parses as a call of `await` until the file turns out to be a module, so
 // its statement is reparsed in an await context; the statements around it are retained with
 // the JSDoc parsed the first time, including `@deprecated`.
