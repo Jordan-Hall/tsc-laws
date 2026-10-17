@@ -9,7 +9,7 @@ An experimental TypeScript port of the TypeScript 7.0.2 compiler ([TypeScript-Go
 
 ## Installation
 
-The packages aren't published to npm yet.
+Install the compiler from npm:
 
 ```sh
 npm install -D tsc-ts
@@ -17,6 +17,8 @@ npx tsc-ts -p tsconfig.json
 ```
 
 The `tsc-ts` package runs a native executable from a per-platform optional dependency (`@tsc-ts/darwin-arm64`, `@tsc-ts/linux-x64-gnu`, …). See [`packages/tsc-ts`](packages/tsc-ts/README.md).
+
+See [CHANGELOG.md](CHANGELOG.md) for release notes and [GitHub Releases](https://github.com/vercel-labs/tsc-ts/releases) for package archives.
 
 To build the packages for the current platform:
 
