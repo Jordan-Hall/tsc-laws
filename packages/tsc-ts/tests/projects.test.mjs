@@ -639,6 +639,23 @@ const projects = [
     },
   ],
   [
+    'defaults of missing type arguments in JavaScript',
+    {
+      'types.d.ts':
+        'export interface Box<V = unknown> { v: V }\nexport interface Obj<V = {}> { o: V }\nexport interface Num<V = number> { n: V }\n',
+      'a.js':
+        "/** @import { Box, Obj, Num } from './types' */\n" +
+        '/**\n * @template T\n * @param {Box} b\n * @returns {T}\n */\nexport function f(b) {\n  return b.v;\n}\n' +
+        '/**\n * @template T\n * @param {Obj} o\n * @returns {T}\n */\nexport function g(o) {\n  return o.o;\n}\n' +
+        '/**\n * @template T\n * @param {Num} n\n * @returns {T}\n */\nexport function h(n) {\n  return n.n;\n}\n',
+      'c.ts': 'import type { Box } from "./types";\nexport function t(b: Box) { const s: string = b.v; return s; }\n',
+      'tsconfig.json': JSON.stringify({
+        compilerOptions: { ...base, allowJs: true, checkJs: true },
+        files: ['a.js', 'c.ts', 'types.d.ts'],
+      }),
+    },
+  ],
+  [
     'namespaced JSX attributes and template literal index signatures',
     {
       'a.tsx':
