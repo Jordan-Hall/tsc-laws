@@ -340,8 +340,6 @@ export class PendingInstantiatedMembers extends PendingMembers {
   instantiated: Map<string, Symbol> | undefined;
   /** References: the holder of the declared members of the class or interface. */
   owner: InterfaceType | undefined;
-  /** With `materializedProperties`: the names of the properties. */
-  memberNames: MemberNames | undefined;
   /** Whether the instantiated table has an own member, and one that isn't optional. */
   readonly hasOwnMembers: boolean;
   readonly hasRequiredOwnMembers: boolean;
@@ -372,7 +370,6 @@ export class PendingInstantiatedMembers extends PendingMembers {
     this.resolving = false;
     this.instantiated = undefined;
     this.owner = undefined;
-    this.memberNames = undefined;
   }
 
   state(position: number): MemberState {
@@ -407,13 +404,7 @@ export class PendingInstantiatedMembers extends PendingMembers {
     return symbol;
   }
 
-  /** `members.get(name)` of the table tsgo would have built by now. */
   get(name: string): Symbol | undefined {
-    const materialized = this.materializedProperties;
-    if (materialized !== undefined) {
-      const position = this.memberNames!.positions.get(name);
-      return position !== undefined ? materialized[position] : undefined;
-    }
     let existing = this.ownMember(name);
     // Own members have value flags (pendingInstantiatedTable), so no base replaces them.
     const baseTypes = this.baseTypes;
@@ -502,27 +493,68 @@ export class PendingInstantiatedMembers extends PendingMembers {
       else this.c.memberNamesOfLists.set(this.sourceList!, names);
     }
     t.membersValue = undefined;
-    t.pendingMembers = this;
-    this.materializedProperties = properties;
-    this.memberNames = names;
+    t.pendingMembers = new PropertyMembers(properties, names);
   }
 
   materializeTable(t: StructuredType): void {
-    const properties = this.materializedProperties;
-    if (properties === undefined) {
-      this.materialize(t);
-      if (t.pendingMembers === undefined) return;
-      this.materializeTable(t);
-      return;
-    }
-    t.pendingMembers = undefined;
-    const order = this.memberNames!.tableOrder;
-    this.materializedProperties = undefined;
-    this.memberNames = undefined;
+    this.materialize(t);
+    const pending = t.pendingMembers;
+    if (pending !== undefined) pending.materializeTable(t);
+  }
+}
+
+/**
+ * The members of a type whose members table holds only its properties, in the order of the
+ * properties or of `names.tableOrder`: lookups by name read the properties, by the positions of
+ * their names in `names` (`MemberNames`), or by comparing the names of a few properties
+ * (`scannedPropertiesLimit`) without `names`. Reading `members` builds the table.
+ */
+export class PropertyMembers extends PendingMembers {
+  readonly names: MemberNames | undefined;
+
+  constructor(properties: Symbol[], names: MemberNames | undefined) {
+    super();
+    this.materializedProperties = properties;
+    this.names = names;
+  }
+
+  materialize(_t: StructuredType): void {}
+
+  materializeTable(t: StructuredType): void {
+    const properties = this.materializedProperties!;
+    const names = this.names;
     const members = new Map<string, Symbol>();
-    for (const i of order) members.set(properties[i]!.name, properties[i]!);
+    if (names !== undefined) for (const i of names.tableOrder) members.set(properties[i]!.name, properties[i]!);
+    else for (const p of properties) members.set(p.name, p);
+    t.pendingMembers = undefined;
     t.membersValue = members;
   }
+
+  get(name: string): Symbol | undefined {
+    const properties = this.materializedProperties!;
+    const names = this.names;
+    if (names === undefined) {
+      for (const p of properties) if (p.name === name) return p;
+      return undefined;
+    }
+    const position = names.positions.get(name);
+    return position !== undefined ? properties[position] : undefined;
+  }
+}
+
+/** The most properties of a table that `keepPropertiesOnly` drops: a lookup compares that many names at most. */
+const scannedPropertiesLimit = 8;
+
+/**
+ * After `setStructuredTypeMembers(c, t, members, ...)`: drops `members` where it holds only the
+ * type's properties, at most `scannedPropertiesLimit` of them (`PropertyMembers`).
+ */
+export function keepPropertiesOnly(c: Checker, t: StructuredType, members: SymbolTable): void {
+  const resolved = membersHolder(c, t);
+  const properties = resolved.propertiesValue;
+  if (members.size === 0 || members.size > scannedPropertiesLimit || properties.length !== members.size) return;
+  resolved.membersValue = undefined;
+  resolved.pendingMembers = new PropertyMembers(properties, undefined);
 }
 
 /** The names of `properties`, and the order of the names of `members`, a table with the same names. */
@@ -696,15 +728,18 @@ function findProperty(c: Checker, properties: Symbol[], name: string): Symbol | 
 /** `t.members?.get(name)` of a type whose members are resolved, without building a pending table. */
 export function getResolvedMember(t: StructuredType, name: string): Symbol | undefined {
   const pending = t.pendingMembers;
-  if (pending !== undefined) return (pending as PendingInstantiatedMembers).get(name);
+  if (pending !== undefined) return pending.get(name);
   return t.membersValue?.get(name);
 }
 
 /** `t.properties.length !== 0` of a type whose members are resolved, without building a pending table. */
 export function hasResolvedProperties(t: StructuredType): boolean {
-  const pending = t.pendingMembers as PendingInstantiatedMembers | undefined;
+  const pending = t.pendingMembers;
   // Own members are all properties; with none, what the bases add decides.
-  if (pending !== undefined && !pending.resolving && pending.hasOwnMembers) return true;
+  if (pending !== undefined && pending.materializedProperties === undefined) {
+    const instantiated = pending as PendingInstantiatedMembers;
+    if (!instantiated.resolving && instantiated.hasOwnMembers) return true;
+  }
   return t.properties.length !== 0;
 }
 
@@ -721,11 +756,14 @@ export function hasPropertiesOfType(c: Checker, t: Type): boolean {
  * properties, without building a pending table where its own members decide.
  */
 export function resolvedPropertiesAreOptional(t: StructuredType): boolean {
-  const pending = t.pendingMembers as PendingInstantiatedMembers | undefined;
-  if (pending !== undefined && !pending.resolving) {
-    // A required own member is in the table whatever the bases add.
-    if (pending.hasRequiredOwnMembers) return false;
-    if (!pending.hasBases) return true;
+  const pending = t.pendingMembers;
+  if (pending !== undefined && pending.materializedProperties === undefined) {
+    const instantiated = pending as PendingInstantiatedMembers;
+    if (!instantiated.resolving) {
+      // A required own member is in the table whatever the bases add.
+      if (instantiated.hasRequiredOwnMembers) return false;
+      if (!instantiated.hasBases) return true;
+    }
   }
   for (const p of t.properties) if ((p.flags & SymbolFlags.Optional) === 0) return false;
   return true;
@@ -2094,11 +2132,12 @@ function getCostliestConstituent(c: Checker, t: IntersectionType): Type | undefi
     const apparent = getReducedApparentType(c, current);
     if ((apparent.flags & TypeFlags.Object) === 0) continue;
     const resolved = resolveStructuredTypeMembers(c, apparent);
-    const pending = resolved.pendingMembers as PendingInstantiatedMembers | undefined;
+    const pending = resolved.pendingMembers;
     if (pending !== undefined && pending.materializedProperties === undefined) {
-      if (pending.positions.size > costliestPending) {
+      const size = (pending as PendingInstantiatedMembers).positions.size;
+      if (size > costliestPending) {
         costliest = current;
-        costliestPending = pending.positions.size;
+        costliestPending = size;
       }
     } else if (costliestPending === 0 && resolved.propertiesValue.length > costliestProperties) {
       costliest = current;

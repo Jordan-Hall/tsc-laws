@@ -575,26 +575,30 @@ export class UniqueESSymbolType extends Type {
 }
 
 /**
- * The members table and properties of an instantiated type whose member symbols are instantiated on
- * demand (checker-members.ts). Reading `members` or `properties` builds them, as tsgo builds them
- * when it resolves the members; lookups by name instantiate only the member asked for.
+ * The members table of a type, built when `members` is read (checker-members.ts): of an instantiated
+ * type whose member symbols are instantiated on demand (`PendingInstantiatedMembers`), where reading
+ * `properties` builds the properties too, as tsgo builds them when it resolves the members, and
+ * lookups by name instantiate only the member asked for; or of a type whose members are all
+ * properties (`PropertyMembers`), where lookups by name read the properties.
  */
 export abstract class PendingMembers {
   /**
-   * Set when `properties` is built and the members table is not (`MemberNames`): the type's
+   * Set when `properties` is built and the members table is not (`PropertyMembers`): the type's
    * properties, which lookups by name then read.
    */
   materializedProperties: Symbol[] | undefined = undefined;
 
   /**
-   * Sets `t.propertiesValue`. Where lookups can read the properties, it sets
-   * `materializedProperties` and keeps `t.pendingMembers`; otherwise it sets `t.membersValue` too and
-   * clears `t.pendingMembers`.
+   * Sets `t.propertiesValue`. Where lookups can read the properties, it replaces `t.pendingMembers`
+   * with a `PropertyMembers`; otherwise it sets `t.membersValue` too and clears `t.pendingMembers`.
    */
   abstract materialize(t: StructuredType): void;
 
   /** Sets `t.membersValue` and `t.propertiesValue` and clears `t.pendingMembers`. */
   abstract materializeTable(t: StructuredType): void;
+
+  /** `members.get(name)` of the table tsgo would have built by now. */
+  abstract get(name: string): Symbol | undefined;
 }
 
 /**
