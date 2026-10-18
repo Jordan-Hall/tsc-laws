@@ -5,9 +5,12 @@ import { getTargetOfAliasDeclaration, resolveExternalModuleSymbol } from './chec
 import { CachedTypeKind, cachedTypeKey, CheckMode } from './checker-types.js';
 import {
   type ArrayLiteralExpression,
+  type BindingElement,
+  type BindingPattern,
   type BinaryExpression,
   type Block,
   type ConditionalExpression,
+  type ForInOrOfStatement,
   ModifierFlags,
   NodeVisitor,
   type ObjectLiteralExpression,
@@ -32,6 +35,7 @@ import {
   type PropertyAssignment,
   type ShorthandPropertyAssignment,
   type SourceFile,
+  type VariableDeclarationList,
 } from './ast.js';
 import {
   declarationNameToString,
@@ -44,11 +48,13 @@ import {
   hasStaticModifier,
   hasSyntacticModifier,
   isCatchClauseVariableDeclarationOrBindingElement,
+  isExternalModule,
   isJsonSourceFile,
   isTypeNodeKind,
   skipParentheses,
 } from './binder-utilities.js';
 import { identifierToKeywordKind } from './scanner.js';
+import { tsgoCheckerSlots } from './symbol-accessibility.js';
 import { type DiagnosticMessage, Diagnostics } from './diagnostics.js';
 import { CheckFlags, type Symbol, SymbolFlags, getSymbolId } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
@@ -133,6 +139,7 @@ import {
   getContextualThisParameterType,
   checkExpressionCached,
   checkExpressionEx,
+  isConstTypeReference,
 } from './checker-expressions.js';
 import { checkPropertyAssignment, checkShorthandPropertyAssignment } from './checker-object-literals.js';
 import { getTypeForBindingElement, getTypeFromBindingPattern } from './checker-destructuring.js';
@@ -723,11 +730,25 @@ class WideningContext {
   readonly propertyName: string;
   siblings: Type[] | undefined;
   resolvedProperties: Symbol[] | undefined = undefined;
+  /** The contexts of the properties, by name, shared by the object literals widened in this one. */
+  childContexts: Map<string, WideningContext> | undefined = undefined;
+  /** The widened types of the object literals widened in this context, for child contexts. */
+  widenedTypes: Map<Type, Type> | undefined = undefined;
 
   constructor(parent: WideningContext | undefined, propertyName: string, siblings: Type[] | undefined) {
     this.parent = parent;
     this.propertyName = propertyName;
     this.siblings = siblings;
+  }
+
+  getChildContext(propertyName: string): WideningContext {
+    this.childContexts ??= new Map<string, WideningContext>();
+    let result = this.childContexts.get(propertyName);
+    if (result === undefined) {
+      result = new WideningContext(this, propertyName, undefined);
+      this.childContexts.set(propertyName, result);
+    }
+    return result;
   }
 }
 
@@ -774,6 +795,8 @@ function someEmptyObjectType(c: Checker, types: Type[]): boolean {
 }
 
 function getWidenedTypeOfObjectLiteral(c: Checker, t: Type, context: WideningContext | undefined): Type {
+  const cached = context?.widenedTypes?.get(t);
+  if (cached !== undefined) return cached;
   const members = new Map<string, Symbol>();
   for (const prop of getPropertiesOfObjectType(c, t)) members.set(prop.name, getWidenedProperty(c, prop, context));
   if (context !== undefined)
@@ -791,13 +814,19 @@ function getWidenedTypeOfObjectLiteral(c: Checker, t: Type, context: WideningCon
   );
   const result = createAnonymousType(c, t.symbol, members, [], [], infos);
   result.objectFlags |= t.objectFlags & (ObjectFlags.JSLiteral | ObjectFlags.NonInferrableType);
+  // The root context widens each object literal once; a property's context may widen one literal
+  // for several siblings.
+  if (context !== undefined && context.parent !== undefined) {
+    context.widenedTypes ??= new Map<Type, Type>();
+    context.widenedTypes.set(t, result);
+  }
   return result;
 }
 
 function getWidenedProperty(c: Checker, prop: Symbol, context: WideningContext | undefined): Symbol {
   if ((prop.flags & SymbolFlags.Property) === 0) return prop;
   const original = getTypeOfSymbol(c, prop);
-  const propContext = context !== undefined ? new WideningContext(context, prop.name, undefined) : undefined;
+  const propContext = context?.getChildContext(prop.name);
   const widened = getWidenedTypeWithContext(c, original, propContext);
   if (widened === original) return prop;
   return createSymbolWithWidenedType(c, prop, widened);
@@ -821,50 +850,119 @@ function createSymbolWithWidenedType(c: Checker, prop: Symbol, t: Type): Symbol 
  * created from, which order it among the members when they are printed.
  *
  * tsgo caches one such symbol per name and checker, so the declarations come from the first literal
- * its checker widened with that name missing in a sibling. With each file checked from the top, that
- * is the first such union in the file, and later unions order the property by that one's
- * declaration. tsc-ts's checkers take files in another order, and a checker can infer a file's
- * functions for an importer before it checks the file, so the first union is found in the source
- * instead (`firstSiblingProperty`), which doesn't depend on the order of checking. Without one, and
- * for readonly properties, the property is cached per sibling property. The order differs from tsgo's
- * where tsgo's checker infers a later function of the file first, or takes the property from another
- * file it checked before.
+ * its checker widened with that name missing in a sibling. Its checkers check the program's files
+ * round robin, each file from the top. tsc-ts's checkers take files in another order, and a checker
+ * can infer a file's functions for an importer before it checks the file, so the first union is found
+ * in the sources of the files tsgo checks with the checker of the property's file, up to that file
+ * (`firstSiblingProperty`), which doesn't depend on the order of checking. Without one, the property
+ * is cached per sibling property. The order differs from tsgo's where tsgo's checker first infers a
+ * function of a file of another checker, or a later function of the file.
  */
 function getUndefinedProperty(c: Checker, prop: Symbol): Symbol {
-  const first =
-    prop.declarations.length > 0 && (prop.checkFlags & CheckFlags.Readonly) === 0
-      ? firstSiblingProperty(c, prop.declarations[0]!, prop.name)
-      : undefined;
+  const member = prop.declarations.length > 0 ? firstSiblingProperty(c, prop.declarations[0]!, prop.name) : undefined;
+  const first = member !== undefined ? getSymbol(member) : undefined;
   const source = first ?? prop;
   const key = getSymbolId(source);
   const cached = c.undefinedProperties.get(key);
   if (cached !== undefined) return cached;
   const result = createSymbolWithWidenedType(c, source, c.undefinedOrMissingType);
   result.flags |= SymbolFlags.Optional;
+  // The properties of a literal in an `as const` assertion are readonly.
+  if (first !== undefined && isInConstAssertion(member!.parent!)) result.checkFlags |= CheckFlags.Readonly;
   c.undefinedProperties.set(key, result);
   return result;
 }
 
 /**
- * The property of `name` in the first union of object literals of the declaration's file that leaves
- * `name` missing in one of them: the last literal's property of that name. Unions are those of the
- * returned expressions of a function without a return type, and of the alternatives of an initializer
- * without a type (`?:`, `||`, `??`, array elements, an element access of an array literal, and the
- * values of a property across the literals). They are taken in the order a checker checking the file from the top widens them
- * (`SiblingPropertyScan`).
+ * The property of `name` in the first union of object literals that leaves `name` missing in one of
+ * them, among the files tsgo checks with the checker of the declaration's file, up to that file: the
+ * last literal's property of that name. tsgo's checker `k` checks files `k`, `k + n`, `k + 2n`, ...
+ * in order (`tsgoCheckerSlots`). Unions are those of the returned expressions of a function without
+ * a return type, and of the alternatives of an initializer without a type (`?:`, `||`, `??`, array
+ * elements, an element access of an array literal, and the values of a property across the literals),
+ * of the variables of a `for...of`, of the object of a method call and of the expression of a type
+ * assertion. In a file, they are taken in the order a checker checking the file from the top widens
+ * them (`SiblingPropertyScan`).
  */
-function firstSiblingProperty(c: Checker, declaration: Node, name: string): Symbol | undefined {
+function firstSiblingProperty(c: Checker, declaration: Node, name: string): Node | undefined {
   const file = getSourceFileOfNode(declaration);
+  const index = c.fileIndex.get(file);
+  if (index === undefined) return siblingPropertiesOfFile(c, file).get(name);
+  const slots = tsgoCheckerSlots(c);
+  let slot = c.slotSiblingProperties.get(index % slots);
+  if (slot === undefined) {
+    slot = new SlotSiblingProperties(index % slots);
+    c.slotSiblingProperties.set(index % slots, slot);
+  }
+  for (; slot.next <= index; slot.next += slots)
+    for (const [n, member] of siblingPropertiesOfFile(c, c.files[slot.next]!))
+      if (!slot.members.has(n)) {
+        slot.members.set(n, member);
+        slot.fileIndexes.set(n, slot.next);
+      }
+  const found = slot.fileIndexes.get(name);
+  return found !== undefined && found <= index ? slot.members.get(name) : undefined;
+}
+
+/**
+ * By name, the first property of the unions of `file` that leave the name missing: what a parse thread
+ * found (`SourceFile.siblingProperties`), or else the checker's own scan.
+ */
+function siblingPropertiesOfFile(c: Checker, file: SourceFile): Map<string, Node> {
+  // A parse thread's scan takes array literals to have the global Array type.
+  if (file.siblingProperties !== undefined && c.globalArrayType !== c.emptyGenericType) return file.siblingProperties;
   let first = c.firstSiblingProperties.get(file);
   if (first === undefined) {
-    const scan = new SiblingPropertyScan(c);
-    file.forEachChild(scan);
-    scan.widenAll();
-    first = scan.members;
+    first = scanSiblingProperties(file, c)!;
     c.firstSiblingProperties.set(file, first);
   }
-  const member = first.get(name);
-  return member !== undefined ? getSymbol(member) : undefined;
+  return first;
+}
+
+/**
+ * By name, the first property of the unions of `file`'s object literals that leave the name missing.
+ * Without a checker, as on a parse thread, array literals are taken to have the global Array type, and
+ * the result is undefined where an enum the scan can't resolve decides which literals subtype reduction
+ * leaves out (`enumKeyOfMemberAccess`); the checker then scans the file itself.
+ */
+export function scanSiblingProperties(file: SourceFile, c: Checker | undefined): Map<string, Node> | undefined {
+  if (file.isDeclarationFile) return new Map<string, Node>();
+  const scan = new SiblingPropertyScan(c);
+  file.forEachChild(scan);
+  scan.widenAll();
+  return scan.unresolved ? undefined : scan.members;
+}
+
+/** The first property of each name among the files of one of tsgo's checkers, scanned in order. */
+export class SlotSiblingProperties {
+  readonly members = new Map<string, Node>();
+  /** The index of the file of each name's property. */
+  readonly fileIndexes = new Map<string, number>();
+  /** The index of the next file of the checker to scan. */
+  next: number;
+
+  constructor(first: number) {
+    this.next = first;
+  }
+}
+
+/** Whether an object literal is in an `as const` assertion, through arrays, spreads and properties. */
+function isInConstAssertion(literal: Node): boolean {
+  for (let node = literal; node.parent !== undefined; node = node.parent) {
+    switch (node.parent.kind) {
+      case SyntaxKind.ParenthesizedExpression:
+      case SyntaxKind.ArrayLiteralExpression:
+      case SyntaxKind.SpreadElement:
+      case SyntaxKind.PropertyAssignment:
+      case SyntaxKind.ObjectLiteralExpression:
+        continue;
+      case SyntaxKind.AsExpression:
+      case SyntaxKind.TypeAssertionExpression:
+        return isConstTypeReference(getType(node.parent)!);
+    }
+    return false;
+  }
+  return false;
 }
 
 /** An expression whose type is widened, at the position where a checker widens it. */
@@ -875,9 +973,44 @@ class WideningRoot {
     readonly func: Node | undefined,
     /** The expressions whose types are unioned and widened. */
     readonly alternatives: Node[],
-    /** The calls in them, innermost first, whose functions' return types the checker infers before. */
-    readonly calls: Node[],
+    /** The expressions whose calls, innermost first, infer their functions' return types before. */
+    readonly sources: Node[],
+    /** The calls of `sources` that may call a function of the file (`SiblingPropertyScan.callees`). */
+    public calls: Node[] | undefined = undefined,
   ) {}
+}
+
+/**
+ * The unions a checker widens while checking the file's statements or the body of one deferred function, and
+ * the deferred functions it queues there.
+ */
+class CheckScope {
+  readonly roots: WideningRoot[] = [];
+  readonly deferred: CheckScope[] = [];
+  /** The calls by a name (`calleeName`), which infer where they end. */
+  readonly calls: Node[] = [];
+
+  constructor(readonly position: number) {}
+}
+
+/**
+ * Whether a checker checks `node`'s body only as a deferred node: a function expression, arrow
+ * function or object literal method or accessor whose return type is written. Without one, the
+ * checker infers the return type where it reaches the function, from the returned expressions and
+ * what they refer to.
+ */
+function isDeferredCheck(node: Node): boolean {
+  switch (node.kind) {
+    case SyntaxKind.FunctionExpression:
+    case SyntaxKind.ArrowFunction:
+      return getType(node) !== undefined;
+    case SyntaxKind.MethodDeclaration:
+    case SyntaxKind.GetAccessor:
+      return node.parent?.kind === SyntaxKind.ObjectLiteralExpression && getType(node) !== undefined;
+    case SyntaxKind.SetAccessor:
+      return node.parent?.kind === SyntaxKind.ObjectLiteralExpression;
+  }
+  return false;
 }
 
 /**
@@ -885,10 +1018,13 @@ class WideningRoot {
  * where it is, and a function's returned expressions at its first `return`, where the checker
  * infers its return type. A call of a function of the file, by a name that resolves to it or as
  * `this.name(...)` in a class, infers that function's return type where the call is, and before the
- * union of the expression the call is in.
+ * union of the expression the call is in. The bodies of function expressions, arrow functions and
+ * object literal methods and accessors with a written return type are checked after the file's
+ * statements, so their unions widen then.
  */
 class SiblingPropertyScan extends NodeVisitor {
-  private readonly c: Checker;
+  /** The checker that resolves imported enums, or undefined on a parse thread. */
+  readonly c: Checker | undefined;
   /** By name, the property of the first union that leaves the name missing in a literal. */
   readonly members = new Map<string, Node>();
   /**
@@ -896,17 +1032,35 @@ class SiblingPropertyScan extends NodeVisitor {
    * global Array type (--noLib) an array literal is an empty object type.
    */
   private readonly arrays: boolean;
-  private readonly roots: WideningRoot[] = [];
+  /** Whether an enum the scan can't resolve without a checker decided which literals were left out. */
+  unresolved = false;
+  /** The enums of the members that values refer to, numbered in the order the scan meets them. */
+  private readonly enums = new Map<Symbol, number>();
+  private readonly fileScope = new CheckScope(0);
+  /** The scope of the innermost deferred function around the node being visited. */
+  private scope = this.fileScope;
   /** The returned expressions of each function without a return type. */
   private readonly returned = new Map<Node, WideningRoot>();
+  /** The names a call can call those functions by (`functionName`). */
+  private readonly callees = new Set<string>();
   private readonly widened = new Set<Node>();
   /** The functions and methods of each class, by name. */
   private readonly classFunctions = new Map<Node, Map<string, Node>>();
 
-  constructor(c: Checker) {
+  constructor(c: Checker | undefined) {
     super();
     this.c = c;
-    this.arrays = c.globalArrayType !== c.emptyGenericType;
+    this.arrays = c === undefined || c.globalArrayType !== c.emptyGenericType;
+  }
+
+  /** The key of the values that are members of `symbol`, an enum, in this scan. */
+  enumKey(symbol: Symbol): string {
+    let id = this.enums.get(symbol);
+    if (id === undefined) {
+      id = this.enums.size;
+      this.enums.set(symbol, id);
+    }
+    return 'enum ' + id;
   }
 
   visitNode(node: Node): boolean {
@@ -919,7 +1073,7 @@ class SiblingPropertyScan extends NodeVisitor {
         const body = getBody(node);
         if (body === undefined || getType(node) !== undefined) break;
         const returned: Node[] = [];
-        const calls = new CallCollector();
+        const sources: Node[] = [];
         let position = body.pos;
         if (body.kind === SyntaxKind.Block) {
           const collector = new ReturnCollector();
@@ -928,16 +1082,16 @@ class SiblingPropertyScan extends NodeVisitor {
           for (const r of collector.returns)
             if (r.expression !== undefined) {
               addAlternatives(r.expression, returned, this.arrays);
-              calls.visitNode(r.expression);
+              sources.push(r.expression);
             }
         } else {
           addAlternatives(body, returned, this.arrays);
-          calls.visitNode(body);
+          sources.push(body);
         }
         if (returned.length === 0) break;
-        const root = new WideningRoot(position, node, returned, calls.calls);
+        const root = new WideningRoot(position, node, returned, sources);
         this.returned.set(node, root);
-        this.roots.push(root);
+        this.addRoot(root);
         if (node.kind === SyntaxKind.MethodDeclaration || node.kind === SyntaxKind.GetAccessor)
           this.addClassFunction(node, node);
         break;
@@ -947,10 +1101,8 @@ class SiblingPropertyScan extends NodeVisitor {
       case SyntaxKind.Parameter: {
         const initializer = getInitializer(node);
         if (initializer === undefined || getType(node) !== undefined) break;
-        const calls = new CallCollector();
-        calls.visitNode(initializer);
-        this.roots.push(
-          new WideningRoot(initializer.pos, undefined, addAlternatives(initializer, [], this.arrays), calls.calls),
+        this.addRoot(
+          new WideningRoot(initializer.pos, undefined, addAlternatives(initializer, [], this.arrays), [initializer]),
         );
         const value = skipParentheses(initializer);
         if (
@@ -962,20 +1114,78 @@ class SiblingPropertyScan extends NodeVisitor {
       }
       case SyntaxKind.ExportAssignment:
         if (getType(node) === undefined) {
-          const calls = new CallCollector();
-          calls.visitNode(getExpression(node)!);
-          this.roots.push(
-            new WideningRoot(node.pos, undefined, addAlternatives(getExpression(node)!, [], this.arrays), calls.calls),
+          const expression = getExpression(node)!;
+          this.addRoot(
+            new WideningRoot(node.pos, undefined, addAlternatives(expression, [], this.arrays), [expression]),
           );
         }
         break;
-      case SyntaxKind.CallExpression:
-        // Calls elsewhere, as in statements, infer where they end.
-        this.roots.push(new WideningRoot(node.end, undefined, [], [node]));
+      case SyntaxKind.ForOfStatement: {
+        // The variable of `for (const x of e)` has the widened type of e's elements, and each element
+        // of a binding pattern the widened type of its part of them.
+        const statement = node as ForInOrOfStatement;
+        if (statement.initializer.kind !== SyntaxKind.VariableDeclarationList) break;
+        const declaration = (statement.initializer as VariableDeclarationList).declarations.nodes[0];
+        if (declaration === undefined || getType(declaration) !== undefined || !this.arrays) break;
+        const elements: Node[] = [];
+        for (const array of iteratedArrayLiterals(statement.expression)) addArrayElements(array, elements);
+        if (elements.length === 0) break;
+        for (const alternatives of bindingAlternatives(getName(declaration)!, elements))
+          this.addRoot(new WideningRoot(statement.expression.pos, undefined, alternatives, [statement.expression]));
         break;
+      }
+      case SyntaxKind.CallExpression: {
+        // The object of a method call is widened before the call is resolved.
+        const callee = skipParentheses(getExpression(node)!);
+        if (
+          (callee.kind === SyntaxKind.PropertyAccessExpression || callee.kind === SyntaxKind.ElementAccessExpression) &&
+          mayHoldLiterals(getExpression(callee)!)
+        )
+          this.addExpressionRoot(callee.pos, getExpression(callee)!);
+        // Calls elsewhere, as in statements, infer where they end.
+        if (calleeName(node) !== undefined) this.scope.calls.push(node);
+        break;
+      }
     }
-    if (!isTypeNodeKind(node.kind)) node.forEachChild(this);
+    if (isTypeNodeKind(node.kind)) return false;
+    if (
+      (node.kind === SyntaxKind.AsExpression || node.kind === SyntaxKind.TypeAssertionExpression) &&
+      !isConstTypeReference(getType(node)!)
+    ) {
+      // An assertion widens its expression's type in a deferred check, queued after the expression's.
+      node.forEachChild(this);
+      const inner = new CheckScope(node.end);
+      this.scope.deferred.push(inner);
+      const saveScope = this.scope;
+      this.scope = inner;
+      this.addExpressionRoot(node.end, getExpression(node)!);
+      this.scope = saveScope;
+      return false;
+    }
+    if (isDeferredCheck(node)) {
+      const inner = new CheckScope(node.pos);
+      this.scope.deferred.push(inner);
+      const saveScope = this.scope;
+      this.scope = inner;
+      node.forEachChild(this);
+      this.scope = saveScope;
+    } else node.forEachChild(this);
     return false;
+  }
+
+  private addRoot(root: WideningRoot): void {
+    this.scope.roots.push(root);
+  }
+
+  /** Adds a root for the widened type of `expression` where it holds object or array literals. */
+  private addExpressionRoot(position: number, expression: Node): void {
+    const alternatives = addAlternatives(expression, [], this.arrays);
+    if (
+      alternatives.some(
+        (a) => a.kind === SyntaxKind.ObjectLiteralExpression || a.kind === SyntaxKind.ArrayLiteralExpression,
+      )
+    )
+      this.addRoot(new WideningRoot(position, undefined, alternatives, [expression]));
   }
 
   /** Names `func` in its class by `member`, a method or a property it initializes. */
@@ -989,9 +1199,32 @@ class SiblingPropertyScan extends NodeVisitor {
     if (!functions.has(getText(name))) functions.set(getText(name), func);
   }
 
+  /**
+   * Widens the unions of the file's statements in order, then those of each deferred node in the
+   * order the checker queues them, which includes the deferred nodes queued while checking one.
+   */
   widenAll(): void {
-    this.roots.sort((a, b) => a.position - b.position);
-    for (const root of this.roots) this.widenRoot(root);
+    for (const func of this.returned.keys()) {
+      const name = functionName(func);
+      if (name !== undefined) this.callees.add(name);
+    }
+    const queue = [this.fileScope];
+    for (let i = 0; i < queue.length; i++) {
+      const scope = queue[i]!;
+      if (this.callees.size !== 0)
+        for (const call of scope.calls)
+          if (this.callees.has(calleeName(call)!))
+            scope.roots.push(new WideningRoot(call.end, undefined, [], [], [call]));
+      scope.roots.sort((a, b) => a.position - b.position);
+      scope.deferred.sort((a, b) => a.position - b.position);
+      let next = 0;
+      for (const root of scope.roots) {
+        while (next < scope.deferred.length && scope.deferred[next]!.position < root.position)
+          queue.push(scope.deferred[next++]!);
+        this.widenRoot(root);
+      }
+      while (next < scope.deferred.length) queue.push(scope.deferred[next++]!);
+    }
   }
 
   /** Widens a root's unions, after the returned expressions of the functions its calls infer. */
@@ -999,6 +1232,15 @@ class SiblingPropertyScan extends NodeVisitor {
     if (root.func !== undefined) {
       if (this.widened.has(root.func)) return;
       this.widened.add(root.func);
+    }
+    if (this.callees.size === 0) {
+      this.widen(root.alternatives, true);
+      return;
+    }
+    if (root.calls === undefined) {
+      const collector = new CallCollector(this.callees);
+      for (const source of root.sources) collector.visitNode(source);
+      root.calls = collector.calls;
     }
     for (const call of root.calls) {
       const callee = this.calledFunction(call);
@@ -1058,14 +1300,11 @@ class SiblingPropertyScan extends NodeVisitor {
     let literals: ObjectLiteralExpression[] = [];
     for (const a of alternatives)
       if (a.kind === SyntaxKind.ObjectLiteralExpression) literals.push(a as ObjectLiteralExpression);
-      else if (this.arrays && a.kind === SyntaxKind.ArrayLiteralExpression) {
-        const elements: Node[] = [];
-        for (const e of (a as ArrayLiteralExpression).elements.nodes)
-          if (e.kind !== SyntaxKind.SpreadElement) addAlternatives(e, elements, this.arrays);
-        this.widen(elements, true);
-      }
+      // The elements of a tuple, an array literal in an `as const` assertion, widen separately.
+      else if (this.arrays && a.kind === SyntaxKind.ArrayLiteralExpression && !isInConstAssertion(a))
+        this.widen(addArrayElements(a as ArrayLiteralExpression, []), true);
     if (literals.length === 0) return;
-    if (reduced) literals = withoutRepeatedLiterals(this.c, literals);
+    if (reduced) literals = withoutRepeatedLiterals(this, literals);
     if (literals.length > 1) this.record(literals);
     const values = new Map<string, Node[]>();
     for (const literal of literals)
@@ -1077,7 +1316,7 @@ class SiblingPropertyScan extends NodeVisitor {
         if (list === undefined) values.set(name, (list = []));
         // A value's own alternatives make up one reduced union, one member of the property's values.
         const own = addAlternatives((member as PropertyAssignment).initializer, [], this.arrays);
-        for (const value of withoutRepeatedLiterals(this.c, own)) list.push(value);
+        for (const value of withoutRepeatedLiterals(this, own)) list.push(value);
       }
     for (const list of values.values()) this.widen(list, false);
   }
@@ -1117,18 +1356,20 @@ class SiblingPropertyScan extends NodeVisitor {
  * the same property names, each with a value of the same widened type (`widenedTypeKey`). Literals
  * that can have a contextual type are kept: it can keep their properties' literal types.
  */
-function withoutRepeatedLiterals<T extends Node>(c: Checker, nodes: T[]): T[] {
+function withoutRepeatedLiterals<T extends Node>(scan: SiblingPropertyScan, nodes: T[]): T[] {
   let keys: string[] | undefined;
   let result: T[] | undefined;
   for (let i = 0; i < nodes.length; i++) {
     const node = nodes[i]!;
     const key =
       node.kind === SyntaxKind.ObjectLiteralExpression && !mayHaveContextualType(node)
-        ? widenedTypeKey(c, node)
+        ? widenedTypeKey(scan, node)
         : undefined;
     if (key !== undefined) {
       if (keys === undefined) keys = [];
       else if (keys.includes(key)) {
+        // Without a checker, an enum the scan can't resolve may or may not make the types the same.
+        if (key.includes(pendingEnumKey)) scan.unresolved = true;
         if (result === undefined) result = nodes.slice(0, i);
         continue;
       }
@@ -1145,7 +1386,7 @@ function withoutRepeatedLiterals<T extends Node>(c: Checker, nodes: T[]): T[] {
  * enum by the enum, and object literals by their properties' names and keys. Other references can
  * name different symbols or be narrowed differently.
  */
-function widenedTypeKey(c: Checker, node: Node): string | undefined {
+function widenedTypeKey(scan: SiblingPropertyScan, node: Node): string | undefined {
   switch (node.kind) {
     case SyntaxKind.StringLiteral:
     case SyntaxKind.NoSubstitutionTemplateLiteral:
@@ -1169,16 +1410,14 @@ function widenedTypeKey(c: Checker, node: Node): string | undefined {
       }
       return undefined;
     }
-    case SyntaxKind.PropertyAccessExpression: {
-      const enumSymbol = enumOfMemberAccess(c, node);
-      return enumSymbol !== undefined ? 'enum ' + getSymbolId(enumSymbol) : undefined;
-    }
+    case SyntaxKind.PropertyAccessExpression:
+      return enumKeyOfMemberAccess(scan, node);
     case SyntaxKind.ObjectLiteralExpression: {
       const members: string[] = [];
       for (const member of (node as ObjectLiteralExpression).properties.nodes) {
         if (member.kind !== SyntaxKind.PropertyAssignment) return undefined;
         const name = staticPropertyName(member);
-        const value = widenedTypeKey(c, (member as PropertyAssignment).initializer);
+        const value = widenedTypeKey(scan, (member as PropertyAssignment).initializer);
         if (name === undefined || value === undefined) return undefined;
         members.push(JSON.stringify(name) + ': ' + value);
       }
@@ -1189,16 +1428,21 @@ function widenedTypeKey(c: Checker, node: Node): string | undefined {
   return undefined;
 }
 
+/** The key of a member of an enum that the scan can't resolve without a checker. */
+const pendingEnumKey = 'enum ?';
+
 /**
- * The enum of `E.Member` where `E` names an enum, directly or through an import, in the scopes around
- * the access (`getLocals`, as `calledFunction` finds names) and `Member` is one of its members, not
- * an export of a namespace merged with it.
+ * The key of `E.Member` where `E` names an enum in the scopes around the access (`getLocals`, as
+ * `calledFunction` finds names) and `Member` is one of its members, not an export of a namespace merged
+ * with it: the key of the enum. With a checker, `E` can be imported. Without one, an import, and a
+ * global of a script file (whose enum other files can extend), give `pendingEnumKey`.
  */
-function enumOfMemberAccess(c: Checker, node: Node): Symbol | undefined {
+function enumKeyOfMemberAccess(scan: SiblingPropertyScan, node: Node): string | undefined {
   const target = getExpression(node)!;
   const member = getName(node)!;
   if (target.kind !== SyntaxKind.Identifier || member.kind !== SyntaxKind.Identifier) return undefined;
   const name = getText(target);
+  const c = scan.c;
   for (let scope = node.parent; scope !== undefined; scope = scope.parent) {
     let symbol = getLocals(scope)?.get(name);
     if (
@@ -1206,13 +1450,25 @@ function enumOfMemberAccess(c: Checker, node: Node): Symbol | undefined {
       (symbol.flags & (SymbolFlags.Value | SymbolFlags.ExportValue | SymbolFlags.Alias)) === 0
     )
       continue;
+    if (c === undefined) {
+      if ((symbol.flags & SymbolFlags.Alias) !== 0) return pendingEnumKey;
+      if (
+        (symbol.flags & (SymbolFlags.Enum | SymbolFlags.Module)) !== 0 &&
+        !isExternalModule(getSourceFileOfNode(node))
+      )
+        return pendingEnumKey;
+    }
     if (symbol.exportSymbol !== undefined) symbol = symbol.exportSymbol;
-    symbol = getMergedSymbol(c, symbol);
-    if ((symbol.flags & SymbolFlags.Alias) !== 0) symbol = resolveAlias(c, symbol);
+    if (c !== undefined) {
+      symbol = getMergedSymbol(c, symbol);
+      if ((symbol.flags & SymbolFlags.Alias) !== 0) symbol = resolveAlias(c, symbol);
+    }
     if ((symbol.flags & SymbolFlags.Enum) === 0) return undefined;
     // An enum merged with a namespace also exports the namespace's values.
     const memberSymbol = symbol.exports?.get(getText(member));
-    return memberSymbol !== undefined && (memberSymbol.flags & SymbolFlags.EnumMember) !== 0 ? symbol : undefined;
+    return memberSymbol !== undefined && (memberSymbol.flags & SymbolFlags.EnumMember) !== 0
+      ? scan.enumKey(symbol)
+      : undefined;
   }
   return undefined;
 }
@@ -1221,8 +1477,8 @@ function enumOfMemberAccess(c: Checker, node: Node): Symbol | undefined {
  * Whether an object literal of a widened expression can have a contextual type: under `satisfies`,
  * an assertion or an argument, as a parameter's default, or returned from a function that can have
  * a contextual signature (a function expression that doesn't initialize an untyped declaration, or a
- * method of an object literal). Initializers of untyped declarations and the returns of function
- * declarations and class members have none.
+ * method of an object literal). Initializers of untyped declarations, the returns of function
+ * declarations and class members, and the objects of property and element accesses have none.
  */
 function mayHaveContextualType(node: Node): boolean {
   for (let current = node.parent; current !== undefined; current = current.parent) {
@@ -1255,6 +1511,9 @@ function mayHaveContextualType(node: Node): boolean {
       case SyntaxKind.PropertyDeclaration:
       case SyntaxKind.ExportAssignment:
       case SyntaxKind.FunctionDeclaration:
+      // The object of a property access, as in a method call, has no contextual type.
+      case SyntaxKind.PropertyAccessExpression:
+      case SyntaxKind.ElementAccessExpression:
         return false;
       case SyntaxKind.MethodDeclaration:
       case SyntaxKind.GetAccessor: {
@@ -1277,16 +1536,66 @@ function mayHaveContextualType(node: Node): boolean {
   return true;
 }
 
-/** Collects the calls in an expression, innermost first, outside the functions in it. */
+/** Collects the calls by one of `names` in an expression, innermost first, outside the functions in it. */
 class CallCollector extends NodeVisitor {
   readonly calls: Node[] = [];
+
+  constructor(private readonly names: Set<string>) {
+    super();
+  }
 
   visitNode(node: Node): boolean {
     if (isFunctionLike(node) || node.kind === SyntaxKind.ClassExpression) return false;
     node.forEachChild(this);
-    if (node.kind === SyntaxKind.CallExpression) this.calls.push(node);
+    if (node.kind === SyntaxKind.CallExpression) {
+      const name = calleeName(node);
+      if (name !== undefined && this.names.has(name)) this.calls.push(node);
+    }
     return false;
   }
+}
+
+/** The name a call calls its function by, `f` in `f(...)` and `this.f(...)`, if the scan can resolve it. */
+function calleeName(call: Node): string | undefined {
+  const callee = skipParentheses(getExpression(call)!);
+  if (callee.kind === SyntaxKind.Identifier) return getText(callee);
+  if (callee.kind !== SyntaxKind.PropertyAccessExpression || getExpression(callee)!.kind !== SyntaxKind.ThisKeyword)
+    return undefined;
+  const name = getName(callee)!;
+  return name.kind === SyntaxKind.Identifier ? getText(name) : undefined;
+}
+
+/**
+ * The name calls can call a function without a return type by: a function declaration's, a method's or
+ * accessor's, or that of the variable or property a function expression initializes.
+ */
+function functionName(func: Node): string | undefined {
+  let node = func;
+  if (func.kind === SyntaxKind.FunctionExpression || func.kind === SyntaxKind.ArrowFunction) {
+    while (node.parent?.kind === SyntaxKind.ParenthesizedExpression) node = node.parent;
+    if (node.parent?.kind !== SyntaxKind.VariableDeclaration && node.parent?.kind !== SyntaxKind.PropertyDeclaration)
+      return undefined;
+    node = node.parent;
+  }
+  const name = getName(node);
+  return name?.kind === SyntaxKind.Identifier ? getText(name) : undefined;
+}
+
+/** Whether an expression's alternatives (`addAlternatives`) can hold object or array literals. */
+function mayHoldLiterals(node: Node): boolean {
+  switch (skipParentheses(node).kind) {
+    case SyntaxKind.ObjectLiteralExpression:
+    case SyntaxKind.ArrayLiteralExpression:
+    case SyntaxKind.ConditionalExpression:
+    case SyntaxKind.BinaryExpression:
+    case SyntaxKind.NonNullExpression:
+    case SyntaxKind.SatisfiesExpression:
+    case SyntaxKind.AwaitExpression:
+    case SyntaxKind.AsExpression:
+    case SyntaxKind.TypeAssertionExpression:
+      return true;
+  }
+  return false;
 }
 
 /** The class whose instance `this` is at `node`, through arrow functions, in a member or property initializer. */
@@ -1321,6 +1630,13 @@ function addAlternatives(node: Node, out: Node[], arrays: boolean): Node[] {
     case SyntaxKind.SatisfiesExpression:
     case SyntaxKind.AwaitExpression:
       return addAlternatives(getExpression(node)!, out, arrays);
+    case SyntaxKind.AsExpression:
+    case SyntaxKind.TypeAssertionExpression:
+      // An object literal in an `as const` assertion is still an object literal type, with readonly
+      // properties; an array literal in one is a tuple, whose elements widen separately.
+      if (isConstAssertion(node) && skipParentheses(getExpression(node)!).kind === SyntaxKind.ObjectLiteralExpression)
+        return addAlternatives(getExpression(node)!, out, arrays);
+      break;
     case SyntaxKind.ConditionalExpression:
       addAlternatives((node as ConditionalExpression).whenTrue, out, arrays);
       return addAlternatives((node as ConditionalExpression).whenFalse, out, arrays);
@@ -1348,6 +1664,81 @@ function addAlternatives(node: Node, out: Node[], arrays: boolean): Node[] {
   }
   out.push(node);
   return out;
+}
+
+/**
+ * The alternatives of the elements of an array literal, whose types make its element type, with those
+ * of the array literals that its spread elements spread. Used where array literals have an array type
+ * (`SiblingPropertyScan.arrays`), as are `iteratedArrayLiterals` and `bindingAlternatives`.
+ */
+function addArrayElements(array: ArrayLiteralExpression, out: Node[]): Node[] {
+  for (const e of array.elements.nodes)
+    if (e.kind !== SyntaxKind.SpreadElement) addAlternatives(e, out, true);
+    else
+      for (const spread of addAlternatives(getExpression(e)!, [], true))
+        if (spread.kind === SyntaxKind.ArrayLiteralExpression) addArrayElements(spread as ArrayLiteralExpression, out);
+  return out;
+}
+
+/** The array literals whose elements a `for...of` over `expression` iterates, through `as const`. */
+function iteratedArrayLiterals(expression: Node): ArrayLiteralExpression[] {
+  const arrays: ArrayLiteralExpression[] = [];
+  for (const a of addAlternatives(expression, [], true)) {
+    const value = isConstAssertion(a) ? skipParentheses(getExpression(a)!) : a;
+    if (value.kind === SyntaxKind.ArrayLiteralExpression) arrays.push(value as ArrayLiteralExpression);
+  }
+  return arrays;
+}
+
+function isConstAssertion(node: Node): boolean {
+  return (
+    (node.kind === SyntaxKind.AsExpression || node.kind === SyntaxKind.TypeAssertionExpression) &&
+    isConstTypeReference(getType(node)!)
+  );
+}
+
+/**
+ * The alternatives whose union each variable of a binding name is widened from, given the alternatives
+ * of the iterated elements: all of them for an identifier; for an element of an array pattern, its
+ * element of each `as const` array literal, or every element of another array literal; for an element
+ * of an object pattern, the values of its property in each object literal.
+ */
+function bindingAlternatives(name: Node, elements: Node[]): Node[][] {
+  if (name.kind === SyntaxKind.Identifier) return [elements];
+  const result: Node[][] = [];
+  const isArrayPattern = name.kind === SyntaxKind.ArrayBindingPattern;
+  const bindings = (name as BindingPattern).elements.nodes;
+  for (let k = 0; k < bindings.length; k++) {
+    const binding = bindings[k]!;
+    if (binding.kind !== SyntaxKind.BindingElement) continue;
+    const element = binding as BindingElement;
+    if (element.dotDotDotToken !== undefined || element.initializer !== undefined) continue;
+    if (element.name?.kind !== SyntaxKind.Identifier) continue;
+    const alternatives: Node[] = [];
+    if (isArrayPattern) {
+      for (const e of elements) {
+        const value = isConstAssertion(e) ? skipParentheses(getExpression(e)!) : e;
+        if (value.kind !== SyntaxKind.ArrayLiteralExpression) continue;
+        const array = value as ArrayLiteralExpression;
+        if (value !== e || isInConstAssertion(array)) {
+          const item = array.elements.nodes[k];
+          if (item !== undefined && item.kind !== SyntaxKind.SpreadElement) addAlternatives(item, alternatives, true);
+        } else addArrayElements(array, alternatives);
+      }
+    } else {
+      const property = element.propertyName ?? element.name;
+      const propertyName = property.kind === SyntaxKind.Identifier ? getText(property) : undefined;
+      if (propertyName === undefined) continue;
+      for (const e of elements) {
+        if (e.kind !== SyntaxKind.ObjectLiteralExpression) continue;
+        for (const member of (e as ObjectLiteralExpression).properties.nodes)
+          if (member.kind === SyntaxKind.PropertyAssignment && staticPropertyName(member) === propertyName)
+            addAlternatives((member as PropertyAssignment).initializer, alternatives, true);
+      }
+    }
+    if (alternatives.length !== 0) result.push(alternatives);
+  }
+  return result;
 }
 
 /** The name of an object literal member with a literal name. */

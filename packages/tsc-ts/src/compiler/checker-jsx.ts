@@ -104,7 +104,13 @@ import {
   hasEffectiveRestParameter,
 } from './checker-signatures.js';
 import { instantiateType } from './instantiation.js';
-import { checkTypeRelatedTo, getRegularTypeOfObjectLiteral, isTypeRelatedTo, type Relation } from './relations.js';
+import {
+  checkTypeRelatedTo,
+  getRegularTypeOfObjectLiteral,
+  isExactOptionalPropertyMismatch,
+  isTypeRelatedTo,
+  type Relation,
+} from './relations.js';
 import {
   checkExpression,
   checkExpressionCached,
@@ -1869,6 +1875,18 @@ function elaborateIterableOrArrayLikeTargetElementwise(
         : sourcePropType;
     if (e.isText) {
       reportDiagnostic(c, createDiagnosticForNode(e.errorNode, textMessage, textArgs), diagnosticOutput);
+      continue;
+    }
+    if (c.exactOptionalPropertyTypes && isExactOptionalPropertyMismatch(c, specificSource, targetPropType)) {
+      reportDiagnostic(
+        c,
+        createDiagnosticForNode(
+          e.errorNode,
+          Diagnostics.Type_0_is_not_assignable_to_type_1_with_exactOptionalPropertyTypes_Colon_true_Consider_adding_undefined_to_the_type_of_the_target,
+          [typeToString(c, specificSource), typeToString(c, targetPropType)],
+        ),
+        diagnosticOutput,
+      );
       continue;
     }
     const propName = getPropertyNameFromIndex(e.nameType);
