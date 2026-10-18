@@ -119,6 +119,7 @@ import {
   getBaseConstraintOfType,
   getIndexTypeOfType,
   hasPropertiesOfType,
+  keepPropertiesOnly,
   memberResolutionFlags,
 } from './checker-members.js';
 import {
@@ -1698,6 +1699,7 @@ export function resolveMappedTypeMembers(c: Checker, t: MappedType): void {
     );
   else forEachType(getLowerBoundOfKeyType(c, constraintType), add);
   setStructuredTypeMembers(c, t, members, [], [], indexInfos);
+  keepPropertiesOnly(c, t, members);
 }
 
 export function getTypeOfMappedSymbol(c: Checker, symbol: Symbol): Type {
