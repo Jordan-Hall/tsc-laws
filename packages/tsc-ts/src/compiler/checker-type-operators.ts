@@ -15,8 +15,8 @@ import {
   type ConditionalTypeNode,
   type MappedTypeNode,
   IndexedAccessTypeNode,
-  PrefixUnaryExpression,
   TypeParameterDeclaration,
+  type TypeOperatorNode,
   getDotDotDotToken,
   getElements,
   getExpression,
@@ -1535,7 +1535,7 @@ export function isMappedTypeWithKeyofConstraintDeclaration(c: Checker, t: Mapped
   return (
     constraint !== undefined &&
     constraint.kind === SyntaxKind.TypeOperator &&
-    (constraint as PrefixUnaryExpression).operator === SyntaxKind.KeyOfKeyword
+    (constraint as TypeOperatorNode).operator === SyntaxKind.KeyOfKeyword
   );
 }
 
