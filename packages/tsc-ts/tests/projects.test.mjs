@@ -425,6 +425,25 @@ const projects = [
     },
   ],
   [
+    'type-only exports in the type of a module namespace',
+    {
+      'mods.d.ts':
+        "declare module 'dep' {\n  export class K {}\n  export const v: 1;\n}\n" +
+        "declare module 'mid' {\n  export { type K, v } from 'dep';\n}\n" +
+        "declare module 'mid2' {\n  import type { K } from 'dep';\n  export { K };\n  export { v } from 'dep';\n}\n" +
+        "declare module 'mid3' {\n  export type * from 'dep';\n  export { v } from 'dep';\n}\n",
+      'a.ts':
+        "import * as m from 'mid';\nimport * as m2 from 'mid2';\nimport * as m3 from 'mid3';\n" +
+        "export const t: [keyof typeof m, keyof typeof m2] = ['K', 'K'];\n" +
+        'export const k = [m.K, m2.K, m3.K];\n' +
+        'export type Q = [m.K, typeof m.K, m3.K];\n',
+      'tsconfig.json': JSON.stringify({
+        compilerOptions: { ...base, module: 'esnext', moduleResolution: 'bundler' },
+        files: ['a.ts', 'mods.d.ts'],
+      }),
+    },
+  ],
+  [
     'JSON required from checked JavaScript',
     {
       'a.js':

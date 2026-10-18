@@ -1537,8 +1537,17 @@ export function getPropertyOfTypeEx(
   if ((t.flags & TypeFlags.Object) !== 0) {
     const resolved = resolveStructuredTypeMembers(c, t);
     const symbol = getResolvedMember(resolved, name);
-    if (symbol !== undefined && (includeTypeOnlyMembers || symbolIsValue(c, symbol))) return symbol;
     if (symbol !== undefined && includeTypeOnlyMembers) return symbol;
+    if (symbol !== undefined) {
+      // A module's member that only an `export type *` declaration exports is not a value.
+      if (
+        t.symbol !== undefined &&
+        (t.symbol.flags & SymbolFlags.ValueModule) !== 0 &&
+        c.symbolLinks(t.symbol).typeOnlyExportStarMap?.has(name) === true
+      )
+        return undefined;
+      if (symbolIsValue(c, symbol)) return symbol;
+    }
     if (skipObjectFunctionPropertyAugment) return undefined;
     let functionType: Type | undefined;
     if (t === c.anyFunctionType) functionType = c.globalFunctionType;
