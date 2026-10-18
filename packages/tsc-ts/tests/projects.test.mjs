@@ -34,6 +34,25 @@ const projects = [
     },
   ],
   [
+    'callbacks of generic JSX elements whose props type is conditional',
+    {
+      'node_modules/react/package.json': JSON.stringify({ name: 'react', version: '1.0.0', types: 'index.d.ts' }),
+      'node_modules/react/index.d.ts': 'export {};\n',
+      'node_modules/react/jsx-runtime.d.ts':
+        'export declare function jsx(...args: any[]): any;\nexport declare const Fragment: any;\n',
+      'a.tsx':
+        'type Id = string | number;\ninterface GetItemValue<T> { getItemValue: (item: T) => Id }\n' +
+        'type Props<T> = (T extends object ? GetItemValue<T> : Partial<GetItemValue<T>>) & { value: T[] };\n' +
+        'declare function Sortable<T>(props: Props<T>): any;\n' +
+        'export const a = <Sortable value={["x"]} getItemValue={(item) => item} />;\n' +
+        'export const b = <Sortable value={[{ id: 1 }]} getItemValue={(item) => item.id} />;\n',
+      'tsconfig.json': JSON.stringify({
+        compilerOptions: { ...base, jsx: 'react-jsx', module: 'esnext', moduleResolution: 'bundler' },
+        files: ['a.tsx'],
+      }),
+    },
+  ],
+  [
     'JSON default import',
     {
       'a.ts':
@@ -623,22 +642,16 @@ const projects = [
     },
   ],
   [
-    'callbacks of generic JSX elements whose props type is conditional',
+    'namespaced JSX attributes and template literal index signatures',
     {
-      'node_modules/react/package.json': JSON.stringify({ name: 'react', version: '1.0.0', types: 'index.d.ts' }),
-      'node_modules/react/index.d.ts': 'export {};\n',
-      'node_modules/react/jsx-runtime.d.ts':
-        'export declare function jsx(...args: any[]): any;\nexport declare const Fragment: any;\n',
       'a.tsx':
-        'type Id = string | number;\ninterface GetItemValue<T> { getItemValue: (item: T) => Id }\n' +
-        'type Props<T> = (T extends object ? GetItemValue<T> : Partial<GetItemValue<T>>) & { value: T[] };\n' +
-        'declare function Sortable<T>(props: Props<T>): any;\n' +
-        'export const a = <Sortable value={["x"]} getItemValue={(item) => item} />;\n' +
-        'export const b = <Sortable value={[{ id: 1 }]} getItemValue={(item) => item.id} />;\n',
-      'tsconfig.json': JSON.stringify({
-        compilerOptions: { ...base, jsx: 'react-jsx', module: 'esnext', moduleResolution: 'bundler' },
-        files: ['a.tsx'],
-      }),
+        'type H = () => void;\n' +
+        'declare global {\n  namespace JSX {\n    interface Element {}\n' +
+        "    interface IntrinsicElements { d: { 'q:slot'?: string; [key: `${'w:' | ''}on${string}`]: H } }\n  }\n}\n" +
+        'export const a = <d q:slot="x" />;\n' +
+        'export const b = <d q:slot={1} />;\n' +
+        'export const c = <d w:onx={1} />;\n',
+      'tsconfig.json': JSON.stringify({ compilerOptions: { ...base, jsx: 'preserve' }, files: ['a.tsx'] }),
     },
   ],
 ];
