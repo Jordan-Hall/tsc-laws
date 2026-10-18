@@ -358,7 +358,7 @@ function getTypeFromTypeLiteralOrFunctionOrConstructorTypeNode(c: Checker, node:
   return type;
 }
 
-function getTypeFromIndexedAccessTypeNode(c: Checker, node: IndexedAccessTypeNode): Type {
+export function getTypeFromIndexedAccessTypeNode(c: Checker, node: IndexedAccessTypeNode): Type {
   let type = c.resolvedTypes.get(node.id);
   if (type === undefined) {
     const objectType = getTypeFromTypeNode(c, node.objectType);
