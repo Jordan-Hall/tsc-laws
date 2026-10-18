@@ -57,7 +57,7 @@ else {
  */
 function startThreads(): void {
   parallelCheck.writer = outputWriterOfThread(defaultLibraryPath);
-  parallelCheck.spawn = (program, index, counter, order, nodeIds, symbolIds, reserved, emits, emitKinds) =>
+  parallelCheck.spawn = (program, index, counter, order, nodeIds, symbolIds, reserved, emits, emitKinds, checking) =>
     new Worker(new URL(import.meta.url), {
       workerData: {
         kind: 'check',
@@ -71,6 +71,7 @@ function startThreads(): void {
         reserved,
         emits,
         emitKinds,
+        checking,
       },
     });
   if (sharesPublishedGraphs) {
@@ -126,6 +127,7 @@ function runCheckerThread(): void {
     reserved: number[];
     emits: boolean;
     emitKinds: number[] | undefined;
+    checking: boolean;
   };
   let program: Program | undefined = undefined;
   if (job.program !== undefined) {
@@ -154,6 +156,7 @@ function runCheckerThread(): void {
           job.reserved,
           job.emits,
           job.emitKinds,
+          job.checking,
         );
   // Packed results are copied: nothing this thread allocated stays reachable after it ends.
   if (packsResults) parentPort!.postMessage(packResult(result, program!));

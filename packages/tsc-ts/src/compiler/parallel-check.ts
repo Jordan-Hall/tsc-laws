@@ -78,6 +78,7 @@ export type CheckerSpawn = (
   reserved: number[],
   emits: boolean,
   emitKinds: number[] | undefined,
+  checking: boolean,
 ) => Worker;
 
 export class ParallelCheck {
@@ -1429,7 +1430,8 @@ export function traceSingleChecker(checked: CheckedProgram): void {
  * Checks files from the shared queue until it is empty; the main thread and checker threads alike.
  * A checker thread (`onMainThread` false) also sends back its global diagnostics. At `limit` files
  * it stops; `reserved` are the positions of a group its predecessor on `index` had not checked then.
- * With `emit` false it doesn't emit the files it checks (`checkersEmit`).
+ * With `emit` false it doesn't emit the files it checks (`checkersEmit`). With `checking` false it
+ * only emits them (`startParallelCheck`).
  */
 export function checkFromQueue(
   checked: CheckedProgram,
@@ -1442,6 +1444,7 @@ export function checkFromQueue(
   reserved: readonly number[] = [],
   emit: boolean = true,
   emitKinds: readonly number[] | undefined = undefined,
+  checking: boolean = true,
 ): CheckerResult {
   const start = performance.now();
   const readyAt = Date.now();
@@ -1488,7 +1491,8 @@ export function checkFromQueue(
     const i = order[k]!;
     done.push(i);
     const fileStart = verbose || timeline ? performance.now() : 0;
-    const fileDiagnostics = checked.unfilteredDiagnosticsOfFile(files[i]!);
+    // Without `checking` the file is only emitted: declaration emit checks what it needs.
+    const fileDiagnostics = checking ? checked.unfilteredDiagnosticsOfFile(files[i]!) : [];
     diagnostics.push(fileDiagnostics);
     if (holding !== undefined && fileDiagnostics.length > 0) blockEmit(counter);
     if (timeline)
@@ -1690,12 +1694,18 @@ export function shareWithCheckers(checked: CheckedProgram): void {
   checked.sharedWithCheckers = true;
 }
 
+/**
+ * Checks `checked` on `checkers` threads and calls `done` once they are done. With `emits`, each thread
+ * emits the files it checks (`emitKinds` limits what). With `checking` false, the threads only emit:
+ * for a program whose report has no semantic diagnostics, so that no file is checked in full.
+ */
 export function startParallelCheck(
   checked: CheckedProgram,
   checkers: number,
   done: (checkTime: number) => void,
   emits: boolean = true,
   emitKinds: number[] | undefined = undefined,
+  checking: boolean = true,
 ): void {
   let count = checkers;
   const start = performance.now();
@@ -1748,9 +1758,11 @@ export function startParallelCheck(
   let remaining = count - firstThread;
   let ownDone = false;
   const finish = (): void => {
-    // A thread that failed may have taken files it never checked: check them here.
-    for (const i of order) if (perFile[i] === undefined) perFile[i] = checked.unfilteredDiagnosticsOfFile(files[i]!);
-    checked.checkedInParallel = perFile;
+    if (checking) {
+      // A thread that failed may have taken files it never checked: check them here.
+      for (const i of order) if (perFile[i] === undefined) perFile[i] = checked.unfilteredDiagnosticsOfFile(files[i]!);
+      checked.checkedInParallel = perFile;
+    }
     mark('all checked');
     if (trace)
       process.stderr.write(
@@ -1793,6 +1805,7 @@ export function startParallelCheck(
       reserved,
       emits,
       emitKinds,
+      checking,
     );
     worker.on('message', (message: unknown) => {
       mark(`result from c${i}`);
@@ -1822,7 +1835,7 @@ export function startParallelCheck(
   const emittedHere =
     !mainChecks && emitKinds === undefined ? emitUncheckedFiles(checked, order, emits) : new Map<number, EmitResult>();
   if (mainChecks)
-    record(checkFromQueue(checked, 0, new Int32Array(counter), order, epoch, true, 0, [], emits, emitKinds));
+    record(checkFromQueue(checked, 0, new Int32Array(counter), order, epoch, true, 0, [], emits, emitKinds, checking));
   ownDone = true;
   if (remaining === 0) finish();
 }
