@@ -145,7 +145,15 @@ export function compileInParallel(
     recheckInParallel(sys, work, threads, times, checked, done);
     return;
   }
-  startParallelCheck(checked, threads, (checkTime) => {
+  // Reporting checks only a program without syntactic and program errors (getDiagnosticsOfProgram). With
+  // them, the threads only emit the files, and with nothing to emit no thread starts. The program is
+  // shared first, as for every check on threads.
+  let checking = true;
+  if (!work.incremental) {
+    if (sharesPublishedGraphs) shareWithCheckers(checked);
+    checking = program.getSyntacticDiagnostics().length === 0 && program.getProgramDiagnostics().length === 0;
+  }
+  const finish = (checkTime: number): void => {
     // An incremental program here has no build info (`compileThreads`).
     let compilerProgram: CompilerProgram;
     if (work.incremental) {
@@ -165,7 +173,10 @@ export function compileInParallel(
     times.checkTime = checkTime;
     mark(`reported ${result.diagnostics.length} diagnostics`);
     done(emitStatusAndReportStatistics(sys, compilerProgram, result));
-  });
+  };
+  const options = program.options;
+  if (!checking && (options.noEmit === true || options.noEmitOnError === true)) return finish(0);
+  startParallelCheck(checked, threads, finish, true, undefined, checking);
 }
 
 /**

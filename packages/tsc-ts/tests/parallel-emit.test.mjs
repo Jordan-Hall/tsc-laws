@@ -137,6 +137,30 @@ test('under noEmitOnError, emit on checker threads matches emit on one checker',
   }
 });
 
+// With a program error (here TS5102: `baseUrl`, which TypeScript 7 removed), the report has no semantic diagnostics
+// (getDiagnosticsOfProgram), so checker threads only emit the files, as one checker emits them without
+// checking; under `noEmit` and `noEmitOnError` nothing is emitted and no thread starts.
+test('with a program error, emit on checker threads matches emit on one checker', { skip: tscTsMissing }, () => {
+  for (const extra of [{}, { noEmit: true }, { noEmitOnError: true }]) {
+    const config = JSON.parse(files['tsconfig.json']);
+    Object.assign(config.compilerOptions, { baseUrl: '.' }, extra);
+    const cwd = tempDir('tsc-ts-parallel-emit-program-error-');
+    for (const [path, content] of Object.entries({ ...files, 'tsconfig.json': JSON.stringify(config) })) {
+      mkdirSync(dirname(join(cwd, path)), { recursive: true });
+      writeFileSync(join(cwd, path), content);
+    }
+    const expected = run(cwd, ['--singleThreaded']);
+    assert.ok(expected.stdout.includes('TS5102'), 'the program error is reported');
+    assert.ok(!expected.stdout.includes('TS2322'), 'no semantic error is reported');
+    if (Object.keys(extra).length === 0) assert.equal(Object.keys(expected.outputs).length, 31);
+    else assert.deepEqual(Object.keys(expected.outputs), []);
+    const actual = run(cwd, ['--checkers', '3']);
+    assert.equal(actual.stdout, expected.stdout, `stdout with ${JSON.stringify(extra)}`);
+    assert.equal(actual.status, expected.status, `status with ${JSON.stringify(extra)}`);
+    assert.deepEqual(actual.outputs, expected.outputs, `outputs with ${JSON.stringify(extra)}`);
+  }
+});
+
 // A union's constituents tie in compareTypes when they differ only in their mappers, as two
 // instantiations of one mapped type do, and are then ordered by type id, which follows the order in
 // which the emitting checker created them. With one checker, `defs.ts` is checked first and creates
