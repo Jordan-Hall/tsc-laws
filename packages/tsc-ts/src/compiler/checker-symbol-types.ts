@@ -125,6 +125,7 @@ import { getTypeOfReverseMappedSymbol } from './checker-inference.js';
 import {
   checkDeclarationInitializer,
   getContextuallyTypedParameterType,
+  getContextualThisParameterType,
   checkExpressionCached,
   checkExpressionEx,
 } from './checker-expressions.js';
@@ -421,7 +422,10 @@ export function getTypeForVariableLikeDeclaration(
     }
     const fullSignatureType = getParameterTypeOfFullSignature(c, fn, declaration);
     if (fullSignatureType !== undefined) return fullSignatureType;
-    const t = getSymbol(declaration)!.name === 'this' ? undefined : getContextuallyTypedParameterType(c, declaration);
+    const t =
+      getSymbol(declaration)!.name === 'this'
+        ? getContextualThisParameterType(c, fn)
+        : getContextuallyTypedParameterType(c, declaration);
     if (t !== undefined) return addOptionality(c, t, false, isOptional);
   }
   const initializer = getInitializer(declaration);
