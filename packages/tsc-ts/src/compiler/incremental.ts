@@ -51,6 +51,7 @@ import {
   handleNoEmitOnError,
   OutputWriter,
   type CheckedProgram,
+  type ProgramEmitter,
   writeHeldOutputs,
 } from './compile-program.js';
 import {
@@ -63,7 +64,7 @@ import {
   RepopulateKind,
   type RepopulateInfo,
 } from './diagnostics.js';
-import { EmitOnly, EmitResult, skippedWrite } from './emitter.js';
+import { EmitOnly, EmitResult, skippedWrite, sourceFileMayBeEmitted } from './emitter.js';
 import type { FileSystem } from './file-system.js';
 import { version } from './help.js';
 import { Affects, type OptionDeclaration } from './option-declarations.js';
@@ -648,6 +649,17 @@ export class Snapshot {
   }
 }
 
+/**
+ * The shape signature of `file` from its forced declaration emit (`updateShapeSignature`), or `''` where
+ * nothing is written, for which the file's version is the signature.
+ */
+function declarationSignature(emitter: ProgramEmitter, file: SourceFile, options: CompilerOptions): string {
+  const emitted = emitter.forcedDeclaration(file);
+  // A file without declarations, such as a script of statements, has an empty declaration file and a signature.
+  if (!emitted.written) return '';
+  return computeSignatureWithDiagnostics(file, emitted.text, emitted.diagnostics, options);
+}
+
 /** The signature of a declaration emit: its text up to the source map comment, and its errors. */
 function computeSignatureWithDiagnostics(
   file: SourceFile,
@@ -1216,10 +1228,7 @@ class AffectedFilesHandler {
   }
 
   private computeDtsSignature(file: SourceFile): string {
-    const emitted = this.incremental.emitter.forcedDeclaration(file);
-    // A file without declarations, such as a script of statements, has an empty declaration file and a signature.
-    if (!emitted.written) return '';
-    return computeSignatureWithDiagnostics(file, emitted.text, emitted.diagnostics, this.snapshot.options);
+    return declarationSignature(this.incremental.emitter, file, this.snapshot.options);
   }
 
   updateShapeSignature(file: SourceFile, useFileVersionAsSignature: boolean): boolean {
@@ -1234,6 +1243,23 @@ class AffectedFilesHandler {
     return signature !== previous;
   }
 
+  /**
+   * Whether `file`, unchanged, has a signature no build computed. A program without build info (a watch
+   * without `incremental`) takes each file's version as its signature in its first build. A signature
+   * computed from the file's declaration file differs from the version, so an importer with such a
+   * signature is not given one: it keeps its version, as without declaration emit, until a change of the
+   * file itself computes its signature (`getFilesAffectedBy`). Files that forced declaration emit doesn't
+   * write are excluded: their versions are their signatures.
+   */
+  private hasUncomputedSignature(file: SourceFile): boolean {
+    const options = this.snapshot.options;
+    if (isIncremental(options) || this.updatedSignatures.has(file.path)) return false;
+    if (!sourceFileMayBeEmitted(file, options)) return false;
+    if (this.program.isSourceFileFromExternalLibrary(file)) return false;
+    const info = this.snapshot.fileInfos.get(file.path);
+    return info !== undefined && info.signature === info.version;
+  }
+
   getFilesAffectedBy(path: string): SourceFile[] {
     const file = this.program.getSourceFileByPath(path);
     if (file === undefined) return [];
@@ -1244,9 +1270,13 @@ class AffectedFilesHandler {
       this.snapshot.getAllFilesExcludingDefaultLibraryFile(this.program, file);
     }
     if (this.snapshot.options.isolatedModules === true) return [file];
-    const seen = this.forEachFileReferencedBy(file, (currentFile) =>
-      currentFile !== undefined && this.updateShapeSignature(currentFile, false) ? 1 : 0,
-    );
+    const seen = this.forEachFileReferencedBy(file, (currentFile) => {
+      if (currentFile === undefined) return 0;
+      // As a file whose version is its signature: the changed file's importers are rechecked through
+      // `handleDtsMayChangeOfAffectedFile`.
+      if (this.hasUncomputedSignature(currentFile)) return 0;
+      return this.updateShapeSignature(currentFile, false) ? 1 : 0;
+    });
     const result: SourceFile[] = [];
     for (const value of seen.values()) if (value !== undefined) result.push(value);
     return result;
@@ -1279,7 +1309,7 @@ class AffectedFilesHandler {
     this.removeSemanticDiagnosticsOf(affectedFile.path);
     if (this.hasAllFilesExcludingDefaultLibraryFile) {
       this.removeDiagnosticsOfLibraryFiles();
-      this.updateShapeSignature(affectedFile, false);
+      if (!this.hasUncomputedSignature(affectedFile)) this.updateShapeSignature(affectedFile, false);
       return;
     }
     const options = this.snapshot.options;
