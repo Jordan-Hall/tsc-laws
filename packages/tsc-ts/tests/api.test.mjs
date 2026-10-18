@@ -240,6 +240,13 @@ test(
       writeFileSync(join(dir, 'a.ts'), 'export const a = 2;\n');
       update = await d.call('updateSnapshot', { fileChanges: { invalidateAll: true } });
       await query(update.snapshot);
+      // c.ts is reported deleted while it is still there, which leaves it out of the program, then changed
+      // and reported created: the update reads its new contents.
+      update = await d.call('updateSnapshot', { fileChanges: { deleted: [join(dir, 'c.ts')] } });
+      await d.call('getSourceFileNames', { snapshot: update.snapshot, project });
+      writeFileSync(join(dir, 'c.ts'), 'export function c(x: string): number { return x; }\n');
+      update = await d.call('updateSnapshot', { fileChanges: { created: [join(dir, 'c.ts')] } });
+      await query(update.snapshot);
     } finally {
       await d.close();
     }

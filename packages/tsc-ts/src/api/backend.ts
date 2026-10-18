@@ -819,14 +819,17 @@ export function parseConfigFile(host: ProjectHost, configFileName: string): Pars
 
 /**
  * The file contents and parsed files a session keeps across snapshots, as tsgo does. A file read
- * once is read again only after the client reports it changed or deleted (`fileChanges`) or sends
- * `invalidateAll`; until then it exists with the contents first read. A file read through a symbolic
+ * once is read again only after the client reports it changed, created or deleted (`fileChanges`) or
+ * sends `invalidateAll`; until then it exists with the contents first read. A file reported deleted
+ * is missing until the client reports it changed or created, or sends `invalidateAll`. A file read through a symbolic
  * link in node_modules is also invalidated by a change reported for its real path. A parsed file is
  * reused while its name, path, module detection options and text are unchanged: a file parses the same
  * for the same inputs, and binding a bound file does nothing.
  */
 export class SessionFiles {
   private readonly contents = new Map<string, string>();
+  // Paths the client reported deleted.
+  private readonly deleted = new Set<string>();
   // The paths of files read through a symbolic link in node_modules, by real path.
   private readonly linkedPaths = new Map<string, string[]>();
   // Paths `realpath` returned, which are their own real paths.
@@ -845,6 +848,7 @@ export class SessionFiles {
 
   /** The text of `fileName`, whose path is `path`. */
   readFile(fs: ClientFileSystem, fileName: string, path: string): string | undefined {
+    if (this.deleted.has(path)) return undefined;
     const cached = this.contents.get(path);
     if (cached !== undefined) return cached;
     const text = fs.readFile(fileName);
@@ -870,30 +874,33 @@ export class SessionFiles {
 
   /** Whether `fileName`, whose path is `path`, exists. */
   fileExists(fs: ClientFileSystem, fileName: string, path: string): boolean {
+    if (this.deleted.has(path)) return false;
     return this.contents.has(path) || fs.fileExists(fileName);
   }
 
   /**
-   * Forgets the contents of changed or deleted files; returns their paths, with the paths they were read
-   * through in node_modules.
+   * Forgets the contents of changed, created or deleted files, and marks `deleted` files missing or the
+   * others not; returns their paths, with the paths they were read through in node_modules.
    */
-  invalidate(fileNames: readonly string[]): string[] {
+  invalidate(fileNames: readonly string[], deleted: boolean): string[] {
     const paths: string[] = [];
     for (const fileName of fileNames) {
       const path = this.toPath(fileName);
       paths.push(path);
+      for (const linked of this.linkedPaths.get(path) ?? []) paths.push(linked);
+    }
+    for (const path of paths) {
       this.contents.delete(path);
-      for (const linked of this.linkedPaths.get(path) ?? []) {
-        paths.push(linked);
-        this.contents.delete(linked);
-      }
+      if (deleted) this.deleted.add(path);
+      else this.deleted.delete(path);
     }
     return paths;
   }
 
-  /** Forgets the contents of every file. */
+  /** Forgets the contents of every file, and which files were reported deleted. */
   invalidateAll(): void {
     this.contents.clear();
+    this.deleted.clear();
   }
 
   /** The parsed file of `text`, reused from an earlier parse with the same inputs. */
