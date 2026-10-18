@@ -16,7 +16,8 @@ const filler = (prefix, n = 40, indent = '') =>
 
 // `options` lists options for TSC_TS_CHECK_OPTIONS, separated by commas: boolean options, module, moduleResolution
 // and target as name=value, and the strict family, allowUnreachableCode and allowUnusedLabels as name=true or
-// name=false.
+// name=false. A case with `corpus` checks that test case of TypeScript's corpus instead of `source`, and compares only
+// the diagnostics with the `codes` it lists to `expected`; all of them are compared to the oracle's.
 const cases = [
   {
     name: 'module and target from TSC_TS_CHECK_OPTIONS',
@@ -496,6 +497,13 @@ const cases = [
       "/input.ts 2322 55 1 Type 'Generator<number, void, unknown>' is not assignable to type 'Generator<string, any, any>'.",
     ],
   },
+  {
+    name: 'unreachable code that starts with a missing statement',
+    options: 'allowUnreachableCode=false',
+    corpus: 'compiler/reachabilityChecksNoCrash1.ts',
+    codes: ['7027'],
+    expected: ['/input.ts 7027 238 0 Unreachable code detected.'],
+  },
 ];
 
 test(
@@ -503,16 +511,17 @@ test(
   { skip: !existsSync(libs) && 'needs upstream sources', timeout: 300_000 },
   () => {
     const out = compileSources('tsc-ts-check-', ['drivers/check.ts']);
-    for (const { name, file: fileName = 'input.ts', options = '', source, expected } of cases) {
-      const file = join(out, fileName);
-      writeFileSync(file, source.join('\n') + '\n');
+    for (const { name, file: fileName = 'input.ts', options = '', source, corpus, codes, expected } of cases) {
+      const file = corpus !== undefined ? join(repo, 'upstream/TypeScript/tests/cases', corpus) : join(out, fileName);
+      if (corpus === undefined) writeFileSync(file, source.join('\n') + '\n');
       const env = { ...process.env, TSC_TS_CHECK_OPTIONS: options };
       const actual = execFileSync(process.execPath, ['--stack-size=16000', join(out, 'drivers/check.js'), file, libs], {
         encoding: 'utf8',
         env,
       });
       const lines = actual.split('\n').filter((l) => l !== '');
-      assert.deepEqual(lines, expected, name);
+      const compared = codes === undefined ? lines : lines.filter((l) => codes.includes(l.split(' ')[1]));
+      assert.deepEqual(compared, expected, name);
       if (existsSync(oracle)) {
         const reference = execFileSync(oracle, [file, libs], { encoding: 'utf8', env })
           .split('\n')
