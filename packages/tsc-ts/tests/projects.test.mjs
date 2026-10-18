@@ -580,6 +580,24 @@ const projects = [
         'export function f(this) {}\n',
     },
   ],
+  [
+    'declaration errors under noEmit next to other errors',
+    {
+      'node_modules/lib/package.json': JSON.stringify({ name: 'lib', version: '1.0.0', types: 'index.d.ts' }),
+      'node_modules/lib/index.d.ts': 'import { Inner } from "dep";\nexport declare function make(): Inner;\n',
+      'node_modules/lib/node_modules/dep/package.json': JSON.stringify({
+        name: 'dep',
+        version: '1.0.0',
+        types: 'index.d.ts',
+      }),
+      'node_modules/lib/node_modules/dep/index.d.ts': 'export interface Inner { x: number }\n',
+      'a.ts': 'import { make } from "lib";\nexport const v = make();\nexport const e: number = "";\n',
+      'tsconfig.json': JSON.stringify({
+        compilerOptions: { ...base, declaration: true, module: 'preserve' },
+        files: ['a.ts'],
+      }),
+    },
+  ],
 ];
 
 // Module specifiers of inferred types: `import("…")` types in declaration emit and the TS2883
