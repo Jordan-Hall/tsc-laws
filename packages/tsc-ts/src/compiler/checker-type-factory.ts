@@ -52,7 +52,7 @@ import {
   emptySignatures,
   emptySymbols,
   emptyTypes,
-  TypeListCache,
+  ReferenceCache,
 } from './checker-types.js';
 import { getNamedMembers, getMembersOfSymbol } from './checker-symbols.js';
 import {
@@ -2080,12 +2080,12 @@ export function createTypeReference(c: Checker, target: Type, typeArguments: Typ
 export function createTypeReferenceEx(c: Checker, target: Type, typeArguments: Type[], objectFlags: ObjectFlags): Type {
   const hash = typeListHash(typeArguments, undefined, 0);
   const generic = sideOf(c, target as InterfaceType);
-  let instantiations = generic.instantiations;
-  if (instantiations === undefined) {
-    instantiations = new TypeListCache<Type>();
-    generic.instantiations = instantiations;
+  let references = generic.references;
+  if (references === undefined) {
+    references = new ReferenceCache();
+    generic.references = references;
   }
-  const existing = instantiations.get(hash, typeArguments, undefined, 0);
+  const existing = references.get(hash, typeArguments);
   if (existing !== undefined) return existing;
   const type = newObjectType(
     c,
@@ -2094,7 +2094,7 @@ export function createTypeReferenceEx(c: Checker, target: Type, typeArguments: T
   ) as TypeReference;
   type.target = target;
   type.resolvedTypeArguments = typeArguments;
-  instantiations.set(hash, typeArguments, undefined, 0, type);
+  references.add(hash, type);
   return type;
 }
 
@@ -2292,12 +2292,12 @@ function createTupleTargetType(c: Checker, elementInfos: TupleElementInfo[], rea
   type.thisType = thisType;
   typeParameters.push(thisType);
   type.allTypeParameters = typeParameters;
-  const instantiations = new TypeListCache<Type>();
-  sideOf(c, type).instantiations = instantiations;
   const ownParameters = type.typeParameters();
-  instantiations.set(typeListHash(ownParameters, undefined, 0), ownParameters, undefined, 0, type);
   type.target = type;
   type.resolvedTypeArguments = ownParameters;
+  const references = new ReferenceCache();
+  sideOf(c, type).references = references;
+  references.add(typeListHash(ownParameters, undefined, 0), type);
   const declared = sideOf(c, type);
   declared.declaredMembersResolved = true;
   declared.declaredMembers = members;
