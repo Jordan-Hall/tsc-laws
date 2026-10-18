@@ -1573,8 +1573,9 @@ export class NodeBuilder {
       typeElements.push(this.signatureToSignatureDeclaration(signature, SyntaxKind.ConstructSignature, undefined));
     }
     for (const info of resolved.indexInfos) {
-      const typeNode =
-        (t.objectFlags & ObjectFlags.ReverseMapped) !== 0 ? this.createElidedInformationPlaceholder() : undefined;
+      // tsgo creates the placeholder for every index signature, and its length counts toward truncation.
+      const placeholder = this.createElidedInformationPlaceholder();
+      const typeNode = (t.objectFlags & ObjectFlags.ReverseMapped) !== 0 ? placeholder : undefined;
       for (const element of this.indexInfoToObjectComputedNamesOrSignatureDeclaration(info, typeNode))
         typeElements.push(element);
     }

@@ -34,7 +34,13 @@ import {
   getPropertyNameFromIndex,
 } from './checker-type-operators.js';
 import { getPropertyNameFromType, isTypeUsableAsPropertyName } from './checker-utilities.js';
-import { type Relation, checkTypeRelatedTo, getBestMatchingTypeForElaboration, isTypeRelatedTo } from './relations.js';
+import {
+  type Relation,
+  checkTypeRelatedTo,
+  getBestMatchingTypeForElaboration,
+  isExactOptionalPropertyMismatch,
+  isTypeRelatedTo,
+} from './relations.js';
 import { checkExpressionEx, checkExpressionForMutableLocationEx, isConstTypeReference } from './checker-expressions.js';
 import { popContextualType, pushContextualType } from './checker-contextual.js';
 import { getSymbolOfDeclaration } from './checker-symbols.js';
@@ -326,6 +332,14 @@ export function elaborateElement(
   const specificSource =
     next !== undefined ? checkExpressionForMutableLocationWithContextualType(c, next, sourcePropType) : sourcePropType;
   if (customMessage !== undefined) diagnostics.push(createDiagnosticForNode(prop, customMessage, customArgs));
+  else if (c.exactOptionalPropertyTypes && isExactOptionalPropertyMismatch(c, specificSource, targetPropType))
+    diagnostics.push(
+      createDiagnosticForNode(
+        prop,
+        Diagnostics.Type_0_is_not_assignable_to_type_1_with_exactOptionalPropertyTypes_Colon_true_Consider_adding_undefined_to_the_type_of_the_target,
+        [typeToString(c, specificSource), typeToString(c, targetPropType)],
+      ),
+    );
   else {
     const propName = getPropertyNameFromIndex(nameType);
     const targetProperty = propName !== undefined ? getPropertyOfType(c, target, propName) : undefined;

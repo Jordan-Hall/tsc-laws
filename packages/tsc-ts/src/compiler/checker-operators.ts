@@ -78,8 +78,10 @@ import {
   getTypeNamesForErrorDisplay,
   isTypeAssignableTo,
   isTypeComparableTo,
+  isExactOptionalPropertyMismatch,
   isTypeSubtypeOf,
 } from './relations.js';
+import { checkTypeRelatedToAndOptionallyElaborate } from './checker-elaboration.js';
 import { isTypeAssignableToKindEx } from './checker-type-operators.js';
 import { typeToString } from './type-printer.js';
 import { getPropertyNameFromType, isTypeUsableAsPropertyName, maybeTypeOfKind } from './checker-utilities.js';
@@ -89,9 +91,9 @@ import {
   checkExpressionEx,
   checkNonNullType,
   checkPropertyAccessExpression,
-  checkTypeAssignableToAndOptionallyElaborate,
   entityNameToString,
   getResolvedSymbol,
+  getTypeOfExpression,
   parseBigIntText,
 } from './checker-expressions.js';
 import { checkDestructuringAssignment } from './checker-destructuring.js';
@@ -773,8 +775,30 @@ function checkAssignmentOperator(
       Diagnostics.The_left_hand_side_of_an_assignment_expression_must_be_a_variable_or_a_property_access,
       Diagnostics.The_left_hand_side_of_an_assignment_expression_may_not_be_an_optional_property_access,
     )
-  )
-    checkTypeAssignableToAndOptionallyElaborate(c, rightType, targetType, left, right);
+  ) {
+    let headMessage: DiagnosticMessage | undefined = undefined;
+    if (
+      c.exactOptionalPropertyTypes &&
+      left.kind === SyntaxKind.PropertyAccessExpression &&
+      maybeTypeOfKind(rightType, TypeFlags.Undefined)
+    ) {
+      const access = left as PropertyAccessExpression;
+      const target = getTypeOfPropertyOfType(c, getTypeOfExpression(c, access.expression), getText(access.name));
+      if (isExactOptionalPropertyMismatch(c, rightType, target))
+        headMessage =
+          Diagnostics.Type_0_is_not_assignable_to_type_1_with_exactOptionalPropertyTypes_Colon_true_Consider_adding_undefined_to_the_type_of_the_target;
+    }
+    checkTypeRelatedToAndOptionallyElaborate(
+      c,
+      rightType,
+      targetType,
+      c.assignableRelation,
+      left,
+      right,
+      headMessage,
+      undefined,
+    );
+  }
 }
 
 function isLiteralExpressionOfObject(node: Node): boolean {

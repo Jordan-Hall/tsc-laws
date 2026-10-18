@@ -889,6 +889,11 @@ export function markDeclarationVisible(c: Checker, node: Node): void {
 /** Checkers tsgo spreads a program's files over, round robin. */
 const checkerCount = 4;
 
+/** The number of checkers tsgo spreads the program's files over: file `i` goes to checker `i % n`. */
+export function tsgoCheckerSlots(c: Checker): number {
+  return Math.max(1, Math.min(checkerCount, c.files.length));
+}
+
 /**
  * Starts the declaration emit of `file`. tsgo emits each file with one of its checkers, so only
  * declarations marked visible while emitting files of the same checker stay marked.
@@ -896,7 +901,7 @@ const checkerCount = 4;
 export function beginDeclarationEmitVisibility(c: Checker, file: SourceFile): void {
   const cache = caches(c);
   const index = c.fileIndex.get(file);
-  const slot = index === undefined ? -1 : index % Math.max(1, Math.min(checkerCount, c.files.length));
+  const slot = index === undefined ? -1 : index % tsgoCheckerSlots(c);
   if (slot === cache.markedSlot) return;
   cache.visibilityEpoch++;
   cache.slotsLeftAt[cache.markedSlot + 1] = cache.visibilityEpoch;
