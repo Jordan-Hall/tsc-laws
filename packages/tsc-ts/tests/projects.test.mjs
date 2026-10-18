@@ -572,6 +572,20 @@ const projects = [
     },
   ],
   [
+    'imports that conflict with global values under isolatedModules',
+    {
+      'types.ts': 'export interface Map<K, V> { x: K; y: V }\nexport type Promise = 1;\nexport type Set = 2;\n',
+      'a.ts':
+        'import { Map, Promise } from "./types";\nimport type { Set } from "./types";\n' +
+        'export const m = new Map<string, number>();\nexport const p = Promise.resolve(1);\nexport const s = new Set<number>();\n',
+      'b.ts': 'import { Map } from "./types";\nexport type T = Map<1, 2>;\n',
+      'tsconfig.json': JSON.stringify({
+        compilerOptions: { ...base, isolatedModules: true, module: 'esnext', moduleResolution: 'bundler' },
+        files: ['a.ts', 'b.ts', 'types.ts'],
+      }),
+    },
+  ],
+  [
     'conditional types inferring from references to the same interface',
     {
       'a.ts':

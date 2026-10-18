@@ -84,6 +84,7 @@ import {
   getExportsOfModuleWorker,
   getTargetOfAliasDeclaration,
   getTypeOnlyAliasDeclaration,
+  isTypeOnlyImportOrExportDeclaration,
   resolveExternalModuleNameWorker,
   resolveExternalModuleSymbol,
   resolveIndirectionAlias,
@@ -247,6 +248,32 @@ export class CheckerNameResolver extends NameResolver {
     }
     if (location !== undefined && (meaning & SymbolFlags.Value) !== 0)
       checkTypeOnlyAliasUse(this.checker, location, result, result.name);
+    // Under isolatedModules, a value import named like a global value that the file uses must be type-only.
+    if (
+      c.compilerOptions.isolatedModules === true &&
+      isInExternalModule &&
+      (meaning & SymbolFlags.Value) === SymbolFlags.Value
+    ) {
+      const name = result.name;
+      const isGlobal = getSymbolOfMeaning(c, c.globals, name, meaning) === result;
+      const locals = isGlobal ? getLocals(lastLocation!) : undefined;
+      const nonValueSymbol = locals !== undefined ? getSymbolOfMeaning(c, locals, name, ~SymbolFlags.Value) : undefined;
+      if (nonValueSymbol !== undefined) {
+        const importDeclaration = nonValueSymbol.declarations.find(
+          (d) =>
+            d.kind === SyntaxKind.ImportSpecifier ||
+            d.kind === SyntaxKind.ImportClause ||
+            d.kind === SyntaxKind.NamespaceImport ||
+            d.kind === SyntaxKind.ImportEqualsDeclaration,
+        );
+        if (importDeclaration !== undefined && !isTypeOnlyImportOrExportDeclaration(importDeclaration))
+          c.error(
+            importDeclaration,
+            Diagnostics.Import_0_conflicts_with_global_value_used_in_this_file_so_must_be_declared_with_a_type_only_import_when_isolatedModules_is_enabled,
+            name,
+          );
+      }
+    }
   }
 }
 
