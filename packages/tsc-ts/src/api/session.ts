@@ -533,11 +533,13 @@ export class Session {
   // Reloads the projects a set of file changes can affect.
   private applyFileChanges(changes: proto.FileChanges | undefined): void {
     if (changes === undefined) return;
-    const fileNames = [...(changes.changed ?? []), ...(changes.deleted ?? [])].map((d) =>
-      normalizeAbsolutePath(documentFileName(d), this.options.currentDirectory),
-    );
+    const fileNames = (documents: proto.DocumentIdentifier[] | undefined): string[] =>
+      (documents ?? []).map((d) => normalizeAbsolutePath(documentFileName(d), this.options.currentDirectory));
     if (changes.invalidateAll === true) this.files.invalidateAll();
-    const changed = this.files.invalidate(fileNames);
+    const changed = [
+      ...this.files.invalidate([...fileNames(changes.changed), ...fileNames(changes.created)], false),
+      ...this.files.invalidate(fileNames(changes.deleted), true),
+    ];
     const reloadAll = changes.invalidateAll === true || (changes.created ?? []).length > 0;
     if (!reloadAll && changed.length === 0) return;
     // A change affects the projects that read or looked up the file, as their config, an extended config,
