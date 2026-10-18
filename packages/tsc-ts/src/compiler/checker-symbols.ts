@@ -171,11 +171,15 @@ export class CheckerNameResolver extends NameResolver {
     location: Node | undefined,
     result: Symbol,
     meaning: SymbolFlags,
-    _lastLocation: Node | undefined,
+    lastLocation: Node | undefined,
     associatedDeclarationForContainingInitializerOrBindingName: Node | undefined,
     withinDeferredContext: boolean,
   ): void {
     const c = this.checker;
+    const isInExternalModule =
+      lastLocation !== undefined &&
+      lastLocation.kind === SyntaxKind.SourceFile &&
+      isExternalOrCommonJSModule(lastLocation as SourceFile);
     // Only names in value positions check block-scoped declaration order: a symbol may be both a
     // block-scoped variable and a namespace, as in `const foo: foo.bar`.
     if (
@@ -185,6 +189,31 @@ export class CheckerNameResolver extends NameResolver {
           (meaning & SymbolFlags.Value) === SymbolFlags.Value))
     )
       checkResolvedBlockScopedVariable(this.checker, result, location);
+    // A module can't reference the value of a UMD global (`export as namespace`).
+    if (
+      isInExternalModule &&
+      location !== undefined &&
+      (meaning & SymbolFlags.Value) === SymbolFlags.Value &&
+      (location.flags & NodeFlags.JSDoc) === 0
+    ) {
+      const merged = getMergedSymbol(c, result);
+      if (
+        merged.declarations.length !== 0 &&
+        merged.declarations.every(
+          (d) =>
+            d.kind === SyntaxKind.NamespaceExportDeclaration ||
+            (d.kind === SyntaxKind.SourceFile && (d as SourceFile).globalExports !== undefined),
+        )
+      )
+        c.addErrorOrSuggestion(
+          c.compilerOptions.allowUmdGlobalAccess !== true,
+          createDiagnosticForNode(
+            location,
+            Diagnostics.X_0_refers_to_a_UMD_global_but_the_current_file_is_a_module_Consider_adding_an_import_instead,
+            [result.name],
+          ),
+        );
+    }
     // A parameter initializer or binding name can't reference its own parameter or the ones after it.
     const associated = associatedDeclarationForContainingInitializerOrBindingName;
     if (

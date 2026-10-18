@@ -330,6 +330,36 @@ const projects = [
     },
   ],
   [
+    'UMD globals referenced from modules',
+    {
+      'umd.d.ts':
+        'export = Lib;\nexport as namespace Lib;\ndeclare namespace Lib {\n  function hello(): string;\n  interface T { a: 1 }\n}\n',
+      'react.d.ts':
+        'export = React;\nexport as namespace React;\ndeclare namespace React {\n  function createElement(...a: any[]): any;\n  const Fragment: any;\n}\n' +
+        'declare global { namespace JSX { interface IntrinsicElements { [k: string]: any } } }\n',
+      'a.tsx':
+        'export const x = Lib.hello();\nexport type T1 = Lib.T;\nexport type T2 = typeof Lib;\n' +
+        'export const A = () => <div>hi</div>;\nexport const B = () => <>x</>;\n',
+      'script.ts': 'const s = Lib.hello();\n',
+      'tsconfig.json': JSON.stringify({
+        compilerOptions: { ...base, module: 'preserve', moduleResolution: 'bundler', jsx: 'react' },
+        files: ['a.tsx', 'script.ts', 'umd.d.ts', 'react.d.ts'],
+      }),
+    },
+  ],
+  [
+    'UMD globals referenced from modules under allowUmdGlobalAccess',
+    {
+      'umd.d.ts':
+        'export = Lib;\nexport as namespace Lib;\ndeclare namespace Lib {\n  function hello(): string;\n  interface T { a: 1 }\n}\n',
+      'a.ts': 'export const x = Lib.hello();\n',
+      'tsconfig.json': JSON.stringify({
+        compilerOptions: { ...base, module: 'preserve', moduleResolution: 'bundler', allowUmdGlobalAccess: true },
+        files: ['a.ts', 'umd.d.ts'],
+      }),
+    },
+  ],
+  [
     'asserted unique symbol in an inferred object literal',
     {
       'a.ts':
