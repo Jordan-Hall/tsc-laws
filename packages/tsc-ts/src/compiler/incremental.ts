@@ -886,7 +886,7 @@ export class Snapshot {
  * The shape signature of `file` from its forced declaration emit (`updateShapeSignature`), or `''` where
  * nothing is written, for which the file's version is the signature.
  */
-function declarationSignature(emitter: ProgramEmitter, file: SourceFile, options: CompilerOptions): string {
+export function declarationSignature(emitter: ProgramEmitter, file: SourceFile, options: CompilerOptions): string {
   const emitted = emitter.forcedDeclaration(file);
   // A file without declarations, such as a script of statements, has an empty declaration file and a signature.
   if (!emitted.written) return '';
@@ -1485,6 +1485,8 @@ class AffectedFilesHandler {
   }
 
   private computeDtsSignature(file: SourceFile): string {
+    const known = this.incremental.signatures.get(file.path);
+    if (known !== undefined) return known;
     return declarationSignature(this.incremental.emitter, file, this.snapshot.options);
   }
 
@@ -2419,11 +2421,16 @@ export abstract class TimeStampHost {
 export class IncrementalProgram extends CompilerProgram {
   readonly snapshot: Snapshot;
 
+  /**
+   * `signatures`: the shape signatures (`declarationSignature`) of files of this program that were
+   * computed before it, by path, which the affected files take instead of emitting the files again.
+   */
   constructor(
     checked: CheckedProgram,
     times: CompileTimes,
     oldSnapshot: Snapshot | undefined,
     readonly host: TimeStampHost,
+    readonly signatures: ReadonlyMap<string, string> = new Map(),
   ) {
     super(checked, times);
     this.snapshot = programToSnapshot(checked, oldSnapshot);
