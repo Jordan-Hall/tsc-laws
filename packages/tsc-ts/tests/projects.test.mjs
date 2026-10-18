@@ -567,6 +567,19 @@ const projects = [
         'export const p: Parts<string> = 0;\n',
     },
   ],
+  [
+    'unannotated this parameters',
+    {
+      'a.ts':
+        'declare function define<T>(o: T & ThisType<{ x: number }>): T;\n' +
+        'export const c = define({\n  m(this) { return this.x; },\n  f: function (this) { return this.x; },\n});\n' +
+        'export const d = { y: 1, m(this) { return this.y; } };\n' +
+        'const o: { h(this: { z: string }): void } = { h(this) { this.z; } };\n' +
+        'o.h = function (this) { this.z; };\n' +
+        'export class K { m(this) {} }\n' +
+        'export function f(this) {}\n',
+    },
+  ],
 ];
 
 // Module specifiers of inferred types: `import("…")` types in declaration emit and the TS2883
