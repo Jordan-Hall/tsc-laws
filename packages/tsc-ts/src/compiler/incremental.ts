@@ -8,7 +8,8 @@
  * const program = new IncrementalProgram(checked, times, old, host);
  * ```
  */
-import type { Node, SourceFile } from './ast.js';
+import { publish } from '@scriptc/threads';
+import { lastNodeIdValue, type Node, type SourceFile } from './ast.js';
 import { SyntaxKind } from './syntax-kind.js';
 import { isAmbientModule, isGlobalScopeAugmentation } from './ast-utilities.js';
 import { getSourceFileOfNode, isExternalOrCommonJSModule, isJsonSourceFile } from './binder-utilities.js';
@@ -50,7 +51,6 @@ import {
   declarationDiagnosticsOfFile,
   handleNoEmitOnError,
   OutputWriter,
-  type CheckedProgram,
   type ProgramEmitter,
   writeHeldOutputs,
 } from './compile-program.js';
@@ -78,7 +78,7 @@ import {
   type CompilerOptionValue,
 } from './options.js';
 import type { Program } from './program.js';
-import { ProgramCheckerHost } from './program-checker.js';
+import { CheckedProgram, ProgramCheckerHost } from './program-checker.js';
 import {
   combinePaths,
   ensurePathIsNonModuleName,
@@ -89,7 +89,7 @@ import {
   isDeclarationFileName,
   toPath,
 } from './path.js';
-import { SymbolFlags, type Symbol } from './symbol.js';
+import { lastSymbolIdValue, SymbolFlags, type Symbol } from './symbol.js';
 import type { ParsedCommandLine } from './tsconfig.js';
 import { hash128String, toHex } from './xxh3.js';
 import { preparedVersion } from './parallel-parse.js';
@@ -397,7 +397,14 @@ class FileIdLists {
   readonly hashes: number[] = [];
   /** The last id of each list whose ids are ascending from 1 (0 for an empty list), and -1 for the others. */
   readonly lastIds: number[] = [];
-  private pathIndexes: Map<string, number> | undefined = undefined;
+  /**
+   * The ids of every list, one after another, and where each list starts in them (with the end of the
+   * last list after the last start), in shared memory that reference threads read
+   * (`compareReferencesOnThreads`).
+   */
+  readonly listStarts: Int32Array;
+  readonly listIds: Int32Array;
+  private readonly pathIndexes = new Map<string, number>();
 
   constructor(
     readonly filePaths: readonly string[],
@@ -406,6 +413,7 @@ class FileIdLists {
     /** The ids of each list joined with commas, as read (`BuildInfo.fileIdsListText`), or empty. */
     readonly texts: readonly string[],
   ) {
+    let total = 0;
     for (const list of ids) {
       this.hashes.push(hashOfIds(list));
       let previous = 0;
@@ -417,19 +425,32 @@ class FileIdLists {
         previous = id;
       }
       this.lastIds.push(previous);
+      total += list.length;
     }
+    const starts = new Int32Array(new SharedArrayBuffer(4 * (ids.length + 1)));
+    const all = new Int32Array(new SharedArrayBuffer(4 * total));
+    this.listStarts = starts;
+    this.listIds = all;
+    let at = 0;
+    for (let k = 0; k < ids.length; k++) {
+      starts[k] = at;
+      // An id with no path is 0, as is one outside of the int32 range.
+      for (const id of ids[k]) all[at++] = id >= 1 && id <= filePaths.length ? id : 0;
+    }
+    starts[ids.length] = at;
+    for (let i = 0; i < filePaths.length; i++) this.pathIndexes.set(filePaths[i], i);
   }
 
   /** The index in `filePaths` of each path; `undefined` where two file ids have the same path. */
   indexOfPath(): Map<string, number> | undefined {
-    let indexes = this.pathIndexes;
-    if (indexes === undefined) {
-      indexes = new Map();
-      const filePaths = this.filePaths;
-      for (let i = 0; i < filePaths.length; i++) indexes.set(filePaths[i], i);
-      this.pathIndexes = indexes;
-    }
-    return indexes.size === this.filePaths.length ? indexes : undefined;
+    return this.pathIndexes.size === this.filePaths.length ? this.pathIndexes : undefined;
+  }
+
+  /** The index of the list whose set is `references`, the old references of the file at `path`; -1 if none or empty. */
+  listOf(path: string, references: ReadonlySet<string> | undefined): number {
+    const index = this.listOfFile.get(path);
+    if (index === undefined || references === undefined || references.size === 0) return -1;
+    return this.sets[index] === references ? index : -1;
   }
 }
 
@@ -437,44 +458,60 @@ class FileIdLists {
  * Compares the references of files (`getReferencedFiles`) with their lists of file ids in the build
  * info read (`FileIdLists`) by the indexes of the paths, without collecting each file's references
  * into a set. Every file references the files that declare ambient modules: those of a list are
- * counted as the list is read.
+ * counted as the list is read. Reference threads compare with their own comparer of the same lists
+ * (`compareReferencesOnThreads`).
  */
 class ReferenceListComparer {
   /** For each index, the comparison whose list has it. */
   private readonly listed: Int32Array;
-  /** 1 at the index of each file that declares ambient modules. */
-  private readonly declaresAmbientModules: Uint8Array;
   /** For each index, 1 where its file is in the old state and not in the program, 2 where not, 0 if not known yet. */
   private readonly missing: Uint8Array;
-  private ambientModuleFileCount = 0;
-  /** Whether a file that declares ambient modules has no file id. */
-  private ambientModuleFileNotListed = false;
   private comparison = 0;
 
   constructor(
-    private readonly lists: FileIdLists,
-    private readonly indexOfPath: Map<string, number>,
-    ambientModuleFiles: readonly string[],
+    /** The number of file ids. */
+    readonly count: number,
+    /** `FileIdLists.listStarts` and `FileIdLists.listIds`. */
+    readonly listStarts: Int32Array,
+    readonly listIds: Int32Array,
+    readonly indexOfPath: ReadonlyMap<string, number>,
+    /** 1 at the index of each file that declares ambient modules, in shared memory. */
+    readonly declaresAmbientModules: Uint8Array,
+    readonly ambientModuleFileCount: number,
+    /** Whether a file that declares ambient modules has no file id. */
+    readonly ambientModuleFileNotListed: boolean,
   ) {
-    const count = lists.filePaths.length;
     this.listed = new Int32Array(count);
-    this.declaresAmbientModules = new Uint8Array(count);
     this.missing = new Uint8Array(count);
-    for (const path of ambientModuleFiles) {
-      const index = indexOfPath.get(path);
-      if (index === undefined) this.ambientModuleFileNotListed = true;
-      else {
-        this.declaresAmbientModules[index] = 1;
-        this.ambientModuleFileCount++;
-      }
-    }
   }
 
-  /** The index of the list whose set is `references`, the old references of the file at `path`; -1 if none or empty. */
-  listOf(path: string, references: ReadonlySet<string> | undefined): number {
-    const index = this.lists.listOfFile.get(path);
-    if (index === undefined || references === undefined || references.size === 0) return -1;
-    return this.lists.sets[index] === references ? index : -1;
+  /** The comparer of `lists` for a program whose files that declare ambient modules are `ambientModuleFiles`. */
+  static of(
+    lists: FileIdLists,
+    indexOfPath: ReadonlyMap<string, number>,
+    ambientModuleFiles: readonly string[],
+  ): ReferenceListComparer {
+    const count = lists.filePaths.length;
+    const declaresAmbientModules = new Uint8Array(new SharedArrayBuffer(count));
+    let ambientModuleFileCount = 0;
+    let ambientModuleFileNotListed = false;
+    for (const path of ambientModuleFiles) {
+      const index = indexOfPath.get(path);
+      if (index === undefined) ambientModuleFileNotListed = true;
+      else {
+        declaresAmbientModules[index] = 1;
+        ambientModuleFileCount++;
+      }
+    }
+    return new ReferenceListComparer(
+      count,
+      lists.listStarts,
+      lists.listIds,
+      indexOfPath,
+      declaresAmbientModules,
+      ambientModuleFileCount,
+      ambientModuleFileNotListed,
+    );
   }
 
   /**
@@ -486,13 +523,16 @@ class ReferenceListComparer {
     if (selfIndex === undefined) return undefined;
     // A file that declares ambient modules and has no file id is not in the list, and is not `file`.
     if (this.ambientModuleFileNotListed) return false;
-    const count = this.lists.filePaths.length;
+    const count = this.count;
     const listed = this.listed;
+    const listIds = this.listIds;
     const declaresAmbientModules = this.declaresAmbientModules;
     const comparison = ++this.comparison;
     let listedCount = 0;
     let listedAmbientModuleFiles = 0;
-    for (const id of this.lists.ids[listIndex]) {
+    const end = this.listStarts[listIndex + 1];
+    for (let k = this.listStarts[listIndex]; k < end; k++) {
+      const id = listIds[k];
       if (id < 1 || id > count) return undefined;
       const index = id - 1;
       if (listed[index] !== comparison) {
@@ -517,14 +557,16 @@ class ReferenceListComparer {
   }
 
   /**
-   * Whether a file of the list at `listIndex` is not in `program` and is in `oldSnapshot`, as for the
-   * references of a file that are the list's paths.
+   * Whether a file of the list at `listIndex` of `lists` is not in `program` and is in `oldSnapshot`,
+   * as for the references of a file that are the list's paths.
    */
-  hasMissingFile(listIndex: number, program: Program, oldSnapshot: Snapshot): boolean {
-    const filePaths = this.lists.filePaths;
+  hasMissingFile(listIndex: number, lists: FileIdLists, program: Program, oldSnapshot: Snapshot): boolean {
+    const filePaths = lists.filePaths;
     const missing = this.missing;
-    for (const id of this.lists.ids[listIndex]) {
-      const index = id - 1;
+    const listIds = this.listIds;
+    const end = this.listStarts[listIndex + 1];
+    for (let k = this.listStarts[listIndex]; k < end; k++) {
+      const index = listIds[k] - 1;
       let state = missing[index];
       if (state === 0) {
         const path = filePaths[index];
@@ -535,6 +577,197 @@ class ReferenceListComparer {
     }
     return false;
   }
+}
+
+// ---- Reference threads
+
+/**
+ * What a reference thread reads (`compareReferencesOfThread`): the shared, published program, where its
+ * ids continue (above `nodeIds` and `symbolIds`), the comparer's lists (`ReferenceListComparer`), the list
+ * of each program file by file index (-1 for none), the shared counter of the chunks taken and the index
+ * of the file the main thread is at, and where it writes the verdict of each file (`ReferenceVerdict`).
+ */
+export type ReferenceJob = {
+  readonly program: Program;
+  readonly index: number;
+  readonly nodeIds: number;
+  readonly symbolIds: number;
+  readonly count: number;
+  readonly listStarts: SharedArrayBuffer;
+  readonly listIds: SharedArrayBuffer;
+  readonly paths: PathIndexes;
+  readonly declaresAmbientModules: SharedArrayBuffer;
+  readonly ambientModuleFileCount: number;
+  readonly lists: SharedArrayBuffer;
+  readonly verdicts: SharedArrayBuffer;
+  readonly counter: SharedArrayBuffer;
+  readonly progress: SharedArrayBuffer;
+};
+
+/** `FileIdLists.indexOfPath`, published for reference threads (a published map alone is not sent). */
+class PathIndexes {
+  constructor(readonly indexOfPath: ReadonlyMap<string, number>) {}
+}
+
+/** Starts a reference thread with `job` (main.ts owns the worker entry point). */
+export type ReferenceSpawn = (job: ReferenceJob) => void;
+
+export class ReferenceThreads {
+  /** Set where reference threads can be started: in scriptc builds, which share the program with threads. */
+  spawn: ReferenceSpawn | undefined = undefined;
+}
+
+export const referenceThreads = new ReferenceThreads();
+
+/** The result of `ReferenceListComparer.sameReferences` for a file, by file index. */
+const enum ReferenceVerdict {
+  NotCompared,
+  Same,
+  Different,
+  Unknown,
+}
+
+/** The files a thread takes at a time. */
+const referenceChunk = 32;
+
+/**
+ * The fewest files compared per reference thread, unless the number of checkers was given
+ * (`--checkers`): starting a thread takes about as long as comparing that many files.
+ */
+const filesPerReferenceThread = 256;
+
+/**
+ * The lists of the files of a program (`FileIdLists.listOf`) and the verdicts of reference threads, by
+ * file index, and the index of the file this thread is at.
+ */
+class ReferenceVerdicts {
+  constructor(
+    readonly lists: Int32Array,
+    readonly verdicts: Int32Array,
+    private readonly progress: Int32Array,
+  ) {}
+
+  /**
+   * `ReferenceListComparer.sameReferences` of the file at `index` with the list at `listIndex`, as a
+   * thread found it, or as `comparer` finds it if no thread has yet. Threads skip the files before
+   * `index` from then on.
+   */
+  sameReferences(
+    comparer: ReferenceListComparer,
+    checked: CheckedProgram,
+    file: SourceFile,
+    index: number,
+    listIndex: number,
+  ): boolean | undefined {
+    Atomics.store(this.progress, 0, index + 1);
+    const verdict = Atomics.load(this.verdicts, index);
+    if (verdict === ReferenceVerdict.Same) return true;
+    if (verdict === ReferenceVerdict.Different) return false;
+    if (verdict === ReferenceVerdict.Unknown) return undefined;
+    return comparer.sameReferences(checked, file, listIndex);
+  }
+
+  /** Stops the threads once this thread has compared every file it needs to. */
+  done(): void {
+    Atomics.store(this.progress, 0, this.lists.length);
+  }
+}
+
+/**
+ * A reference thread: compares the references of the files of `job` with their lists with its own
+ * checker, a chunk of files at a time from the last file back, and writes each verdict, until it reaches
+ * the files the main thread compared (`ReferenceVerdicts.sameReferences`).
+ */
+export function compareReferencesOfThread(program: Program, job: ReferenceJob): void {
+  const comparer = new ReferenceListComparer(
+    job.count,
+    new Int32Array(job.listStarts),
+    new Int32Array(job.listIds),
+    job.paths.indexOfPath,
+    new Uint8Array(job.declaresAmbientModules),
+    job.ambientModuleFileCount,
+    false,
+  );
+  const checked = new CheckedProgram(program);
+  const lists = new Int32Array(job.lists);
+  const verdicts = new Int32Array(job.verdicts);
+  const counter = new Int32Array(job.counter);
+  const progress = new Int32Array(job.progress);
+  const files = program.getSourceFiles();
+  for (;;) {
+    const end = files.length - Atomics.add(counter, 0, 1) * referenceChunk;
+    if (end <= Atomics.load(progress, 0)) return;
+    const start = Math.max(end - referenceChunk, 0);
+    for (let i = start; i < end; i++) {
+      const listIndex = lists[i];
+      if (listIndex < 0) continue;
+      const same = comparer.sameReferences(checked, files[i]!, listIndex);
+      Atomics.store(
+        verdicts,
+        i,
+        same === undefined ? ReferenceVerdict.Unknown : same ? ReferenceVerdict.Same : ReferenceVerdict.Different,
+      );
+    }
+  }
+}
+
+/**
+ * Where the program of `checked` is shared with threads (`CheckedProgram.referenceThreads`), starts
+ * reference threads that compare the references of its files with their lists of file ids in
+ * `oldSnapshot`, from the last file back, while this thread compares them from the first file
+ * (`ReferenceVerdicts.sameReferences`) until it reaches those the threads compared. `undefined` where no
+ * threads start: without them, or with too few files to compare (`filesPerReferenceThread`).
+ */
+function compareReferencesOnThreads(
+  checked: CheckedProgram,
+  comparer: ReferenceListComparer,
+  lists: FileIdLists,
+  oldSnapshot: Snapshot,
+): ReferenceVerdicts | undefined {
+  const spawn = referenceThreads.spawn;
+  const available = checked.referenceThreads - 1;
+  if (spawn === undefined || available < 1 || !checked.sharedWithCheckers || comparer.ambientModuleFileNotListed)
+    return undefined;
+  const program = checked.program;
+  const files = program.getSourceFiles();
+  const listsBuffer = new SharedArrayBuffer(4 * files.length);
+  const listOfFiles = new Int32Array(listsBuffer);
+  let compared = 0;
+  for (let i = 0; i < files.length; i++) {
+    const path = files[i]!.path;
+    const listIndex = lists.listOf(path, oldSnapshot.referencedMap.references.get(path));
+    listOfFiles[i] = listIndex;
+    if (listIndex >= 0) compared++;
+  }
+  const threads = Math.min(
+    available,
+    program.options.checkers !== undefined
+      ? Math.ceil(compared / referenceChunk)
+      : Math.floor(compared / filesPerReferenceThread),
+  );
+  if (threads < 1) return undefined;
+  const paths = publish(new PathIndexes(comparer.indexOfPath));
+  const verdictsBuffer = new SharedArrayBuffer(4 * files.length);
+  const counterBuffer = new SharedArrayBuffer(4);
+  const progressBuffer = new SharedArrayBuffer(4);
+  for (let index = 1; index <= threads; index++)
+    spawn({
+      program,
+      index,
+      nodeIds: lastNodeIdValue(),
+      symbolIds: lastSymbolIdValue(),
+      count: comparer.count,
+      listStarts: comparer.listStarts.buffer as SharedArrayBuffer,
+      listIds: comparer.listIds.buffer as SharedArrayBuffer,
+      paths,
+      declaresAmbientModules: comparer.declaresAmbientModules.buffer as SharedArrayBuffer,
+      ambientModuleFileCount: comparer.ambientModuleFileCount,
+      lists: listsBuffer,
+      verdicts: verdictsBuffer,
+      counter: counterBuffer,
+      progress: progressBuffer,
+    });
+  return new ReferenceVerdicts(listOfFiles, new Int32Array(verdictsBuffer), new Int32Array(progressBuffer));
 }
 
 /** A hash of `ids`, for finding lists of file ids with the same ids. */
@@ -1054,8 +1287,24 @@ function programToSnapshot(checked: CheckedProgram, oldSnapshot: Snapshot | unde
   const comparer =
     lists === undefined || indexOfPath === undefined
       ? undefined
-      : new ReferenceListComparer(lists, indexOfPath, ambientModuleFiles);
-  for (const file of program.getSourceFiles()) {
+      : ReferenceListComparer.of(lists, indexOfPath, ambientModuleFiles);
+  const verdicts =
+    comparer === undefined || lists === undefined || oldSnapshot === undefined
+      ? undefined
+      : compareReferencesOnThreads(checked, comparer, lists, oldSnapshot);
+  // Whether a file of the old state is not in the program: if not, no list has one (`hasMissingFile`).
+  let oldFileMissing = false;
+  if (comparer !== undefined && oldSnapshot !== undefined) {
+    for (const path of oldSnapshot.fileInfos.keys()) {
+      if (program.getSourceFileByPath(path) === undefined) {
+        oldFileMissing = true;
+        break;
+      }
+    }
+  }
+  const files = program.getSourceFiles();
+  for (let fileIndex = 0; fileIndex < files.length; fileIndex++) {
+    const file = files[fileIndex]!;
     const path = file.path;
     const prepared = preparedVersion(file);
     const reused = prepared !== '' ? prepared : (oldSnapshot?.versionsByFile.get(file) ?? '');
@@ -1071,13 +1320,19 @@ function programToSnapshot(checked: CheckedProgram, oldSnapshot: Snapshot | unde
     if (comparer !== undefined && oldSnapshot !== undefined) {
       const oldInfo = oldSnapshot.fileInfos.get(path);
       if (
+        lists !== undefined &&
         oldInfo !== undefined &&
         oldInfo.version === version &&
         oldInfo.affectsGlobalScope === affectsGlobalScope &&
         oldInfo.impliedNodeFormat === impliedNodeFormat
       ) {
-        listIndex = comparer.listOf(path, oldSnapshot.referencedMap.references.get(path));
-        if (listIndex >= 0) sameAsList = comparer.sameReferences(checked, file, listIndex);
+        if (verdicts !== undefined) {
+          listIndex = verdicts.lists[fileIndex];
+          if (listIndex >= 0) sameAsList = verdicts.sameReferences(comparer, checked, file, fileIndex, listIndex);
+        } else {
+          listIndex = lists.listOf(path, oldSnapshot.referencedMap.references.get(path));
+          if (listIndex >= 0) sameAsList = comparer.sameReferences(checked, file, listIndex);
+        }
       }
     }
     const newReferences = sameAsList === true ? undefined : getReferencedFiles(checked, file, ambientModuleFiles);
@@ -1095,7 +1350,8 @@ function programToSnapshot(checked: CheckedProgram, oldSnapshot: Snapshot | unde
         } else if (comparer !== undefined && sameAsList === true) {
           const oldReferences = oldSnapshot.referencedMap.references.get(path);
           if (oldReferences !== undefined) snapshot.referencedMap.references.set(path, oldReferences);
-          if (comparer.hasMissingFile(listIndex, program, oldSnapshot)) snapshot.addFileToChangeSet(path);
+          if (oldFileMissing && comparer.hasMissingFile(listIndex, lists!, program, oldSnapshot))
+            snapshot.addFileToChangeSet(path);
         } else {
           const oldReferences = oldSnapshot.referencedMap.references.get(path);
           if (sameAsList === false || !sameSet(newReferences, oldReferences)) snapshot.addFileToChangeSet(path);
@@ -1139,6 +1395,7 @@ function programToSnapshot(checked: CheckedProgram, oldSnapshot: Snapshot | unde
     }
     snapshot.fileInfos.set(path, new FileInfo(version, signature, affectsGlobalScope, impliedNodeFormat));
   }
+  verdicts?.done();
 
   // Deleted files.
   let globalFileRemoved = false;

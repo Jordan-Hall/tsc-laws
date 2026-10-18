@@ -14,8 +14,9 @@ const oracle = join(repo, 'packages/tsgo/dist/check-oracle');
 const filler = (prefix, n = 40, indent = '') =>
   Array.from({ length: n }, (_, i) => `${indent}const _${prefix}${i} = ${i};`);
 
-// `options` lists options for TSC_TS_CHECK_OPTIONS, separated by commas: boolean options, and module, moduleResolution
-// and target as name=value.
+// `options` lists options for TSC_TS_CHECK_OPTIONS, separated by commas: boolean options, module, moduleResolution
+// and target as name=value, and the strict family, allowUnreachableCode and allowUnusedLabels as name=true or
+// name=false.
 const cases = [
   {
     name: 'module and target from TSC_TS_CHECK_OPTIONS',
@@ -467,6 +468,24 @@ const cases = [
       "/input.ts 2322 517 1 Type '\"e0\"' is not assignable to type '1'.",
       "/input.ts 2322 536 1 Type '\"e69\"' is not assignable to type '1'.",
       '/input.ts 2322 1283 1 Type \'["x69", "x35", "x0"]\' is not assignable to type \'1\'.',
+    ],
+  },
+  {
+    name: 'implicit any from the widened return and yield types of functions',
+    options: 'strictNullChecks=false',
+    source: [
+      'function f() { return null; }',
+      'const g = function () { return undefined; };',
+      'function* h() { yield null; }',
+      'declare function id<T>(f: () => T): T;',
+      'const i = id(() => null);',
+      'const j: () => string = () => null;',
+    ],
+    expected: [
+      "/input.ts 7010 9 1 'f', which lacks return-type annotation, implicitly has an 'any' return type.",
+      "/input.ts 7011 36 1 Function expression, which lacks return-type annotation, implicitly has an 'any' return type.",
+      "/input.ts 7055 85 1 'h', which lacks return-type annotation, implicitly has an 'any' yield type.",
+      "/input.ts 7011 157 10 Function expression, which lacks return-type annotation, implicitly has an 'any' return type.",
     ],
   },
 ];

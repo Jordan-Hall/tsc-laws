@@ -102,6 +102,7 @@ import type { FlowNode, FlowReduceLabel } from './flow.js';
 import { JsxState } from './checker-jsx.js';
 import type { DeferredIterationError, IterationTypes } from './checker-iteration.js';
 import type { SpreadIndices } from './checker-contextual.js';
+import type { SlotSiblingProperties } from './checker-symbol-types.js';
 import { SourceFileMetadata, getEmitModuleFormatOfFile } from './program-utilities.js';
 import type { GrammarChecker } from './checker-grammar.js';
 import type { ResolvedModule } from './module-resolution-types.js';
@@ -394,6 +395,8 @@ export class Checker {
   readonly undefinedProperties = new Map<number, Symbol>();
   /** By file and name, the property that widening's optional `undefined` properties are created from. */
   readonly firstSiblingProperties = new Map<SourceFile, Map<string, Node>>();
+  /** By tsgo checker, the first sibling properties of its files (firstSiblingProperty). */
+  readonly slotSiblingProperties = new Map<number, SlotSiblingProperties>();
 
   // Interning tables.
   readonly stringLiteralTypes = new Map<string, LiteralType>();
@@ -1030,6 +1033,7 @@ export function disposeChecker(c: Checker): void {
   c.unresolvedSymbols.clear();
   c.undefinedProperties.clear();
   c.firstSiblingProperties.clear();
+  c.slotSiblingProperties.clear();
   c.stringLiteralTypes.clear();
   c.numberLiteralTypes.clear();
   c.bigintLiteralTypes.clear();
