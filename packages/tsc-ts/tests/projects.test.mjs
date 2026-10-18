@@ -568,6 +568,19 @@ const projects = [
     },
   ],
   [
+    'unused labels under allowUnusedLabels false',
+    {
+      'a.ts':
+        'export {};\nhttps: `abc`;\nouter: for (;;) {\n  inner: for (;;) continue outer;\n}\n' +
+        'a: b: {\n  break b;\n}\nfunction f() {\n  return;\n  late: {}\n}\n',
+      'b.js': 'lbl: {\n}\n',
+      'tsconfig.json': JSON.stringify({
+        compilerOptions: { ...base, allowUnusedLabels: false, allowJs: true, checkJs: true },
+        files: ['a.ts', 'b.js'],
+      }),
+    },
+  ],
+  [
     'unannotated this parameters',
     {
       'a.ts':
