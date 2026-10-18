@@ -14,6 +14,7 @@ import {
 } from './compiler/parallel-check.js';
 import { type LoadMessage, parallelParse } from './compiler/parallel-parse.js';
 import { useThreadTextCaches } from './compiler/diagnostics.js';
+import { compareReferencesOfThread, type ReferenceJob, referenceThreads } from './compiler/incremental.js';
 import { useLazyJSDocTable } from './compiler/parser.js';
 import { CheckedProgram } from './compiler/program-checker.js';
 import type { Program } from './compiler/program.js';
@@ -72,16 +73,39 @@ function startThreads(): void {
         emitKinds,
       },
     });
-  if (sharesPublishedGraphs)
+  if (sharesPublishedGraphs) {
     parallelParse.spawn = (configFileName, counter, index) =>
       new Worker(new URL(import.meta.url), {
         workerData: { kind: 'parse', configFileName, args, counter, index },
       });
+    // The main thread compares the files a reference thread that failed did not.
+    referenceThreads.spawn = (job) => {
+      const worker = new Worker(new URL(import.meta.url), { workerData: { kind: 'references', job } });
+      worker.on('error', () => {});
+    };
+  }
 }
 
 function runThread(): void {
-  if ((workerData as { kind: string }).kind === 'parse') runParseThread();
+  const kind = (workerData as { kind: string }).kind;
+  if (kind === 'parse') runParseThread();
+  else if (kind === 'references') runReferenceThread();
   else runCheckerThread();
+}
+
+/** A reference thread (incremental.ts): compares the references of the program's files with its old state. */
+function runReferenceThread(): void {
+  const job = (workerData as { job: ReferenceJob }).job;
+  setTimelineThread('r' + String(job.index));
+  mark('thread start');
+  // As on a checker thread, the shared program is never written.
+  reserveNodeIds(job.nodeIds);
+  reserveSymbolIds(job.symbolIds);
+  assignSymbolIdsAtCreation();
+  useLazyJSDocTable();
+  useThreadTextCaches();
+  compareReferencesOfThread(publish(job.program), job);
+  mark('references compared');
 }
 
 /** A checker thread (parallel-check.ts). */
