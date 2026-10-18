@@ -331,6 +331,57 @@ test(
   },
 );
 
+// With a location, typeToTypeNode, typeToString and signatureToSignatureDeclaration reuse the type nodes the
+// declarations wrote, where they denote the type: the reused nodes keep their positions in the file.
+test('tsc-ts --api reuses written type nodes like tsc --api', { skip, timeout: 300_000 }, async () => {
+  const dir = tempDir('tsc-ts-api-');
+  const source = [
+    'export class Box { value = 1; }',
+    'export const instance = new Box();',
+    'export const number = 1;',
+    'export const text = "hello";',
+    'export const tuple: readonly [number, string] = [1, "a"];',
+    'export const record: { a: number; b?: string } = { a: 1 };',
+    'export const array: number[] = [1, 2];',
+    'export function identity<T extends { n: number }>(value: T): T { return value; }',
+    'export function predicate(value: unknown): value is Box { return value instanceof Box; }',
+    'export function rest(...values: number[]): number { return values.length; }',
+    'export function receiver(this: Box, value: number): number { return value; }',
+  ].join('\n');
+  const file = join(dir, 'main.ts');
+  writeFileSync(file, source);
+  writeFileSync(
+    join(dir, 'tsconfig.json'),
+    JSON.stringify({ compilerOptions: { strict: true, target: 'esnext', types: [] }, files: ['main.ts'] }),
+  );
+  const d = new Differential([realTsc], tscTs, dir, env);
+  try {
+    await d.call('initialize');
+    const update = await d.call('updateSnapshot', { openProjects: [join(dir, 'tsconfig.json')] });
+    const base = { snapshot: update.snapshot, project: update.projects[0].id };
+    const positions = Array.from({ length: source.length }, (_, i) => i);
+    const symbols = new Map();
+    for (const symbol of (await d.call('getSymbolsAtPositions', { ...base, file, positions })) ?? [])
+      if (symbol !== null && symbol.valueDeclaration !== undefined) symbols.set(symbol.id, symbol);
+    assert.ok(symbols.size >= 11, `found ${symbols.size} declared symbols`);
+    for (const symbol of symbols.values()) {
+      const location = symbol.valueDeclaration;
+      const type = await d.call('getTypeOfSymbol', { ...base, symbol: symbol.id });
+      if (type !== undefined && type !== null) {
+        await d.call('typeToString', { ...base, type: type.id, location });
+        await d.call('typeToTypeNode', { ...base, type: type.id, location });
+      }
+      const signature = await d.call('getSignatureFromDeclaration', { ...base, location });
+      if (signature !== undefined && signature !== null) {
+        await d.call('signatureToSignatureDeclaration', { ...base, signature: signature.id, kind: 185, location });
+      }
+    }
+  } finally {
+    await d.close();
+  }
+  report(d);
+});
+
 // Completions at every position of each user file, and with symbols and trigger characters
 // where a trigger character was just typed.
 async function compareCompletions(d, base, file) {

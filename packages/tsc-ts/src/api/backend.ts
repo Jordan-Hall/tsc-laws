@@ -597,7 +597,10 @@ export class Project {
   // Encodes the type node TypeScript would write for type.
   typeToTypeNode(type: Type, enclosing: Node | undefined, flags: number): Uint8Array | undefined {
     const node = typeToTypeNode(this.checker, type, enclosing, flags);
-    return node === undefined ? undefined : encodeNode(node);
+    // The builder keeps the positions of nodes it reuses from the enclosing declaration's file.
+    return node === undefined
+      ? undefined
+      : encodeNode(node, enclosing === undefined ? undefined : getSourceFileOfNode(enclosing));
   }
 
   signatureToSignatureDeclaration(
@@ -607,7 +610,9 @@ export class Project {
     flags: number,
   ): Uint8Array | undefined {
     const node = signatureToSignatureDeclaration(this.checker, signature, kind as SyntaxKind, enclosing, flags);
-    return node === undefined ? undefined : encodeNode(node);
+    return node === undefined
+      ? undefined
+      : encodeNode(node, enclosing === undefined ? undefined : getSourceFileOfNode(enclosing));
   }
 
   typeToString(type: Type, enclosing: Node | undefined, flags: number): string {

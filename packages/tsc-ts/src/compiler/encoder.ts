@@ -1515,6 +1515,8 @@ class Encoder extends NodeVisitor {
   nodeCount: number;
   parentIndex: number;
   prevIndex: number;
+  /** For a node outside a parsed file whose positions are in another file's text, that text's UTF-8 offsets. */
+  positions: Utf8Positions | undefined = undefined;
 
   constructor(file: SourceFile | undefined, text: string, fileText: Uint8Array, nodeCount: number) {
     super();
@@ -1543,7 +1545,18 @@ class Encoder extends NodeVisitor {
   visitNode(node: Node): boolean {
     const index = ++this.nodeCount;
     this.linkSibling(index);
-    this.nodes.push(node.kind, node.pos, node.end, this.parentIndex, this.nodeData(node), node.flags);
+    const positions = this.positions;
+    if (positions === undefined)
+      this.nodes.push(node.kind, node.pos, node.end, this.parentIndex, this.nodeData(node), node.flags);
+    else
+      this.nodes.push(
+        node.kind,
+        positions.of(node.pos),
+        positions.of(node.end),
+        this.parentIndex,
+        this.nodeData(node),
+        node.flags,
+      );
     if (this.trackedKinds[node.kind] === 1 && this.tracked.has(node)) this.tracked.set(node, index);
     const saveParent = this.parentIndex;
     this.prevIndex = 0;
@@ -1557,7 +1570,18 @@ class Encoder extends NodeVisitor {
   visitList(list: NodeList): boolean {
     const index = ++this.nodeCount;
     this.linkSibling(index);
-    this.nodes.push(nodeListKind, list.pos, list.end, this.parentIndex, list.nodes.length, 0);
+    const positions = this.positions;
+    if (positions === undefined)
+      this.nodes.push(nodeListKind, list.pos, list.end, this.parentIndex, list.nodes.length, 0);
+    else
+      this.nodes.push(
+        nodeListKind,
+        positions.of(list.pos),
+        positions.of(list.end),
+        this.parentIndex,
+        list.nodes.length,
+        0,
+      );
     const saveParent = this.parentIndex;
     this.prevIndex = 0;
     this.parentIndex = index;
@@ -1596,7 +1620,15 @@ class Encoder extends NodeVisitor {
     nodes.push(0, 0, 0, 0, 0, 0);
     this.nodeCount = 1;
     this.parentIndex = 1;
-    nodes.push(root.kind, root.pos, root.end, 0, this.nodeData(root), root.flags);
+    const positions = this.positions;
+    nodes.push(
+      root.kind,
+      positions === undefined ? root.pos : positions.of(root.pos),
+      positions === undefined ? root.end : positions.of(root.end),
+      0,
+      this.nodeData(root),
+      root.flags,
+    );
     this.visitChildren(root);
   }
 
@@ -1790,6 +1822,28 @@ class Encoder extends NodeVisitor {
   }
 }
 
+/** The UTF-8 offsets of a text's UTF-16 offsets, computed when first needed. */
+class Utf8Positions {
+  private offsets: Int32Array | undefined = undefined;
+  private ascii = false;
+
+  constructor(private readonly text: string) {}
+
+  /** The UTF-8 offset of UTF-16 offset `pos`; a negative position is unchanged. */
+  of(pos: number): number {
+    if (pos < 0 || this.ascii) return pos;
+    let offsets = this.offsets;
+    if (offsets === undefined) {
+      if (!/[\u0080-\uffff]/.test(this.text)) {
+        this.ascii = true;
+        return pos;
+      }
+      offsets = this.offsets = utf8Offsets(this.text);
+    }
+    return pos >= offsets.length ? pos : offsets[pos]!;
+  }
+}
+
 /** The API's binary encoding of `file`. */
 export function encodeSourceFile(file: SourceFile): Uint8Array {
   const fileText = utf8Encoder.encode(file.text);
@@ -1879,11 +1933,13 @@ export class NodeIndexTable extends NodeVisitor {
 
 /**
  * The encoding of a node that isn't part of a parsed file, such as one the node builder created:
- * no hash, parse options or JSDoc, every string appended to the string data, and positions as they are.
+ * no hash, parse options or JSDoc, and every string appended to the string data. The positions its
+ * nodes have are in `positionsFile`, if given; as in tsgo, they are encoded as UTF-8 offsets in its text.
  */
-export function encodeNode(node: Node): Uint8Array {
+export function encodeNode(node: Node, positionsFile?: SourceFile): Uint8Array {
   const fileText = new Uint8Array(0);
   const encoder = new Encoder(undefined, '', fileText, 64);
+  if (positionsFile !== undefined) encoder.positions = new Utf8Positions(positionsFile.text);
   encoder.encodeRoot(node);
   return encoder.finish(fileText, undefined, 0);
 }
