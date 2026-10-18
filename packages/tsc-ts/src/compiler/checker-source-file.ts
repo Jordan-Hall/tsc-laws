@@ -23,6 +23,7 @@ import {
   NodeVisitor,
   type SourceFile,
   type TypePredicateNode,
+  type IndexedAccessTypeNode,
   type TupleTypeNode,
   getComment,
   getElements,
@@ -57,7 +58,7 @@ import { nodeIsMissing } from './ast-utilities.js';
 import { getAttachedJSDoc } from './parser.js';
 import { shouldPreserveConstEnums } from './options.js';
 import { isReachableFlowNode } from './checker-narrowing.js';
-import { getTupleElementFlags, getTypeFromTypeNode } from './checker-type-nodes.js';
+import { getTupleElementFlags, getTypeFromIndexedAccessTypeNode, getTypeFromTypeNode } from './checker-type-nodes.js';
 import { isArrayLikeType } from './checker-members.js';
 import {
   checkBlock,
@@ -416,7 +417,8 @@ function checkTypeNodeWorker(c: Checker, node: Node): void {
       break;
     }
     case SyntaxKind.IndexedAccessType:
-      checkIndexedAccessIndexType(c, getTypeFromTypeNode(c, node), node);
+      // The indexed access type itself, not the substitution type of a conditional type's true branch.
+      checkIndexedAccessIndexType(c, getTypeFromIndexedAccessTypeNode(c, node as IndexedAccessTypeNode), node);
       break;
     case SyntaxKind.TupleType:
       checkTupleRestElements(c, node as TupleTypeNode);

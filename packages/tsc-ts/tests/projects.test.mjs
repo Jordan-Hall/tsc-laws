@@ -586,6 +586,18 @@ const projects = [
     },
   ],
   [
+    'index types of indexed accesses in the true branch of a conditional type',
+    {
+      'a.ts':
+        'export interface Column { readonly table: string }\n' +
+        'export type Keys<T extends Record<string, Column>> = {\n' +
+        "  [K in keyof T]: T[K]['_']['p'] extends true ? T[K]['_']['a'] extends true ? K\n" +
+        "    : T[K]['_']['h'] extends true ? T[K]['_']['p'] extends true ? K : never\n" +
+        '    : never\n    : never;\n};\n' +
+        "export type J<T> = T extends { x: infer X } ? X extends { y: unknown } ? X['y'] : X['z'] : never;\n",
+    },
+  ],
+  [
     'conditional types inferring from references to the same interface',
     {
       'a.ts':
