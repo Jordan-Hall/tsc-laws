@@ -8,6 +8,7 @@ import type { ClientFileSystem } from './fs.js';
 import { normalizeAbsolutePath, toPath, uriToFileName } from './paths.js';
 import { literalValueResponse } from './proto.js';
 import type * as proto from './proto.js';
+import { decodeText } from './protocol.js';
 
 export interface SessionOptions {
   fs: ClientFileSystem;
@@ -189,8 +190,8 @@ export class Session {
     }
   }
 
-  // Handles a request with JSON params.
-  handle(method: string, params: string): Response {
+  // Handles a request whose payload is its JSON params, or for `echo`, any bytes.
+  handle(method: string, payload: Uint8Array): Response {
     if (method === 'getServerTiming') return { ok: true, reply: JSON.stringify(this.serverTiming()) };
     if (method === 'resetServerTiming') {
       this.resetServerTiming();
@@ -198,7 +199,9 @@ export class Session {
     }
     const start = this.timing === undefined ? 0 : Date.now();
     try {
-      return { ok: true, reply: this.dispatch(method, params) };
+      // As tsgo, echo returns the payload's bytes as they are, which need not be UTF-8 text.
+      if (method === 'echo') return { ok: true, reply: payload.slice() };
+      return { ok: true, reply: this.dispatch(method, decodeText(payload)) };
     } catch (e) {
       // Classified here: natively, a caught value passed on loses its class.
       // Compiler failures read like Go panics.
@@ -217,8 +220,6 @@ export class Session {
 
   private dispatch(method: string, params: string): Reply {
     switch (method) {
-      case 'echo':
-        return new TextEncoder().encode(params);
       case 'ping':
         return '"pong"';
       case 'initialize':

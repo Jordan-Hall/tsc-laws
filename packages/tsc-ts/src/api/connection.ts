@@ -27,7 +27,7 @@ export class Connection {
       if (message.type !== MessageType.Request) {
         throw new Error(`unexpected message type ${message.type} outside a call`);
       }
-      const response = session.handle(message.method, decodeText(message.payload));
+      const response = session.handle(message.method, message.payload);
       if (!response.ok) {
         this.writer.write(MessageType.Error, message.method, encodeText(response.error));
         continue;

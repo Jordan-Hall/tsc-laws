@@ -96,6 +96,18 @@ test('tsc-ts --api answers like tsc --api', { skip, timeout: 600_000 }, async ()
     }
     await d.call('printNode', { data: '!!' });
     await d.call('echo', { hello: 'wörld' });
+    // echo returns its payload's bytes as they are, also a byte order mark and bytes that are not UTF-8 text.
+    for (const bytes of [
+      new Uint8Array([0xef, 0xbb, 0xbf, 0x68, 0x69]),
+      Uint8Array.from({ length: 300 }, (_, i) => (i * 31) % 256),
+    ]) {
+      const [expected, actual] = await Promise.all([
+        d.expected.requestBytes('echo', bytes),
+        d.actual.requestBytes('echo', bytes),
+      ]);
+      assert.deepEqual(new Uint8Array(expected.payload), bytes);
+      assert.deepEqual(new Uint8Array(actual.payload), bytes);
+    }
 
     // Errors the API reports for bad requests.
     await d.call('getTypeOfSymbol', { ...base, symbol: 999999 });

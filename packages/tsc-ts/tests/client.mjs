@@ -40,6 +40,12 @@ export class Client {
     return new Promise((resolve, reject) => this.waiters.push({ resolve, reject }));
   }
 
+  // Sends a request whose payload is \`bytes\` as they are.
+  requestBytes(method, bytes) {
+    this.write(Request, method, Buffer.from(bytes));
+    return new Promise((resolve, reject) => this.waiters.push({ resolve, reject }));
+  }
+
   async json(method, params) {
     const reply = await this.request(method, params);
     if (reply.type === 'error') throw new Error(`${method}: ${reply.payload}`);
