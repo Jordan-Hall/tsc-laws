@@ -469,6 +469,14 @@ const cases = [
       '/input.ts 2322 1283 1 Type \'["x69", "x35", "x0"]\' is not assignable to type \'1\'.',
     ],
   },
+  {
+    name: 'yield expressions in the extends clause of a class in a generator',
+    source: ['function* g() {', '  class C extends (yield 1) {}', '}', 'const s: Generator<string> = g();'],
+    expected: [
+      "/input.ts 7057 35 5 'yield' expression implicitly results in an 'any' type because its containing generator lacks a return-type annotation.",
+      "/input.ts 2322 55 1 Type 'Generator<number, void, unknown>' is not assignable to type 'Generator<string, any, any>'.",
+    ],
+  },
 ];
 
 test(
