@@ -568,6 +568,19 @@ const projects = [
     },
   ],
   [
+    'unused labels under allowUnusedLabels false',
+    {
+      'a.ts':
+        'export {};\nhttps: `abc`;\nouter: for (;;) {\n  inner: for (;;) continue outer;\n}\n' +
+        'a: b: {\n  break b;\n}\nfunction f() {\n  return;\n  late: {}\n}\n',
+      'b.js': 'lbl: {\n}\n',
+      'tsconfig.json': JSON.stringify({
+        compilerOptions: { ...base, allowUnusedLabels: false, allowJs: true, checkJs: true },
+        files: ['a.ts', 'b.js'],
+      }),
+    },
+  ],
+  [
     'unannotated this parameters',
     {
       'a.ts':
@@ -589,6 +602,24 @@ const projects = [
         "export const y = { v: 's' } satisfies N<string>;\n" +
         'export const z = { v: 1 } satisfies { [k: string]: number; v: string };\n',
       'tsconfig.json': JSON.stringify({ compilerOptions: { ...base, noUnusedLocals: true }, files: ['a.ts'] }),
+    },
+  ],
+  [
+    'declaration errors under noEmit next to other errors',
+    {
+      'node_modules/lib/package.json': JSON.stringify({ name: 'lib', version: '1.0.0', types: 'index.d.ts' }),
+      'node_modules/lib/index.d.ts': 'import { Inner } from "dep";\nexport declare function make(): Inner;\n',
+      'node_modules/lib/node_modules/dep/package.json': JSON.stringify({
+        name: 'dep',
+        version: '1.0.0',
+        types: 'index.d.ts',
+      }),
+      'node_modules/lib/node_modules/dep/index.d.ts': 'export interface Inner { x: number }\n',
+      'a.ts': 'import { make } from "lib";\nexport const v = make();\nexport const e: number = "";\n',
+      'tsconfig.json': JSON.stringify({
+        compilerOptions: { ...base, declaration: true, module: 'preserve' },
+        files: ['a.ts'],
+      }),
     },
   ],
   [
