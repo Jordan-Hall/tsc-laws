@@ -3201,7 +3201,10 @@ function getTupleElementLabelFromBindingElement(node: Node, index: number, eleme
 
 // ---- Entry points
 
-/** The type node TypeScript would write for `type`. */
+/**
+ * The type node TypeScript would write for `type`. As in tsgo, the builder has a pseudochecker, so types
+ * of declarations are written from what the source wrote where that denotes the type.
+ */
 export function typeToTypeNode(
   c: Checker,
   type: Type,
@@ -3211,10 +3214,11 @@ export function typeToTypeNode(
   tracker: SymbolTracker | undefined = undefined,
 ): Node | undefined {
   const b = new NodeBuilder(c, enclosingDeclaration, flags, internalFlags, tracker);
+  b.pseudo = newPseudoChecker(c);
   return b.finish(b.typeToTypeNode(type));
 }
 
-/** The declaration of kind `kind` TypeScript would write for `signature`. */
+/** The declaration of kind `kind` TypeScript would write for `signature`, with a pseudochecker as `typeToTypeNode`. */
 export function signatureToSignatureDeclaration(
   c: Checker,
   signature: Signature,
@@ -3225,6 +3229,7 @@ export function signatureToSignatureDeclaration(
   tracker: SymbolTracker | undefined = undefined,
 ): Node | undefined {
   const b = new NodeBuilder(c, enclosingDeclaration, flags, internalFlags, tracker);
+  b.pseudo = newPseudoChecker(c);
   return b.finish(b.signatureToSignatureDeclaration(signature, kind, undefined));
 }
 
