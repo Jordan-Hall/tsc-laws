@@ -332,11 +332,19 @@ test('tsc-ts --api updates a program for a changed file like a new program', { s
     mkdirSync(join(dir, name, '..'), { recursive: true });
     writeFileSync(join(dir, name), text);
   };
-  const names = ['c.tsx', 'index.ts', 'p.ts', 'q.ts'];
+  const names = ['c.tsx', 'index.ts', 'p.ts', 'q.ts', 'r.js', 's.ts'];
   write(
     'tsconfig.json',
     JSON.stringify({
-      compilerOptions: { strict: true, types: [], module: 'preserve', moduleResolution: 'bundler', jsx: 'react-jsx' },
+      compilerOptions: {
+        strict: true,
+        types: [],
+        module: 'preserve',
+        moduleResolution: 'bundler',
+        jsx: 'react-jsx',
+        allowJs: true,
+        checkJs: true,
+      },
       files: names,
     }),
   );
@@ -346,6 +354,8 @@ test('tsc-ts --api updates a program for a changed file like a new program', { s
   write('index.ts', typeImport('require'));
   write('p.ts', 'export const shared = 1;\n');
   write('q.ts', 'const n: string = shared;\n');
+  write('r.js', 'var sharedJs = 1;\n');
+  write('s.ts', 'const m: string = sharedJs;\n');
   write('node_modules/react/package.json', '{"name":"react","types":"index.d.ts"}');
   write('node_modules/react/index.d.ts', 'export {};\n');
   write(
@@ -389,18 +399,28 @@ test('tsc-ts --api updates a program for a changed file like a new program', { s
     let { snapshot } = await updated.json('updateSnapshot', { openProjects: [config] });
     assert.deepEqual(await diagnostics(updated, snapshot), await loaded());
     const codes = (result, name) => result[name][1].map((d) => d.code);
+    // Each edit: the file, its new text, and a code the new program reports for it or, as `[file, code]`, for
+    // another file.
     for (const [name, text, code] of [
       ['c.tsx', '/** @jsxImportSource preact */\nexport const c = <div>{1}</div>;\n', 2875],
+      // The same JSX runtime import, which the program keeps for the new file.
+      ['c.tsx', '/** @jsxImportSource preact */\nexport const c = <div>{3}</div>;\n', 2875],
       ['c.tsx', 'export const c = <div>{2}</div>;\n', undefined],
       ['index.ts', typeImport('import'), 2322],
       ['index.ts', typeImport('require'), undefined],
       ['p.ts', 'const shared = 1;\n', undefined],
       ['p.ts', 'export const shared = 1;\n', undefined],
+      // A JavaScript file that becomes a CommonJS module, with the same imports, and a script again: the program
+      // takes the new file, whose binding decides whether s.ts finds its declaration as a global.
+      ['r.js', 'var sharedJs = 1;\nmodule.exports = { sharedJs };\n', ['s.ts', 2304]],
+      ['r.js', 'var sharedJs = 1;\n', ['s.ts', 2322]],
     ]) {
       write(name, text);
       ({ snapshot } = await updated.json('updateSnapshot', { fileChanges: { changed: [join(dir, name)] } }));
       const expected = await loaded();
-      if (code !== undefined) assert.ok(codes(expected, name).includes(code), `${name}: ${codes(expected, name)}`);
+      const [file, expectedCode] = Array.isArray(code) ? code : [name, code];
+      if (expectedCode !== undefined)
+        assert.ok(codes(expected, file).includes(expectedCode), `${file}: ${codes(expected, file)}`);
       assert.deepEqual(await diagnostics(updated, snapshot), expected, `after the edit of ${name}`);
     }
   } finally {
