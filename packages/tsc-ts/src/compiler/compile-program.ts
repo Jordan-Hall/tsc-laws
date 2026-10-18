@@ -361,8 +361,13 @@ export class PlainProgram extends CompilerProgram {
                 : this.emitter.emit([file], EmitOnly.All, writer);
             }),
           );
-    // Emit is skipped only for files that would have been emitted.
-    if (options.noEmit === true) result.emitSkipped = files.some((file) => program.sourceFileMayBeEmitted(file, false));
+    if (options.noEmit === true) {
+      // Emit is skipped only for files that would have been emitted.
+      result.emitSkipped = files.some((file) => program.sourceFileMayBeEmitted(file, false));
+      // Declaration emit still runs for its errors, as in tsgo, also when other errors were found.
+      if (getEmitDeclarations(options) && options.noEmitOnError !== true)
+        for (const d of this.getDeclarationDiagnostics()) result.diagnostics.push(d);
+    }
     return result;
   }
 }
