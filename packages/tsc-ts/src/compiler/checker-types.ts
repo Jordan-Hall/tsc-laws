@@ -453,6 +453,38 @@ export class TypeListCache<V> {
 }
 
 /**
+ * The references to a generic class, interface or tuple type, by the hash of their type arguments
+ * (`createTypeReference`). A reference is its own entry: a lookup compares its type arguments. A
+ * reference whose hash another reference has is kept in `collisions`.
+ */
+export class ReferenceCache {
+  private readonly references = new Map<number, TypeReference>();
+  private collisions: TypeListCache<TypeReference> | undefined = undefined;
+
+  get(hash: number, typeArguments: readonly Type[]): TypeReference | undefined {
+    const reference = this.references.get(hash);
+    if (reference === undefined) return undefined;
+    if (sameTypeListParts(reference.resolvedTypeArguments!, typeArguments)) return reference;
+    const collisions = this.collisions;
+    return collisions !== undefined ? collisions.get(hash, typeArguments, undefined, 0) : undefined;
+  }
+
+  /** Adds `reference`, whose type arguments `get` did not find. */
+  add(hash: number, reference: TypeReference): void {
+    if (this.references.get(hash) === undefined) {
+      this.references.set(hash, reference);
+      return;
+    }
+    let collisions = this.collisions;
+    if (collisions === undefined) {
+      collisions = new TypeListCache<TypeReference>();
+      this.collisions = collisions;
+    }
+    collisions.set(hash, reference.resolvedTypeArguments!, undefined, 0, reference);
+  }
+}
+
+/**
  * Fields that few types set, kept out of line in `Type.extra`, which is created on the first write
  * of a value other than the field's default. A type then costs one slot for all of them. Each field
  * is read and written through an accessor of the type class it belongs to, which returns the
@@ -728,9 +760,12 @@ export class InterfaceType extends TypeReference {
   lastMemberStates: number[] | undefined;
   /** The property names of the last instantiation whose members table is built on demand. */
   lastMemberNames: MemberNames | undefined;
+  /** The references to a generic class, interface or tuple type, by their type arguments. */
+  references: ReferenceCache | undefined;
 
   constructor(objectFlags: ObjectFlags, id: number, symbol: Symbol | undefined) {
     super(objectFlags, id, symbol);
+    this.references = undefined;
     this.declaredMemberPositions = undefined;
     this.lastMemberStates = undefined;
     this.lastMemberNames = undefined;

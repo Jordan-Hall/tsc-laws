@@ -40,7 +40,7 @@ import {
   type TypeReference,
   emptyTypes,
   newTypeMapper,
-  TypeListCache,
+  ReferenceCache,
 } from './checker-types.js';
 import {
   UnionReduction,
@@ -143,15 +143,9 @@ export function getDeclaredTypeOfClassOrInterface(c: Checker, symbol: Symbol): I
       type.allTypeParameters = typeParameters;
       type.outerTypeParameterCount = outerTypeParameters.length;
       type.resolvedTypeArguments = type.typeParameters();
-      const instantiations = new TypeListCache<Type>();
-      sideOf(c, type).instantiations = instantiations;
-      instantiations.set(
-        typeListHash(type.resolvedTypeArguments, undefined, 0),
-        type.resolvedTypeArguments,
-        undefined,
-        0,
-        type,
-      );
+      const references = new ReferenceCache();
+      sideOf(c, type).references = references;
+      references.add(typeListHash(type.resolvedTypeArguments, undefined, 0), type);
       type.target = type;
     }
   }
