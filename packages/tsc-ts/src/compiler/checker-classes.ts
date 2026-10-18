@@ -91,6 +91,7 @@ import {
   checkExportsOnMergedDeclarations,
 } from './checker-declarations.js';
 import { checkFunctionLikeBody } from './checker-functions.js';
+import { checkJSDocFullSignature } from './checker-jsdoc.js';
 import { checkComputedPropertyName } from './checker-expressions.js';
 import { checkFunctionOrConstructorSymbol, checkFunctionOrMethodSymbols } from './checker-overloads.js';
 import {
@@ -240,6 +241,7 @@ function checkClassMember(c: Checker, member: Node): void {
       if (symbol !== undefined && member.kind !== SyntaxKind.Constructor) getTypeOfSymbol(c, symbol);
       checkFunctionLikeBody(c, member);
       if (member.kind === SyntaxKind.MethodDeclaration) {
+        checkJSDocFullSignature(c, member);
         checkFunctionOrMethodSymbols(c, member);
         if (hasSyntacticModifier(member, ModifierFlags.Abstract) && getBody(member) !== undefined)
           c.error(
