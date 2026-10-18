@@ -14,8 +14,10 @@ const oracle = join(repo, 'packages/tsgo/dist/check-oracle');
 const filler = (prefix, n = 40, indent = '') =>
   Array.from({ length: n }, (_, i) => `${indent}const _${prefix}${i} = ${i};`);
 
-// `options` lists options for TSC_TS_CHECK_OPTIONS, separated by commas: boolean options, and module, moduleResolution
-// and target as name=value.
+// `options` lists options for TSC_TS_CHECK_OPTIONS, separated by commas: boolean options, module, moduleResolution
+// and target as name=value, and the strict family, allowUnreachableCode and allowUnusedLabels as name=true or
+// name=false. A case with `corpus` checks that test case of TypeScript's corpus instead of `source`, and compares only
+// the diagnostics with the `codes` it lists to `expected`; all of them are compared to the oracle's.
 const cases = [
   {
     name: 'module and target from TSC_TS_CHECK_OPTIONS',
@@ -469,6 +471,39 @@ const cases = [
       '/input.ts 2322 1283 1 Type \'["x69", "x35", "x0"]\' is not assignable to type \'1\'.',
     ],
   },
+  {
+    name: 'implicit any from the widened return and yield types of functions',
+    options: 'strictNullChecks=false',
+    source: [
+      'function f() { return null; }',
+      'const g = function () { return undefined; };',
+      'function* h() { yield null; }',
+      'declare function id<T>(f: () => T): T;',
+      'const i = id(() => null);',
+      'const j: () => string = () => null;',
+    ],
+    expected: [
+      "/input.ts 7010 9 1 'f', which lacks return-type annotation, implicitly has an 'any' return type.",
+      "/input.ts 7011 36 1 Function expression, which lacks return-type annotation, implicitly has an 'any' return type.",
+      "/input.ts 7055 85 1 'h', which lacks return-type annotation, implicitly has an 'any' yield type.",
+      "/input.ts 7011 157 10 Function expression, which lacks return-type annotation, implicitly has an 'any' return type.",
+    ],
+  },
+  {
+    name: 'yield expressions in the extends clause of a class in a generator',
+    source: ['function* g() {', '  class C extends (yield 1) {}', '}', 'const s: Generator<string> = g();'],
+    expected: [
+      "/input.ts 7057 35 5 'yield' expression implicitly results in an 'any' type because its containing generator lacks a return-type annotation.",
+      "/input.ts 2322 55 1 Type 'Generator<number, void, unknown>' is not assignable to type 'Generator<string, any, any>'.",
+    ],
+  },
+  {
+    name: 'unreachable code that starts with a missing statement',
+    options: 'allowUnreachableCode=false',
+    corpus: 'compiler/reachabilityChecksNoCrash1.ts',
+    codes: ['7027'],
+    expected: ['/input.ts 7027 238 0 Unreachable code detected.'],
+  },
 ];
 
 test(
@@ -476,16 +511,17 @@ test(
   { skip: !existsSync(libs) && 'needs upstream sources', timeout: 300_000 },
   () => {
     const out = compileSources('tsc-ts-check-', ['drivers/check.ts']);
-    for (const { name, file: fileName = 'input.ts', options = '', source, expected } of cases) {
-      const file = join(out, fileName);
-      writeFileSync(file, source.join('\n') + '\n');
+    for (const { name, file: fileName = 'input.ts', options = '', source, corpus, codes, expected } of cases) {
+      const file = corpus !== undefined ? join(repo, 'upstream/TypeScript/tests/cases', corpus) : join(out, fileName);
+      if (corpus === undefined) writeFileSync(file, source.join('\n') + '\n');
       const env = { ...process.env, TSC_TS_CHECK_OPTIONS: options };
       const actual = execFileSync(process.execPath, ['--stack-size=16000', join(out, 'drivers/check.js'), file, libs], {
         encoding: 'utf8',
         env,
       });
       const lines = actual.split('\n').filter((l) => l !== '');
-      assert.deepEqual(lines, expected, name);
+      const compared = codes === undefined ? lines : lines.filter((l) => codes.includes(l.split(' ')[1]));
+      assert.deepEqual(compared, expected, name);
       if (existsSync(oracle)) {
         const reference = execFileSync(oracle, [file, libs], { encoding: 'utf8', env })
           .split('\n')

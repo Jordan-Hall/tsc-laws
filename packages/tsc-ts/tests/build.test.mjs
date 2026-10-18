@@ -32,6 +32,34 @@ const skip = (!existsSync(tsgo) && 'needs packages/tsgo/dist/tsgo') || tscTsMiss
  * @typedef {{ files: Record<string, string>, links?: Record<string, string>, steps: Step[] }} Scenario
  */
 
+/**
+ * `count` modules, each importing the next, an ambient module, a pattern ambient module and a type of a module
+ * another file augments; every tenth also references a declaration file with `/// <reference>`.
+ */
+function referencingModules(count) {
+  const files = {
+    'tsconfig.json':
+      '{"compilerOptions":{"incremental":true,"noEmit":true,"strict":true,"module":"esnext",' +
+      '"moduleResolution":"bundler","types":[]},"include":["src"]}',
+    'src/ambient.d.ts':
+      'declare module "virtual:a" { export const v: number; }\n' +
+      'declare module "*.css" { const s: string; export default s; }\n',
+    'src/extra.d.ts': 'declare const X: string;\n',
+    'src/target.ts': 'export interface Box { a: number }\n',
+    'src/augment.ts': 'import "./target";\ndeclare module "./target" { interface Box { b?: string } }\nexport {};\n',
+  };
+  const name = (i) => 'm' + String(i).padStart(3, '0');
+  for (let i = 0; i < count; i++) {
+    const next = name((i + 1) % count);
+    files[`src/${name(i)}.ts`] =
+      (i % 10 === 0 ? '/// <reference path="./extra.d.ts" />\n' : '') +
+      `import { v as next } from "./${next}";\nimport { v as w } from "virtual:a";\nimport css from "./style.css";\n` +
+      `import type { Box } from "./target";\nexport const v: number = ${i};\n` +
+      'export const f = (b: Box) => next + w + css.length + b.a;\n';
+  }
+  return files;
+}
+
 /** @type {Record<string, Scenario>} */
 const scenarios = {
   'errors on intersections reduced to never': {
@@ -658,6 +686,26 @@ const scenarios = {
       { args: [] },
     ],
   },
+  // In native builds the rebuilds compare the references of most files with the build info on reference threads,
+  // which take files from the last one back while the main thread takes them from the first.
+  'incremental rebuilds that compare references on threads': {
+    files: referencingModules(300),
+    steps: [
+      { args: ['--checkers', '4'] },
+      { args: ['--checkers', '4'], edit: { 'src/m010.ts': referencingModules(300)['src/m010.ts'] + 'void 0;\n' } },
+      // The importers of target.ts reference m200.ts once it augments target.ts too.
+      {
+        args: ['--checkers', '4'],
+        edit: {
+          'src/m200.ts':
+            referencingModules(300)['src/m200.ts'] + 'declare module "./target" { interface Box { c?: number } }\n',
+        },
+      },
+      // m029.ts imports m030.ts, which is deleted.
+      { args: ['--checkers', '4'], edit: { 'src/m030.ts': null } },
+      { args: ['--checkers', '4'] },
+    ],
+  },
 };
 
 /** Creates the symbolic links `links`, from paths in `dir` to their targets. */
@@ -677,6 +725,39 @@ function writeFiles(dir, files) {
       mkdirSync(dirname(file), { recursive: true });
       writeFileSync(file, text);
     }
+  }
+}
+
+let scratch;
+let replacements = 0;
+
+/**
+ * Writes `files` into `dir` as `writeFiles` does, for a watch to see: each file with one rename from a temporary
+ * directory, so that no build reads it partly written, and a new directory with its file in it. `null` removes a file
+ * or a directory, also with one rename.
+ */
+function replaceFiles(dir, files) {
+  scratch ??= tempDir('tsc-ts-watch-scratch-');
+  for (const [path, text] of Object.entries(files)) {
+    const target = join(dir, path);
+    const temp = join(scratch, String(replacements++));
+    if (text === null) {
+      if (!existsSync(target)) continue;
+      renameSync(target, temp);
+      rmSync(temp, { recursive: true });
+      continue;
+    }
+    let top = dirname(target);
+    if (existsSync(top)) {
+      writeFileSync(temp, text);
+      renameSync(temp, target);
+      continue;
+    }
+    while (!existsSync(dirname(top))) top = dirname(top);
+    const file = join(temp, relative(top, target));
+    mkdirSync(dirname(file), { recursive: true });
+    writeFileSync(file, text);
+    renameSync(temp, top);
   }
 }
 
@@ -814,11 +895,18 @@ const watchProject = {
   'src/a.ts': 'export const a: number = 1;\n',
 };
 
+// The wait after each report of `watchSequence` before its next edit, in milliseconds.
+const stampGap = 20;
+
 /**
  * Runs `tsc-ts` with `args` in a new directory with `files` and makes the edits of `steps` (a file and its text, or
  * `null` to remove a directory, files to write in order, or a function of the directory and the `tsc-ts` process), each once the previous build
  * reported. `prepare` runs on the directory before `tsc-ts`
  * starts, which gets `extraEnv` in its environment. Returns the output and the output directory's files.
+ *
+ * Edits go through `replaceFiles`, and each starts `stampGap` milliseconds after the report: the watch compares
+ * modification times, which the system takes from a clock that advances in ticks of a few milliseconds, so an edit in
+ * the tick of the last build's stamps would have the time stamp it already saw.
  */
 async function watchSequence(args, steps, files = watchProject, prepare = () => {}, extraEnv = {}) {
   const dir = tempDir('tsc-ts-watch-');
@@ -835,17 +923,17 @@ async function watchSequence(args, steps, files = watchProject, prepare = () => 
     while ((output.match(/Watching for file changes/g) ?? []).length < count) {
       if (exit !== undefined) throw new Error(`exited with ${exit}; output so far:\n` + output);
       if (Date.now() > deadline) throw new Error('timed out; output so far:\n' + output);
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 10));
     }
+    await new Promise((resolve) => setTimeout(resolve, stampGap));
   };
   try {
     await waitFor(1);
     for (let i = 0; i < steps.length; i++) {
       const step = steps[i];
       if (typeof step === 'function') await step(dir, child);
-      else if (!Array.isArray(step)) writeFiles(dir, step);
-      else if (step[1] === null) rmSync(join(dir, step[0]), { recursive: true });
-      else writeFiles(dir, { [step[0]]: step[1] });
+      else if (!Array.isArray(step)) replaceFiles(dir, step);
+      else replaceFiles(dir, { [step[0]]: step[1] });
       await waitFor(i + 2);
     }
   } finally {
@@ -918,49 +1006,111 @@ for (const args of [['--watch'], ['--build', '--watch']]) {
 }
 
 // Natively, the first build and a rebuild whose change may affect enough files check on checker threads
-// (tsc-watch.ts), and a check that comes during a rebuild on threads runs once it is reported. Each edit changes the
-// type of a value that every other file imports, so every file is checked again; the second step writes the file
-// again once the rebuild started, so its event comes during the rebuild. The output is that of a watch on one thread.
-test('--watch rebuilds on checker threads', { skip: tscTsMissing, timeout: 120_000 }, async () => {
+// (tsc-watch.ts), and a check that comes during a rebuild on threads runs once it is reported. The first three edits
+// change the type of a value that every other file imports, so every file is checked again; the second step writes
+// the file again once the rebuild started, so its event comes during the rebuild. The last edit keeps the declaration
+// file. With declarations, a changed file's signature is computed before the rebuild shares its program. The output
+// is that of a watch on one thread.
+for (const declaration of [false, true]) {
+  test(
+    `--watch rebuilds on checker threads${declaration ? ' with declarations' : ''}`,
+    { skip: tscTsMissing, timeout: 120_000 },
+    async () => {
+      const files = {
+        'proj/tsconfig.json': JSON.stringify({
+          compilerOptions: { outDir: 'out', rootDir: 'src', strict: true, declaration },
+          include: ['src'],
+        }),
+        'proj/src/shared.ts': 'export const shared: number = 1;\n',
+      };
+      for (let i = 0; i < 200; i++) {
+        files[`proj/src/m${i}.ts`] =
+          "import { shared } from './shared';\n" +
+          `type Digit${i} = '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9';\n` +
+          `type Code${i} = \`\${Digit${i}}\${Digit${i}}\${Digit${i}}-${i}\`;\n` +
+          `export const code${i}: Code${i} = '123-${i}';\n` +
+          `export const value${i}: number = shared;\n`;
+      }
+      const started = (child) =>
+        new Promise((resolve) => {
+          const listener = (chunk) => {
+            if (!String(chunk).includes('File change detected')) return;
+            child.stdout.off('data', listener);
+            resolve();
+          };
+          child.stdout.on('data', listener);
+        });
+      const steps = [
+        ['proj/src/shared.ts', 'export const shared: string = "s";\n'],
+        async (dir, child) => {
+          const rebuilding = started(child);
+          replaceFiles(dir, { 'proj/src/shared.ts': 'export const shared: number = 1;\n' });
+          await rebuilding;
+          replaceFiles(dir, { 'proj/src/shared.ts': 'export const shared: number = 1;\n' });
+        },
+        ['proj/src/shared.ts', 'export const shared: boolean = true;\n'],
+        // The same declaration file: with declarations, its signature is that of the last build.
+        ['proj/src/shared.ts', 'export const shared: boolean = !false;\n'],
+      ];
+      const run = (args) =>
+        watchSequence(['-p', 'proj', '--watch', ...args], steps, files, () => {}, { TSC_TS_WATCH_MEMORY: '0' });
+      const expected = await run(['--singleThreaded']);
+      const threaded = await run(['--checkers', '2']);
+      assert.equal((expected.output.match(/File change detected/g) ?? []).length, 4);
+      assert.equal((expected.output.match(/Found 200 errors/g) ?? []).length, 3);
+      assert.equal(threaded.output, expected.output);
+      assert.equal(threaded.files.length, declaration ? 402 : 201);
+      assert.deepEqual(threaded.files, expected.files);
+    },
+  );
+}
+
+// A rebuild that computes a changed file's signature before it decides on checker threads reports no error for files
+// outside the default `rootDir` (the config file's directory), as a watch on one thread. The second and third edits
+// keep the declaration file, so their signatures are computed before the rebuild.
+test(
+  '--watch computes rebuild signatures without reporting files outside rootDir',
+  { skip: tscTsMissing },
+  async () => {
+    const files = {
+      'proj/tsconfig.json': '{"compilerOptions":{"noEmit":true,"declaration":true,"strict":true},"include":["src"]}',
+      'proj/src/main.ts': "import { shared } from '../../shared/shared';\nexport const value: number = shared;\n",
+      'proj/src/other.ts': "import { value } from './main';\nexport const other: number = value;\n",
+      'shared/shared.ts': 'export const shared: number = 1;\n',
+    };
+    const steps = [1, 2, 3].map((i) => ['proj/src/main.ts', `${files['proj/src/main.ts']}void ${i};\n`]);
+    const run = (args) =>
+      watchSequence(['-p', 'proj', '--watch', ...args], steps, files, () => {}, { TSC_TS_WATCH_MEMORY: '0' });
+    const expected = await run(['--singleThreaded']);
+    const threaded = await run(['--checkers', '2']);
+    assert.equal((expected.output.match(/Found 0 errors/g) ?? []).length, 4);
+    assert.equal(threaded.output, expected.output);
+  },
+);
+
+// A watch that starts on one thread because its config sets `checkers` to 1, then an edit of the config sets it to 2
+// with a change that affects every file: the rebuild takes the unchanged files of the first build, whose symbols got
+// no ids at creation, so it checks them on this thread rather than sharing them with checker threads. The output is
+// that of a watch on one thread.
+test('--watch after a config edit turns checker threads on', { skip: tscTsMissing, timeout: 120_000 }, async () => {
+  const config = (checkers) =>
+    `{"compilerOptions":{"outDir":"out","rootDir":"src","strict":true,"checkers":${checkers}},"include":["src"]}`;
   const files = {
-    'proj/tsconfig.json': '{"compilerOptions":{"outDir":"out","rootDir":"src","strict":true},"include":["src"]}',
+    'proj/tsconfig.json': config(1),
     'proj/src/shared.ts': 'export const shared: number = 1;\n',
   };
-  for (let i = 0; i < 200; i++) {
-    files[`proj/src/m${i}.ts`] =
-      "import { shared } from './shared';\n" +
-      `type Digit${i} = '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9';\n` +
-      `type Code${i} = \`\${Digit${i}}\${Digit${i}}\${Digit${i}}-${i}\`;\n` +
-      `export const code${i}: Code${i} = '123-${i}';\n` +
-      `export const value${i}: number = shared;\n`;
-  }
-  const started = (child) =>
-    new Promise((resolve) => {
-      const listener = (chunk) => {
-        if (!String(chunk).includes('File change detected')) return;
-        child.stdout.off('data', listener);
-        resolve();
-      };
-      child.stdout.on('data', listener);
-    });
+  for (let i = 0; i < 20; i++)
+    files[`proj/src/m${i}.ts`] = "import { shared } from './shared';\n" + `export const value${i}: number = shared;\n`;
   const steps = [
-    ['proj/src/shared.ts', 'export const shared: string = "s";\n'],
-    async (dir, child) => {
-      const rebuilding = started(child);
-      writeFiles(dir, { 'proj/src/shared.ts': 'export const shared: number = 1;\n' });
-      await rebuilding;
-      writeFiles(dir, { 'proj/src/shared.ts': 'export const shared: number = 1;\n' });
-    },
+    { 'proj/tsconfig.json': config(2), 'proj/src/shared.ts': 'export const shared: string = "s";\n' },
     ['proj/src/shared.ts', 'export const shared: boolean = true;\n'],
   ];
   const run = (args) =>
     watchSequence(['-p', 'proj', '--watch', ...args], steps, files, () => {}, { TSC_TS_WATCH_MEMORY: '0' });
   const expected = await run(['--singleThreaded']);
-  const threaded = await run(['--checkers', '2']);
-  assert.equal((expected.output.match(/File change detected/g) ?? []).length, 3);
-  assert.equal((expected.output.match(/Found 200 errors/g) ?? []).length, 2);
+  const threaded = await run([]);
+  assert.equal((expected.output.match(/Found 20 errors/g) ?? []).length, 2);
   assert.equal(threaded.output, expected.output);
-  assert.equal(threaded.files.length, 201);
   assert.deepEqual(threaded.files, expected.files);
 });
 
@@ -999,13 +1149,13 @@ test(
       const steps = [
         (dir, child) => {
           workers.push(children(child));
-          writeFiles(dir, {
+          replaceFiles(dir, {
             'tsconfig.json': '{"compilerOptions":{"outDir":"out","rootDir":"src","strict":true},"include":["src"]}',
           });
         },
         (dir, child) => {
           workers.push(children(child));
-          writeFiles(dir, { 'src/a.ts': 'export const a: string = 1;\n' });
+          replaceFiles(dir, { 'src/a.ts': 'export const a: string = 1;\n' });
         },
       ];
       const result = await watchSequence(['--watch'], steps, watchProject, () => {}, { TSC_TS_WATCH_MEMORY: memory });
@@ -1062,7 +1212,7 @@ test(
         async (dir) => {
           // After the check that follows the new watches, so only an event of two/ can report the edit.
           await new Promise((resolve) => setTimeout(resolve, 500));
-          writeFiles(dir, { 'two/c.ts': 'export const b: string = 2;\n' });
+          replaceFiles(dir, { 'two/c.ts': 'export const b: string = 2;\n' });
         },
       ],
       { ...watchProject, 'one/b.ts': 'export const b: number = 1;\n', 'two/c.ts': 'export const b: number = 2;\n' },

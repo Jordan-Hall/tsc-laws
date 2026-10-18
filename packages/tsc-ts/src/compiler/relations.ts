@@ -5091,16 +5091,33 @@ export { findApplicableIndexInfo, getMergedSymbol, typeListKey, getPropertyNameF
 export function getExactOptionalUnassignableProperties(c: Checker, source: Type, target: Type): Symbol[] {
   if (isTupleType(source) && isTupleType(target)) return [];
   const result: Symbol[] = [];
-  for (const targetProp of getPropertiesOfType(c, target)) {
-    const sourceType = getTypeOfPropertyOfType(c, source, targetProp.name);
+  for (const targetProp of getPropertiesOfType(c, target))
     if (
-      sourceType !== undefined &&
-      maybeTypeOfKind(sourceType, TypeFlags.Undefined) &&
-      containsMissingType(c, getTypeOfSymbol(c, targetProp))
+      isExactOptionalPropertyMismatch(
+        c,
+        getTypeOfPropertyOfType(c, source, targetProp.name),
+        getTypeOfSymbol(c, targetProp),
+      )
     )
       result.push(targetProp);
-  }
   return result;
+}
+
+/**
+ * Whether `source` may be `undefined` where the optional property type `target` takes it only by being
+ * missing, under exactOptionalPropertyTypes.
+ */
+export function isExactOptionalPropertyMismatch(
+  c: Checker,
+  source: Type | undefined,
+  target: Type | undefined,
+): boolean {
+  return (
+    source !== undefined &&
+    target !== undefined &&
+    maybeTypeOfKind(source, TypeFlags.Undefined) &&
+    containsMissingType(c, target)
+  );
 }
 
 /** The string literal member of `target` closest to the string literal `source`. */

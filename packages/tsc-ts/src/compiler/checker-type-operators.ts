@@ -119,6 +119,7 @@ import {
   getBaseConstraintOfType,
   getIndexTypeOfType,
   hasPropertiesOfType,
+  keepPropertiesOnly,
   memberResolutionFlags,
 } from './checker-members.js';
 import {
@@ -161,7 +162,7 @@ import {
 } from './instantiation.js';
 import { getVariances, isMarkerType, isTypeAssignableTo } from './relations.js';
 import { symbolToString, typeToString } from './type-printer.js';
-import { getSourceFileOfNode, isAssignmentTarget, isEntityNameExpression } from './binder-utilities.js';
+import { getSourceFileOfNode, isAssignmentTarget, isEntityNameExpression, nodeText } from './binder-utilities.js';
 import { getTextOfNodeFromSourceText } from './ast-utilities.js';
 import { getMinArgumentCount, getSingleCallSignature, getTypeAtPosition } from './checker-signatures.js';
 import { AssignmentKind, getAssignmentTargetKind, getFlowTypeOfReference } from './checker-narrowing.js';
@@ -388,6 +389,7 @@ export function getLiteralTypeFromPropertyName(c: Checker, name: Node): Type | u
     name.kind === SyntaxKind.NoSubstitutionTemplateLiteral
   )
     return getStringLiteralType(c, getText(name));
+  if (name.kind === SyntaxKind.JsxNamespacedName) return getStringLiteralType(c, nodeText(name));
   if (name.kind === SyntaxKind.BigIntLiteral) return getRegularTypeOfLiteralType(c, checkExpression(c, name));
   return c.neverType;
 }
@@ -1698,6 +1700,7 @@ export function resolveMappedTypeMembers(c: Checker, t: MappedType): void {
     );
   else forEachType(getLowerBoundOfKeyType(c, constraintType), add);
   setStructuredTypeMembers(c, t, members, [], [], indexInfos);
+  keepPropertiesOnly(c, t, members);
 }
 
 export function getTypeOfMappedSymbol(c: Checker, symbol: Symbol): Type {

@@ -40,7 +40,7 @@ import {
   type TypeReference,
   emptyTypes,
   newTypeMapper,
-  TypeListCache,
+  ReferenceCache,
 } from './checker-types.js';
 import {
   UnionReduction,
@@ -87,7 +87,7 @@ import { getTypeOfSymbol } from './checker-symbol-types.js';
 import { getIndexedAccessType, isGenericMappedType } from './checker-type-operators.js';
 import { getSignatureInstantiation } from './checker-signatures.js';
 import { evaluateEnumMember, EvaluatedFlags, EvaluatedKind } from './checker-evaluator.js';
-import { checkTypeAssignableTo } from './relations.js';
+import { checkTypeAssignableTo, isTypeIdenticalTo } from './relations.js';
 
 export { getParentOfSymbol };
 
@@ -143,15 +143,9 @@ export function getDeclaredTypeOfClassOrInterface(c: Checker, symbol: Symbol): I
       type.allTypeParameters = typeParameters;
       type.outerTypeParameterCount = outerTypeParameters.length;
       type.resolvedTypeArguments = type.typeParameters();
-      const instantiations = new TypeListCache<Type>();
-      sideOf(c, type).instantiations = instantiations;
-      instantiations.set(
-        typeListHash(type.resolvedTypeArguments, undefined, 0),
-        type.resolvedTypeArguments,
-        undefined,
-        0,
-        type,
-      );
+      const references = new ReferenceCache();
+      sideOf(c, type).references = references;
+      references.add(typeListHash(type.resolvedTypeArguments, undefined, 0), type);
       type.target = type;
     }
   }
@@ -905,7 +899,14 @@ export function fillMissingTypeArguments(
   for (let i = numTypeArguments; i < numTypeParameters; i++) result.push(c.errorType);
   const baseDefaultType = isJavaScriptImplicitAny ? c.anyType : c.unknownType;
   for (let i = numTypeArguments; i < numTypeParameters; i++) {
-    const defaultType = getDefaultFromTypeParameter(c, typeParameters[i]!);
+    let defaultType = getDefaultFromTypeParameter(c, typeParameters[i]!);
+    // In JavaScript, a default of unknown or {} is any.
+    if (
+      isJavaScriptImplicitAny &&
+      defaultType !== undefined &&
+      (isTypeIdenticalTo(c, defaultType, c.unknownType) || isTypeIdenticalTo(c, defaultType, c.emptyObjectType))
+    )
+      defaultType = c.anyType;
     result[i] =
       defaultType !== undefined
         ? instantiateType(c, defaultType, newTypeMapper(typeParameters as Type[], result))

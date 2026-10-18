@@ -242,6 +242,11 @@ export function assignSymbolIdsAtCreation(): void {
   idsAtCreation = true;
 }
 
+/** Whether symbols get their ids when they are created (`assignSymbolIdsAtCreation`). */
+export function symbolIdsAtCreation(): boolean {
+  return idsAtCreation;
+}
+
 function takeSymbolId(): number {
   // `| 0`: ids stay far below 2^31, and native builds then store `id` as an int32.
   return (nextSymbolId < symbolIdLimit ? ++nextSymbolId : takeSymbolIdChunk()) | 0;

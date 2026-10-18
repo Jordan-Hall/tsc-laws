@@ -31,12 +31,8 @@ import {
   getName,
   type BindingElement,
 } from './ast.js';
-import {
-  isFunctionExpressionOrArrowFunction,
-  isObjectLiteralMethod,
-  isTypeNodeKind,
-  skipParentheses,
-} from './binder-utilities.js';
+import { isFunctionExpressionOrArrowFunction, isObjectLiteralMethod, skipParentheses } from './binder-utilities.js';
+import { isPartOfTypeNode } from './transformers/alias-references.js';
 import { Diagnostics } from './diagnostics.js';
 import { SyntaxKind } from './syntax-kind.js';
 import { type Checker, createDiagnosticForNode } from './checker.js';
@@ -51,7 +47,14 @@ import {
   someType,
   UnionReduction,
 } from './checker-type-factory.js';
-import { getTypeOfSymbol, getWidenedType, isPrivateWithinAmbient, reportImplicitAny } from './checker-symbol-types.js';
+import {
+  getTypeOfSymbol,
+  getWidenedType,
+  isPrivateWithinAmbient,
+  reportErrorsFromWidening,
+  reportImplicitAny,
+  WideningKind,
+} from './checker-symbol-types.js';
 import { getMergedSymbol, getSymbolOfDeclaration } from './checker-symbols.js';
 import {
   getReturnTypeFromAnnotation,
@@ -76,6 +79,7 @@ import { getFunctionFlags, FunctionFlags, maybeTypeOfKind } from './checker-util
 import { CheckMode, ObjectFlags, type Signature, SignatureFlags, SignatureKind } from './checker-types.js';
 import { type Symbol, getSymbolId } from './symbol.js';
 import { createAnonymousType, getWidenedLiteralType } from './checker-type-factory.js';
+import { isGenericType } from './checker-type-operators.js';
 import { createSymbolWithType, getReducedType, getSignaturesOfType } from './checker-members.js';
 import {
   getEffectiveRestType,
@@ -935,6 +939,9 @@ export function getReturnTypeFromBodyEx(c: Checker, func: Node, checkMode: Check
     returnType = getUnionTypeEx(c, types, UnionReduction.Subtype, undefined, undefined);
   }
   if (returnType !== undefined || yieldType !== undefined || nextType !== undefined) {
+    if (yieldType !== undefined) reportErrorsFromWidening(c, func, yieldType, WideningKind.GeneratorYield);
+    if (returnType !== undefined) reportErrorsFromWidening(c, func, returnType, WideningKind.FunctionReturn);
+    if (nextType !== undefined) reportErrorsFromWidening(c, func, nextType, WideningKind.GeneratorNext);
     if (
       (returnType !== undefined && isUnitType(returnType)) ||
       (yieldType !== undefined && isUnitType(yieldType)) ||
@@ -994,6 +1001,39 @@ export function getReturnTypeFromBodyEx(c: Checker, func: Node, checkMode: Check
     );
   // An async function's body returns its awaited type, wrapped in `Promise<T>`.
   return isAsync ? createPromiseType(c, returnType ?? fallbackReturnType) : (returnType ?? fallbackReturnType);
+}
+
+/**
+ * Whether the widened types inferred for a function report implicit `any`: without a contextual
+ * signature, or when the contextual return, yield or next type is generic.
+ */
+export function shouldReportErrorsFromWideningWithContextualSignature(
+  c: Checker,
+  declaration: Node,
+  wideningKind: WideningKind,
+): boolean {
+  const signature = getContextualSignatureForFunctionLikeDeclaration(c, declaration);
+  if (signature === undefined) return true;
+  let returnType = getReturnTypeOfSignature(c, signature);
+  const flags = getFunctionFlags(declaration);
+  const isAsync = (flags & FunctionFlags.Async) !== 0;
+  switch (wideningKind) {
+    case WideningKind.FunctionReturn:
+      if ((flags & FunctionFlags.Generator) !== 0)
+        returnType =
+          getIterationTypeOfGeneratorFunctionReturnType(c, IterationTypeKind.Return, returnType, isAsync) ?? returnType;
+      else if (isAsync) returnType = getAwaitedTypeNoAlias(c, returnType) ?? returnType;
+      return isGenericType(c, returnType);
+    case WideningKind.GeneratorYield: {
+      const yieldType = getIterationTypeOfGeneratorFunctionReturnType(c, IterationTypeKind.Yield, returnType, isAsync);
+      return yieldType !== undefined && isGenericType(c, yieldType);
+    }
+    case WideningKind.GeneratorNext: {
+      const nextType = getIterationTypeOfGeneratorFunctionReturnType(c, IterationTypeKind.Next, returnType, isAsync);
+      return nextType !== undefined && isGenericType(c, nextType);
+    }
+  }
+  return false;
 }
 
 function getWidenedLiteralLikeTypeForContextualIterationTypeIfNeeded(
@@ -1117,7 +1157,10 @@ function checkAndAggregateYieldOperandTypes(c: Checker, func: Node, checkMode: C
   return result;
 }
 
-/** Collects the `yield` expressions of a generator body, skipping nested functions. */
+/**
+ * Collects the `yield` expressions of a generator body, skipping nested functions and types. A class's
+ * `extends` expression is an expression, not a type.
+ */
 class YieldCollector extends NodeVisitor {
   readonly yields: YieldExpression[] = [];
 
@@ -1141,7 +1184,7 @@ class YieldCollector extends NodeVisitor {
       if (name !== undefined && name.kind === SyntaxKind.ComputedPropertyName) this.visit(getExpression(name)!);
       return;
     }
-    if (!isTypeNodeKind(node.kind)) node.forEachChild(this);
+    if (!isPartOfTypeNode(node)) node.forEachChild(this);
   }
 
   visitNode(node: Node): boolean {

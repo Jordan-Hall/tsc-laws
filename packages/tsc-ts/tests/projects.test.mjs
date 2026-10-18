@@ -311,6 +311,20 @@ const projects = [
     },
   ],
   [
+    'JSDoc type tags of class methods',
+    {
+      'a.js':
+        'class Base {\n  /** @param {number} n */\n  size(n) { return n; }\n}\n' +
+        '/** @typedef {(a: number, b: string) => number} Two */\nexport class K extends Base {\n' +
+        '  /** @type {Base["missing"]} */\n  m1(module, type) { return 42; }\n' +
+        '  /** @type {Base["size"]} */\n  size(n) { return n; }\n' +
+        '  /** @type {Two} */\n  m2(a) { return a; }\n' +
+        '  /** @type {(a: number) => number} */\n  m3(a, b) { return a; }\n' +
+        '  /** @type {string} */\n  m4() { return 1; }\n}\n',
+      'tsconfig.json': JSON.stringify({ compilerOptions: { ...base, allowJs: true, checkJs: true }, files: ['a.js'] }),
+    },
+  ],
+  [
     'types of decorated signatures under isolatedModules and emitDecoratorMetadata',
     {
       'a.ts':
@@ -326,6 +340,36 @@ const projects = [
           isolatedModules: true,
         },
         files: ['a.ts', 'types.ts'],
+      }),
+    },
+  ],
+  [
+    'UMD globals referenced from modules',
+    {
+      'umd.d.ts':
+        'export = Lib;\nexport as namespace Lib;\ndeclare namespace Lib {\n  function hello(): string;\n  interface T { a: 1 }\n}\n',
+      'react.d.ts':
+        'export = React;\nexport as namespace React;\ndeclare namespace React {\n  function createElement(...a: any[]): any;\n  const Fragment: any;\n}\n' +
+        'declare global { namespace JSX { interface IntrinsicElements { [k: string]: any } } }\n',
+      'a.tsx':
+        'export const x = Lib.hello();\nexport type T1 = Lib.T;\nexport type T2 = typeof Lib;\n' +
+        'export const A = () => <div>hi</div>;\nexport const B = () => <>x</>;\n',
+      'script.ts': 'const s = Lib.hello();\n',
+      'tsconfig.json': JSON.stringify({
+        compilerOptions: { ...base, module: 'preserve', moduleResolution: 'bundler', jsx: 'react' },
+        files: ['a.tsx', 'script.ts', 'umd.d.ts', 'react.d.ts'],
+      }),
+    },
+  ],
+  [
+    'UMD globals referenced from modules under allowUmdGlobalAccess',
+    {
+      'umd.d.ts':
+        'export = Lib;\nexport as namespace Lib;\ndeclare namespace Lib {\n  function hello(): string;\n  interface T { a: 1 }\n}\n',
+      'a.ts': 'export const x = Lib.hello();\n',
+      'tsconfig.json': JSON.stringify({
+        compilerOptions: { ...base, module: 'preserve', moduleResolution: 'bundler', allowUmdGlobalAccess: true },
+        files: ['a.ts', 'umd.d.ts'],
       }),
     },
   ],
@@ -425,6 +469,25 @@ const projects = [
     },
   ],
   [
+    'type-only exports in the type of a module namespace',
+    {
+      'mods.d.ts':
+        "declare module 'dep' {\n  export class K {}\n  export const v: 1;\n}\n" +
+        "declare module 'mid' {\n  export { type K, v } from 'dep';\n}\n" +
+        "declare module 'mid2' {\n  import type { K } from 'dep';\n  export { K };\n  export { v } from 'dep';\n}\n" +
+        "declare module 'mid3' {\n  export type * from 'dep';\n  export { v } from 'dep';\n}\n",
+      'a.ts':
+        "import * as m from 'mid';\nimport * as m2 from 'mid2';\nimport * as m3 from 'mid3';\n" +
+        "export const t: [keyof typeof m, keyof typeof m2] = ['K', 'K'];\n" +
+        'export const k = [m.K, m2.K, m3.K];\n' +
+        'export type Q = [m.K, typeof m.K, m3.K];\n',
+      'tsconfig.json': JSON.stringify({
+        compilerOptions: { ...base, module: 'esnext', moduleResolution: 'bundler' },
+        files: ['a.ts', 'mods.d.ts'],
+      }),
+    },
+  ],
+  [
     'JSON required from checked JavaScript',
     {
       'a.js':
@@ -449,6 +512,22 @@ const projects = [
       'a.ts': 'export * as "x-y" from "./b";\nexport * as z from "./b";\nexport { v as "w-v" } from "./b";\n',
       'b.ts': 'export const v = 1;\n',
       'tsconfig.json': JSON.stringify({ compilerOptions: { ...base, module: 'ES2015' }, files: ['a.ts', 'b.ts'] }),
+    },
+  ],
+  [
+    'type argument constraints of type references and import types',
+    {
+      'm.ts': 'export type G<T extends string, U = 1> = { t: T; u: U };\nexport class K<T extends string> { t!: T }\n',
+      'a.ts':
+        "import type { Base, Sql } from './missing';\n" +
+        'type R<T extends string> = Sql<T>;\nexport type U = R<number>;\n' +
+        "export interface F extends Base { q: R<this['x']> }\n" +
+        'export type A = import("./m").G<number>;\nexport type C = import("./m").K<boolean>;\n' +
+        'export type H = import("./m").G<"x", 2>;\n' +
+        'type P<A extends string, B extends number> = [A, B];\n' +
+        'export type T1 = P<\n  // @ts-ignore\n  number,\n  string\n>;\nexport type T2 = P<number, string>;\n' +
+        'interface I<A extends string, B extends number> { a: A; b: B }\nexport interface J extends I<number, string> {}\n' +
+        'type W<A, B extends string> = [A, B];\nexport type W1 = W<Missing, number>;\n',
     },
   ],
   [
@@ -490,6 +569,20 @@ const projects = [
         '  const wrong: { c: boolean } | T = { c: 1 };\n' +
         '  void ok, wrong;\n' +
         '}\n',
+    },
+  ],
+  [
+    'imports that conflict with global values under isolatedModules',
+    {
+      'types.ts': 'export interface Map<K, V> { x: K; y: V }\nexport type Promise = 1;\nexport type Set = 2;\n',
+      'a.ts':
+        'import { Map, Promise } from "./types";\nimport type { Set } from "./types";\n' +
+        'export const m = new Map<string, number>();\nexport const p = Promise.resolve(1);\nexport const s = new Set<number>();\n',
+      'b.ts': 'import { Map } from "./types";\nexport type T = Map<1, 2>;\n',
+      'tsconfig.json': JSON.stringify({
+        compilerOptions: { ...base, isolatedModules: true, module: 'esnext', moduleResolution: 'bundler' },
+        files: ['a.ts', 'b.ts', 'types.ts'],
+      }),
     },
   ],
   [
@@ -565,6 +658,91 @@ const projects = [
         'export const sa: SpreadArgs<typeof read> = 0;\n' +
         'type Parts<T> = T extends (...args: infer A) => infer R ? [A, R] : "none";\n' +
         'export const p: Parts<string> = 0;\n',
+    },
+  ],
+  [
+    'unused labels under allowUnusedLabels false',
+    {
+      'a.ts':
+        'export {};\nhttps: `abc`;\nouter: for (;;) {\n  inner: for (;;) continue outer;\n}\n' +
+        'a: b: {\n  break b;\n}\nfunction f() {\n  return;\n  late: {}\n}\n',
+      'b.js': 'lbl: {\n}\n',
+      'tsconfig.json': JSON.stringify({
+        compilerOptions: { ...base, allowUnusedLabels: false, allowJs: true, checkJs: true },
+        files: ['a.ts', 'b.js'],
+      }),
+    },
+  ],
+  [
+    'unannotated this parameters',
+    {
+      'a.ts':
+        'declare function define<T>(o: T & ThisType<{ x: number }>): T;\n' +
+        'export const c = define({\n  m(this) { return this.x; },\n  f: function (this) { return this.x; },\n});\n' +
+        'export const d = { y: 1, m(this) { return this.y; } };\n' +
+        'const o: { h(this: { z: string }): void } = { h(this) { this.z; } };\n' +
+        'o.h = function (this) { this.z; };\n' +
+        'export class K { m(this) {} }\n' +
+        'export function f(this) {}\n',
+    },
+  ],
+  [
+    'type nodes of satisfies expressions',
+    {
+      'a.ts':
+        'type N<T extends number> = { v: T };\ntype A = { a: string };\n' +
+        'export const x = { k: 1 } as const satisfies { k: number } & { readonly t?: A };\n' +
+        "export const y = { v: 's' } satisfies N<string>;\n" +
+        'export const z = { v: 1 } satisfies { [k: string]: number; v: string };\n',
+      'tsconfig.json': JSON.stringify({ compilerOptions: { ...base, noUnusedLocals: true }, files: ['a.ts'] }),
+    },
+  ],
+  [
+    'declaration errors under noEmit next to other errors',
+    {
+      'node_modules/lib/package.json': JSON.stringify({ name: 'lib', version: '1.0.0', types: 'index.d.ts' }),
+      'node_modules/lib/index.d.ts': 'import { Inner } from "dep";\nexport declare function make(): Inner;\n',
+      'node_modules/lib/node_modules/dep/package.json': JSON.stringify({
+        name: 'dep',
+        version: '1.0.0',
+        types: 'index.d.ts',
+      }),
+      'node_modules/lib/node_modules/dep/index.d.ts': 'export interface Inner { x: number }\n',
+      'a.ts': 'import { make } from "lib";\nexport const v = make();\nexport const e: number = "";\n',
+      'tsconfig.json': JSON.stringify({
+        compilerOptions: { ...base, declaration: true, module: 'preserve' },
+        files: ['a.ts'],
+      }),
+    },
+  ],
+  [
+    'defaults of missing type arguments in JavaScript',
+    {
+      'types.d.ts':
+        'export interface Box<V = unknown> { v: V }\nexport interface Obj<V = {}> { o: V }\nexport interface Num<V = number> { n: V }\n',
+      'a.js':
+        "/** @import { Box, Obj, Num } from './types' */\n" +
+        '/**\n * @template T\n * @param {Box} b\n * @returns {T}\n */\nexport function f(b) {\n  return b.v;\n}\n' +
+        '/**\n * @template T\n * @param {Obj} o\n * @returns {T}\n */\nexport function g(o) {\n  return o.o;\n}\n' +
+        '/**\n * @template T\n * @param {Num} n\n * @returns {T}\n */\nexport function h(n) {\n  return n.n;\n}\n',
+      'c.ts': 'import type { Box } from "./types";\nexport function t(b: Box) { const s: string = b.v; return s; }\n',
+      'tsconfig.json': JSON.stringify({
+        compilerOptions: { ...base, allowJs: true, checkJs: true },
+        files: ['a.js', 'c.ts', 'types.d.ts'],
+      }),
+    },
+  ],
+  [
+    'namespaced JSX attributes and template literal index signatures',
+    {
+      'a.tsx':
+        'type H = () => void;\n' +
+        'declare global {\n  namespace JSX {\n    interface Element {}\n' +
+        "    interface IntrinsicElements { d: { 'q:slot'?: string; [key: `${'w:' | ''}on${string}`]: H } }\n  }\n}\n" +
+        'export const a = <d q:slot="x" />;\n' +
+        'export const b = <d q:slot={1} />;\n' +
+        'export const c = <d w:onx={1} />;\n',
+      'tsconfig.json': JSON.stringify({ compilerOptions: { ...base, jsx: 'preserve' }, files: ['a.tsx'] }),
     },
   ],
 ];

@@ -453,6 +453,38 @@ export class TypeListCache<V> {
 }
 
 /**
+ * The references to a generic class, interface or tuple type, by the hash of their type arguments
+ * (`createTypeReference`). A reference is its own entry: a lookup compares its type arguments. A
+ * reference whose hash another reference has is kept in `collisions`.
+ */
+export class ReferenceCache {
+  private readonly references = new Map<number, TypeReference>();
+  private collisions: TypeListCache<TypeReference> | undefined = undefined;
+
+  get(hash: number, typeArguments: readonly Type[]): TypeReference | undefined {
+    const reference = this.references.get(hash);
+    if (reference === undefined) return undefined;
+    if (sameTypeListParts(reference.resolvedTypeArguments!, typeArguments)) return reference;
+    const collisions = this.collisions;
+    return collisions !== undefined ? collisions.get(hash, typeArguments, undefined, 0) : undefined;
+  }
+
+  /** Adds `reference`, whose type arguments `get` did not find. */
+  add(hash: number, reference: TypeReference): void {
+    if (this.references.get(hash) === undefined) {
+      this.references.set(hash, reference);
+      return;
+    }
+    let collisions = this.collisions;
+    if (collisions === undefined) {
+      collisions = new TypeListCache<TypeReference>();
+      this.collisions = collisions;
+    }
+    collisions.set(hash, reference.resolvedTypeArguments!, undefined, 0, reference);
+  }
+}
+
+/**
  * Fields that few types set, kept out of line in `Type.extra`, which is created on the first write
  * of a value other than the field's default. A type then costs one slot for all of them. Each field
  * is read and written through an accessor of the type class it belongs to, which returns the
@@ -575,26 +607,30 @@ export class UniqueESSymbolType extends Type {
 }
 
 /**
- * The members table and properties of an instantiated type whose member symbols are instantiated on
- * demand (checker-members.ts). Reading `members` or `properties` builds them, as tsgo builds them
- * when it resolves the members; lookups by name instantiate only the member asked for.
+ * The members table of a type, built when `members` is read (checker-members.ts): of an instantiated
+ * type whose member symbols are instantiated on demand (`PendingInstantiatedMembers`), where reading
+ * `properties` builds the properties too, as tsgo builds them when it resolves the members, and
+ * lookups by name instantiate only the member asked for; or of a type whose members are all
+ * properties (`PropertyMembers`), where lookups by name read the properties.
  */
 export abstract class PendingMembers {
   /**
-   * Set when `properties` is built and the members table is not (`MemberNames`): the type's
+   * Set when `properties` is built and the members table is not (`PropertyMembers`): the type's
    * properties, which lookups by name then read.
    */
   materializedProperties: Symbol[] | undefined = undefined;
 
   /**
-   * Sets `t.propertiesValue`. Where lookups can read the properties, it sets
-   * `materializedProperties` and keeps `t.pendingMembers`; otherwise it sets `t.membersValue` too and
-   * clears `t.pendingMembers`.
+   * Sets `t.propertiesValue`. Where lookups can read the properties, it replaces `t.pendingMembers`
+   * with a `PropertyMembers`; otherwise it sets `t.membersValue` too and clears `t.pendingMembers`.
    */
   abstract materialize(t: StructuredType): void;
 
   /** Sets `t.membersValue` and `t.propertiesValue` and clears `t.pendingMembers`. */
   abstract materializeTable(t: StructuredType): void;
+
+  /** `members.get(name)` of the table tsgo would have built by now. */
+  abstract get(name: string): Symbol | undefined;
 }
 
 /**
@@ -728,9 +764,12 @@ export class InterfaceType extends TypeReference {
   lastMemberStates: number[] | undefined;
   /** The property names of the last instantiation whose members table is built on demand. */
   lastMemberNames: MemberNames | undefined;
+  /** The references to a generic class, interface or tuple type, by their type arguments. */
+  references: ReferenceCache | undefined;
 
   constructor(objectFlags: ObjectFlags, id: number, symbol: Symbol | undefined) {
     super(objectFlags, id, symbol);
+    this.references = undefined;
     this.declaredMemberPositions = undefined;
     this.lastMemberStates = undefined;
     this.lastMemberNames = undefined;

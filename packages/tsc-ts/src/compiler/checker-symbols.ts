@@ -83,6 +83,8 @@ import {
   markAliasDeclarationOfNameIfTypeOnly,
   getExportsOfModuleWorker,
   getTargetOfAliasDeclaration,
+  getTypeOnlyAliasDeclaration,
+  isTypeOnlyImportOrExportDeclaration,
   resolveExternalModuleNameWorker,
   resolveExternalModuleSymbol,
   resolveIndirectionAlias,
@@ -171,11 +173,15 @@ export class CheckerNameResolver extends NameResolver {
     location: Node | undefined,
     result: Symbol,
     meaning: SymbolFlags,
-    _lastLocation: Node | undefined,
+    lastLocation: Node | undefined,
     associatedDeclarationForContainingInitializerOrBindingName: Node | undefined,
     withinDeferredContext: boolean,
   ): void {
     const c = this.checker;
+    const isInExternalModule =
+      lastLocation !== undefined &&
+      lastLocation.kind === SyntaxKind.SourceFile &&
+      isExternalOrCommonJSModule(lastLocation as SourceFile);
     // Only names in value positions check block-scoped declaration order: a symbol may be both a
     // block-scoped variable and a namespace, as in `const foo: foo.bar`.
     if (
@@ -185,6 +191,31 @@ export class CheckerNameResolver extends NameResolver {
           (meaning & SymbolFlags.Value) === SymbolFlags.Value))
     )
       checkResolvedBlockScopedVariable(this.checker, result, location);
+    // A module can't reference the value of a UMD global (`export as namespace`).
+    if (
+      isInExternalModule &&
+      location !== undefined &&
+      (meaning & SymbolFlags.Value) === SymbolFlags.Value &&
+      (location.flags & NodeFlags.JSDoc) === 0
+    ) {
+      const merged = getMergedSymbol(c, result);
+      if (
+        merged.declarations.length !== 0 &&
+        merged.declarations.every(
+          (d) =>
+            d.kind === SyntaxKind.NamespaceExportDeclaration ||
+            (d.kind === SyntaxKind.SourceFile && (d as SourceFile).globalExports !== undefined),
+        )
+      )
+        c.addErrorOrSuggestion(
+          c.compilerOptions.allowUmdGlobalAccess !== true,
+          createDiagnosticForNode(
+            location,
+            Diagnostics.X_0_refers_to_a_UMD_global_but_the_current_file_is_a_module_Consider_adding_an_import_instead,
+            [result.name],
+          ),
+        );
+    }
     // A parameter initializer or binding name can't reference its own parameter or the ones after it.
     const associated = associatedDeclarationForContainingInitializerOrBindingName;
     if (
@@ -217,6 +248,32 @@ export class CheckerNameResolver extends NameResolver {
     }
     if (location !== undefined && (meaning & SymbolFlags.Value) !== 0)
       checkTypeOnlyAliasUse(this.checker, location, result, result.name);
+    // Under isolatedModules, a value import named like a global value that the file uses must be type-only.
+    if (
+      c.compilerOptions.isolatedModules === true &&
+      isInExternalModule &&
+      (meaning & SymbolFlags.Value) === SymbolFlags.Value
+    ) {
+      const name = result.name;
+      const isGlobal = getSymbolOfMeaning(c, c.globals, name, meaning) === result;
+      const locals = isGlobal ? getLocals(lastLocation!) : undefined;
+      const nonValueSymbol = locals !== undefined ? getSymbolOfMeaning(c, locals, name, ~SymbolFlags.Value) : undefined;
+      if (nonValueSymbol !== undefined) {
+        const importDeclaration = nonValueSymbol.declarations.find(
+          (d) =>
+            d.kind === SyntaxKind.ImportSpecifier ||
+            d.kind === SyntaxKind.ImportClause ||
+            d.kind === SyntaxKind.NamespaceImport ||
+            d.kind === SyntaxKind.ImportEqualsDeclaration,
+        );
+        if (importDeclaration !== undefined && !isTypeOnlyImportOrExportDeclaration(importDeclaration))
+          c.error(
+            importDeclaration,
+            Diagnostics.Import_0_conflicts_with_global_value_used_in_this_file_so_must_be_declared_with_a_type_only_import_when_isolatedModules_is_enabled,
+            name,
+          );
+      }
+    }
   }
 }
 
@@ -1495,12 +1552,16 @@ export function resolveAlias(c: Checker, symbol: Symbol): Symbol {
   return links.aliasTarget;
 }
 
-/** The combined flags of `symbol` and every alias target; All when an alias resolves to unknown. */
-export function getSymbolFlags(c: Checker, symbol: Symbol): SymbolFlags {
+/**
+ * The combined flags of `symbol` and every alias target; All when an alias resolves to unknown. With
+ * `excludeTypeOnlyMeanings`, the chain stops at the first alias with a type-only declaration.
+ */
+export function getSymbolFlags(c: Checker, symbol: Symbol, excludeTypeOnlyMeanings = false): SymbolFlags {
   let flags = symbol.flags;
   // Created for the first alias of an alias, as tsgo's zero-value set.
   let seen: Set<Symbol> | undefined = undefined;
   while ((symbol.flags & SymbolFlags.Alias) !== 0) {
+    if (excludeTypeOnlyMeanings && getTypeOnlyAliasDeclaration(c, symbol) !== undefined) break;
     const target = getExportSymbolOfValueSymbolIfExported(c, resolveAlias(c, symbol));
     if (target === c.unknownSymbol) return SymbolFlags.All;
     if ((target.flags & SymbolFlags.Alias) !== 0) {
@@ -1675,10 +1736,11 @@ export function isReservedMemberName(name: string): boolean {
   return second !== 0x40 && second !== 0x23;
 }
 
+/** Whether `symbol` has a value meaning; one reached through a type-only alias doesn't count. */
 export function symbolIsValue(c: Checker, symbol: Symbol): boolean {
   return (
     (symbol.flags & SymbolFlags.Value) !== 0 ||
-    ((symbol.flags & SymbolFlags.Alias) !== 0 && (getSymbolFlags(c, symbol) & SymbolFlags.Value) !== 0)
+    ((symbol.flags & SymbolFlags.Alias) !== 0 && (getSymbolFlags(c, symbol, true) & SymbolFlags.Value) !== 0)
   );
 }
 
