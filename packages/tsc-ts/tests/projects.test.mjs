@@ -567,6 +567,19 @@ const projects = [
         'export const p: Parts<string> = 0;\n',
     },
   ],
+  [
+    'unused labels under allowUnusedLabels false',
+    {
+      'a.ts':
+        'export {};\nhttps: `abc`;\nouter: for (;;) {\n  inner: for (;;) continue outer;\n}\n' +
+        'a: b: {\n  break b;\n}\nfunction f() {\n  return;\n  late: {}\n}\n',
+      'b.js': 'lbl: {\n}\n',
+      'tsconfig.json': JSON.stringify({
+        compilerOptions: { ...base, allowUnusedLabels: false, allowJs: true, checkJs: true },
+        files: ['a.ts', 'b.js'],
+      }),
+    },
+  ],
 ];
 
 // Module specifiers of inferred types: `import("…")` types in declaration emit and the TS2883
