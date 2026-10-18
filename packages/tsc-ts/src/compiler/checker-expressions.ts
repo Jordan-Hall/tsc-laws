@@ -1792,8 +1792,10 @@ function checkAssertionCompatibility(c: Checker, node: Node, rawExprType: Type, 
 
 function checkSatisfiesExpression(c: Checker, node: Node, checkMode: CheckMode): Type {
   const expr = getExpression(node)!;
+  const typeNode = getType(node)!;
+  checkTypeNodeIfPresent(c, typeNode);
   const exprType = checkExpressionEx(c, expr, checkMode);
-  const targetType = getTypeFromTypeNode(c, getType(node)!);
+  const targetType = getTypeFromTypeNode(c, typeNode);
   if (isErrorType(c, targetType)) return targetType;
   checkTypeRelatedToAndOptionallyElaborate(
     c,
