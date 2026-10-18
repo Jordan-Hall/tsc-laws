@@ -53,6 +53,7 @@ import { getConstraintTypeFromMappedType, getNameTypeFromMappedType } from './ch
 import { checkTypeAssignableTo, checkTypeRelatedTo } from './relations.js';
 import { Diagnostic, chainDiagnostic } from './diagnostics.js';
 import { skipTrivia } from './scanner.js';
+import { nodeIsMissing } from './ast-utilities.js';
 import { getAttachedJSDoc } from './parser.js';
 import { shouldPreserveConstEnums } from './options.js';
 import { isReachableFlowNode } from './checker-narrowing.js';
@@ -191,7 +192,8 @@ function checkSourceElementUnreachable(c: Checker, node: Node): boolean {
         c.reportedUnreachableNodes.add(next);
       }
   }
-  const start = skipTrivia(file.text, node.pos);
+  // A missing statement starts where it ends, before the trivia of the next token.
+  const start = nodeIsMissing(node) ? node.pos : skipTrivia(file.text, node.pos);
   const diagnostic = new Diagnostic(
     file.diagnosticFile(),
     start,
