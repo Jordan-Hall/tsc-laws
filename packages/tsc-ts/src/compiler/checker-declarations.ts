@@ -780,16 +780,20 @@ export function checkTypeArgumentConstraintsOfReference(c: Checker, node: Node):
     false,
   );
   const mapper = newTypeMapper(typeParameters.slice(), filled);
+  // Only the first type argument that doesn't satisfy its constraint is reported.
   for (let i = 0; i < typeArguments.length; i++) {
     const constraint = getConstraintOfTypeParameter(c, typeParameters[i]!);
     if (constraint === undefined) continue;
-    checkTypeAssignableTo(
-      c,
-      typeArguments[i]!,
-      instantiateType(c, constraint, mapper),
-      typeArgumentNodes.nodes[i]!,
-      Diagnostics.Type_0_does_not_satisfy_the_constraint_1,
-    );
+    if (
+      !checkTypeAssignableTo(
+        c,
+        typeArguments[i]!,
+        instantiateType(c, constraint, mapper),
+        typeArgumentNodes.nodes[i]!,
+        Diagnostics.Type_0_does_not_satisfy_the_constraint_1,
+      )
+    )
+      break;
   }
 }
 
