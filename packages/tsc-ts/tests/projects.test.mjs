@@ -622,6 +622,19 @@ const projects = [
       }),
     },
   ],
+  [
+    'namespaced JSX attributes and template literal index signatures',
+    {
+      'a.tsx':
+        'type H = () => void;\n' +
+        'declare global {\n  namespace JSX {\n    interface Element {}\n' +
+        "    interface IntrinsicElements { d: { 'q:slot'?: string; [key: `${'w:' | ''}on${string}`]: H } }\n  }\n}\n" +
+        'export const a = <d q:slot="x" />;\n' +
+        'export const b = <d q:slot={1} />;\n' +
+        'export const c = <d w:onx={1} />;\n',
+      'tsconfig.json': JSON.stringify({ compilerOptions: { ...base, jsx: 'preserve' }, files: ['a.tsx'] }),
+    },
+  ],
 ];
 
 // Module specifiers of inferred types: `import("…")` types in declaration emit and the TS2883
