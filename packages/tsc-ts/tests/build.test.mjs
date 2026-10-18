@@ -728,6 +728,39 @@ function writeFiles(dir, files) {
   }
 }
 
+let scratch;
+let replacements = 0;
+
+/**
+ * Writes `files` into `dir` as `writeFiles` does, for a watch to see: each file with one rename from a temporary
+ * directory, so that no build reads it partly written, and a new directory with its file in it. `null` removes a file
+ * or a directory, also with one rename.
+ */
+function replaceFiles(dir, files) {
+  scratch ??= tempDir('tsc-ts-watch-scratch-');
+  for (const [path, text] of Object.entries(files)) {
+    const target = join(dir, path);
+    const temp = join(scratch, String(replacements++));
+    if (text === null) {
+      if (!existsSync(target)) continue;
+      renameSync(target, temp);
+      rmSync(temp, { recursive: true });
+      continue;
+    }
+    let top = dirname(target);
+    if (existsSync(top)) {
+      writeFileSync(temp, text);
+      renameSync(temp, target);
+      continue;
+    }
+    while (!existsSync(dirname(top))) top = dirname(top);
+    const file = join(temp, relative(top, target));
+    mkdirSync(dirname(file), { recursive: true });
+    writeFileSync(file, text);
+    renameSync(temp, top);
+  }
+}
+
 function readFiles(dir) {
   const result = {};
   const walk = (directory) => {
@@ -862,11 +895,18 @@ const watchProject = {
   'src/a.ts': 'export const a: number = 1;\n',
 };
 
+// The wait after each report of `watchSequence` before its next edit, in milliseconds.
+const stampGap = 20;
+
 /**
  * Runs `tsc-ts` with `args` in a new directory with `files` and makes the edits of `steps` (a file and its text, or
  * `null` to remove a directory, files to write in order, or a function of the directory and the `tsc-ts` process), each once the previous build
  * reported. `prepare` runs on the directory before `tsc-ts`
  * starts, which gets `extraEnv` in its environment. Returns the output and the output directory's files.
+ *
+ * Edits go through `replaceFiles`, and each starts `stampGap` milliseconds after the report: the watch compares
+ * modification times, which the system takes from a clock that advances in ticks of a few milliseconds, so an edit in
+ * the tick of the last build's stamps would have the time stamp it already saw.
  */
 async function watchSequence(args, steps, files = watchProject, prepare = () => {}, extraEnv = {}) {
   const dir = tempDir('tsc-ts-watch-');
@@ -883,17 +923,17 @@ async function watchSequence(args, steps, files = watchProject, prepare = () => 
     while ((output.match(/Watching for file changes/g) ?? []).length < count) {
       if (exit !== undefined) throw new Error(`exited with ${exit}; output so far:\n` + output);
       if (Date.now() > deadline) throw new Error('timed out; output so far:\n' + output);
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 10));
     }
+    await new Promise((resolve) => setTimeout(resolve, stampGap));
   };
   try {
     await waitFor(1);
     for (let i = 0; i < steps.length; i++) {
       const step = steps[i];
       if (typeof step === 'function') await step(dir, child);
-      else if (!Array.isArray(step)) writeFiles(dir, step);
-      else if (step[1] === null) rmSync(join(dir, step[0]), { recursive: true });
-      else writeFiles(dir, { [step[0]]: step[1] });
+      else if (!Array.isArray(step)) replaceFiles(dir, step);
+      else replaceFiles(dir, { [step[0]]: step[1] });
       await waitFor(i + 2);
     }
   } finally {
@@ -995,9 +1035,9 @@ test('--watch rebuilds on checker threads', { skip: tscTsMissing, timeout: 120_0
     ['proj/src/shared.ts', 'export const shared: string = "s";\n'],
     async (dir, child) => {
       const rebuilding = started(child);
-      writeFiles(dir, { 'proj/src/shared.ts': 'export const shared: number = 1;\n' });
+      replaceFiles(dir, { 'proj/src/shared.ts': 'export const shared: number = 1;\n' });
       await rebuilding;
-      writeFiles(dir, { 'proj/src/shared.ts': 'export const shared: number = 1;\n' });
+      replaceFiles(dir, { 'proj/src/shared.ts': 'export const shared: number = 1;\n' });
     },
     ['proj/src/shared.ts', 'export const shared: boolean = true;\n'],
   ];
@@ -1073,13 +1113,13 @@ test(
       const steps = [
         (dir, child) => {
           workers.push(children(child));
-          writeFiles(dir, {
+          replaceFiles(dir, {
             'tsconfig.json': '{"compilerOptions":{"outDir":"out","rootDir":"src","strict":true},"include":["src"]}',
           });
         },
         (dir, child) => {
           workers.push(children(child));
-          writeFiles(dir, { 'src/a.ts': 'export const a: string = 1;\n' });
+          replaceFiles(dir, { 'src/a.ts': 'export const a: string = 1;\n' });
         },
       ];
       const result = await watchSequence(['--watch'], steps, watchProject, () => {}, { TSC_TS_WATCH_MEMORY: memory });
@@ -1136,7 +1176,7 @@ test(
         async (dir) => {
           // After the check that follows the new watches, so only an event of two/ can report the edit.
           await new Promise((resolve) => setTimeout(resolve, 500));
-          writeFiles(dir, { 'two/c.ts': 'export const b: string = 2;\n' });
+          replaceFiles(dir, { 'two/c.ts': 'export const b: string = 2;\n' });
         },
       ],
       { ...watchProject, 'one/b.ts': 'export const b: number = 1;\n', 'two/c.ts': 'export const b: number = 2;\n' },

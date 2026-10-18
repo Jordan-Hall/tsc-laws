@@ -16,10 +16,11 @@ import {
   getExpression,
   getStatements,
   getName,
+  NodeFlags,
 } from './ast.js';
 import { Diagnostics } from './diagnostics.js';
 import { SyntaxKind } from './syntax-kind.js';
-import type { Checker } from './checker.js';
+import { type Checker, createDiagnosticForNode } from './checker.js';
 import { CheckMode, type Type, TypeFlags } from './checker-types.js';
 import {
   getReturnTypeFromAnnotation,
@@ -264,7 +265,14 @@ export function checkSwitchStatement(c: Checker, node: Node): void {
 }
 
 export function checkLabeledStatement(c: Checker, node: Node): void {
-  checkSourceElement(c, (node as LabeledStatement).statement);
+  const { label, statement } = node as LabeledStatement;
+  // The binder marks the labels that no break or continue statement references.
+  if ((label.flags & NodeFlags.Unreachable) !== 0 && c.compilerOptions.allowUnusedLabels !== true)
+    c.addErrorOrSuggestion(
+      c.compilerOptions.allowUnusedLabels === false,
+      createDiagnosticForNode(label, Diagnostics.Unused_label, []),
+    );
+  checkSourceElement(c, statement);
 }
 
 export function checkThrowStatement(c: Checker, node: Node): void {
