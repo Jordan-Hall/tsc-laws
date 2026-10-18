@@ -68,30 +68,28 @@ import { type Checker, createDiagnosticForNode } from './checker.js';
 import { IntrinsicTypeKind, getLiteralTypeFromPropertyName, intrinsicTypeKind } from './checker-type-operators.js';
 import {
   CheckMode,
+  type InterfaceType,
   ObjectFlags,
   SimpleTypeMapper,
   type Type,
   TypeFlags,
   type TypeParameter,
-  newTypeMapper,
+  type TypeReference,
 } from './checker-types.js';
+import { checkTypeArgumentConstraints } from './checker-heritage.js';
 import { getUnionType, isErrorType } from './checker-type-factory.js';
 import { getTypeFromTypeNode } from './checker-type-nodes.js';
 import {
   computeEnumMemberValues,
   getConstraintOfTypeParameter,
-  getDeclaredTypeOfClassOrInterface,
   getDeclaredTypeOfSymbol,
   getDeclaredTypeOfTypeParameter,
-  fillMissingTypeArguments,
-  getMinTypeArgumentCount,
   getDefaultFromTypeParameter,
   getResolvedTypeParameterDefault,
 } from './checker-declared-types.js';
 import {
   getDeclarationOfAliasSymbol,
   getExportsOfModule,
-  getMergedSymbol,
   getSymbolFlags,
   getSymbolOfDeclaration,
   resolveAlias,
@@ -750,51 +748,20 @@ export function checkTypeAliasDeclaration(c: Checker, node: Node): void {
   } else checkSourceElement(c, alias.type);
 }
 
-/** Checks the type arguments of a reference to a generic type against their constraints. */
-export function checkTypeArgumentConstraintsOfReference(c: Checker, node: Node): void {
-  const typeArgumentNodes = getTypeArguments(node);
-  if (typeArgumentNodes === undefined) return;
+/**
+ * Checks the type arguments of a type reference, an import type or a heritage type reference against the
+ * constraints of the type parameters of what it references, as tsgo's checkTypeReferenceOrImport does;
+ * not when `type`, the type of the reference, is the error type.
+ */
+export function checkTypeArgumentConstraintsOfReference(c: Checker, node: Node, type: Type): void {
+  if (isErrorType(c, type) || (getTypeArguments(node)?.nodes.length ?? 0) === 0) return;
   const symbol = c.resolvedSymbols.get(node.id);
-  if (symbol === undefined || symbol === c.unknownSymbol) return;
+  if (symbol === undefined) return;
   let typeParameters: readonly Type[] | undefined = undefined;
-  if ((symbol.flags & (SymbolFlags.Class | SymbolFlags.Interface)) !== 0)
-    typeParameters = getDeclaredTypeOfClassOrInterface(c, getMergedSymbol(c, symbol)).localTypeParameters();
-  else if ((symbol.flags & SymbolFlags.TypeAlias) !== 0) {
-    getDeclaredTypeOfSymbol(c, symbol);
-    typeParameters = c.symbolLinks(symbol).typeParameters;
-  }
-  if (typeParameters === undefined || typeParameters.length === 0) return;
-  const typeArguments: Type[] = [];
-  for (const n of typeArgumentNodes.nodes) {
-    const t = getTypeFromTypeNode(c, n);
-    if (isErrorType(c, t)) return;
-    typeArguments.push(t);
-  }
-  if (typeArguments.length > typeParameters.length || typeArguments.length < getMinTypeArgumentCount(c, typeParameters))
-    return;
-  const filled = fillMissingTypeArguments(
-    c,
-    typeArguments,
-    typeParameters,
-    getMinTypeArgumentCount(c, typeParameters),
-    false,
-  );
-  const mapper = newTypeMapper(typeParameters.slice(), filled);
-  // Only the first type argument that doesn't satisfy its constraint is reported.
-  for (let i = 0; i < typeArguments.length; i++) {
-    const constraint = getConstraintOfTypeParameter(c, typeParameters[i]!);
-    if (constraint === undefined) continue;
-    if (
-      !checkTypeAssignableTo(
-        c,
-        typeArguments[i]!,
-        instantiateType(c, constraint, mapper),
-        typeArgumentNodes.nodes[i]!,
-        Diagnostics.Type_0_does_not_satisfy_the_constraint_1,
-      )
-    )
-      break;
-  }
+  if ((symbol.flags & SymbolFlags.TypeAlias) !== 0) typeParameters = c.symbolLinks(symbol).typeParameters;
+  if ((typeParameters === undefined || typeParameters.length === 0) && (type.objectFlags & ObjectFlags.Reference) !== 0)
+    typeParameters = ((type as TypeReference).target as InterfaceType).localTypeParameters();
+  if (typeParameters !== undefined && typeParameters.length > 0) checkTypeArgumentConstraints(c, node, typeParameters);
 }
 
 export function checkEnumMember(c: Checker, node: Node): void {
