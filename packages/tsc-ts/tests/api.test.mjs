@@ -4,6 +4,7 @@ import { cpSync, existsSync, mkdirSync, readFileSync, realpathSync, rmSync, syml
 import { join, resolve } from 'node:path';
 import test from 'node:test';
 import { Differential, explore, exploreServices } from './differential.mjs';
+import { Client } from './client.mjs';
 import { typescriptLib as bundledLib, tscTs, tscTsMissing } from './toolchain.mjs';
 import { tempDir } from './temp.mjs';
 
@@ -297,17 +298,15 @@ test('tsc-ts --api updates a program for a changed file like tsc --api', { skip,
     await change('a.ts', 'e.ts');
     write('e.ts', 'export class E { x = "1"; }\n');
     await change('e.ts');
-    // A JSX import source pragma, which is not an import of the file.
-    write('c.tsx', '/** @jsxImportSource preact */\nexport const c = <div>{1}</div>;\n');
-    await change('c.tsx');
     // A JavaScript file that is no longer checked.
     write('d.js', 'export const d = 1;\nd.toFixed(1);\n');
     await change('d.js');
     // A file that is no longer a module, so it no longer imports tslib.
     write('e.ts', 'class E { x = "1"; }\n');
     await change('e.ts');
-    // Files that become scripts with the same imports: a JavaScript file imports tslib either way and a declaration
-    // file never does, so the program takes the new file, and g.ts finds their declarations as globals.
+    // Files that become scripts with the same imports and tslib import (a JavaScript file imports tslib either way, a
+    // declaration file never does), so only the change between module and script loads the program again; g.ts finds
+    // their declarations as globals.
     write('d.js', 'var globalD = 1;\nglobalD.toFixed(1);\n');
     await change('d.js');
     write('h.d.ts', 'declare const h: number;\n');
@@ -321,6 +320,92 @@ test('tsc-ts --api updates a program for a changed file like tsc --api', { skip,
     await d.close();
   }
   report(d);
+});
+
+// After an edit of a JSX import source pragma, of an import's resolution mode, or that makes a module a script, an
+// update gives what a new program gives: it loads the program again where the program kept the file's JSX runtime
+// import or resolutions. The tsgo that `tsc --api` runs here keeps the old JSX runtime import and resolution after
+// the first two, so each update is compared with a server that loads the project anew.
+test('tsc-ts --api updates a program for a changed file like a new program', { skip, timeout: 300_000 }, async () => {
+  const dir = tempDir('tsc-ts-api-');
+  const write = (name, text) => {
+    mkdirSync(join(dir, name, '..'), { recursive: true });
+    writeFileSync(join(dir, name), text);
+  };
+  const names = ['c.tsx', 'index.ts', 'p.ts', 'q.ts'];
+  write(
+    'tsconfig.json',
+    JSON.stringify({
+      compilerOptions: { strict: true, types: [], module: 'preserve', moduleResolution: 'bundler', jsx: 'react-jsx' },
+      files: names,
+    }),
+  );
+  write('c.tsx', 'export const c = <div>{1}</div>;\n');
+  const typeImport = (mode) =>
+    `import type { Value } from "pkg" with { "resolution-mode": "${mode}" };\nexport const value: Value = { mode: "require" };\n`;
+  write('index.ts', typeImport('require'));
+  write('p.ts', 'export const shared = 1;\n');
+  write('q.ts', 'const n: string = shared;\n');
+  write('node_modules/react/package.json', '{"name":"react","types":"index.d.ts"}');
+  write('node_modules/react/index.d.ts', 'export {};\n');
+  write(
+    'node_modules/react/jsx-runtime.d.ts',
+    'export declare function jsx(...args: any[]): any;\ndeclare global { namespace JSX { interface IntrinsicElements { [name: string]: any } } }\n',
+  );
+  write(
+    'node_modules/pkg/package.json',
+    '{"name":"pkg","exports":{".":{"import":"./index.mjs","require":"./index.js"}}}',
+  );
+  write('node_modules/pkg/index.d.mts', 'export interface Value { mode: "import" }\n');
+  write('node_modules/pkg/index.d.ts', 'export interface Value { mode: "require" }\n');
+  const config = join(dir, 'tsconfig.json');
+  const diagnostics = async (client, snapshot) => {
+    const base = { snapshot, project: config };
+    const result = {
+      program: await client.json('getProgramDiagnostics', base),
+      global: await client.json('getGlobalDiagnostics', base),
+    };
+    for (const name of names) {
+      result[name] = [
+        await client.json('getSyntacticDiagnostics', { ...base, file: join(dir, name) }),
+        await client.json('getSemanticDiagnostics', { ...base, file: join(dir, name) }),
+      ];
+    }
+    return result;
+  };
+  const loaded = async () => {
+    const client = new Client(tscTs, dir, env);
+    try {
+      await client.json('initialize');
+      const { snapshot } = await client.json('updateSnapshot', { openProjects: [config] });
+      return await diagnostics(client, snapshot);
+    } finally {
+      await client.close();
+    }
+  };
+  const updated = new Client(tscTs, dir, env);
+  try {
+    await updated.json('initialize');
+    let { snapshot } = await updated.json('updateSnapshot', { openProjects: [config] });
+    assert.deepEqual(await diagnostics(updated, snapshot), await loaded());
+    const codes = (result, name) => result[name][1].map((d) => d.code);
+    for (const [name, text, code] of [
+      ['c.tsx', '/** @jsxImportSource preact */\nexport const c = <div>{1}</div>;\n', 2875],
+      ['c.tsx', 'export const c = <div>{2}</div>;\n', undefined],
+      ['index.ts', typeImport('import'), 2322],
+      ['index.ts', typeImport('require'), undefined],
+      ['p.ts', 'const shared = 1;\n', undefined],
+      ['p.ts', 'export const shared = 1;\n', undefined],
+    ]) {
+      write(name, text);
+      ({ snapshot } = await updated.json('updateSnapshot', { fileChanges: { changed: [join(dir, name)] } }));
+      const expected = await loaded();
+      if (code !== undefined) assert.ok(codes(expected, name).includes(code), `${name}: ${codes(expected, name)}`);
+      assert.deepEqual(await diagnostics(updated, snapshot), expected, `after the edit of ${name}`);
+    }
+  } finally {
+    await updated.close();
+  }
 });
 
 // `await (legacy())` parses as a call of `await` until the file turns out to be a module, so

@@ -431,15 +431,34 @@ export function needsImportHelpersImportSpecifier(file: SourceFile, options: Com
   return isSourceFileJS(file) || (!file.isDeclarationFile && (getIsolatedModules(options) || isExternalModule(file)));
 }
 
+/** The module `file` imports the JSX runtime from under `options`, or '' if it imports none. */
+export function jsxRuntimeImportOf(file: SourceFile, options: CompilerOptions): string {
+  if (file.scriptKind !== ScriptKind.JSX && file.scriptKind !== ScriptKind.TSX) return '';
+  return getJSXRuntimeImport(getJSXImplicitImportBase(options, file), options);
+}
+
 /**
- * Whether `next`, a new version of `file`, can take its place in a program without loading the program again:
- * it has the same module specifiers, module augmentation names, ambient modules, file, type and library
- * references, `// @ts-check` directive and node core module style, as tsgo's canReplaceFileInProgram checks.
+ * Whether `next`, a new version of `file`, can take its place in a program without loading the program again,
+ * as tsgo's canReplaceFileInProgram checks: it has the same script kind, is a module if `file` is one, and has
+ * the same module specifiers with the same resolution modes (`modeOf`), module augmentation names, ambient
+ * modules, file, type and library references, `// @ts-check` directive and node core module style. A CommonJS
+ * module indicator is set when a file is bound, so `next` has none yet; the new program's binder sets it.
  */
-export function canReplaceFile(file: SourceFile, next: SourceFile): boolean {
+export function canReplaceFile(
+  file: SourceFile,
+  next: SourceFile,
+  modeOf: (file: SourceFile, specifier: Node) => ModuleKind,
+): boolean {
   return (
+    file.scriptKind === next.scriptKind &&
+    isExternalModule(file) === isExternalModule(next) &&
     file.usesUriStyleNodeCoreModules === next.usesUriStyleNodeCoreModules &&
-    sameNodes(file.imports, next.imports, (a, b) => a.kind !== SyntaxKind.StringLiteral || getText(a) === getText(b)) &&
+    sameNodes(
+      file.imports,
+      next.imports,
+      (a, b) =>
+        (a.kind !== SyntaxKind.StringLiteral || getText(a) === getText(b)) && modeOf(file, a) === modeOf(next, b),
+    ) &&
     sameNodes(file.moduleAugmentations, next.moduleAugmentations, (a, b) => getText(a) === getText(b)) &&
     sameStrings(file.ambientModuleNames, next.ambientModuleNames) &&
     sameFileReferences(file.referencedFiles, next.referencedFiles) &&
@@ -1222,13 +1241,11 @@ export class FileLoader {
       moduleNames.push(specifier);
       task.importHelpersImportSpecifier = specifier;
     }
-    if (file.scriptKind === ScriptKind.JSX || file.scriptKind === ScriptKind.TSX) {
-      const jsxImport = getJSXRuntimeImport(getJSXImplicitImportBase(options, file), options);
-      if (jsxImport !== '') {
-        const specifier = createSyntheticImport(jsxImport, file);
-        moduleNames.push(specifier);
-        task.jsxRuntimeImport = new JsxRuntimeImport(jsxImport, specifier);
-      }
+    const jsxImport = jsxRuntimeImportOf(file, options);
+    if (jsxImport !== '') {
+      const specifier = createSyntheticImport(jsxImport, file);
+      moduleNames.push(specifier);
+      task.jsxRuntimeImport = new JsxRuntimeImport(jsxImport, specifier);
     }
     const importsStart = moduleNames.length;
     for (const specifier of file.imports) moduleNames.push(specifier);

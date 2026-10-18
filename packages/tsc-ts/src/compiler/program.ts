@@ -32,6 +32,7 @@ import {
 import {
   canReplaceFile,
   FileLoader,
+  jsxRuntimeImportOf,
   modeAwareKey,
   needsImportHelpersImportSpecifier,
   withReplacedFile,
@@ -165,7 +166,8 @@ export class Program implements OutputPathsHost {
    * The program with the file at `path` read again from `host` and everything else taken from this program,
    * as tsgo's UpdateProgram makes it: `undefined` when the file is not in the program, belongs to a package
    * that is installed more than once, or no longer imports, references or needs the same modules
-   * (`canReplaceFile`, `needsImportHelpersImportSpecifier`), so the program must be loaded again.
+   * (`canReplaceFile`, and the tslib and JSX runtime imports the program kept for the file), so the program
+   * must be loaded again.
    */
   updateFile(path: string, host: CompilerHost): Program | undefined {
     const processed = this.processed;
@@ -174,9 +176,12 @@ export class Program implements OutputPathsHost {
     const next = host.getSourceFile(file.fileName, file.path, file.externalModuleIndicatorOptions);
     if (next === undefined) return undefined;
     if (processed.redirectFilesByPath.has(path) || processed.redirectTargets.has(path)) return undefined;
-    if (!canReplaceFile(file, next)) return undefined;
+    if (!canReplaceFile(file, next, (f, specifier) => this.getModeForUsageLocation(f, specifier))) return undefined;
     const options = processed.projectReferenceMapper.getCompilerOptionsForFile(next.path, next.fileName);
     if (processed.importHelpersImportSpecifiers.has(path) !== needsImportHelpersImportSpecifier(next, options))
+      return undefined;
+    const jsxImport = processed.jsxRuntimeImports.get(path);
+    if ((jsxImport === undefined ? '' : jsxImport.moduleReference) !== jsxRuntimeImportOf(next, options))
       return undefined;
     return new Program(this.commandLine, host, undefined, this, withReplacedFile(processed, next));
   }
