@@ -83,6 +83,7 @@ import {
   markAliasDeclarationOfNameIfTypeOnly,
   getExportsOfModuleWorker,
   getTargetOfAliasDeclaration,
+  getTypeOnlyAliasDeclaration,
   resolveExternalModuleNameWorker,
   resolveExternalModuleSymbol,
   resolveIndirectionAlias,
@@ -1495,12 +1496,16 @@ export function resolveAlias(c: Checker, symbol: Symbol): Symbol {
   return links.aliasTarget;
 }
 
-/** The combined flags of `symbol` and every alias target; All when an alias resolves to unknown. */
-export function getSymbolFlags(c: Checker, symbol: Symbol): SymbolFlags {
+/**
+ * The combined flags of `symbol` and every alias target; All when an alias resolves to unknown. With
+ * `excludeTypeOnlyMeanings`, the chain stops at the first alias with a type-only declaration.
+ */
+export function getSymbolFlags(c: Checker, symbol: Symbol, excludeTypeOnlyMeanings = false): SymbolFlags {
   let flags = symbol.flags;
   // Created for the first alias of an alias, as tsgo's zero-value set.
   let seen: Set<Symbol> | undefined = undefined;
   while ((symbol.flags & SymbolFlags.Alias) !== 0) {
+    if (excludeTypeOnlyMeanings && getTypeOnlyAliasDeclaration(c, symbol) !== undefined) break;
     const target = getExportSymbolOfValueSymbolIfExported(c, resolveAlias(c, symbol));
     if (target === c.unknownSymbol) return SymbolFlags.All;
     if ((target.flags & SymbolFlags.Alias) !== 0) {
@@ -1675,10 +1680,11 @@ export function isReservedMemberName(name: string): boolean {
   return second !== 0x40 && second !== 0x23;
 }
 
+/** Whether `symbol` has a value meaning; one reached through a type-only alias doesn't count. */
 export function symbolIsValue(c: Checker, symbol: Symbol): boolean {
   return (
     (symbol.flags & SymbolFlags.Value) !== 0 ||
-    ((symbol.flags & SymbolFlags.Alias) !== 0 && (getSymbolFlags(c, symbol) & SymbolFlags.Value) !== 0)
+    ((symbol.flags & SymbolFlags.Alias) !== 0 && (getSymbolFlags(c, symbol, true) & SymbolFlags.Value) !== 0)
   );
 }
 
