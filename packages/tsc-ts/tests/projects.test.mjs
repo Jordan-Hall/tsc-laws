@@ -311,6 +311,20 @@ const projects = [
     },
   ],
   [
+    'JSDoc type tags of class methods',
+    {
+      'a.js':
+        'class Base {\n  /** @param {number} n */\n  size(n) { return n; }\n}\n' +
+        '/** @typedef {(a: number, b: string) => number} Two */\nexport class K extends Base {\n' +
+        '  /** @type {Base["missing"]} */\n  m1(module, type) { return 42; }\n' +
+        '  /** @type {Base["size"]} */\n  size(n) { return n; }\n' +
+        '  /** @type {Two} */\n  m2(a) { return a; }\n' +
+        '  /** @type {(a: number) => number} */\n  m3(a, b) { return a; }\n' +
+        '  /** @type {string} */\n  m4() { return 1; }\n}\n',
+      'tsconfig.json': JSON.stringify({ compilerOptions: { ...base, allowJs: true, checkJs: true }, files: ['a.js'] }),
+    },
+  ],
+  [
     'types of decorated signatures under isolatedModules and emitDecoratorMetadata',
     {
       'a.ts':
