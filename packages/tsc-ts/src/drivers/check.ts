@@ -4,7 +4,8 @@
 // `@jsxFragmentFactory` and `@jsxImportSource` directives. A test case whose files are all JavaScript
 // and that sets @checkJs is checked as `/input.js` with allowJs and checkJs. TSC_TS_CHECK_OPTIONS lists
 // options for every input, separated by commas, as in the check oracle: names of boolean options to turn
-// on, and module, moduleResolution and target as name=value.
+// on, module, moduleResolution and target as name=value, and the strict family, allowUnreachableCode and
+// allowUnusedLabels as name=true or name=false.
 // Usage: check FILE LIBDIR [--batch|--bench]
 //   --batch  FILE lists input files, one per line; each is printed after `== <path>`
 //   --bench  times parsing, binding and checking FILE
@@ -176,8 +177,9 @@ const scriptTargets = new Map<string, ScriptTarget>([
 ]);
 
 /**
- * Sets an entry of TSC_TS_CHECK_OPTIONS: the name of a boolean option to turn on, or `name=value` for
- * module, moduleResolution and target. False for an entry it doesn't take.
+ * Sets an entry of TSC_TS_CHECK_OPTIONS: the name of a boolean option to turn on, `name=value` for
+ * module, moduleResolution and target, or `name=true` and `name=false` for the strict family,
+ * allowUnreachableCode and allowUnusedLabels. False for an entry it doesn't take.
  */
 function setOption(options: CompilerOptions, entry: string): boolean {
   const equals = entry.indexOf('=');
@@ -193,6 +195,46 @@ function setOption(options: CompilerOptions, entry: string): boolean {
       case 'target':
         options.target = scriptTargets.get(value);
         return options.target !== undefined;
+    }
+    if (value !== 'true' && value !== 'false') return false;
+    const flag = value === 'true';
+    switch (entry.substring(0, equals)) {
+      case 'strict':
+        options.strict = flag;
+        return true;
+      case 'strictNullChecks':
+        options.strictNullChecks = flag;
+        return true;
+      case 'noImplicitAny':
+        options.noImplicitAny = flag;
+        return true;
+      case 'strictFunctionTypes':
+        options.strictFunctionTypes = flag;
+        return true;
+      case 'strictBindCallApply':
+        options.strictBindCallApply = flag;
+        return true;
+      case 'strictPropertyInitialization':
+        options.strictPropertyInitialization = flag;
+        return true;
+      case 'noImplicitThis':
+        options.noImplicitThis = flag;
+        return true;
+      case 'useUnknownInCatchVariables':
+        options.useUnknownInCatchVariables = flag;
+        return true;
+      case 'alwaysStrict':
+        options.alwaysStrict = flag;
+        return true;
+      case 'strictBuiltinIteratorReturn':
+        options.strictBuiltinIteratorReturn = flag;
+        return true;
+      case 'allowUnreachableCode':
+        options.allowUnreachableCode = flag;
+        return true;
+      case 'allowUnusedLabels':
+        options.allowUnusedLabels = flag;
+        return true;
     }
     return false;
   }

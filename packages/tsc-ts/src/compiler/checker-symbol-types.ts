@@ -120,7 +120,12 @@ import {
   getSignatureFromDeclaration,
   getTypeOfParameter as getTypeOfParameterOfSignature,
 } from './checker-signatures.js';
-import { getReturnTypeFromBody, getTypeOfObjectLiteralMethod, ReturnCollector } from './checker-functions.js';
+import {
+  getReturnTypeFromBody,
+  getTypeOfObjectLiteralMethod,
+  ReturnCollector,
+  shouldReportErrorsFromWideningWithContextualSignature,
+} from './checker-functions.js';
 import { getTypeOfReverseMappedSymbol } from './checker-inference.js';
 import {
   checkDeclarationInitializer,
@@ -500,7 +505,7 @@ export function widenTypeForVariableLikeDeclaration(
     // that predate `unique symbol` declare them.
     if ((t.flags & TypeFlags.ESSymbol) !== 0 && isGlobalSymbolConstructor(c, declaration.parent!))
       t = getESSymbolLikeTypeForNode(c, declaration);
-    if (reportErrors) reportErrorsFromWidening(c, declaration, t);
+    if (reportErrors) reportErrorsFromWidening(c, declaration, t, WideningKind.Normal);
     // A unique symbol type from another declaration widens.
     if (
       (t.flags & TypeFlags.UniqueESSymbol) !== 0 &&
@@ -535,11 +540,30 @@ function isPrivateIdentifierClassElement(node: Node): boolean {
   return name !== undefined && name.kind === SyntaxKind.PrivateIdentifier;
 }
 
-/** Implicit-any widening of null/undefined, which strictNullChecks avoids. */
-function reportErrorsFromWidening(c: Checker, declaration: Node, t: Type): void {
+/** What a widened type is the type of, for the implicit any messages. */
+export const enum WideningKind {
+  Normal,
+  FunctionReturn,
+  GeneratorNext,
+  GeneratorYield,
+}
+
+/**
+ * Implicit-any widening of null/undefined, which strictNullChecks avoids. A function's inferred
+ * types report it only without a contextual signature, or when the contextual type is generic.
+ */
+export function reportErrorsFromWidening(c: Checker, declaration: Node, t: Type, wideningKind: WideningKind): void {
+  if (!c.noImplicitAny || (t.objectFlags & ObjectFlags.ContainsWideningType) === 0) return;
+  if (
+    wideningKind !== WideningKind.Normal &&
+    !(
+      isFunctionLikeDeclarationKind(declaration.kind) &&
+      shouldReportErrorsFromWideningWithContextualSignature(c, declaration, wideningKind)
+    )
+  )
+    return;
   // Implicit any errors are reported within the type where possible, else on the declaration.
-  if (c.noImplicitAny && (t.objectFlags & ObjectFlags.ContainsWideningType) !== 0 && !reportWideningErrorsInType(c, t))
-    reportImplicitAny(c, declaration, t);
+  if (!reportWideningErrorsInType(c, t)) reportImplicitAny(c, declaration, t, wideningKind);
 }
 
 function reportWideningErrorsInType(c: Checker, t: Type): boolean {
@@ -579,7 +603,12 @@ function reportWideningErrorsInType(c: Checker, t: Type): boolean {
   return errorReported;
 }
 
-export function reportImplicitAny(c: Checker, declaration: Node, t: Type): void {
+export function reportImplicitAny(
+  c: Checker,
+  declaration: Node,
+  t: Type,
+  wideningKind: WideningKind = WideningKind.Normal,
+): void {
   const file = getSourceFileOfNode(declaration);
   // Only TypeScript files and checked JavaScript files report implicit `any`.
   if (isInJSFile(declaration) && !isCheckJsEnabledForFile(file, c.compilerOptions)) return;
@@ -646,7 +675,9 @@ export function reportImplicitAny(c: Checker, declaration: Node, t: Type): void 
       if (c.noImplicitAny && getName(declaration) === undefined) {
         c.error(
           declaration,
-          Diagnostics.Function_expression_which_lacks_return_type_annotation_implicitly_has_an_0_return_type,
+          wideningKind === WideningKind.GeneratorYield
+            ? Diagnostics.Generator_implicitly_has_yield_type_0_Consider_supplying_a_return_type_annotation
+            : Diagnostics.Function_expression_which_lacks_return_type_annotation_implicitly_has_an_0_return_type,
           typeAsString,
         );
         return;
@@ -659,9 +690,11 @@ export function reportImplicitAny(c: Checker, declaration: Node, t: Type): void 
         );
         return;
       }
-      message = c.noImplicitAny
-        ? Diagnostics.X_0_which_lacks_return_type_annotation_implicitly_has_an_1_return_type
-        : Diagnostics.X_0_implicitly_has_an_1_return_type_but_a_better_type_may_be_inferred_from_usage;
+      if (!c.noImplicitAny)
+        message = Diagnostics.X_0_implicitly_has_an_1_return_type_but_a_better_type_may_be_inferred_from_usage;
+      else if (wideningKind === WideningKind.GeneratorYield)
+        message = Diagnostics.X_0_which_lacks_return_type_annotation_implicitly_has_an_1_yield_type;
+      else message = Diagnostics.X_0_which_lacks_return_type_annotation_implicitly_has_an_1_return_type;
       break;
     case SyntaxKind.MappedType:
       if (c.noImplicitAny) c.error(declaration, Diagnostics.Mapped_object_type_implicitly_has_an_any_template_type);
@@ -1463,7 +1496,7 @@ import {
 } from './checker-members.js';
 import { checkExpression } from './checker-expressions.js';
 import { getParameterTypeOfFullSignature } from './checker-jsdoc.js';
-import { isFunctionLike, isInJSFile } from './ast-utilities.js';
+import { isFunctionLike, isFunctionLikeDeclarationKind, isInJSFile } from './ast-utilities.js';
 import { isEmptyArrayLiteralType } from './relations.js';
 import { isCheckJsEnabledForFile } from './program-utilities.js';
 
