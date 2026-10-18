@@ -243,7 +243,7 @@ test('tsc-ts --api updates a program for a changed file like tsc --api', { skip,
         importHelpers: true,
         isolatedModules: false,
       },
-      files: ['a.ts', 'b.ts', 'c.tsx', 'd.js', 'e.ts'],
+      files: ['a.ts', 'b.ts', 'c.tsx', 'd.js', 'e.ts', 'g.ts', 'h.d.ts'],
     }),
   );
   const write = (name, text) => writeFileSync(join(dir, name), text);
@@ -252,6 +252,8 @@ test('tsc-ts --api updates a program for a changed file like tsc --api', { skip,
   write('c.tsx', 'export const c = <div>{1}</div>;\n');
   write('d.js', '// @ts-check\nexport const d = 1;\nd.toFixed(1);\n');
   write('e.ts', 'export class E { x = 1; }\n');
+  write('g.ts', 'export const g: string = h + globalD;\n');
+  write('h.d.ts', 'export declare const h: number;\n');
   mkdirSync(join(dir, 'node_modules/react'), { recursive: true });
   write('node_modules/react/package.json', '{"name":"react","types":"index.d.ts"}');
   write('node_modules/react/index.d.ts', 'export {};\n');
@@ -269,7 +271,7 @@ test('tsc-ts --api updates a program for a changed file like tsc --api', { skip,
       await d.call('getSourceFileNames', base);
       await d.call('getProgramDiagnostics', base);
       await d.call('getGlobalDiagnostics', base);
-      for (const name of ['a.ts', 'b.ts', 'c.tsx', 'd.js', 'e.ts']) {
+      for (const name of ['a.ts', 'b.ts', 'c.tsx', 'd.js', 'e.ts', 'g.ts', 'h.d.ts']) {
         await d.call('getSyntacticDiagnostics', { ...base, file: join(dir, name) });
         await d.call('getSemanticDiagnostics', { ...base, file: join(dir, name) });
       }
@@ -304,6 +306,17 @@ test('tsc-ts --api updates a program for a changed file like tsc --api', { skip,
     // A file that is no longer a module, so it no longer imports tslib.
     write('e.ts', 'class E { x = "1"; }\n');
     await change('e.ts');
+    // Files that become scripts with the same imports: a JavaScript file imports tslib either way and a declaration
+    // file never does, so the program takes the new file, and g.ts finds their declarations as globals.
+    write('d.js', 'var globalD = 1;\nglobalD.toFixed(1);\n');
+    await change('d.js');
+    write('h.d.ts', 'declare const h: number;\n');
+    await change('h.d.ts');
+    // And modules again.
+    write('h.d.ts', 'export declare const h: number;\n');
+    await change('h.d.ts');
+    write('d.js', 'export const d = 1;\nd.toFixed(1);\n');
+    await change('d.js');
   } finally {
     await d.close();
   }
