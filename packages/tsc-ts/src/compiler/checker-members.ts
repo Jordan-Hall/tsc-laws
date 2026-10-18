@@ -326,12 +326,16 @@ export class PendingInstantiatedMembers extends PendingMembers {
   /** Position of each member of the source by name (shared by all instantiations of the source). */
   readonly positions: Map<string, number>;
   /**
-   * What a reference inherits, per base type as far as resolution has come: a base whose own pending
-   * table is complete (its properties are read on demand), or else the base's properties as read when
-   * tsgo reads them.
+   * What a reference inherits, per base type as far as resolution has come (`baseCount` bases): a
+   * base whose own pending table is complete (its properties are read on demand), or else the base's
+   * properties as read when tsgo reads them. Most types have one base: the first is kept in
+   * `firstBase` or `firstBaseProperties`, the others in `otherBases` or `otherBaseProperties`.
    */
-  baseTypes: (StructuredType | undefined)[];
-  baseProperties: (Symbol[] | undefined)[];
+  baseCount: number;
+  firstBase: StructuredType | undefined;
+  firstBaseProperties: Symbol[] | undefined;
+  otherBases: (StructuredType | undefined)[];
+  otherBaseProperties: (Symbol[] | undefined)[];
   /** Whether the type has base types (tsgo copies the instantiated table into a new one then). */
   hasBases: boolean;
   /** While the base types are resolved: `properties` holds the own members only, as in tsgo. */
@@ -365,14 +369,45 @@ export class PendingInstantiatedMembers extends PendingMembers {
     this.mapper = mapper;
     this.states = states;
     this.positions = positions;
-    // Most instantiations have no base types: the lists are created by the first one.
-    this.baseTypes = noBaseTypes;
-    this.baseProperties = noBaseProperties;
+    // Most instantiations have no base types, or one: the lists are created by the second one.
+    this.baseCount = 0;
+    this.firstBase = undefined;
+    this.firstBaseProperties = undefined;
+    this.otherBases = noBaseTypes;
+    this.otherBaseProperties = noBaseProperties;
     this.hasBases = false;
     this.resolving = false;
     this.instantiated = undefined;
     this.owner = undefined;
     this.memberNames = undefined;
+  }
+
+  /** Records the next base: `base` where its pending table is complete, else its `properties`. */
+  addBase(base: StructuredType | undefined, properties: Symbol[] | undefined): void {
+    if (this.baseCount === 0) {
+      this.firstBase = base;
+      this.firstBaseProperties = properties;
+    } else {
+      if (this.otherBases === noBaseTypes) {
+        this.otherBases = [];
+        this.otherBaseProperties = [];
+      }
+      this.otherBases.push(base);
+      this.otherBaseProperties.push(properties);
+    }
+    this.baseCount++;
+  }
+
+  /** The base at `index` where its pending table is complete (`addBase`), else undefined. */
+  private baseAt(index: number): StructuredType | undefined {
+    return index === 0 ? this.firstBase : this.otherBases[index - 1];
+  }
+
+  /** The properties the base at `index` adds. */
+  private inheritedProperties(index: number): Symbol[] {
+    const base = this.baseAt(index);
+    if (base !== undefined) return base.properties;
+    return index === 0 ? this.firstBaseProperties! : this.otherBaseProperties[index - 1]!;
   }
 
   state(position: number): MemberState {
@@ -416,16 +451,16 @@ export class PendingInstantiatedMembers extends PendingMembers {
     }
     let existing = this.ownMember(name);
     // Own members have value flags (pendingInstantiatedTable), so no base replaces them.
-    const baseTypes = this.baseTypes;
-    if (existing !== undefined || baseTypes.length === 0) return existing;
+    const count = this.baseCount;
+    if (existing !== undefined || count === 0) return existing;
     // addInheritedMembers: a base property replaces a missing or non-value member.
-    for (let i = 0; i < baseTypes.length; i++) {
+    for (let i = 0; i < count; i++) {
       if (existing !== undefined && (existing.flags & SymbolFlags.Value) !== 0) break;
-      const base = baseTypes[i];
+      const base = this.baseAt(i);
       const inherited =
         base !== undefined
           ? getInheritedProperty(this.c, base, name)
-          : findProperty(this.c, this.baseProperties[i]!, name);
+          : findProperty(this.c, this.inheritedProperties(i), name);
       if (inherited !== undefined && !isStaticPrivateIdentifierProperty(inherited)) existing = inherited;
     }
     return existing;
@@ -473,11 +508,7 @@ export class PendingInstantiatedMembers extends PendingMembers {
     // grows by each base as it is resolved; the rest of resolution continues eagerly.
     const resolving = this.resolving;
     const ownProperties = resolving ? getNamedMembers(c, members, t.symbol) : undefined;
-    const baseTypes = this.baseTypes;
-    for (let i = 0; i < baseTypes.length; i++) {
-      const base = baseTypes[i];
-      addInheritedMembers(members, base !== undefined ? base.properties : this.baseProperties[i]!);
-    }
+    for (let i = 0; i < this.baseCount; i++) addInheritedMembers(members, this.inheritedProperties(i));
     t.membersValue = members;
     t.propertiesValue = ownProperties ?? getNamedMembers(c, members, t.symbol);
     // Resolving the bases goes on with the table (resolvePendingObjectTypeMembers).
@@ -773,14 +804,8 @@ function resolvePendingObjectTypeMembers(
         lazyBase = resolved;
     }
     const baseProperties = lazyBase === undefined ? getPropertiesOfType(c, instantiatedBaseType) : undefined;
-    if (t.pendingMembers === pending) {
-      if (pending.baseTypes === noBaseTypes) {
-        pending.baseTypes = [];
-        pending.baseProperties = [];
-      }
-      pending.baseTypes.push(lazyBase);
-      pending.baseProperties.push(baseProperties);
-    } else addInheritedMembers(t.membersValue!, baseProperties ?? lazyBase!.properties);
+    if (t.pendingMembers === pending) pending.addBase(lazyBase, baseProperties);
+    else addInheritedMembers(t.membersValue!, baseProperties ?? lazyBase!.properties);
     const baseCallSignatures = getSignaturesOfType(c, instantiatedBaseType, SignatureKind.Call);
     if (baseCallSignatures.length !== 0) callSignatures = callSignatures.concat(baseCallSignatures);
     const baseConstructSignatures = getSignaturesOfType(c, instantiatedBaseType, SignatureKind.Construct);
