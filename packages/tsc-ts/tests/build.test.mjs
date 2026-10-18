@@ -964,6 +964,32 @@ test('--watch rebuilds on checker threads', { skip: tscTsMissing, timeout: 120_0
   assert.deepEqual(threaded.files, expected.files);
 });
 
+// A watch that starts on one thread because its config sets `checkers` to 1, then an edit of the config sets it to 2
+// with a change that affects every file: the rebuild takes the unchanged files of the first build, whose symbols got
+// no ids at creation, so it checks them on this thread rather than sharing them with checker threads. The output is
+// that of a watch on one thread.
+test('--watch after a config edit turns checker threads on', { skip: tscTsMissing, timeout: 120_000 }, async () => {
+  const config = (checkers) =>
+    `{"compilerOptions":{"outDir":"out","rootDir":"src","strict":true,"checkers":${checkers}},"include":["src"]}`;
+  const files = {
+    'proj/tsconfig.json': config(1),
+    'proj/src/shared.ts': 'export const shared: number = 1;\n',
+  };
+  for (let i = 0; i < 20; i++)
+    files[`proj/src/m${i}.ts`] = "import { shared } from './shared';\n" + `export const value${i}: number = shared;\n`;
+  const steps = [
+    { 'proj/tsconfig.json': config(2), 'proj/src/shared.ts': 'export const shared: string = "s";\n' },
+    ['proj/src/shared.ts', 'export const shared: boolean = true;\n'],
+  ];
+  const run = (args) =>
+    watchSequence(['-p', 'proj', '--watch', ...args], steps, files, () => {}, { TSC_TS_WATCH_MEMORY: '0' });
+  const expected = await run(['--singleThreaded']);
+  const threaded = await run([]);
+  assert.equal((expected.output.match(/Found 20 errors/g) ?? []).length, 2);
+  assert.equal(threaded.output, expected.output);
+  assert.deepEqual(threaded.files, expected.files);
+});
+
 // A new process reads the config again: after a failed read of a changed config, the process builds on with the
 // config it has, as it does without restarts.
 test(
