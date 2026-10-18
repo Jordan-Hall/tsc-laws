@@ -580,6 +580,17 @@ const projects = [
         'export function f(this) {}\n',
     },
   ],
+  [
+    'type nodes of satisfies expressions',
+    {
+      'a.ts':
+        'type N<T extends number> = { v: T };\ntype A = { a: string };\n' +
+        'export const x = { k: 1 } as const satisfies { k: number } & { readonly t?: A };\n' +
+        "export const y = { v: 's' } satisfies N<string>;\n" +
+        'export const z = { v: 1 } satisfies { [k: string]: number; v: string };\n',
+      'tsconfig.json': JSON.stringify({ compilerOptions: { ...base, noUnusedLocals: true }, files: ['a.ts'] }),
+    },
+  ],
 ];
 
 // Module specifiers of inferred types: `import("…")` types in declaration emit and the TS2883

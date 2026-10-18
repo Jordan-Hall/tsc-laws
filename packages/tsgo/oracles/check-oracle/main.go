@@ -4,8 +4,9 @@
 // @jsxFragmentFactory and @jsxImportSource directives. A test case whose files
 // are all JavaScript and that sets @checkJs is checked as /input.js with
 // allowJs and checkJs. TSC_TS_CHECK_OPTIONS lists options for every input,
-// separated by commas: names of boolean options to turn on, and module,
-// moduleResolution and target as name=value.
+// separated by commas: names of boolean options to turn on, module,
+// moduleResolution and target as name=value, and the strict family,
+// allowUnreachableCode and allowUnusedLabels as name=true or name=false.
 package main
 
 import (
@@ -74,6 +75,51 @@ func setOption(options *core.CompilerOptions, entry string) bool {
 			target, ok := scriptTargets[value]
 			options.Target = target
 			return ok
+		}
+		if value != "true" && value != "false" {
+			return false
+		}
+		flag := core.TSFalse
+		if value == "true" {
+			flag = core.TSTrue
+		}
+		switch name {
+		case "strict":
+			options.Strict = flag
+			return true
+		case "strictNullChecks":
+			options.StrictNullChecks = flag
+			return true
+		case "noImplicitAny":
+			options.NoImplicitAny = flag
+			return true
+		case "strictFunctionTypes":
+			options.StrictFunctionTypes = flag
+			return true
+		case "strictBindCallApply":
+			options.StrictBindCallApply = flag
+			return true
+		case "strictPropertyInitialization":
+			options.StrictPropertyInitialization = flag
+			return true
+		case "noImplicitThis":
+			options.NoImplicitThis = flag
+			return true
+		case "useUnknownInCatchVariables":
+			options.UseUnknownInCatchVariables = flag
+			return true
+		case "alwaysStrict":
+			options.AlwaysStrict = flag
+			return true
+		case "strictBuiltinIteratorReturn":
+			options.StrictBuiltinIteratorReturn = flag
+			return true
+		case "allowUnreachableCode":
+			options.AllowUnreachableCode = flag
+			return true
+		case "allowUnusedLabels":
+			options.AllowUnusedLabels = flag
+			return true
 		}
 		return false
 	}

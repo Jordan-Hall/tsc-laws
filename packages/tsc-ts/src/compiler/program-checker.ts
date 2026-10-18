@@ -246,6 +246,12 @@ export class CheckedProgram {
   checkOnly: ReadonlySet<SourceFile> | undefined = undefined;
   /** Whether the program is shared with checker threads (`shareWithCheckers`, parallel-check.ts). */
   sharedWithCheckers = false;
+  /**
+   * The number of threads, this one included, that compare the references of the files of an incremental
+   * program with its old state where the program is shared with checker threads (`compareReferencesOnThreads`,
+   * incremental.ts); 1 compares on this thread.
+   */
+  referenceThreads = 1;
   readonly parallelGlobalDiagnostics: Diagnostic[] = [];
   /**
    * The declaration diagnostics checker threads computed under `noEmit` (PlainProgram,

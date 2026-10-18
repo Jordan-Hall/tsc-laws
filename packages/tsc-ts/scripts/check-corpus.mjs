@@ -12,7 +12,9 @@
 // --save writes the checker's output as JSON. --list prints the differing files; --show CODE prints
 // the files with mismatches of that code. --options turns on boolean options (such as
 // exactOptionalPropertyTypes or noUncheckedIndexedAccess) for every file in both compilers, through
-// TSC_TS_CHECK_OPTIONS; a --cache file holds the oracle's output for one set of options.
+// TSC_TS_CHECK_OPTIONS, and sets module, moduleResolution and target as name=value and the strict
+// family, allowUnreachableCode and allowUnusedLabels as name=true or name=false (such as
+// strictNullChecks=false); a --cache file holds the oracle's output for one set of options.
 import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { spawn, spawnSync } from 'node:child_process';
 import { availableParallelism } from 'node:os';

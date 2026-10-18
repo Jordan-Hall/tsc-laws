@@ -6,6 +6,7 @@
 import { publish } from '@scriptc/threads';
 import { type ExternalModuleIndicatorOptions, ParseOptions, ScriptKind, type SourceFile } from './ast.js';
 import { bindSourceFile } from './binder.js';
+import { scanSiblingProperties } from './checker-symbol-types.js';
 import { useThreadTextCaches } from './diagnostics.js';
 import { CompilerHost, FileLoader } from './file-loader.js';
 import { computeHash } from './incremental.js';
@@ -68,6 +69,9 @@ class PreparingHost extends CompilerHost {
     );
     const t2 = timeline ? performance.now() : 0;
     bindSourceFile(file);
+    // Checkers look up the unions of the files tsgo checks with one checker (firstSiblingProperty):
+    // each file is scanned here once instead of by every checker.
+    file.siblingProperties = scanSiblingProperties(file, undefined);
     if (timeline) {
       const t3 = performance.now();
       this.readMs += t1 - t0;
