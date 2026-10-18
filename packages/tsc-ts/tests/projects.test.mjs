@@ -34,6 +34,25 @@ const projects = [
     },
   ],
   [
+    'callbacks of generic JSX elements whose props type is conditional',
+    {
+      'node_modules/react/package.json': JSON.stringify({ name: 'react', version: '1.0.0', types: 'index.d.ts' }),
+      'node_modules/react/index.d.ts': 'export {};\n',
+      'node_modules/react/jsx-runtime.d.ts':
+        'export declare function jsx(...args: any[]): any;\nexport declare const Fragment: any;\n',
+      'a.tsx':
+        'type Id = string | number;\ninterface GetItemValue<T> { getItemValue: (item: T) => Id }\n' +
+        'type Props<T> = (T extends object ? GetItemValue<T> : Partial<GetItemValue<T>>) & { value: T[] };\n' +
+        'declare function Sortable<T>(props: Props<T>): any;\n' +
+        'export const a = <Sortable value={["x"]} getItemValue={(item) => item} />;\n' +
+        'export const b = <Sortable value={[{ id: 1 }]} getItemValue={(item) => item.id} />;\n',
+      'tsconfig.json': JSON.stringify({
+        compilerOptions: { ...base, jsx: 'react-jsx', module: 'esnext', moduleResolution: 'bundler' },
+        files: ['a.tsx'],
+      }),
+    },
+  ],
+  [
     'JSON default import',
     {
       'a.ts':
