@@ -4,7 +4,7 @@
  * directories report an event, or by polling where directories can't be watched.
  */
 import type { ParsedBuildCommandLine, ParsedCommandLine as CommandLine } from './command-line.js';
-import { CheckedProgram, CompileTimes } from './compile-program.js';
+import { CheckedProgram, CompileTimes, ProgramEmitter } from './compile-program.js';
 import {
   type Diagnostic,
   type DiagnosticMessage,
@@ -21,7 +21,13 @@ import { forgetLazyJSDocFile, parseSourceFile } from './parser.js';
 import { forgetNavigationFile } from './astnav.js';
 import { forgetRangeScannerFile } from './binder-utilities.js';
 import { forgetIdentifierSets } from './printer/name-generator.js';
-import { FileBuildInfoReader, IncrementalProgram, readBuildInfoProgram, type Snapshot } from './incremental.js';
+import {
+  declarationSignature,
+  FileBuildInfoReader,
+  IncrementalProgram,
+  readBuildInfoProgram,
+  type Snapshot,
+} from './incremental.js';
 import { combinePaths, getDirectoryPath, getNormalizedAbsolutePath, toPath } from './path.js';
 import { Program } from './program.js';
 import { ConfigParser, ParsedCommandLine } from './tsconfig.js';
@@ -604,22 +610,27 @@ class Watcher {
     // A copy: a program shared with checker threads holds its config's errors (`copyCommandLine`).
     const program = new Program(copyCommandLine(this.config), new WatchCompilerHost(sys, fs, this.locale, this.files));
     const checked = new CheckedProgram(program);
-    const threads = this.rebuildThreads(program);
-    if (threads > 1) return this.recheckOnThreads(checked, threads, done);
-    this.finishBuild(checked);
+    const signatures = new Map<string, string>();
+    const threads = this.rebuildThreads(checked, signatures);
+    // A new checker for checker threads: `rebuildThreads` may have emitted declarations with this one.
+    if (threads > 1) return this.recheckOnThreads(new CheckedProgram(program), threads, signatures, done);
+    this.finishBuild(checked, signatures);
     done();
   }
 
   /**
-   * The checker threads for a rebuild of `program`, or 1 to check it on this thread: threads where the
+   * The checker threads for a rebuild of `checked`, or 1 to check it on this thread: threads where the
    * change may affect enough files for them (`rechecksOnThreads`), counting each changed file and every
    * file that references it, transitively, in the last build, or every file for a change to a file that
-   * affects the global scope. That is what the change affects at most; `recheckOnThreads` then takes
+   * affects the global scope. A changed file whose declaration file keeps the signature of the last
+   * build affects only itself (`getFilesAffectedBy`); its signature is computed with `checked`'s checker
+   * and added to `signatures`. That is what the change affects at most; `recheckOnThreads` then takes
    * what it does affect. A watch whose first config kept it on one thread gave its symbols no ids at
    * creation (`start`), so its rebuilds, which take the unchanged files of earlier builds, stay on this
    * thread after a config edit turns checker threads on.
    */
-  private rebuildThreads(program: Program): number {
+  private rebuildThreads(checked: CheckedProgram, signatures: Map<string, string>): number {
+    const program = checked.program;
     const snapshot = this.snapshot;
     const options = program.options;
     if (snapshot === undefined || parallelParse.spawn === undefined || options.composite === true) return 1;
@@ -628,13 +639,26 @@ class Watcher {
     if (threads <= 1) return 1;
     const affected = new Set<string>();
     const queue: string[] = [];
+    let emitter: ProgramEmitter | undefined = undefined;
     for (const path of this.files.parsed) {
       const info = snapshot.fileInfos.get(path);
       if (info === undefined || info.affectsGlobalScope) return threads;
-      if (!affected.has(path)) {
-        affected.add(path);
-        queue.push(path);
+      if (affected.has(path)) continue;
+      affected.add(path);
+      // A signature that is the file's version was never computed from a declaration file.
+      const file = program.getSourceFileByPath(path);
+      if (file !== undefined && !file.isDeclarationFile && info.signature !== info.version) {
+        if (emitter === undefined) {
+          // Emit computes the common source directory, which reports files outside `rootDir` unless the
+          // file inclusion diagnostics are fixed first, as a report fixes them before it emits.
+          program.getProgramDiagnostics();
+          emitter = new ProgramEmitter(checked);
+        }
+        const signature = declarationSignature(emitter, file, options);
+        signatures.set(path, signature);
+        if (signature === info.signature) continue;
       }
+      queue.push(path);
     }
     while (queue.length > 0)
       for (const importer of snapshot.referencedMap.getReferencedBy(queue.pop()!))
@@ -655,13 +679,19 @@ class Watcher {
    * Rechecks `checked` as a compile with build info does (`recheckInParallel`, tsc-compile.ts): its
    * program is shared with checker threads before its checker does more than merge the globals, and the
    * threads check the files the change affects when they are many enough, emitting what the incremental
-   * program would; otherwise this thread checks them.
+   * program would; otherwise this thread checks them. `signatures` are those `rebuildThreads` computed.
    */
-  private recheckOnThreads(checked: CheckedProgram, threads: number, done: () => void): void {
+  private recheckOnThreads(
+    checked: CheckedProgram,
+    threads: number,
+    signatures: ReadonlyMap<string, string>,
+    done: () => void,
+  ): void {
     const sys = this.sys;
     const program = checked.program;
     shareWithCheckers(checked);
-    const incremental = new IncrementalProgram(checked, new CompileTimes(), this.snapshot, new SystemTimeStamps(sys));
+    const times = new CompileTimes();
+    const incremental = new IncrementalProgram(checked, times, this.snapshot, new SystemTimeStamps(sys), signatures);
     const options = program.options;
     if (
       options.listFilesOnly !== true &&
@@ -685,9 +715,13 @@ class Watcher {
     done();
   }
 
-  /** Checks (where checker threads didn't), emits and reports `checked`, and watches its inputs. */
-  private finishBuild(checked: CheckedProgram): void {
-    this.report(new IncrementalProgram(checked, new CompileTimes(), this.snapshot, new SystemTimeStamps(this.sys)));
+  /**
+   * Checks (where checker threads didn't), emits and reports `checked`, and watches its inputs. `signatures`
+   * are the shape signatures computed for `checked`'s files before (`rebuildThreads`).
+   */
+  private finishBuild(checked: CheckedProgram, signatures?: ReadonlyMap<string, string>): void {
+    const times = new CompileTimes();
+    this.report(new IncrementalProgram(checked, times, this.snapshot, new SystemTimeStamps(this.sys), signatures));
   }
 
   /** Checks (where checker threads didn't), emits and reports `incremental`, and watches its inputs. */
