@@ -31,12 +31,8 @@ import {
   getName,
   type BindingElement,
 } from './ast.js';
-import {
-  isFunctionExpressionOrArrowFunction,
-  isObjectLiteralMethod,
-  isTypeNodeKind,
-  skipParentheses,
-} from './binder-utilities.js';
+import { isFunctionExpressionOrArrowFunction, isObjectLiteralMethod, skipParentheses } from './binder-utilities.js';
+import { isPartOfTypeNode } from './transformers/alias-references.js';
 import { Diagnostics } from './diagnostics.js';
 import { SyntaxKind } from './syntax-kind.js';
 import { type Checker, createDiagnosticForNode } from './checker.js';
@@ -1161,7 +1157,10 @@ function checkAndAggregateYieldOperandTypes(c: Checker, func: Node, checkMode: C
   return result;
 }
 
-/** Collects the `yield` expressions of a generator body, skipping nested functions. */
+/**
+ * Collects the `yield` expressions of a generator body, skipping nested functions and types. A class's
+ * `extends` expression is an expression, not a type.
+ */
 class YieldCollector extends NodeVisitor {
   readonly yields: YieldExpression[] = [];
 
@@ -1185,7 +1184,7 @@ class YieldCollector extends NodeVisitor {
       if (name !== undefined && name.kind === SyntaxKind.ComputedPropertyName) this.visit(getExpression(name)!);
       return;
     }
-    if (!isTypeNodeKind(node.kind)) node.forEachChild(this);
+    if (!isPartOfTypeNode(node)) node.forEachChild(this);
   }
 
   visitNode(node: Node): boolean {
