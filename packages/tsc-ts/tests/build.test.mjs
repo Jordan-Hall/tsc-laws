@@ -32,6 +32,34 @@ const skip = (!existsSync(tsgo) && 'needs packages/tsgo/dist/tsgo') || tscTsMiss
  * @typedef {{ files: Record<string, string>, links?: Record<string, string>, steps: Step[] }} Scenario
  */
 
+/**
+ * `count` modules, each importing the next, an ambient module, a pattern ambient module and a type of a module
+ * another file augments; every tenth also references a declaration file with `/// <reference>`.
+ */
+function referencingModules(count) {
+  const files = {
+    'tsconfig.json':
+      '{"compilerOptions":{"incremental":true,"noEmit":true,"strict":true,"module":"esnext",' +
+      '"moduleResolution":"bundler","types":[]},"include":["src"]}',
+    'src/ambient.d.ts':
+      'declare module "virtual:a" { export const v: number; }\n' +
+      'declare module "*.css" { const s: string; export default s; }\n',
+    'src/extra.d.ts': 'declare const X: string;\n',
+    'src/target.ts': 'export interface Box { a: number }\n',
+    'src/augment.ts': 'import "./target";\ndeclare module "./target" { interface Box { b?: string } }\nexport {};\n',
+  };
+  const name = (i) => 'm' + String(i).padStart(3, '0');
+  for (let i = 0; i < count; i++) {
+    const next = name((i + 1) % count);
+    files[`src/${name(i)}.ts`] =
+      (i % 10 === 0 ? '/// <reference path="./extra.d.ts" />\n' : '') +
+      `import { v as next } from "./${next}";\nimport { v as w } from "virtual:a";\nimport css from "./style.css";\n` +
+      `import type { Box } from "./target";\nexport const v: number = ${i};\n` +
+      'export const f = (b: Box) => next + w + css.length + b.a;\n';
+  }
+  return files;
+}
+
 /** @type {Record<string, Scenario>} */
 const scenarios = {
   'errors on intersections reduced to never': {
@@ -656,6 +684,26 @@ const scenarios = {
       { args: [], edit: { 'm.ts': 'export interface I { a: number; }\n// edit\n' } },
       { args: [], edit: { 'm.ts': 'export interface I { a: number; b?: string; }\n' } },
       { args: [] },
+    ],
+  },
+  // In native builds the rebuilds compare the references of most files with the build info on reference threads,
+  // which take files from the last one back while the main thread takes them from the first.
+  'incremental rebuilds that compare references on threads': {
+    files: referencingModules(300),
+    steps: [
+      { args: ['--checkers', '4'] },
+      { args: ['--checkers', '4'], edit: { 'src/m010.ts': referencingModules(300)['src/m010.ts'] + 'void 0;\n' } },
+      // The importers of target.ts reference m200.ts once it augments target.ts too.
+      {
+        args: ['--checkers', '4'],
+        edit: {
+          'src/m200.ts':
+            referencingModules(300)['src/m200.ts'] + 'declare module "./target" { interface Box { c?: number } }\n',
+        },
+      },
+      // m029.ts imports m030.ts, which is deleted.
+      { args: ['--checkers', '4'], edit: { 'src/m030.ts': null } },
+      { args: ['--checkers', '4'] },
     ],
   },
 };

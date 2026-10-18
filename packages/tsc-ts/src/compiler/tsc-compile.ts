@@ -185,8 +185,12 @@ function recheckInParallel(
 ): void {
   const program = work.program;
   const old = oldSnapshotOf(sys, work, times);
-  // The program is shared before its checker does more than merge the globals.
-  if (sharesPublishedGraphs) shareWithCheckers(checked);
+  // The program is shared before its checker does more than merge the globals; the incremental program
+  // compares the references of its files with the old state on as many threads as check.
+  if (sharesPublishedGraphs) {
+    shareWithCheckers(checked);
+    checked.referenceThreads = threads;
+  }
   const changesStart = performance.now();
   const incrementalProgram = new IncrementalProgram(checked, times, old, new SystemTimeStamps(sys));
   times.changesComputeTime = performance.now() - changesStart;

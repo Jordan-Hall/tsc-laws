@@ -627,8 +627,13 @@ function checkExpressionWorker(c: Checker, node: Node, checkMode: CheckMode): Ty
     case SyntaxKind.TypeAssertionExpression:
     case SyntaxKind.AsExpression:
       return checkAssertion(c, node, checkMode);
-    case SyntaxKind.NonNullExpression:
-      return getNonNullableType(c, checkExpressionEx(c, getExpression(node)!, checkMode));
+    case SyntaxKind.NonNullExpression: {
+      const leftType = checkExpressionEx(c, getExpression(node)!, checkMode);
+      if ((node.flags & NodeFlags.OptionalChain) === 0) return getNonNullableType(c, leftType);
+      // In an optional chain, the chain's undefined stays.
+      const nonOptionalType = getOptionalExpressionType(c, leftType, getExpression(node)!);
+      return propagateOptionalTypeMarker(c, getNonNullableType(c, nonOptionalType), node, nonOptionalType !== leftType);
+    }
     case SyntaxKind.ExpressionWithTypeArguments:
       return checkExpressionWithTypeArguments(c, node);
     case SyntaxKind.SatisfiesExpression:
@@ -1787,8 +1792,10 @@ function checkAssertionCompatibility(c: Checker, node: Node, rawExprType: Type, 
 
 function checkSatisfiesExpression(c: Checker, node: Node, checkMode: CheckMode): Type {
   const expr = getExpression(node)!;
+  const typeNode = getType(node)!;
+  checkTypeNodeIfPresent(c, typeNode);
   const exprType = checkExpressionEx(c, expr, checkMode);
-  const targetType = getTypeFromTypeNode(c, getType(node)!);
+  const targetType = getTypeFromTypeNode(c, typeNode);
   if (isErrorType(c, targetType)) return targetType;
   checkTypeRelatedToAndOptionallyElaborate(
     c,
