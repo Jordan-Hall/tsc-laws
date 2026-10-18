@@ -37,7 +37,7 @@ import {
 import { isIncremental } from './options.js';
 import { ParseSession, clearPreparedFiles, parallelParse, takePreparedFile } from './parallel-parse.js';
 import { checkerThreads, parseThreads, shareWithCheckers, startParallelCheck } from './parallel-check.js';
-import { assignSymbolIdsAtCreation } from './symbol.js';
+import { assignSymbolIdsAtCreation, symbolIdsAtCreation } from './symbol.js';
 import { Orchestrator, StatusReporter, startWatchRebuild } from './tsc-build.js';
 import { mark } from './timeline.js';
 import { emitFilesAndReportErrors, rechecksOnThreads, SystemTimeStamps, SystemWriter } from './tsc-compile.js';
@@ -615,12 +615,15 @@ class Watcher {
    * change may affect enough files for them (`rechecksOnThreads`), counting each changed file and every
    * file that references it, transitively, in the last build, or every file for a change to a file that
    * affects the global scope. That is what the change affects at most; `recheckOnThreads` then takes
-   * what it does affect.
+   * what it does affect. A watch whose first config kept it on one thread gave its symbols no ids at
+   * creation (`start`), so its rebuilds, which take the unchanged files of earlier builds, stay on this
+   * thread after a config edit turns checker threads on.
    */
   private rebuildThreads(program: Program): number {
     const snapshot = this.snapshot;
     const options = program.options;
     if (snapshot === undefined || parallelParse.spawn === undefined || options.composite === true) return 1;
+    if (!symbolIdsAtCreation()) return 1;
     const threads = checkerThreads(options.checkers, options.singleThreaded, program);
     if (threads <= 1) return 1;
     const affected = new Set<string>();
