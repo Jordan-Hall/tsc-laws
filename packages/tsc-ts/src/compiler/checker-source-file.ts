@@ -408,15 +408,13 @@ function checkTypeNodeWorker(c: Checker, node: Node): void {
     case SyntaxKind.ConstructorType:
       checkTypeParameters(c, getTypeParameters(node));
       break;
-    case SyntaxKind.TypeReference: {
+    case SyntaxKind.TypeReference:
+    case SyntaxKind.ImportType: {
       const type = getTypeFromTypeNode(c, node);
-      checkTypeArgumentConstraintsOfReference(c, node);
+      checkTypeArgumentConstraintsOfReference(c, node, type);
       checkDeprecatedTypeReference(c, node, type);
       break;
     }
-    case SyntaxKind.ImportType:
-      checkDeprecatedTypeReference(c, node, getTypeFromTypeNode(c, node));
-      break;
     case SyntaxKind.IndexedAccessType:
       checkIndexedAccessIndexType(c, getTypeFromTypeNode(c, node), node);
       break;
@@ -426,10 +424,8 @@ function checkTypeNodeWorker(c: Checker, node: Node): void {
     case SyntaxKind.ExpressionWithTypeArguments:
       // Implemented types and interface base types are type references; class base types are
       // checked with the base constructor's type parameters.
-      if (isTypeReferenceHeritageElement(node)) {
-        getTypeFromTypeNode(c, node);
-        checkTypeArgumentConstraintsOfReference(c, node);
-      }
+      if (isTypeReferenceHeritageElement(node))
+        checkTypeArgumentConstraintsOfReference(c, node, getTypeFromTypeNode(c, node));
       break;
     case SyntaxKind.TypeQuery:
     case SyntaxKind.TypeOperator:

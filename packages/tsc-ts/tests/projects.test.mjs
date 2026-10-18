@@ -452,6 +452,22 @@ const projects = [
     },
   ],
   [
+    'type argument constraints of type references and import types',
+    {
+      'm.ts': 'export type G<T extends string, U = 1> = { t: T; u: U };\nexport class K<T extends string> { t!: T }\n',
+      'a.ts':
+        "import type { Base, Sql } from './missing';\n" +
+        'type R<T extends string> = Sql<T>;\nexport type U = R<number>;\n' +
+        "export interface F extends Base { q: R<this['x']> }\n" +
+        'export type A = import("./m").G<number>;\nexport type C = import("./m").K<boolean>;\n' +
+        'export type H = import("./m").G<"x", 2>;\n' +
+        'type P<A extends string, B extends number> = [A, B];\n' +
+        'export type T1 = P<\n  // @ts-ignore\n  number,\n  string\n>;\nexport type T2 = P<number, string>;\n' +
+        'interface I<A extends string, B extends number> { a: A; b: B }\nexport interface J extends I<number, string> {}\n' +
+        'type W<A, B extends string> = [A, B];\nexport type W1 = W<Missing, number>;\n',
+    },
+  ],
+  [
     'JSON imports into ES modules under nodenext',
     {
       'a.ts':

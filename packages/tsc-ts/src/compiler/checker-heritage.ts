@@ -243,8 +243,11 @@ function getConstructorsForTypeArguments(c: Checker, t: Type, typeArgumentNodes:
   return result;
 }
 
-/** Checks the type arguments of `node` against the constraints of `typeParameters`. */
-function checkTypeArgumentConstraints(c: Checker, node: Node, typeParameters: readonly Type[]): boolean {
+/**
+ * Checks the type arguments of `node` against the constraints of `typeParameters`, defaults included, up to
+ * the first that does not satisfy its constraint.
+ */
+export function checkTypeArgumentConstraints(c: Checker, node: Node, typeParameters: readonly Type[]): boolean {
   let typeArguments: Type[] | undefined = undefined;
   let mapper: TypeMapper | undefined = undefined;
   const typeArgumentNodes = getTypeArguments(node)?.nodes ?? [];
