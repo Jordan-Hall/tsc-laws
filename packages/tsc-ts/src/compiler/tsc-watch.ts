@@ -22,6 +22,7 @@ import { forgetNavigationFile } from './astnav.js';
 import { forgetRangeScannerFile } from './binder-utilities.js';
 import { forgetIdentifierSets } from './printer/name-generator.js';
 import {
+  computeLastSignatures,
   declarationSignature,
   FileBuildInfoReader,
   IncrementalProgram,
@@ -422,6 +423,11 @@ class Watcher {
   private readonly status: WatchStatusReporter;
   private files = new WatchSourceFiles();
   private readonly changes: ChangeWatcher;
+  /**
+   * The checked program of the last build, until the next build computes the signatures it left as versions
+   * (`computeLastSignatures`).
+   */
+  private lastChecked: CheckedProgram | undefined = undefined;
   /** Whether a rebuild is running (`poll`), and whether a check came during it. */
   private building = false;
   private checkPending = false;
@@ -609,6 +615,10 @@ class Watcher {
     this.files = this.files.next();
     // A copy: a program shared with checker threads holds its config's errors (`copyCommandLine`).
     const program = new Program(copyCommandLine(this.config), new WatchCompilerHost(sys, fs, this.locale, this.files));
+    // The signatures the last build left as versions, for the files this one parsed.
+    if (this.lastChecked !== undefined && this.snapshot !== undefined)
+      computeLastSignatures(this.snapshot, this.lastChecked, this.files.parsed);
+    this.lastChecked = undefined;
     const checked = new CheckedProgram(program);
     const signatures = new Map<string, string>();
     const threads = this.rebuildThreads(checked, signatures);
@@ -737,6 +747,7 @@ class Watcher {
       this.locale,
     );
     this.snapshot = incremental.snapshot;
+    this.lastChecked = incremental.checked;
     this.watchInputs(program);
     this.status.reportErrorCount(result.diagnostics.length);
   }
