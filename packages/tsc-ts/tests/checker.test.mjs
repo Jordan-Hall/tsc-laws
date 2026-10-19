@@ -504,6 +504,21 @@ const cases = [
     codes: ['7027'],
     expected: ['/input.ts 7027 238 0 Unreachable code detected.'],
   },
+  {
+    name: 'number and string members of one enum',
+    source: [
+      "enum M { A, B = 'b' }",
+      'const x: M.B = M.A;',
+      'const y: M.A = M.B;',
+      'declare let m: M;',
+      'const z: M.B = m;',
+    ],
+    expected: [
+      "/input.ts 2322 28 1 Type 'M.A' is not assignable to type 'M.B'.",
+      "/input.ts 2322 48 1 Type 'M.B' is not assignable to type 'M.A'.",
+      "/input.ts 2322 86 1 Type 'M' is not assignable to type 'M.B'.",
+    ],
+  },
 ];
 
 test(
