@@ -475,6 +475,7 @@ function executeCompile(sys: System, commandLine: ParsedCommandLine): CommandLin
         // The build info of an incremental program is read while the threads parse: reading it needs
         // only the config (compile and recheckInParallel, tsc-compile.ts, take it from here).
         if (isIncremental(config.options)) {
+          if (sys.fileExists(config.buildInfoFileName())) session.queueAhead();
           const readStart = performance.now();
           const snapshot = readBuildInfoProgram(
             config,
