@@ -576,6 +576,10 @@ export class ParseSession {
     this.finished = true;
     const stop: LoadMessage = { stop: true, kinds: [], names: [], depths: [] };
     for (let i = 0; i < this.workers.length; i++) if (this.alive[i]!) this.workers[i]!.postMessage(stop);
+    // Each thread's listeners hold this session. Without its references to the threads, the session
+    // and the loader its `onIdle` holds are freed when the threads exit, instead of staying as a
+    // cycle until a full cycle collection on the main thread finds it.
+    this.workers.length = 0;
     shareNodeIds(undefined);
     shareSymbolIds(undefined);
     mark(`parse done, ${parallelParse.files.size} files, ${this.chunks} chunks`);
