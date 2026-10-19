@@ -1,5 +1,8 @@
 // Programs of tsc-ts's public API: createProgram, parseConfigFile and Program.
 
+// The emit pipeline, loaded first as tsc-ts's command line loads it: programs and checked programs refer to its
+// classes (EmitIndexes, EmitResult), which scriptc compiles only when the program imports their modules as values.
+import '../compiler/compile-program.js';
 import type { SourceFile as CompilerSourceFile } from '../compiler/ast.js';
 import { dropLibGlobals } from '../compiler/checker-symbols.js';
 import type { Diagnostic as CompilerDiagnostic } from '../compiler/diagnostics.js';

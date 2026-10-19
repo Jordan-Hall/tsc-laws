@@ -1,6 +1,7 @@
 // Symbols: what the binder declares for each named entity, and the tables that hold them.
 import type { ProgramLifetime } from '@scriptc/types';
 import type { Node } from './ast.js';
+import type { __String, Symbol as PublicSymbol } from '../library/types.js';
 
 export const enum SymbolFlags {
   None = 0,
@@ -234,12 +235,12 @@ export class Symbol implements ProgramLifetime {
   }
 
   /** The members, by escaped name. */
-  getMembers(): Map<string, Symbol> {
+  getMembers(): Map<__String, PublicSymbol> {
     return byEscapedName(this.members);
   }
 
   /** The exports, by escaped name. */
-  getExports(): Map<string, Symbol> {
+  getExports(): Map<__String, PublicSymbol> {
     return byEscapedName(this.exports);
   }
 
@@ -330,13 +331,16 @@ export function addDeclaration(symbol: Symbol, node: Node): void {
   else declarations.push(node);
 }
 
-/** The symbols of `table` by escaped name, with their ids assigned. */
-function byEscapedName(table: SymbolTable | undefined): Map<string, Symbol> {
-  const result = new Map<string, Symbol>();
+/**
+ * The symbols of `table` by escaped name, with their ids assigned, as tsc-ts's public API types them: the map's
+ * values are typed as the public Symbol, so a native build returns it as the map that interface declares.
+ */
+function byEscapedName(table: SymbolTable | undefined): Map<__String, PublicSymbol> {
+  const result = new Map<__String, PublicSymbol>();
   if (table !== undefined)
     for (const symbol of table.values()) {
       getSymbolId(symbol);
-      result.set(escapeSymbolName(symbol.name), symbol);
+      result.set(escapeSymbolName(symbol.name) as __String, symbol as unknown as PublicSymbol);
     }
   return result;
 }

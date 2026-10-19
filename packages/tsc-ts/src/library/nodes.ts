@@ -86,8 +86,10 @@ export function walkPreorder(root: Node, cb: (node: Node, depth: number) => void
   const stack: CompilerNode[] = [compilerNode(root)];
   const depths: number[] = [0];
   const collector = new ChildCollector();
+  // Declared outside the loop: scriptc compiles the node's conversion to the public Node from a variable there.
+  let node: CompilerNode;
   while (stack.length > 0) {
-    const node = stack.pop()!;
+    node = stack.pop()!;
     const depth = depths.pop()!;
     const verdict = cb(node as unknown as Node, depth);
     if (verdict === 'stop') return;

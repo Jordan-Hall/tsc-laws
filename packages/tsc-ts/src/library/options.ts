@@ -431,9 +431,9 @@ export function compilerOptionsFromApi(o: ApiCompilerOptions): CompilerOptionsVa
   };
 }
 
-function pathMap(paths: Record<string, string[]> | undefined): Map<string, string[]> | undefined {
+function pathMap(paths: Record<string, string[]> | undefined): Map<string, string[] | undefined> | undefined {
   if (paths === undefined) return undefined;
-  const map = new Map<string, string[]>();
+  const map = new Map<string, string[] | undefined>();
   for (const pattern of Object.keys(paths)) map.set(pattern, paths[pattern]!.slice());
   return map;
 }
