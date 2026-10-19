@@ -66,7 +66,12 @@ import {
   emptyTypes,
   VarianceFlags,
   TypeListCache,
+  type ConditionalType,
+  type InterfaceType,
+  type TypeChecking,
 } from './checker-types.js';
+import { getBaseTypes } from './checker-declared-types.js';
+import { getFalseTypeFromConditionalType, getTrueTypeFromConditionalType } from './checker-type-operators.js';
 import {
   createArrayType,
   createTypeFromGenericGlobalType,
@@ -283,7 +288,7 @@ export class SymbolAccessibilityCaches {
   readonly slotsLeftAt: number[] = [0, 0, 0, 0, 0];
 }
 
-export class Checker {
+export class Checker implements TypeChecking {
   readonly host: CheckerHost;
   readonly compilerOptions: CompilerOptions;
   readonly files: readonly SourceFile[];
@@ -926,6 +931,20 @@ export class Checker {
 
   nextTypeId(): number {
     return ++this.typeCount;
+  }
+
+  // TypeChecking: for the methods of types tsc-ts's public API calls.
+
+  baseTypesOf(t: InterfaceType): readonly Type[] {
+    return getBaseTypes(this, t);
+  }
+
+  trueTypeOf(t: ConditionalType): Type {
+    return getTrueTypeFromConditionalType(this, t);
+  }
+
+  falseTypeOf(t: ConditionalType): Type {
+    return getFalseTypeFromConditionalType(this, t);
   }
 
   newIntrinsicType(flags: TypeFlags, name: string, objectFlags: ObjectFlags): IntrinsicType {

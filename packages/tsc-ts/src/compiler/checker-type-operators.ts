@@ -2139,6 +2139,7 @@ export function getConditionalType(
       combinedMapper,
     );
     deferred.alias = alias ?? (mapper !== undefined ? instantiateTypeAlias(c, root.alias, mapper) : root.alias);
+    deferred.checking = c;
     result = deferred;
     break;
   }

@@ -8,7 +8,7 @@
  * ```
  */
 import { type Node, ScriptKind, type SourceFile } from './ast.js';
-import { Checker, CheckerHost } from './checker.js';
+import { Checker, CheckerHost, disposeChecker } from './checker.js';
 import { createDiagnostic, Diagnostic, type DiagnosticMessage, Diagnostics, messageCode } from './diagnostics.js';
 import type { EmitResult } from './emitter.js';
 import type { CompilerOptions, ModuleKind } from './options.js';
@@ -227,6 +227,14 @@ export class CheckedProgram {
   /** A new checker for the program, independent of the one reporting diagnostics. */
   createChecker(): Checker {
     return new Checker(new ProgramCheckerHost(this.program));
+  }
+
+  /** Frees the checkers that report the program's diagnostics (`disposeChecker`). */
+  disposeCheckers(): void {
+    if (this.reportingChecker !== undefined) disposeChecker(this.reportingChecker);
+    if (this.libraryChecker !== undefined) disposeChecker(this.libraryChecker);
+    this.reportingChecker = undefined;
+    this.libraryChecker = undefined;
   }
 
   getBindDiagnostics(file: SourceFile | undefined): Diagnostic[] {

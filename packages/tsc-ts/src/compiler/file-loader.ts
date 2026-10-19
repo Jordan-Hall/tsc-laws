@@ -1104,29 +1104,7 @@ export class FileLoader {
   }
 
   private loadSourceFileMetadata(fileName: string): SourceFileMetadata {
-    const scope = this.resolver.getPackageScopeForPath(getDirectoryPath(fileName));
-    const kind = getModuleResolutionKind(this.options);
-    let packageJsonType = '';
-    let packageJsonDirectory = '';
-    const contents = scope?.contents;
-    if (scope !== undefined && contents !== undefined) {
-      packageJsonDirectory = scope.packageDirectory;
-      const type = contents.type.value;
-      if (
-        type !== undefined &&
-        ((!fileExtensionIsOneOf(fileName, ['.mts', '.cts', '.mjs', '.cjs']) &&
-          ModuleResolutionKind.Node16 <= kind &&
-          kind <= ModuleResolutionKind.NodeNext) ||
-          fileName.includes('/node_modules/'))
-      ) {
-        packageJsonType = type;
-      }
-    }
-    return new SourceFileMetadata(
-      packageJsonType,
-      packageJsonDirectory,
-      getImpliedNodeFormatForFile(fileName, packageJsonType),
-    );
+    return sourceFileMetadataOf(this.resolver, this.options, fileName);
   }
 
   private resolveTripleSlashPathReference(task: ParseTask, file: SourceFile, index: number): void {
@@ -1513,4 +1491,38 @@ function getLibraryNameFromLibFileName(libFileName: string): string {
     path += (i === 2 ? '/' : '-') + components[i];
   }
   return path;
+}
+
+/**
+ * The metadata of `fileName` in a program with `options`: the `type` and directory of its nearest
+ * package.json (`resolver`), where they apply, and its implied module format.
+ */
+export function sourceFileMetadataOf(
+  resolver: Resolver,
+  options: CompilerOptions,
+  fileName: string,
+): SourceFileMetadata {
+  const scope = resolver.getPackageScopeForPath(getDirectoryPath(fileName));
+  const kind = getModuleResolutionKind(options);
+  let packageJsonType = '';
+  let packageJsonDirectory = '';
+  const contents = scope?.contents;
+  if (scope !== undefined && contents !== undefined) {
+    packageJsonDirectory = scope.packageDirectory;
+    const type = contents.type.value;
+    if (
+      type !== undefined &&
+      ((!fileExtensionIsOneOf(fileName, ['.mts', '.cts', '.mjs', '.cjs']) &&
+        ModuleResolutionKind.Node16 <= kind &&
+        kind <= ModuleResolutionKind.NodeNext) ||
+        fileName.includes('/node_modules/'))
+    ) {
+      packageJsonType = type;
+    }
+  }
+  return new SourceFileMetadata(
+    packageJsonType,
+    packageJsonDirectory,
+    getImpliedNodeFormatForFile(fileName, packageJsonType),
+  );
 }

@@ -225,8 +225,16 @@ export function newObjectType(c: Checker, objectFlags: ObjectFlags, symbol: Symb
       ObjectFlags.MembersResolved |
       ObjectFlags.SideState
     );
-  if ((objectFlags & ObjectFlags.ClassOrInterface) !== 0) return new InterfaceType(flags, id, symbol);
-  if ((objectFlags & ObjectFlags.Tuple) !== 0) return new TupleType(flags, id);
+  if ((objectFlags & ObjectFlags.ClassOrInterface) !== 0) {
+    const declared = new InterfaceType(flags, id, symbol);
+    declared.checking = c;
+    return declared;
+  }
+  if ((objectFlags & ObjectFlags.Tuple) !== 0) {
+    const tuple = new TupleType(flags, id);
+    tuple.checking = c;
+    return tuple;
+  }
   if ((objectFlags & ObjectFlags.Reference) !== 0) return new TypeReference(flags, id, symbol);
   if ((objectFlags & ObjectFlags.Mapped) !== 0) return new MappedType(flags, id, symbol);
   if ((objectFlags & ObjectFlags.ReverseMapped) !== 0) return new ReverseMappedType(flags, id);

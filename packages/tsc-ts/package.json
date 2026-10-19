@@ -16,6 +16,7 @@
     "bin",
     "README.md",
     "dist/api",
+    "src/compiler",
     "src/library"
   ],
   "type": "module",
@@ -36,6 +37,9 @@
     "pack:npm": "node scripts/pack.mjs",
     "test": "node --test tests/*.test.mjs",
     "bench": "node scripts/bench.mjs"
+  },
+  "dependencies": {
+    "@scriptc/threads": "0.3.6"
   },
   "devDependencies": {
     "@scriptc/types": "^0.3.6",

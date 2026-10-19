@@ -51,4 +51,34 @@ const isIdentifier = (node: Node): boolean => node.kind === SyntaxKind.Identifie
 
 Lists of child nodes are `NodeList` objects: `node.arguments.nodes` holds the nodes, and `pos` and `end` the list's range. `symbolName(symbol)` gives a symbol's name as TypeScript 7's API does (`__call`, `export=`).
 
-The package has a JavaScript build with declaration files for Node.js, and the TypeScript sources of the API (the `source` export condition) for compilers that build it from source.
+### Programs and checkers
+
+`createProgram({ rootNames, options, host })` creates a program of root files with compiler options, and `createProgramFromConfigFile(configFileName, host)` the program of a `tsconfig.json`. `parseConfigFile(configFileName, host)` returns a config file's options, root files and diagnostics. A program loads its files as `tsc-ts` loads a project's, on the calling thread.
+
+```ts
+import { createProgramFromConfigFile, SyntaxKind, walkPreorder } from 'tsc-ts/api';
+
+const program = createProgramFromConfigFile('tsconfig.json', {
+  getCurrentDirectory: () => process.cwd(),
+  useCaseSensitiveFileNames: () => process.platform === 'linux',
+  getDefaultLibraryDirectory: () => '/path/to/lib',
+});
+const checker = program.getTypeChecker();
+for (const file of program.getSourceFiles()) {
+  if (program.isSourceFileDefaultLibrary(file)) continue;
+  walkPreorder(file, (node) => {
+    if (node.kind === SyntaxKind.Identifier) console.log(checker.typeToString(checker.getTypeAtLocation(node)!));
+  });
+}
+program.dispose();
+```
+
+The host's `getDefaultLibraryDirectory()` names the directory with TypeScript 7's `lib.*.d.ts` files; the platform packages carry them in their `lib` directory. The host's `readFile`, `fileExists`, `directoryExists`, `realpath` and `getAccessibleEntries` are optional: where one is missing or answers undefined, the program reads the disk.
+
+The program's diagnostics, with their text and positions, are those `tsc --api` returns for the same project. `getTypeChecker()` returns a checker for queries, separate from the checker that reports the program's diagnostics, so queries don't change them. Its methods answer as the `tsc --api` requests of the same names. Nodes, symbols, types and signatures are tsc-ts's own objects, one per node, symbol, type and signature in a program, so they can be compared with `===` and used as Map keys.
+
+`parseSourceFile(fileName, text, options)` parses one file without a program, as a program with `options.compilerOptions` parses it. The node functions `forEachChild`, `walkPreorder`, `tokenStartOfNode`, `getJSDoc`, `getModifiers`, `canHaveModifiers`, `getCombinedModifierFlags`, `getCombinedNodeFlags`, `getLineStarts`, `getLineAndCharacterOfPosition`, `getPositionOfLineAndCharacter` and `tokenToString`, and `flattenDiagnosticMessageText`, behave as TypeScript 7's.
+
+An exception the compiler throws while answering a call reaches the caller as an `InternalCompilerError`, with the exception as its `cause`; the program's checker may be inconsistent after one, so dispose of the program. `program.dispose()` frees the program's checkers; calls on the program or its checker after it throw a `DisposedProgramError`.
+
+The package has a JavaScript build with declaration files for Node.js, and the TypeScript sources of the API and the compiler (the `source` export condition) for compilers that build it from source.
