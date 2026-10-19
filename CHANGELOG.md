@@ -4,6 +4,31 @@
 
 <!-- release:start -->
 
+## 0.0.4
+
+### Highlights
+
+- **Programmatic API types:** The `tsc-ts` package exports `tsc-ts/api`, which describes tsc-ts's programs, checkers, nodes, symbols, types and signatures with TypeScript 7's API names and numbering. Its node interfaces are generated from TypeScript 7's AST schema, and its enums and `CompilerOptions` match TypeScript 7's API package. The export has a JavaScript build with declaration files, and the sources under the `source` condition.
+- **Watch mode:** In a watch without build info, the first edit of a file rechecks the files that import it only when its declaration output changes, as later edits do. Before, the first edit of each file rechecked all of its importers (first body edits: VS Code 4.18 s → 1.17 s, Sentry 3.91 s → 1.29 s, T3 web 3.12 s → 0.40 s; with `--declaration`, VS Code 4.86 s → 1.09 s). Memory after four edits on VS Code went from 11.2 GB to 7.5 GB.
+- **Incremental builds:** Parse threads keep parsing while the main thread reads an incremental program's build info (edit rebuilds: Sentry 15–17% faster, VS Code 10–14% faster).
+- **`--api` echo:** `tsc-ts --api` returns an `echo` request's payload bytes unchanged, including a byte order mark and bytes that are not UTF-8 text, as TypeScript 7.0.2 does.
+- **`--api` snapshots:** After a change to one file whose imports and references are unchanged, `updateSnapshot` replaces the file in the program instead of loading the program again (Excalidraw: 488 ms → 2.6 ms, TypeORM: 577 ms → 2.7 ms; TypeScript 7.0.2: 2.3 ms and 4.6 ms). Results match TypeScript 7.0.2, including for a changed JSX import source pragma.
+- **Parsing:** A parse session and its file loader are freed when the parse threads exit, instead of at the main thread's next full cycle collection (Sentry check: 49 ms faster).
+
+### Fixes
+
+- **`--api` file deletion:** A file the client reports deleted stays out of the session until it is reported changed or created, or until `invalidateAll`, and a `created` report reads the file again, as in TypeScript 7.0.2. Before, a file reported deleted and then created kept its old contents.
+- **`--api` type nodes:** With a location, `typeToTypeNode` and `signatureToSignatureDeclaration` reuse the type nodes written in the declarations, with their positions encoded as UTF-8 offsets, as TypeScript 7.0.2 does (for example, `b?: string` returns `string`).
+- **Errors that were missing:** tsc-ts now reports TS2536 for invalid indexes inside the true branch of a conditional type that checks the same indexed access, as TypeScript 7.0.2 does.
+
+### Improvements
+
+- When a program has syntactic, option or other program errors, checker threads emit its files without checking them, as one checker and TypeScript 7.0.2 do (rxjs with its option error: 1.5 s → 0.15 s; TypeScript 7.0.2: 0.73 s).
+- The check for a mapped type with a `keyof` constraint reads the constraint as a type operator node, the node type it has. No change in output.
+- Adds a project test for callbacks of generic JSX components whose props type is conditional (#210).
+
+<!-- release:end -->
+
 ## 0.0.3
 
 ### Fixes
@@ -53,8 +78,6 @@
 - Lower peak memory on large projects: mapped types, type references and pending member tables are stored more compactly (each change lowers peak memory by 1.4–2.2% on the T3 Code apps).
 - Build with scriptc 0.3.6, which lowers check wall time by about 6% and peak memory by 3–7%.
 - The watch tests no longer fail intermittently, and the project tests run again after a merge had left their file empty.
-
-<!-- release:end -->
 
 ## 0.0.2
 
