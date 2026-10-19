@@ -351,6 +351,12 @@ export class ParseQueue {
  */
 const maxQueuedWhileMatching = 12;
 
+/**
+ * Chunks a parse thread may have queued while the main thread reads an incremental program's build
+ * info (`queueAhead`), which takes it about 20 ms per MB (270 ms for VS Code's 13.7 MB).
+ */
+const maxQueuedAhead = 48;
+
 /** Libraries that take a parse thread 50 ms or more: nothing is queued behind them. */
 export const largeLibraries = new Set(['lib.dom.d.ts', 'lib.webworker.d.ts']);
 
@@ -532,22 +538,38 @@ export class ParseSession {
     if (this.matching) {
       // Queue more on threads, except behind a large library: none of them returns a chunk before the
       // config is read.
-      for (;;) {
-        let target = -1;
-        for (let i = 0; i < this.count; i++) {
-          if (!this.alive[i]! || this.blocked[i]! || this.outstanding[i]! >= maxQueuedWhileMatching) continue;
-          if (target < 0 || this.outstanding[i]! < this.outstanding[target]!) target = i;
-        }
-        if (target < 0) break;
-        const chunk = queue.next(this.count, true);
-        if (chunk === undefined) break;
-        this.post(target, chunk);
-      }
+      this.queueOnThreads(maxQueuedWhileMatching);
       return;
     }
     // Every thread is idle (or failed) and nothing is left to hand out: what is not prepared now is
     // parsed by the program's FileLoader.
     if (this.busy === 0 && !this.finished) this.finish();
+  }
+
+  /**
+   * Queues the full chunks left on the threads, up to `max` chunks each, the least loaded first. A thread
+   * with chunks queued doesn't wait for the main thread to hand it the next one.
+   */
+  private queueOnThreads(max: number): void {
+    for (;;) {
+      let target = -1;
+      for (let i = 0; i < this.count; i++) {
+        if (!this.alive[i]! || this.blocked[i]! || this.outstanding[i]! >= max) continue;
+        if (target < 0 || this.outstanding[i]! < this.outstanding[target]!) target = i;
+      }
+      if (target < 0) break;
+      const chunk = this.queue.next(this.count, true);
+      if (chunk === undefined) break;
+      this.post(target, chunk);
+    }
+  }
+
+  /**
+   * Queues chunks on the threads before the main thread reads an incremental program's build info:
+   * it hands out no chunks while it reads, and the threads would wait once they finish the one each has.
+   */
+  queueAhead(): void {
+    if (!this.finished) this.queueOnThreads(maxQueuedAhead);
   }
 
   private finish(): void {
