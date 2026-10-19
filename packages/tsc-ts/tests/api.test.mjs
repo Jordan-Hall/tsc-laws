@@ -4,6 +4,7 @@ import { cpSync, existsSync, mkdirSync, readFileSync, realpathSync, rmSync, syml
 import { join, resolve } from 'node:path';
 import test from 'node:test';
 import { Differential, explore, exploreServices } from './differential.mjs';
+import { Client } from './client.mjs';
 import { typescriptLib as bundledLib, tscTs, tscTsMissing } from './toolchain.mjs';
 import { tempDir } from './temp.mjs';
 
@@ -265,6 +266,207 @@ test(
     report(d);
   },
 );
+
+// A change to one program file whose imports and references are unchanged replaces the file in the program;
+// other changes load the program again.
+test('tsc-ts --api updates a program for a changed file like tsc --api', { skip, timeout: 300_000 }, async () => {
+  const dir = tempDir('tsc-ts-api-');
+  writeFileSync(
+    join(dir, 'tsconfig.json'),
+    JSON.stringify({
+      compilerOptions: {
+        strict: true,
+        types: [],
+        module: 'esnext',
+        moduleResolution: 'bundler',
+        jsx: 'react-jsx',
+        allowJs: true,
+        importHelpers: true,
+        isolatedModules: false,
+      },
+      files: ['a.ts', 'b.ts', 'c.tsx', 'd.js', 'e.ts', 'g.ts', 'h.d.ts'],
+    }),
+  );
+  const write = (name, text) => writeFileSync(join(dir, name), text);
+  write('a.ts', 'export const a = 1;\nexport function f(x: number) { return x; }\n');
+  write('b.ts', "import { a, f } from './a';\nexport const b: string = f(a);\n");
+  write('c.tsx', 'export const c = <div>{1}</div>;\n');
+  write('d.js', '// @ts-check\nexport const d = 1;\nd.toFixed(1);\n');
+  write('e.ts', 'export class E { x = 1; }\n');
+  write('g.ts', 'export const g: string = h + globalD;\n');
+  write('h.d.ts', 'export declare const h: number;\n');
+  mkdirSync(join(dir, 'node_modules/react'), { recursive: true });
+  write('node_modules/react/package.json', '{"name":"react","types":"index.d.ts"}');
+  write('node_modules/react/index.d.ts', 'export {};\n');
+  write(
+    'node_modules/react/jsx-runtime.d.ts',
+    'export declare function jsx(...args: any[]): any;\ndeclare global { namespace JSX { interface IntrinsicElements { [name: string]: any } } }\n',
+  );
+  const d = new Differential([realTsc], tscTs, dir, env);
+  try {
+    await d.call('initialize');
+    let update = await d.call('updateSnapshot', { openProjects: [join(dir, 'tsconfig.json')] });
+    const project = update.projects[0].id;
+    const query = async (snapshot) => {
+      const base = { snapshot, project };
+      await d.call('getSourceFileNames', base);
+      await d.call('getProgramDiagnostics', base);
+      await d.call('getGlobalDiagnostics', base);
+      for (const name of ['a.ts', 'b.ts', 'c.tsx', 'd.js', 'e.ts', 'g.ts', 'h.d.ts']) {
+        await d.call('getSyntacticDiagnostics', { ...base, file: join(dir, name) });
+        await d.call('getSemanticDiagnostics', { ...base, file: join(dir, name) });
+      }
+    };
+    const change = async (...names) => {
+      update = await d.call('updateSnapshot', { fileChanges: { changed: names.map((name) => join(dir, name)) } });
+      await query(update.snapshot);
+    };
+    await query(update.snapshot);
+    // A body edit, then an edit that changes an exported signature.
+    write('a.ts', 'export const a = 1;\nexport function f(x: number) { return x + 1; }\n');
+    await change('a.ts');
+    write('a.ts', 'export const a = 1;\nexport function f(x: number) { return String(x); }\n');
+    await change('a.ts');
+    // A new import, and two files at once.
+    write(
+      'b.ts',
+      "import { a, f } from './a';\nimport { E } from './e';\nexport const b: string = f(a) + new E().x;\n",
+    );
+    await change('b.ts');
+    // tsgo lists changed files in map order, so only one of the two reported files changes.
+    write('a.ts', 'export const a = 2;\nexport function f(x: number) { return String(x); }\n');
+    await change('a.ts', 'e.ts');
+    write('e.ts', 'export class E { x = "1"; }\n');
+    await change('e.ts');
+    // A JavaScript file that is no longer checked.
+    write('d.js', 'export const d = 1;\nd.toFixed(1);\n');
+    await change('d.js');
+    // A file that is no longer a module, so it no longer imports tslib.
+    write('e.ts', 'class E { x = "1"; }\n');
+    await change('e.ts');
+    // Files that become scripts with the same imports and tslib import (a JavaScript file imports tslib either way, a
+    // declaration file never does), so only the change between module and script loads the program again; g.ts finds
+    // their declarations as globals.
+    write('d.js', 'var globalD = 1;\nglobalD.toFixed(1);\n');
+    await change('d.js');
+    write('h.d.ts', 'declare const h: number;\n');
+    await change('h.d.ts');
+    // And modules again.
+    write('h.d.ts', 'export declare const h: number;\n');
+    await change('h.d.ts');
+    write('d.js', 'export const d = 1;\nd.toFixed(1);\n');
+    await change('d.js');
+  } finally {
+    await d.close();
+  }
+  report(d);
+});
+
+// After an edit of a JSX import source pragma, of an import's resolution mode, or that makes a module a script, an
+// update gives what a new program gives: it loads the program again where the program kept the file's JSX runtime
+// import or resolutions. The tsgo that `tsc --api` runs here keeps the old JSX runtime import and resolution after
+// the first two, so each update is compared with a server that loads the project anew.
+test('tsc-ts --api updates a program for a changed file like a new program', { skip, timeout: 300_000 }, async () => {
+  const dir = tempDir('tsc-ts-api-');
+  const write = (name, text) => {
+    mkdirSync(join(dir, name, '..'), { recursive: true });
+    writeFileSync(join(dir, name), text);
+  };
+  const names = ['c.tsx', 'index.ts', 'p.ts', 'q.ts', 'r.js', 's.ts'];
+  write(
+    'tsconfig.json',
+    JSON.stringify({
+      compilerOptions: {
+        strict: true,
+        types: [],
+        module: 'preserve',
+        moduleResolution: 'bundler',
+        jsx: 'react-jsx',
+        allowJs: true,
+        checkJs: true,
+      },
+      files: names,
+    }),
+  );
+  write('c.tsx', 'export const c = <div>{1}</div>;\n');
+  const typeImport = (mode) =>
+    `import type { Value } from "pkg" with { "resolution-mode": "${mode}" };\nexport const value: Value = { mode: "require" };\n`;
+  write('index.ts', typeImport('require'));
+  write('p.ts', 'export const shared = 1;\n');
+  write('q.ts', 'const n: string = shared;\n');
+  write('r.js', 'var sharedJs = 1;\n');
+  write('s.ts', 'const m: string = sharedJs;\n');
+  write('node_modules/react/package.json', '{"name":"react","types":"index.d.ts"}');
+  write('node_modules/react/index.d.ts', 'export {};\n');
+  write(
+    'node_modules/react/jsx-runtime.d.ts',
+    'export declare function jsx(...args: any[]): any;\ndeclare global { namespace JSX { interface IntrinsicElements { [name: string]: any } } }\n',
+  );
+  write(
+    'node_modules/pkg/package.json',
+    '{"name":"pkg","exports":{".":{"import":"./index.mjs","require":"./index.js"}}}',
+  );
+  write('node_modules/pkg/index.d.mts', 'export interface Value { mode: "import" }\n');
+  write('node_modules/pkg/index.d.ts', 'export interface Value { mode: "require" }\n');
+  const config = join(dir, 'tsconfig.json');
+  const diagnostics = async (client, snapshot) => {
+    const base = { snapshot, project: config };
+    const result = {
+      program: await client.json('getProgramDiagnostics', base),
+      global: await client.json('getGlobalDiagnostics', base),
+    };
+    for (const name of names) {
+      result[name] = [
+        await client.json('getSyntacticDiagnostics', { ...base, file: join(dir, name) }),
+        await client.json('getSemanticDiagnostics', { ...base, file: join(dir, name) }),
+      ];
+    }
+    return result;
+  };
+  const loaded = async () => {
+    const client = new Client(tscTs, dir, env);
+    try {
+      await client.json('initialize');
+      const { snapshot } = await client.json('updateSnapshot', { openProjects: [config] });
+      return await diagnostics(client, snapshot);
+    } finally {
+      await client.close();
+    }
+  };
+  const updated = new Client(tscTs, dir, env);
+  try {
+    await updated.json('initialize');
+    let { snapshot } = await updated.json('updateSnapshot', { openProjects: [config] });
+    assert.deepEqual(await diagnostics(updated, snapshot), await loaded());
+    const codes = (result, name) => result[name][1].map((d) => d.code);
+    // Each edit: the file, its new text, and a code the new program reports for it or, as `[file, code]`, for
+    // another file.
+    for (const [name, text, code] of [
+      ['c.tsx', '/** @jsxImportSource preact */\nexport const c = <div>{1}</div>;\n', 2875],
+      // The same JSX runtime import, which the program keeps for the new file.
+      ['c.tsx', '/** @jsxImportSource preact */\nexport const c = <div>{3}</div>;\n', 2875],
+      ['c.tsx', 'export const c = <div>{2}</div>;\n', undefined],
+      ['index.ts', typeImport('import'), 2322],
+      ['index.ts', typeImport('require'), undefined],
+      ['p.ts', 'const shared = 1;\n', undefined],
+      ['p.ts', 'export const shared = 1;\n', undefined],
+      // A JavaScript file that becomes a CommonJS module, with the same imports, and a script again: the program
+      // takes the new file, whose binding decides whether s.ts finds its declaration as a global.
+      ['r.js', 'var sharedJs = 1;\nmodule.exports = { sharedJs };\n', ['s.ts', 2304]],
+      ['r.js', 'var sharedJs = 1;\n', ['s.ts', 2322]],
+    ]) {
+      write(name, text);
+      ({ snapshot } = await updated.json('updateSnapshot', { fileChanges: { changed: [join(dir, name)] } }));
+      const expected = await loaded();
+      const [file, expectedCode] = Array.isArray(code) ? code : [name, code];
+      if (expectedCode !== undefined)
+        assert.ok(codes(expected, file).includes(expectedCode), `${file}: ${codes(expected, file)}`);
+      assert.deepEqual(await diagnostics(updated, snapshot), expected, `after the edit of ${name}`);
+    }
+  } finally {
+    await updated.close();
+  }
+});
 
 // `await (legacy())` parses as a call of `await` until the file turns out to be a module, so
 // its statement is reparsed in an await context; the statements around it are retained with

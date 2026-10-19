@@ -341,24 +341,23 @@ export const enum SignatureKind {
 // A configured project: a tsconfig.json, its program and a type checker for
 // queries. Diagnostics come from a separate checker, as in tsc --api.
 export class Project {
-  private readonly checked: CheckedProgram;
   private readonly checker: Checker;
-  private readonly fs: CachedFileSystem;
 
   private constructor(
     private readonly config: ParsedCommandLine,
-    host: ProjectHost,
     // The paths of the files read or looked up for the config.
     private readonly configSeen: readonly string[],
+    private readonly checked: CheckedProgram,
+    // The file system the program's files were loaded through, with the files it looked up.
+    private readonly loadedThrough: CachedFileSystem,
   ) {
+    this.checker = checked.createChecker();
+  }
+
+  private static load(config: ParsedCommandLine, host: ProjectHost, configSeen: readonly string[]): Project {
     const fs = new CachedFileSystem(new HostFileSystem(host));
-    this.fs = fs;
-    const program = new Program(
-      config,
-      new ProjectCompilerHost(fs, host.currentDirectory, host.defaultLibraryPath, host.files),
-    );
-    this.checked = new CheckedProgram(program);
-    this.checker = this.checked.createChecker();
+    const program = new Program(config, projectCompilerHost(fs, host));
+    return new Project(config, configSeen, new CheckedProgram(program), fs);
   }
 
   static open(host: ProjectHost, configFileName: string): Project {
@@ -378,7 +377,7 @@ export class Project {
         host.useCaseSensitiveFileNames,
         0,
       );
-    return new Project(config, host, Array.from(seen));
+    return Project.load(config, host, Array.from(seen));
   }
 
   // The project of open files that no config file contains, with tsgo's
@@ -408,7 +407,7 @@ export class Project {
       host.useCaseSensitiveFileNames,
       rootFileNames.length,
     );
-    return new Project(config, host, []);
+    return Project.load(config, host, []);
   }
 
   private get program(): Program {
@@ -427,7 +426,7 @@ export class Project {
   depends(path: string): boolean {
     return (
       this.configSeen.includes(path) ||
-      this.fs.lookedUpFile(path) ||
+      this.loadedThrough.lookedUpFile(path) ||
       this.program.getSourceFileByPath(path) !== undefined
     );
   }
@@ -442,7 +441,21 @@ export class Project {
    * the files its patterns match as they were.
    */
   reload(host: ProjectHost): Project {
-    return new Project(this.config, host, this.configSeen);
+    return Project.load(this.config, host, this.configSeen);
+  }
+
+  /**
+   * The project after a change to the program file at `path` alone, which leaves the config as it was: its
+   * program with the file read again (`Program.updateFile`), or else a new program, as tsgo updates a project
+   * with one changed file.
+   */
+  update(host: ProjectHost, path: string): Project {
+    const program = this.program.updateFile(
+      path,
+      projectCompilerHost(new CachedFileSystem(new HostFileSystem(host)), host),
+    );
+    if (program === undefined) return this.reload(host);
+    return new Project(this.config, this.configSeen, new CheckedProgram(program), this.loadedThrough);
   }
 
   compilerOptions(): CompilerOptions {
@@ -940,6 +953,10 @@ export class SessionFiles {
     for (const [key, file] of this.parsed) if (!used.has(file)) unused.push(key);
     for (const key of unused) this.parsed.delete(key);
   }
+}
+
+function projectCompilerHost(fs: CachedFileSystem, host: ProjectHost): ProjectCompilerHost {
+  return new ProjectCompilerHost(fs, host.currentDirectory, host.defaultLibraryPath, host.files);
 }
 
 // A compiler host that takes parsed files from the session's files.

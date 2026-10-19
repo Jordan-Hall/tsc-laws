@@ -30,8 +30,12 @@ import {
   useThreadTextCaches,
 } from './diagnostics.js';
 import {
+  canReplaceFile,
   FileLoader,
+  jsxRuntimeImportOf,
   modeAwareKey,
+  needsImportHelpersImportSpecifier,
+  withReplacedFile,
   type CompilerHost,
   type LibFile,
   type ProcessedFiles,
@@ -130,18 +134,56 @@ export class Program implements OutputPathsHost {
   /** Whether the default library files are known to have no semantic diagnostics, for checker threads. */
   librariesAreClean: boolean | undefined = undefined;
 
-  /** `loader`, if given, is a FileLoader of `host` and `commandLine` that has not loaded yet. */
+  /**
+   * `loader`, if given, is a FileLoader of `host` and `commandLine` that has not loaded yet. With `previous`
+   * and `processed` (`updateFile`), the program takes `processed` as its files and the option diagnostics of
+   * `previous`.
+   */
   constructor(
     readonly commandLine: ParsedCommandLine,
     readonly host: CompilerHost,
     loader?: FileLoader,
+    previous?: Program,
+    processed?: ProcessedFiles,
   ) {
     this.options = commandLine.options;
     this.currentDirectory = host.currentDirectory;
     this.useCaseSensitiveFileNames = host.fs.useCaseSensitiveFileNames;
-    this.processed = (loader ?? new FileLoader(host, commandLine)).load();
-    this.includeProcessor = this.processed.includeProcessor;
-    this.verifyCompilerOptions();
+    if (previous !== undefined && processed !== undefined) {
+      this.processed = processed;
+      this.includeProcessor = processed.includeProcessor;
+      for (const diagnostic of previous.programDiagnosticsList) this.programDiagnosticsList.push(diagnostic);
+      for (const path of previous.emitBlockingPaths) this.emitBlockingPaths.add(path);
+      this.symlinks = previous.symlinks;
+    } else {
+      this.processed = (loader ?? new FileLoader(host, commandLine)).load();
+      this.includeProcessor = this.processed.includeProcessor;
+      this.verifyCompilerOptions();
+    }
+  }
+
+  /**
+   * The program with the file at `path` read again from `host` and everything else taken from this program,
+   * as tsgo's UpdateProgram makes it: `undefined` when the file is not in the program, belongs to a package
+   * that is installed more than once, or no longer imports, references or needs the same modules
+   * (`canReplaceFile`, and the tslib and JSX runtime imports the program kept for the file), so the program
+   * must be loaded again.
+   */
+  updateFile(path: string, host: CompilerHost): Program | undefined {
+    const processed = this.processed;
+    const file = processed.filesByPath.get(path);
+    if (file === undefined) return undefined;
+    const next = host.getSourceFile(file.fileName, file.path, file.externalModuleIndicatorOptions);
+    if (next === undefined) return undefined;
+    if (processed.redirectFilesByPath.has(path) || processed.redirectTargets.has(path)) return undefined;
+    if (!canReplaceFile(file, next, (f, specifier) => this.getModeForUsageLocation(f, specifier))) return undefined;
+    const options = processed.projectReferenceMapper.getCompilerOptionsForFile(next.path, next.fileName);
+    if (processed.importHelpersImportSpecifiers.has(path) !== needsImportHelpersImportSpecifier(next, options))
+      return undefined;
+    const jsxImport = processed.jsxRuntimeImports.get(path);
+    if ((jsxImport === undefined ? '' : jsxImport.moduleReference) !== jsxRuntimeImportOf(next, options))
+      return undefined;
+    return new Program(this.commandLine, host, undefined, this, withReplacedFile(processed, next));
   }
 
   /** Libraries first, then the other files in the order they were found. */

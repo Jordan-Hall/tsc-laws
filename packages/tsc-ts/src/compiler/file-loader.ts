@@ -9,6 +9,7 @@ import {
   StringLiteral,
   getText,
   type ExternalModuleIndicatorOptions,
+  type FileReference,
   type Node,
   type SourceFile,
 } from './ast.js';
@@ -395,6 +396,103 @@ export class ProcessedFiles {
      */
     readonly preparedPackageJsons: readonly PackageJsonLookup[] | undefined,
   ) {}
+}
+
+/** The files of `processed` with `file` in place of the file at its path, for `Program.updateFile`. */
+export function withReplacedFile(processed: ProcessedFiles, file: SourceFile): ProcessedFiles {
+  const files = processed.files.slice();
+  files[files.findIndex((f) => f.path === file.path)] = file;
+  const filesByPath = new Map(processed.filesByPath);
+  filesByPath.set(file.path, file);
+  return new ProcessedFiles(
+    processed.resolver,
+    files,
+    filesByPath,
+    processed.missingFiles,
+    processed.resolvedModules,
+    processed.typeResolutionsInFile,
+    processed.sourceFileMetadata,
+    processed.jsxRuntimeImports,
+    processed.importHelpersImportSpecifiers,
+    processed.libFiles,
+    processed.sourceFilesFoundSearchingNodeModules,
+    processed.includeProcessor.copy(),
+    processed.outputFileToProjectReferenceSource,
+    processed.redirectTargets,
+    processed.redirectFilesByPath,
+    processed.projectReferenceMapper,
+    processed.preparedPackageJsons,
+  );
+}
+
+/** Whether `file` imports the `importHelpers` module (tslib) under `options`. */
+export function needsImportHelpersImportSpecifier(file: SourceFile, options: CompilerOptions): boolean {
+  if (options.importHelpers !== true) return false;
+  return isSourceFileJS(file) || (!file.isDeclarationFile && (getIsolatedModules(options) || isExternalModule(file)));
+}
+
+/** The module `file` imports the JSX runtime from under `options`, or '' if it imports none. */
+export function jsxRuntimeImportOf(file: SourceFile, options: CompilerOptions): string {
+  if (file.scriptKind !== ScriptKind.JSX && file.scriptKind !== ScriptKind.TSX) return '';
+  return getJSXRuntimeImport(getJSXImplicitImportBase(options, file), options);
+}
+
+/**
+ * Whether `next`, a new version of `file`, can take its place in a program without loading the program again,
+ * as tsgo's canReplaceFileInProgram checks: it has the same script kind, is a module if `file` is one, and has
+ * the same module specifiers with the same resolution modes (`modeOf`), module augmentation names, ambient
+ * modules, file, type and library references, `// @ts-check` directive and node core module style. A CommonJS
+ * module indicator is set when a file is bound, so `next` has none yet; the new program's binder sets it.
+ */
+export function canReplaceFile(
+  file: SourceFile,
+  next: SourceFile,
+  modeOf: (file: SourceFile, specifier: Node) => ModuleKind,
+): boolean {
+  return (
+    file.scriptKind === next.scriptKind &&
+    isExternalModule(file) === isExternalModule(next) &&
+    file.usesUriStyleNodeCoreModules === next.usesUriStyleNodeCoreModules &&
+    sameNodes(
+      file.imports,
+      next.imports,
+      (a, b) =>
+        (a.kind !== SyntaxKind.StringLiteral || getText(a) === getText(b)) && modeOf(file, a) === modeOf(next, b),
+    ) &&
+    sameNodes(file.moduleAugmentations, next.moduleAugmentations, (a, b) => getText(a) === getText(b)) &&
+    sameStrings(file.ambientModuleNames, next.ambientModuleNames) &&
+    sameFileReferences(file.referencedFiles, next.referencedFiles) &&
+    sameFileReferences(file.typeReferenceDirectives, next.typeReferenceDirectives) &&
+    sameFileReferences(file.libReferenceDirectives, next.libReferenceDirectives) &&
+    (file.checkJsDirective === undefined
+      ? next.checkJsDirective === undefined
+      : next.checkJsDirective !== undefined && file.checkJsDirective.enabled === next.checkJsDirective.enabled)
+  );
+}
+
+function sameNodes(a: readonly Node[], b: readonly Node[], same: (a: Node, b: Node) => boolean): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i].kind !== b[i].kind || !same(a[i], b[i])) return false;
+  return true;
+}
+
+function sameStrings(a: readonly string[], b: readonly string[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
+
+function sameFileReferences(a: readonly FileReference[], b: readonly FileReference[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (
+      a[i].fileName !== b[i].fileName ||
+      a[i].resolutionMode !== b[i].resolutionMode ||
+      a[i].preserve !== b[i].preserve
+    )
+      return false;
+  }
+  return true;
 }
 
 class LibResolution {
@@ -1138,21 +1236,16 @@ export class FileLoader {
     const redirect = this.mapper.getRedirectForResolution(file.path, file.fileName);
     const containingFile = redirect !== undefined ? redirect.source : file.fileName;
     const options = redirect !== undefined ? redirect.resolved.options : this.options;
-    const isJavaScriptFile = isSourceFileJS(file);
-    if (isJavaScriptFile || (!file.isDeclarationFile && (getIsolatedModules(options) || isExternalModule(file)))) {
-      if (options.importHelpers === true) {
-        const specifier = createSyntheticImport('tslib', file);
-        moduleNames.push(specifier);
-        task.importHelpersImportSpecifier = specifier;
-      }
+    if (needsImportHelpersImportSpecifier(file, options)) {
+      const specifier = createSyntheticImport('tslib', file);
+      moduleNames.push(specifier);
+      task.importHelpersImportSpecifier = specifier;
     }
-    if (file.scriptKind === ScriptKind.JSX || file.scriptKind === ScriptKind.TSX) {
-      const jsxImport = getJSXRuntimeImport(getJSXImplicitImportBase(options, file), options);
-      if (jsxImport !== '') {
-        const specifier = createSyntheticImport(jsxImport, file);
-        moduleNames.push(specifier);
-        task.jsxRuntimeImport = new JsxRuntimeImport(jsxImport, specifier);
-      }
+    const jsxImport = jsxRuntimeImportOf(file, options);
+    if (jsxImport !== '') {
+      const specifier = createSyntheticImport(jsxImport, file);
+      moduleNames.push(specifier);
+      task.jsxRuntimeImport = new JsxRuntimeImport(jsxImport, specifier);
     }
     const importsStart = moduleNames.length;
     for (const specifier of file.imports) moduleNames.push(specifier);

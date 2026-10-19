@@ -510,12 +510,20 @@ function stripLibAffixes(name: string): string {
 
 /** Include reasons of every file and the diagnostics found while loading them. */
 export class IncludeProcessor {
-  readonly fileIncludeReasons = new Map<string, FileIncludeReason[]>();
-  readonly processingDiagnostics: ProcessingDiagnostic[] = [];
   private computed: Diagnostic[] | undefined = undefined;
   private compilerOptionsObject: ObjectLiteralExpression | undefined = undefined;
   private compilerOptionsComputed = false;
   private readonly redirectAndFileFormat = new Map<string, readonly Diagnostic[]>();
+
+  constructor(
+    readonly fileIncludeReasons = new Map<string, FileIncludeReason[]>(),
+    readonly processingDiagnostics: ProcessingDiagnostic[] = [],
+  ) {}
+
+  /** A processor with these reasons and processing diagnostics, whose diagnostics are computed for another program. */
+  copy(): IncludeProcessor {
+    return new IncludeProcessor(this.fileIncludeReasons, this.processingDiagnostics);
+  }
 
   reasonsOf(path: string): readonly FileIncludeReason[] {
     return this.fileIncludeReasons.get(path) ?? [];

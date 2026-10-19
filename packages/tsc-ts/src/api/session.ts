@@ -550,19 +550,30 @@ export class Session {
     // Without created or deleted files, a project whose config files are unchanged keeps its config.
     const keepsConfig = (loaded: LoadedProject): boolean =>
       !reloadAll && (changes.deleted ?? []).length === 0 && !changed.some((path) => loaded.project.configDepends(path));
+    // A project that keeps its config takes a change to one of its program files alone, other than a
+    // package.json, into its program (Project.update), as tsgo does.
+    const updated = (loaded: LoadedProject): backend.Project => {
+      const paths = changed.filter((path) => loaded.project.depends(path));
+      const host = this.projectHost();
+      if (paths.length === 1 && containsFile(loaded, paths[0]) && !paths[0].endsWith('/package.json'))
+        return loaded.project.update(host, paths[0]);
+      return loaded.project.reload(host);
+    };
     // Reloading re-inserts entries, so iterate over a copy.
     for (const loaded of Array.from(this.loaded.values())) {
       if (!affected(loaded)) continue;
       if (keepsConfig(loaded)) {
-        const project = loaded.project.reload(this.projectHost());
-        this.loaded.set(loaded.id, { id: loaded.id, configFileName: loaded.configFileName, project });
+        this.loaded.set(loaded.id, { id: loaded.id, configFileName: loaded.configFileName, project: updated(loaded) });
         continue;
       }
       this.loaded.delete(loaded.id);
       this.loadProject(loaded.configFileName);
     }
-    if (this.inferred !== undefined && affected(this.inferred)) {
-      this.inferred = this.loadInferredProject(this.inferred.project.rootFiles());
+    const inferred = this.inferred;
+    if (inferred !== undefined && affected(inferred)) {
+      this.inferred = keepsConfig(inferred)
+        ? { id: inferred.id, configFileName: inferred.configFileName, project: updated(inferred) }
+        : this.loadInferredProject(inferred.project.rootFiles());
     }
   }
 
