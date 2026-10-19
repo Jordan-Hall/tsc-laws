@@ -52,6 +52,11 @@ export interface Symbol {
  */
 export interface Type {
   readonly flags: TypeFlags;
+  /**
+   * The object flags of an object type (TypeFlags.Object). Other types carry flags the checker keeps for
+   * itself, such as ObjectFlags.PrimitiveUnion, where TypeScript 7's API gives 0. Flags the checker
+   * caches, such as ObjectFlags.MembersResolved, are set as queries compute them.
+   */
   readonly objectFlags: ObjectFlags;
   readonly id: number;
   getSymbol(): Symbol | undefined;
@@ -312,6 +317,7 @@ export interface TypeChecker {
   /** The type of a symbol as narrowed at `location`. */
   getTypeOfSymbolAtLocation(symbol: Symbol, location: Node): Type;
   getTypeArguments(type: TypeReference): readonly Type[];
+  /** The target of an alias (SymbolFlags.Alias); throws an InternalCompilerError for any other symbol. */
   getAliasedSymbol(symbol: Symbol): Symbol;
   getPropertyOfType(type: Type, name: string): Symbol | undefined;
   getPropertiesOfType(type: Type): readonly Symbol[];
@@ -333,8 +339,12 @@ export interface TypeChecker {
   isArrayLikeType(type: Type): boolean;
   isTypeAssignableTo(source: Type, target: Type): boolean;
   resolveName(name: string, meaning: SymbolFlags, location?: Node, excludeGlobals?: boolean): Symbol | undefined;
+  /** The value `node` names where it is: `resolveName(node.text, SymbolFlags.Value | SymbolFlags.ExportValue, node)`. */
   getResolvedSymbol(node: Identifier): Symbol | undefined;
-  /** The text TypeScript 7's API gives for `type`, printed in `enclosingDeclaration` with `flags`. */
+  /**
+   * The text TypeScript 7's API gives for `type`, printed in `enclosingDeclaration` with `flags`; without
+   * flags, or with 0, with TypeFormatFlags.AllowUniqueESSymbolType and UseAliasDefinedOutsideCurrentScope.
+   */
   typeToString(type: Type, enclosingDeclaration?: Node, flags?: TypeFormatFlags): string;
   getAnyType(): Type;
   getUnknownType(): Type;

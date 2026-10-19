@@ -2,7 +2,7 @@
 // caches per symbol and node. Flag values match tsgo, because union ordering depends on them.
 import type { ProgramLifetime } from '@scriptc/types';
 import type { Node } from './ast.js';
-import type { Symbol, SymbolTable } from './symbol.js';
+import { getSymbolId, type Symbol, type SymbolTable } from './symbol.js';
 
 export const enum TypeFlags {
   None = 0,
@@ -545,6 +545,22 @@ export function typeExtra(t: Type): TypeExtra {
  */
 export const sideStateForAll: boolean = process.env.TSC_TS_SIDE_STATE === '1';
 
+/** `symbol`, with its id assigned (`getSymbolId`): every symbol tsc-ts's public API hands out has one. */
+function withId(symbol: Symbol | undefined): Symbol | undefined {
+  if (symbol !== undefined) getSymbolId(symbol);
+  return symbol;
+}
+
+/**
+ * What the methods of types that tsc-ts's public API calls need from the checker that created the type
+ * (`InterfaceType.checking`, `ConditionalType.checking`); the Checker implements it.
+ */
+export interface TypeChecking {
+  baseTypesOf(t: InterfaceType): readonly Type[];
+  trueTypeOf(t: ConditionalType): Type;
+  falseTypeOf(t: ConditionalType): Type;
+}
+
 export class Type implements ProgramLifetime {
   flags: TypeFlags;
   objectFlags: ObjectFlags;
@@ -564,6 +580,184 @@ export class Type implements ProgramLifetime {
     this.alias = undefined;
     this.resolvedBaseConstraint = undefined;
     this.extra = undefined;
+  }
+
+  // TypeScript 7's API (tsc-ts/api): the parts of a type, undefined or empty where its kind has none.
+
+  getSymbol(): Symbol | undefined {
+    return withId(this.symbol);
+  }
+
+  getAliasSymbol(): Symbol | undefined {
+    return withId(this.alias?.symbol);
+  }
+
+  getAliasTypeArguments(): readonly Type[] {
+    const alias = this.alias;
+    return alias === undefined ? emptyTypes : alias.typeArguments.slice();
+  }
+
+  /** The target of a type reference, index type or string mapping type. */
+  getTarget(): Type | undefined {
+    if ((this.flags & TypeFlags.Index) !== 0) return (this as unknown as IndexType).target;
+    if ((this.flags & TypeFlags.StringMapping) !== 0) return (this as unknown as StringMappingType).target;
+    if (this.isTypeReference()) return (this as unknown as TypeReference).target;
+    return undefined;
+  }
+
+  /** The members of a union or intersection type, or the types of a template literal type. */
+  getTypes(): readonly Type[] {
+    if ((this.flags & TypeFlags.TemplateLiteral) !== 0) return (this as unknown as TemplateLiteralType).types.slice();
+    if ((this.flags & TypeFlags.UnionOrIntersection) !== 0)
+      return (this as unknown as UnionOrIntersectionType).types.slice();
+    return emptyTypes;
+  }
+
+  getFreshType(): Type | undefined {
+    return this instanceof LiteralType ? this.freshType : undefined;
+  }
+
+  getRegularType(): Type | undefined {
+    return this instanceof LiteralType ? this.regularType : undefined;
+  }
+
+  getObjectType(): Type | undefined {
+    return (this.flags & TypeFlags.IndexedAccess) !== 0 ? (this as unknown as IndexedAccessType).objectType : undefined;
+  }
+
+  getIndexType(): Type | undefined {
+    return (this.flags & TypeFlags.IndexedAccess) !== 0 ? (this as unknown as IndexedAccessType).indexType : undefined;
+  }
+
+  getCheckType(): Type | undefined {
+    return (this.flags & TypeFlags.Conditional) !== 0 ? (this as unknown as ConditionalType).checkType : undefined;
+  }
+
+  getExtendsType(): Type | undefined {
+    return (this.flags & TypeFlags.Conditional) !== 0 ? (this as unknown as ConditionalType).extendsType : undefined;
+  }
+
+  getTrueType(): Type | undefined {
+    if ((this.flags & TypeFlags.Conditional) === 0) return undefined;
+    const conditional = this as unknown as ConditionalType;
+    return conditional.checking?.trueTypeOf(conditional);
+  }
+
+  getFalseType(): Type | undefined {
+    if ((this.flags & TypeFlags.Conditional) === 0) return undefined;
+    const conditional = this as unknown as ConditionalType;
+    return conditional.checking?.falseTypeOf(conditional);
+  }
+
+  /** The base type of a substitution type. */
+  getBaseType(): Type | undefined {
+    return (this.flags & TypeFlags.Substitution) !== 0 ? (this as unknown as SubstitutionType).baseType : undefined;
+  }
+
+  /** The constraint of a substitution type. */
+  getConstraint(): Type | undefined {
+    return (this.flags & TypeFlags.Substitution) !== 0 ? (this as unknown as SubstitutionType).constraint : undefined;
+  }
+
+  /** The type parameters of a class or interface type, outer and local, without its `this` type. */
+  getTypeParameters(): readonly Type[] {
+    return this.isClassOrInterface() ? (this as unknown as InterfaceType).typeParameters() : emptyTypes;
+  }
+
+  getOuterTypeParameters(): readonly Type[] {
+    return this.isClassOrInterface() ? (this as unknown as InterfaceType).outerTypeParameters() : emptyTypes;
+  }
+
+  getLocalTypeParameters(): readonly Type[] {
+    return this.isClassOrInterface() ? (this as unknown as InterfaceType).localTypeParameters() : emptyTypes;
+  }
+
+  /** The base types of a class or interface type, or undefined for any other type. */
+  getBaseTypes(): readonly Type[] | undefined {
+    if (!this.isClassOrInterface()) return undefined;
+    const declared = this as unknown as InterfaceType;
+    return declared.checking === undefined ? emptyTypes : declared.checking.baseTypesOf(declared).slice();
+  }
+
+  isClassOrInterface(): boolean {
+    return (this.flags & TypeFlags.Object) !== 0 && (this.objectFlags & ObjectFlags.ClassOrInterface) !== 0;
+  }
+
+  isUnionType(): boolean {
+    return (this.flags & TypeFlags.Union) !== 0;
+  }
+
+  isIntersectionType(): boolean {
+    return (this.flags & TypeFlags.Intersection) !== 0;
+  }
+
+  isObjectType(): boolean {
+    return (this.flags & TypeFlags.Object) !== 0;
+  }
+
+  isIntrinsicType(): boolean {
+    return (this.flags & TypeFlags.Intrinsic) !== 0;
+  }
+
+  /** Whether this is the error type: an intrinsic type named `error`. */
+  isErrorType(): boolean {
+    return this instanceof IntrinsicType && this.intrinsicName === 'error';
+  }
+
+  isLiteralType(): boolean {
+    return (this.flags & TypeFlags.Literal) !== 0;
+  }
+
+  isStringLiteralType(): boolean {
+    return (this.flags & TypeFlags.StringLiteral) !== 0;
+  }
+
+  isNumberLiteralType(): boolean {
+    return (this.flags & TypeFlags.NumberLiteral) !== 0;
+  }
+
+  isBigIntLiteralType(): boolean {
+    return (this.flags & TypeFlags.BigIntLiteral) !== 0;
+  }
+
+  isBooleanLiteralType(): boolean {
+    return (this.flags & TypeFlags.BooleanLiteral) !== 0;
+  }
+
+  isTypeReference(): boolean {
+    return (this.flags & TypeFlags.Object) !== 0 && (this.objectFlags & ObjectFlags.Reference) !== 0;
+  }
+
+  isTupleType(): boolean {
+    return (this.flags & TypeFlags.Object) !== 0 && (this.objectFlags & ObjectFlags.Tuple) !== 0;
+  }
+
+  isIndexType(): boolean {
+    return (this.flags & TypeFlags.Index) !== 0;
+  }
+
+  isIndexedAccessType(): boolean {
+    return (this.flags & TypeFlags.IndexedAccess) !== 0;
+  }
+
+  isConditionalType(): boolean {
+    return (this.flags & TypeFlags.Conditional) !== 0;
+  }
+
+  isSubstitutionType(): boolean {
+    return (this.flags & TypeFlags.Substitution) !== 0;
+  }
+
+  isTemplateLiteralType(): boolean {
+    return (this.flags & TypeFlags.TemplateLiteral) !== 0;
+  }
+
+  isStringMappingType(): boolean {
+    return (this.flags & TypeFlags.StringMapping) !== 0;
+  }
+
+  isTypeParameter(): boolean {
+    return (this.flags & TypeFlags.TypeParameter) !== 0;
   }
 }
 
@@ -594,6 +788,14 @@ export class LiteralType extends Type {
     this.numberValue = numberValue;
     this.freshType = undefined;
     this.regularType = this;
+  }
+
+  /** The value, as TypeScript 7's API gives it: a string, number, bigint or boolean. */
+  get value(): string | number | bigint | boolean {
+    if ((this.flags & TypeFlags.StringLiteral) !== 0) return this.stringValue;
+    if ((this.flags & TypeFlags.BigIntLiteral) !== 0) return BigInt(this.stringValue);
+    if ((this.flags & TypeFlags.BooleanLiteral) !== 0) return this.stringValue === 'true';
+    return this.numberValue;
   }
 }
 
@@ -766,10 +968,13 @@ export class InterfaceType extends TypeReference {
   lastMemberNames: MemberNames | undefined;
   /** The references to a generic class, interface or tuple type, by their type arguments. */
   references: ReferenceCache | undefined;
+  /** The checker that created the type, for `getBaseTypes()`. */
+  checking: TypeChecking | undefined;
 
   constructor(objectFlags: ObjectFlags, id: number, symbol: Symbol | undefined) {
     super(objectFlags, id, symbol);
     this.references = undefined;
+    this.checking = undefined;
     this.declaredMemberPositions = undefined;
     this.lastMemberStates = undefined;
     this.lastMemberNames = undefined;
@@ -836,6 +1041,11 @@ export class TupleType extends InterfaceType {
     this.fixedLength = 0;
     this.combinedFlags = ElementFlags.None;
     this.readonly = false;
+  }
+
+  /** The flags of each element (TypeScript 7's API). */
+  get elementFlags(): ElementFlags[] {
+    return this.elementInfos.map((info) => info.flags);
   }
 }
 
@@ -1150,6 +1360,8 @@ export class ConditionalType extends Type {
   resolvedConstraintOfDistributive: Type | undefined;
   readonly mapper: TypeMapper | undefined;
   readonly combinedMapper: TypeMapper | undefined;
+  /** The checker that created the type, for `getTrueType()` and `getFalseType()`. */
+  checking: TypeChecking | undefined;
 
   constructor(
     id: number,
@@ -1171,6 +1383,7 @@ export class ConditionalType extends Type {
     this.resolvedConstraintOfDistributive = undefined;
     this.mapper = mapper;
     this.combinedMapper = combinedMapper;
+    this.checking = undefined;
   }
 }
 
@@ -1288,6 +1501,26 @@ export class Signature implements ProgramLifetime {
     if (symbol !== undefined || this.extra !== undefined) signatureExtra(this).thisParameter = symbol;
   }
 
+  // TypeScript 7's API (tsc-ts/api).
+
+  getTypeParameters(): readonly Type[] {
+    return this.typeParameters.slice();
+  }
+
+  getParameters(): readonly Symbol[] {
+    for (const parameter of this.parameters) getSymbolId(parameter);
+    return this.parameters.slice();
+  }
+
+  getThisParameter(): Symbol | undefined {
+    return withId(this.thisParameter);
+  }
+
+  /** The signature this one was instantiated from. */
+  getTarget(): Signature | undefined {
+    return this.target;
+  }
+
   get isolatedSignatureType(): Type | undefined {
     const extra = this.extra;
     return extra !== undefined ? extra.isolatedSignatureType : undefined;
@@ -1374,6 +1607,11 @@ export class IndexInfo implements ProgramLifetime {
     this.declaration = declaration;
     this.components = components;
     this.indexSymbol = undefined;
+  }
+
+  /** The value type (TypeScript 7's API). */
+  get type(): Type {
+    return this.valueType;
   }
 }
 

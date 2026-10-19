@@ -213,6 +213,36 @@ export class Symbol implements ProgramLifetime {
     this.rareFieldsOrNew().exportSymbol = value;
   }
 
+  // TypeScript 7's API (tsc-ts/api). The symbols it hands out have their ids assigned.
+
+  /** The name in its escaped form, the key of member and export tables (`escapeSymbolName`). */
+  get escapedName(): string {
+    return escapeSymbolName(this.name);
+  }
+
+  getParent(): Symbol | undefined {
+    const parent = this.parent;
+    if (parent !== undefined) getSymbolId(parent);
+    return parent;
+  }
+
+  /** The export symbol, or the symbol itself if it has none. */
+  getExportSymbol(): Symbol {
+    const exported = this.exportSymbol ?? this;
+    getSymbolId(exported);
+    return exported;
+  }
+
+  /** The members, by escaped name. */
+  getMembers(): Map<string, Symbol> {
+    return byEscapedName(this.members);
+  }
+
+  /** The exports, by escaped name. */
+  getExports(): Map<string, Symbol> {
+    return byEscapedName(this.exports);
+  }
+
   /** Whether this is the symbol of an external module, named by its quoted path. */
   isExternalModule(): boolean {
     return (this.flags & SymbolFlags.Module) !== 0 && this.name.charCodeAt(0) === 0x22;
@@ -298,6 +328,17 @@ export function addDeclaration(symbol: Symbol, node: Node): void {
   const declarations = symbol.declarations;
   if (declarations.length === 0) symbol.declarations = [node];
   else declarations.push(node);
+}
+
+/** The symbols of `table` by escaped name, with their ids assigned. */
+function byEscapedName(table: SymbolTable | undefined): Map<string, Symbol> {
+  const result = new Map<string, Symbol>();
+  if (table !== undefined)
+    for (const symbol of table.values()) {
+      getSymbolId(symbol);
+      result.set(escapeSymbolName(symbol.name), symbol);
+    }
+  return result;
 }
 
 /** A program-wide id, assigned to each symbol when first requested. */

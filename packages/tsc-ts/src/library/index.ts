@@ -5,6 +5,24 @@ export * from './ast.js';
 export * from './enums.generated.js';
 export type { CompilerOptions } from './compiler-options.generated.js';
 export { symbolName } from './symbols.js';
+export { createProgram, createProgramFromConfigFile, parseConfigFile } from './program.js';
+export { DisposedProgramError, InternalCompilerError } from './errors.js';
+export { parseSourceFile, type ParseSourceFileOptions } from './parse.js';
+export {
+  canHaveModifiers,
+  flattenDiagnosticMessageText,
+  forEachChild,
+  getCombinedModifierFlags,
+  getCombinedNodeFlags,
+  getJSDoc,
+  getLineAndCharacterOfPosition,
+  getLineStarts,
+  getModifiers,
+  getPositionOfLineAndCharacter,
+  tokenStartOfNode,
+  tokenToString,
+  walkPreorder,
+} from './nodes.js';
 export type {
   __String,
   BigIntLiteralType,

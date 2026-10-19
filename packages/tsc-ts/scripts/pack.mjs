@@ -155,12 +155,14 @@ function pack(dir) {
 
 // Installs the tarballs into a new project, then checks --version, a clean
 // compile, the exit code of a compile with errors, and that tsc-ts/api loads
-// in Node and type-checks with its .d.ts files.
+// in Node, type-checks with its .d.ts files, and parses files and checks a
+// program with the platform package's lib files.
 function check({ main, platform }) {
   if (!main || !platform) throw new Error('--check needs both packages');
   const dir = join(tmpdir(), `tsc-ts-pack-${process.pid}`);
   rmSync(dir, { recursive: true, force: true });
   mkdirSync(join(dir, 'src'), { recursive: true });
+  mkdirSync(join(dir, 'checked'), { recursive: true });
   try {
     writeJson(join(dir, 'package.json'), { name: 'tsc-ts-pack-check', private: true, type: 'module' });
     writeJson(join(dir, 'tsconfig.json'), {
@@ -184,15 +186,31 @@ function check({ main, platform }) {
     console.log('npx tsc-ts -p .: ok');
 
     rmSync(join(dir, 'src/error.ts'));
+    writeFileSync(join(dir, 'checked/error.ts'), 'export const count: number = "one";\n');
+    // The platform package's lib files serve as the default libraries of a program.
+    const lib = join(dir, 'node_modules', packageName(hostPlatform()), 'lib');
     writeFileSync(
       join(dir, 'src/api.ts'),
-      "import { SyntaxKind, type Node } from 'tsc-ts/api';\n" +
+      "import { createProgram, parseSourceFile, SyntaxKind, type Node } from 'tsc-ts/api';\n" +
         'export const isIdentifier = (node: Node): boolean => node.kind === SyntaxKind.Identifier;\n' +
-        'console.log(SyntaxKind[SyntaxKind.Identifier]);\n',
+        'console.log(SyntaxKind[SyntaxKind.Identifier]);\n' +
+        "const file = parseSourceFile('a.ts', 'let a = 1;');\n" +
+        'console.log(file.statements.nodes[0]!.kind === SyntaxKind.VariableStatement);\n' +
+        'const program = createProgram({\n' +
+        "  rootNames: ['checked/error.ts'],\n" +
+        '  options: { strict: true },\n' +
+        '  host: {\n' +
+        `    getCurrentDirectory: () => ${JSON.stringify(dir)},\n` +
+        `    useCaseSensitiveFileNames: () => ${!windows && process.platform !== 'darwin'},\n` +
+        `    getDefaultLibraryDirectory: () => ${JSON.stringify(lib)},\n` +
+        '  },\n' +
+        '});\n' +
+        "console.log(program.getSemanticDiagnostics().map((d) => d.code).join(','));\n" +
+        'program.dispose();\n',
     );
     run('npx', ['tsc-ts', '-p', '.'], { cwd: dir });
     const printed = run('node', ['out/api.js'], { cwd: dir, stdio: 'pipe' }).stdout.trim();
-    if (printed !== 'Identifier') throw new Error(`unexpected tsc-ts/api output: ${printed}`);
+    if (printed !== 'Identifier\ntrue\n2322') throw new Error(`unexpected tsc-ts/api output: ${printed}`);
     console.log('tsc-ts/api: ok');
   } finally {
     rmSync(dir, { recursive: true, force: true });

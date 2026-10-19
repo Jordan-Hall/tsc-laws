@@ -907,6 +907,13 @@ export function clearLibGlobalsCache(): void {
   libGlobalsCache.length = 0;
 }
 
+/** Drops the shared library globals merged from any of `files`, for a program that is no longer used. */
+export function dropLibGlobals(files: readonly SourceFile[]): void {
+  const dropped = new Set(files);
+  for (let i = libGlobalsCache.length - 1; i >= 0; i--)
+    if (dropped.has(libGlobalsCache[i]!.files[0]!)) libGlobalsCache.splice(i, 1);
+}
+
 /** Number of leading default library files, whose merged locals can be shared. */
 function getLibraryCount(c: Checker): number {
   const files = c.files;
