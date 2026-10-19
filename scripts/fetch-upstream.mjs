@@ -26,8 +26,15 @@ function checkout(dir, url, commit, paths) {
 }
 
 const root = resolve('upstream/typescript-go');
-// _scripts holds ast.json, the AST schema scripts/generate-ast.mjs reads.
-checkout(root, identity.repository, identity.commit, ['internal', 'cmd', '_scripts']);
+// _scripts holds ast.json, the AST schema scripts/generate-ast.mjs reads. The enums and API options of
+// TypeScript 7's API package are the source of tsc-ts's public API types (scripts/generate-api.mjs).
+checkout(root, identity.repository, identity.commit, [
+  'internal',
+  'cmd',
+  '_scripts',
+  '_packages/native-preview/src/enums',
+  '_packages/native-preview/src/api',
+]);
 console.log('Pinned upstream: ' + identity.commit);
 
 const tsCommit = spawnSync('git', ['-C', root, 'rev-parse', 'HEAD:_submodules/TypeScript'], {

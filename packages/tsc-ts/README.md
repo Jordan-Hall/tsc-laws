@@ -38,3 +38,17 @@ npx tsc-ts --noEmit src/index.ts
 The native executable never frees syntax trees, types, signatures or symbols: it keeps them until it exits, which saves the cost of tracking them during a build. A one-shot build is unaffected, but a long-running process grows with each rebuild or project update. Native `--watch` (also with `--build`) runs in a child process, and when a change arrives while that process holds more than 2.5 times the memory it held after its first build, a new process replaces it and builds the change, reporting what the old process would have. `TSC_TS_WATCH_MEMORY` sets that limit in megabytes, and `TSC_TS_WATCH_MEMORY=0` turns the replacement off. A `--api` process grows with each project update; restart it to reclaim the memory.
 
 The default lib files (`lib.*.d.ts`) ship next to the executable. Set `TSC_TS_LIB_DIR` to use another directory.
+
+## Programmatic API
+
+`tsc-ts/api` describes tsc-ts's programs, checkers, nodes, symbols, types and signatures in TypeScript, with the names and numbering of TypeScript 7's API (`typescript/unstable/sync`): the node interfaces, `Symbol`, `Type` and its kinds, `Signature`, `IndexInfo`, `TypePredicate`, `Diagnostic`, `Program`, `TypeChecker`, `CompilerOptions`, and the enums `SyntaxKind`, `NodeFlags`, `ModifierFlags`, `TokenFlags`, `SymbolFlags`, `TypeFlags`, `ObjectFlags`, `ElementFlags`, `SignatureFlags`, `SignatureKind`, `IndexKind`, `TypePredicateKind`, `TypeFormatFlags`, `NodeBuilderFlags`, `ScriptTarget`, `ModuleKind`, `ModuleResolutionKind`, `ModuleDetectionKind`, `ScriptKind`, `LanguageVariant`, `JsxEmit`, `NewLineKind`, `DiagnosticCategory` and `InternalSymbolName`.
+
+```ts
+import { SyntaxKind, type Node } from 'tsc-ts/api';
+
+const isIdentifier = (node: Node): boolean => node.kind === SyntaxKind.Identifier;
+```
+
+Lists of child nodes are `NodeList` objects: `node.arguments.nodes` holds the nodes, and `pos` and `end` the list's range. `symbolName(symbol)` gives a symbol's name as TypeScript 7's API does (`__call`, `export=`).
+
+The package has a JavaScript build with declaration files for Node.js, and the TypeScript sources of the API (the `source` export condition) for compilers that build it from source.
