@@ -1,6 +1,6 @@
 // tsc-ts/api compiled with scriptc: tests/native/api-probe.ts, built natively with the installed scriptc and with
-// tsc for Node, prints the same answers for the library fixture project (files, diagnostics, and the symbols, types
-// and signatures at every node). api-library.test.mjs compares the Node build's answers with tsc --api's.
+// tsc for Node, prints the same answers for the library fixture projects (files, diagnostics, and the symbols, types,
+// signatures and text at every node). api-library.test.mjs compares the Node build's answers with tsc --api's.
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { cpSync, existsSync, realpathSync } from 'node:fs';
@@ -23,16 +23,12 @@ function answers(command, config) {
 }
 
 test('a native build of tsc-ts/api answers as the Node build', { skip, timeout: 900_000 }, () => {
-  const dir = tempDir('tsc-ts-api-native-');
-  cpSync(join(root, 'tests/fixtures/library'), dir, { recursive: true });
-  const config = join(dir, 'tsconfig.json');
-
   const node = compiledDir('tsc-ts-api-probe-');
   execFileSync(join(repo, 'node_modules/.bin/tsc'), [...compileOptions, '--outDir', node, '--rootDir', root, probe], {
     cwd: root,
     stdio: 'inherit',
   });
-  const expected = answers([process.execPath, '--stack-size=16000', join(node, probe.replace(/\.ts$/, '.js'))], config);
+  const nodeProbe = [process.execPath, '--stack-size=16000', join(node, probe.replace(/\.ts$/, '.js'))];
 
   const native = join(tempDir('tsc-ts-api-native-build-'), 'api-probe');
   const build = spawnSync(scriptc, ['build', probe, '--optimization=dev', '-o', native], {
@@ -40,15 +36,25 @@ test('a native build of tsc-ts/api answers as the Node build', { skip, timeout: 
     encoding: 'utf8',
   });
   assert.ok(build.status === 0 && existsSync(native), build.stdout + build.stderr);
-  const actual = answers([native], config);
 
-  assert.ok(expected.length > 4000, `${expected.length} answers`);
-  const first = expected.findIndex((line, i) => line !== actual[i]);
-  assert.equal(
-    first === -1 && actual.length === expected.length,
-    true,
-    `first difference at line ${first + 1}:
+  // The library fixture (more than 4,000 answers), and one whose files and config file have errors.
+  for (const [fixture, minimum] of [
+    ['library', 4000],
+    ['library-errors', 50],
+  ]) {
+    const dir = tempDir('tsc-ts-api-native-');
+    cpSync(join(root, 'tests/fixtures', fixture), dir, { recursive: true });
+    const config = join(dir, 'tsconfig.json');
+    const expected = answers(nodeProbe, config);
+    const actual = answers([native], config);
+    assert.ok(expected.length > minimum, `${expected.length} answers for ${fixture}`);
+    const first = expected.findIndex((line, i) => line !== actual[i]);
+    assert.equal(
+      first === -1 && actual.length === expected.length,
+      true,
+      `${fixture}: first difference at line ${first + 1}:
   node:   ${expected[first]}
   native: ${actual[first]}`,
-  );
+    );
+  }
 });

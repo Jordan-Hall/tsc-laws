@@ -700,3 +700,87 @@ test('a disposed program keeps no files alive', { skip }, async () => {
     [true, true],
   );
 });
+
+/** Diagnostics in tsc-ts's order: by file name, position, end and code, then text; without duplicates. */
+function sortedUnique(diagnostics) {
+  const key = (d) => JSON.stringify([d.fileName ?? '', d.pos, d.end, d.code, d.text]);
+  const order = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
+  const compare = (a, b) =>
+    order(a.fileName ?? '', b.fileName ?? '') ||
+    a.pos - b.pos ||
+    a.end - b.end ||
+    a.code - b.code ||
+    order(a.text, b.text);
+  const result = [];
+  for (const d of [...diagnostics].sort(compare))
+    if (result.length === 0 || key(result.at(-1)) !== key(d)) result.push(d);
+  return result;
+}
+
+test('getPreEmitDiagnostics gives the diagnostics tsc --api gives, sorted', { skip, timeout: 300_000 }, async () => {
+  const { api, dir, program, tsgo, base } = await open('library-errors');
+  try {
+    const methods = [
+      'getConfigFileParsingDiagnostics',
+      'getProgramDiagnostics',
+      'getSyntacticDiagnostics',
+      'getGlobalDiagnostics',
+      'getSemanticDiagnostics',
+    ];
+    const reference = async (file) => {
+      const all = [];
+      for (const method of methods) {
+        const perFile =
+          file !== undefined && (method === 'getSyntacticDiagnostics' || method === 'getSemanticDiagnostics');
+        all.push(...(await tsgo.json(method, perFile ? { ...base, file: file.fileName } : base)));
+      }
+      return sortedUnique(all);
+    };
+    const all = wire(api.getPreEmitDiagnostics(program));
+    assert.deepEqual(all, await reference(undefined));
+    assert.deepEqual(
+      all.map((d) => d.code),
+      [2339, 2322, 1109, 2322, 5023, 5102],
+    );
+    for (const file of program.getSourceFiles())
+      if (file.fileName.startsWith(dir))
+        assert.deepEqual(wire(api.getPreEmitDiagnostics(program, file)), await reference(file), file.fileName);
+    assert.throws(() => api.getPreEmitDiagnostics({}), TypeError);
+  } finally {
+    await tsgo.close();
+  }
+});
+
+test('getTextOfNode and getSourceFileOfNode give what TypeScript gives', { skip }, async () => {
+  const ts5 = (await import('typescript')).default;
+  const api = await load('library/index.js');
+  const dir = tempDir('tsc-ts-library-');
+  cpSync(join(root, 'tests/fixtures/library'), dir, { recursive: true });
+  const program = api.createProgramFromConfigFile(join(dir, 'tsconfig.json'), hostFor(dir));
+  let compared = 0;
+  const failures = [];
+  for (const file of program.getSourceFiles()) {
+    if (!file.fileName.startsWith(dir)) continue;
+    const reference = ts5.createSourceFile(file.fileName, file.text, ts5.ScriptTarget.ESNext, true);
+    const texts = new Map();
+    const visit = (node) => {
+      texts.set(`${node.pos}:${node.end}`, node.getText(reference));
+      ts5.forEachChild(node, visit);
+    };
+    ts5.forEachChild(reference, visit);
+    api.walkPreorder(file, (node) => {
+      if (api.getSourceFileOfNode(node) !== file) failures.push(`source file of ${node.kind} at ${node.pos}`);
+      if (node === file) return;
+      const text = texts.get(`${node.pos}:${node.end}`);
+      if (text === undefined) return;
+      compared++;
+      if (api.getTextOfNode(node) !== text)
+        failures.push(
+          `${node.kind} at ${node.pos}: ${JSON.stringify(api.getTextOfNode(node))} != ${JSON.stringify(text)}`,
+        );
+    });
+  }
+  program.dispose();
+  assert.deepEqual(failures.slice(0, 20), []);
+  assert.ok(compared > 300, `${compared} nodes compared`);
+});

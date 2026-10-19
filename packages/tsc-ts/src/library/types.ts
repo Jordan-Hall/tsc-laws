@@ -151,6 +151,9 @@ export interface TupleType extends InterfaceType {
   readonly readonly: boolean;
 }
 
+/** A reference to a tuple type (`[string, number]`): `getTarget()` is the TupleType (`isTupleType()`). */
+export interface TupleTypeReference extends TypeReference {}
+
 export interface UnionOrIntersectionType extends Type {}
 
 export interface UnionType extends UnionOrIntersectionType {}

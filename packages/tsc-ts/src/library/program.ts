@@ -9,7 +9,7 @@ import type { Diagnostic as CompilerDiagnostic } from '../compiler/diagnostics.j
 import { CompilerHost } from '../compiler/file-loader.js';
 import { CachedFileSystem } from '../compiler/file-system.js';
 import { getNormalizedAbsolutePath } from '../compiler/path.js';
-import { Program as CompilerProgram } from '../compiler/program.js';
+import { Program as CompilerProgram, sortAndDeduplicateDiagnostics } from '../compiler/program.js';
 import { CheckedProgram } from '../compiler/program-checker.js';
 import { ConfigParser, ParsedCommandLine } from '../compiler/tsconfig.js';
 import type { SourceFile } from './ast.js';
@@ -115,6 +115,17 @@ function programOf(config: ParsedCommandLine, host: ProgramHost): Program {
   return new LibraryProgram(new CheckedProgram(new CompilerProgram(config, compilerHost)));
 }
 
+/**
+ * TypeScript's `getPreEmitDiagnostics`: the config file parsing, program, syntactic, global and semantic
+ * diagnostics of `program` (of `sourceFile` only, for the syntactic and semantic ones), sorted and without
+ * duplicates as tsc-ts sorts them. `program` must be one tsc-ts/api created.
+ */
+export function getPreEmitDiagnostics(program: Program, sourceFile?: SourceFile): readonly Diagnostic[] {
+  if (!(program instanceof LibraryProgram))
+    throw new TypeError('getPreEmitDiagnostics takes a program created by tsc-ts/api');
+  return program.preEmitDiagnostics(sourceFile);
+}
+
 class LibraryProgram implements Program {
   private options: CompilerOptions | undefined = undefined;
   private typeChecker: LibraryTypeChecker | undefined = undefined;
@@ -216,6 +227,24 @@ class LibraryProgram implements Program {
       return programDiagnostics(this.checked, kind, file as unknown as CompilerSourceFile | undefined).map(
         diagnosticOf,
       );
+    } catch (e) {
+      throw internalError(e);
+    }
+  }
+
+  preEmitDiagnostics(file: SourceFile | undefined): readonly Diagnostic[] {
+    try {
+      this.checkNotDisposed();
+      const compilerFile = file as unknown as CompilerSourceFile | undefined;
+      const all: CompilerDiagnostic[] = [];
+      for (const kind of ['config', 'program', 'syntactic', 'global', 'semantic'] as const)
+        for (const d of programDiagnostics(
+          this.checked,
+          kind,
+          kind === 'syntactic' || kind === 'semantic' ? compilerFile : undefined,
+        ))
+          all.push(d);
+      return sortAndDeduplicateDiagnostics(all).map(diagnosticOf);
     } catch (e) {
       throw internalError(e);
     }
