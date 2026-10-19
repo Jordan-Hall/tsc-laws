@@ -14,11 +14,22 @@
   },
   "files": [
     "bin",
-    "README.md"
+    "README.md",
+    "dist/api",
+    "src/library"
   ],
   "type": "module",
+  "exports": {
+    "./api": {
+      "source": "./src/library/index.ts",
+      "types": "./dist/api/library/index.d.ts",
+      "default": "./dist/api/library/index.js"
+    },
+    "./package.json": "./package.json"
+  },
   "scripts": {
-    "build": "tsc --outDir dist --rootDir .. --target es2024 --module nodenext --moduleResolution nodenext --strict --skipLibCheck --types node src/main.ts",
+    "build": "tsc --outDir dist --rootDir .. --target es2024 --module nodenext --moduleResolution nodenext --strict --skipLibCheck --types node src/main.ts src/library/index.ts",
+    "build:api": "tsc --declaration --outDir dist/api --rootDir src --target es2024 --module nodenext --moduleResolution nodenext --strict --skipLibCheck --types node src/library/index.ts",
     "build:native": "scriptc build src/main.ts --optimization=speed --detached-exit -o dist/tsc",
     "build:native:dev": "scriptc build src/main.ts --optimization=dev -o dist/tsc",
     "generate": "node scripts/generate.mjs && node scripts/generate-diagnostics.mjs && node scripts/generate-ast.mjs",

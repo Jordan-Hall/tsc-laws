@@ -1,7 +1,9 @@
 // Lays out the tsc-ts npm packages and packs them into dist/npm:
 //
 //   tsc-ts             the launcher (bin/tsc-ts.js), with an optional
-//                      dependency on each platform package
+//                      dependency on each platform package, and the
+//                      programmatic API (tsc-ts/api): its JS build with
+//                      .d.ts files in dist/api, and its sources
 //   @tsc-ts/<platform> the native executable for this host, with
 //                      TypeScript 7.0.2's lib files next to it in lib/
 //
@@ -64,6 +66,7 @@ if (values.check) check(tarballs);
 
 function packMain() {
   const dir = join(out, 'tsc-ts');
+  run('npm', ['run', 'build:api'], { cwd: root });
   for (const file of manifest.files) cpSync(join(root, file), join(dir, file), { recursive: true });
   copyFileSync(join(repo, 'LICENSE'), join(dir, 'LICENSE'));
   copyFileSync(join(repo, 'THIRD_PARTY_NOTICES.md'), join(dir, 'THIRD_PARTY_NOTICES.md'));
@@ -151,7 +154,8 @@ function pack(dir) {
 }
 
 // Installs the tarballs into a new project, then checks --version, a clean
-// compile, and the exit code of a compile with errors.
+// compile, the exit code of a compile with errors, and that tsc-ts/api loads
+// in Node and type-checks with its .d.ts files.
 function check({ main, platform }) {
   if (!main || !platform) throw new Error('--check needs both packages');
   const dir = join(tmpdir(), `tsc-ts-pack-${process.pid}`);
@@ -178,6 +182,18 @@ function check({ main, platform }) {
       throw new Error(`expected TS2322 and exit code 2, got ${failed.status}:\n${failed.stdout}${failed.stderr}`);
     }
     console.log('npx tsc-ts -p .: ok');
+
+    rmSync(join(dir, 'src/error.ts'));
+    writeFileSync(
+      join(dir, 'src/api.ts'),
+      "import { SyntaxKind, type Node } from 'tsc-ts/api';\n" +
+        'export const isIdentifier = (node: Node): boolean => node.kind === SyntaxKind.Identifier;\n' +
+        'console.log(SyntaxKind[SyntaxKind.Identifier]);\n',
+    );
+    run('npx', ['tsc-ts', '-p', '.'], { cwd: dir });
+    const printed = run('node', ['out/api.js'], { cwd: dir, stdio: 'pipe' }).stdout.trim();
+    if (printed !== 'Identifier') throw new Error(`unexpected tsc-ts/api output: ${printed}`);
+    console.log('tsc-ts/api: ok');
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

@@ -5,6 +5,7 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { nullable } from './ast-nullable.mjs';
 
 const root = resolve(import.meta.dirname, '..');
 const args = process.argv.slice(2);
@@ -17,26 +18,6 @@ const spec = JSON.parse(readFileSync(schemaPath, 'utf8'));
 const bases = spec.bases;
 const defs = spec.nodes.definitions;
 
-// Members the schema marks required but the parser can leave unset.
-const nullable = new Set([
-  'PropertySignatureDeclaration.Type',
-  'PropertySignatureDeclaration.Initializer',
-  'PropertyAssignment.Type',
-  'ShorthandPropertyAssignment.Type',
-  'ExportAssignment.Type',
-  'JSDocTemplateTag.Constraint',
-  'TaggedTemplateExpression.QuestionDotToken',
-  'BinaryExpression.Type',
-  'JSDocTypeTag.TypeExpression',
-  'ImportAttribute.name',
-  'BindingElement.name',
-  'CaseOrDefaultClause.Expression',
-  'IndexSignatureDeclaration.Type',
-  'JSDocSeeTag.NameExpression',
-  'JSDocNameReference.name',
-  // tsgo's node builder leaves it unset.
-  'ArrowFunction.EqualsGreaterThanToken',
-]);
 // Checker-only nodes.
 const skipNodes = new Set(['SyntheticExpression']);
 // Hand-written in ast.ts.
