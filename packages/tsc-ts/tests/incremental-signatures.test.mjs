@@ -18,7 +18,7 @@ const { createNodeSystem } = await load('drivers/node-system.js');
 const { executeCommandLine } = await load('compiler/tsc-cli.js');
 const { bindProgram, CheckedProgram } = await load('compiler/program-checker.js');
 const { CompileTimes } = await load('compiler/compile-program.js');
-const { IncrementalProgram } = await load('compiler/incremental.js');
+const { computeLastSignatures, IncrementalProgram } = await load('compiler/incremental.js');
 const { SystemTimeStamps } = await load('compiler/tsc-compile.js');
 
 function writeFiles(dir, files) {
@@ -28,25 +28,33 @@ function writeFiles(dir, files) {
   }
 }
 
-/** Builds `dir` on the snapshot of the last build; returns the new snapshot and the project files it checks. */
-function build(dir, snapshot) {
+/**
+ * Builds `dir` on the snapshot of the last build; returns the new snapshot, the project files it checks and its
+ * checked program. With `last`, the checked program of the last build, the signatures that build left as versions
+ * are computed first for the files of `edited`, as a watch computes them for the files it parsed again.
+ */
+function build(dir, snapshot, last, edited = []) {
   const sys = createNodeSystem(bundledLibs, '');
   const work = executeCommandLine(sys, ['-p', dir]);
   assert.equal(work.kind, 'compile');
   bindProgram(work.program);
-  const program = new IncrementalProgram(
-    new CheckedProgram(work.program),
-    new CompileTimes(),
-    snapshot,
-    new SystemTimeStamps(sys),
-  );
+  if (last !== undefined) {
+    const paths = work.program
+      .getSourceFiles()
+      .filter((file) => edited.includes(relative(dir, file.fileName)))
+      .map((file) => file.path);
+    assert.equal(paths.length, edited.length);
+    computeLastSignatures(snapshot, last, paths);
+  }
+  const checkedProgram = new CheckedProgram(work.program);
+  const program = new IncrementalProgram(checkedProgram, new CompileTimes(), snapshot, new SystemTimeStamps(sys));
   const checked = program
     .filesToCheck()
     .map((file) => relative(dir, file.fileName))
     .filter((name) => !name.startsWith('..'))
     .sort();
   program.getSemanticDiagnostics();
-  return { snapshot: program.snapshot, checked };
+  return { snapshot: program.snapshot, checked, last: checkedProgram };
 }
 
 for (const options of [{ noEmit: true }, { outDir: 'out' }]) {
@@ -84,5 +92,42 @@ for (const options of [{ noEmit: true }, { outDir: 'out' }]) {
     writeFiles(dir, { 'src/main.ts': main(2) });
     state = build(dir, state.snapshot);
     assert.deepEqual(state.checked, ['src/main.ts']);
+  });
+}
+
+// A watch computes the signature that the last build left as a version for each file it parses again, from the last
+// build's program (`computeLastSignatures`). The first edit of a file then rechecks its importers only when its
+// declaration file changed.
+for (const options of [{ noEmit: true }, { outDir: 'out' }, { outDir: 'out', declaration: true }]) {
+  test(`first body edits recheck only the edited file with the last build's signatures (${JSON.stringify(options)})`, () => {
+    const dir = tempDir('tsc-ts-incremental-signatures-project-');
+    const lib = (body) => `export function double(x: number): number {\n  return ${body};\n}\n`;
+    const main = (n) => `import { double } from './lib';\nexport const four = double(2);\nvoid ${n};\n`;
+    writeFiles(dir, {
+      'tsconfig.json': JSON.stringify({ compilerOptions: { strict: true, types: [], ...options }, include: ['src'] }),
+      'src/lib.ts': lib('x * 2'),
+      'src/main.ts': main(0),
+      'src/app.ts': "import { four } from './main';\nexport const eight = four * 2;\n",
+      'src/globals.ts': "import { double } from './lib';\ndeclare global {\n  var doubled: typeof double;\n}\n",
+    });
+    const all = ['src/app.ts', 'src/globals.ts', 'src/lib.ts', 'src/main.ts'];
+    let state = build(dir, undefined);
+    assert.deepEqual(state.checked, all);
+    const edit = (files) => {
+      writeFiles(dir, files);
+      state = build(dir, state.snapshot, state.last, Object.keys(files));
+    };
+    edit({ 'src/lib.ts': lib('x + x') });
+    assert.deepEqual(state.checked, ['src/lib.ts']);
+    edit({ 'src/main.ts': main(1) });
+    assert.deepEqual(state.checked, ['src/main.ts']);
+    // A changed declaration file of a file that nothing imports rechecks only that file.
+    edit({ 'src/app.ts': "import { four } from './main';\nexport const eight = four * 2;\nexport const nine = 9;\n" });
+    assert.deepEqual(state.checked, ['src/app.ts']);
+    // A changed declaration file of `lib.ts` rechecks its importers: every file, through `globals.ts`.
+    edit({ 'src/lib.ts': lib('x * 2') + 'export const extra = 1;\n' });
+    assert.deepEqual(state.checked, all);
+    edit({ 'src/lib.ts': lib('2 * x') + 'export const extra = 1;\n' });
+    assert.deepEqual(state.checked, ['src/lib.ts']);
   });
 }

@@ -51,7 +51,7 @@ import {
   declarationDiagnosticsOfFile,
   handleNoEmitOnError,
   OutputWriter,
-  type ProgramEmitter,
+  ProgramEmitter,
   writeHeldOutputs,
 } from './compile-program.js';
 import {
@@ -879,6 +879,29 @@ export class Snapshot {
   /** Without `incremental`, `tsc -b` only records whether there were errors. */
   canUseIncrementalState(): boolean {
     return isIncremental(this.options) || this.options.build !== true;
+  }
+}
+
+/**
+ * Gives each file of `paths` whose signature in `snapshot` is its version the signature of its text in
+ * `last`, the program of the build that made `snapshot`, from its declaration file. A build without build
+ * info (a watch without `incremental`) leaves versions as the signatures of the files it computed none for,
+ * the first build's among them. A build on `snapshot` then compares a changed file's new signature with the
+ * last one, as for files whose signatures were computed, and rechecks the importers only when the
+ * declaration file changed. Files that forced declaration emit doesn't write keep their versions.
+ */
+export function computeLastSignatures(snapshot: Snapshot, last: CheckedProgram, paths: readonly string[]): void {
+  if (isIncremental(snapshot.options)) return;
+  const options = last.program.options;
+  let emitter: ProgramEmitter | undefined = undefined;
+  for (const path of paths) {
+    const info = snapshot.fileInfos.get(path);
+    if (info === undefined || info.signature !== info.version) continue;
+    const file = last.program.getSourceFileByPath(path);
+    if (file === undefined || file.isDeclarationFile || !sourceFileMayBeEmitted(file, options)) continue;
+    emitter ??= new ProgramEmitter(last);
+    const signature = declarationSignature(emitter, file, options);
+    if (signature !== '') info.signature = signature;
   }
 }
 
