@@ -692,7 +692,9 @@ function isSimpleTypeRelatedToWorker(
   return false;
 }
 
+/** Whether two literal types have the same value; literals of different kinds never do. */
 function sameLiteralValue(a: Type, b: Type): boolean {
+  if (((a.flags ^ b.flags) & TypeFlags.Literal) !== 0) return false;
   const x = a as LiteralType;
   const y = b as LiteralType;
   if ((a.flags & TypeFlags.NumberLiteral) !== 0)
