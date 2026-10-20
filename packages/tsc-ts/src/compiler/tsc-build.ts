@@ -824,7 +824,7 @@ export class Orchestrator {
       this.emitAndReport(task, checked, times, oldSnapshot, undefined, incrementalProgram);
       return false;
     }
-    const files = incrementalProgram.filesToCheck();
+    const files = incrementalProgram.filesForCheckers();
     if (!rechecksOnThreads(files, count, options.checkers !== undefined)) {
       this.emitAndReport(task, checked, times, oldSnapshot, undefined, incrementalProgram);
       return false;

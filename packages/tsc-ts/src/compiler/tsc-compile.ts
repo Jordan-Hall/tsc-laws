@@ -182,9 +182,10 @@ export function compileInParallel(
 /**
  * The rest of `compileInParallel` for an incremental program with build info: its program is shared with
  * the checker threads first, then the incremental program finds the files a change affects
- * (`IncrementalProgram.filesToCheck`); the threads check those when they are many enough to be worth it
- * (`rechecksOnThreads`), each emitting what the incremental program's emit would of the files it
- * checks (`emitKindsOnCheckers`), and this thread checks and emits them otherwise.
+ * and those whose outputs are pending (`IncrementalProgram.filesForCheckers`); the threads check those
+ * when they are many enough to be worth it (`rechecksOnThreads`), each emitting what the incremental
+ * program's emit would of the files it checks (`emitKindsOnCheckers`), and this thread checks and emits
+ * them otherwise.
  */
 function recheckInParallel(
   sys: System,
@@ -234,8 +235,8 @@ function recheckInParallel(
     incrementalProgram.getGlobalDiagnostics(false).length > 0
   )
     return finish();
-  const files = incrementalProgram.filesToCheck();
-  mark(`${files.length} files to check`);
+  const files = incrementalProgram.filesForCheckers();
+  mark(`${files.length} files to check or emit`);
   if (!rechecksOnThreads(files, threads, options.checkers !== undefined)) return finish();
   checked.checkOnly = new Set(files);
   startParallelCheck(checked, threads, finish, true, incrementalProgram.emitKindsOnCheckers(files));
