@@ -9,7 +9,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { tempDir } from './temp.mjs';
@@ -310,22 +310,3 @@ test('library diagnostics from global augmentations match tsgo', { skip, timeout
 test('diagnostics of projects with packages match tsgo', { skip, timeout: 900_000 }, async (t) => {
   await compareProjects(t, packageProjects, packageVariants);
 });
-
-// Library files are skipped only when their text is the verified one; a different text means the table is stale.
-test(
-  'verified library texts are the bundled ones',
-  { skip: !existsSync(bundledLibs) && 'needs upstream' },
-  async () => {
-    const { verifiedLibraries, verifiedLibrarySets } = await import('../src/compiler/verified-libraries.ts');
-    const { hash128String, toHex } = await import('../src/compiler/xxh3.ts');
-    assert.ok(verifiedLibrarySets.size > 0);
-    const bundled = readdirSync(bundledLibs).filter((name) => name.endsWith('.d.ts'));
-    assert.deepEqual(
-      verifiedLibraries.map(([name]) => name),
-      bundled.sort(),
-    );
-    for (const [name, hash] of verifiedLibraries) {
-      assert.equal(toHex(hash128String(readFileSync(join(bundledLibs, name), 'utf8'))), hash, name);
-    }
-  },
-);

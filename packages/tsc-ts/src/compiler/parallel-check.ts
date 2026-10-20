@@ -22,7 +22,6 @@
  * checker thread builds its own copy of the program from the command line instead, and the main
  * thread revives the diagnostics it receives against its own files.
  */
-import { libraryDiagnosticsAreKnownEmpty } from './library-diagnostics.js';
 import { mark, markAt, timeline } from './timeline.js';
 import type { Worker } from 'node:worker_threads';
 import { publish, sharesPublishedGraphs } from '@scriptc/threads';
@@ -433,27 +432,14 @@ function defaultCheckers(program: Program | undefined): number {
 const littleText = 20_000;
 
 /**
- * Whether `program` has less than `littleText` characters to check, not counting the default
- * library files when their diagnostics are known (`libraryDiagnosticsAreKnownEmpty`) nor the
- * declaration files `skipLibCheck` skips.
+ * Whether `program` has less than `littleText` characters to check, not counting the declaration
+ * files `skipLibCheck` skips.
  */
 function checksLittle(program: Program): boolean {
   const options = program.options;
-  const files = program.getSourceFiles();
-  // Whether the libraries' diagnostics are known depends on what the other files declare.
-  for (const file of files) if (!file.isBound) return false;
-  let clean = program.librariesAreClean;
-  if (clean === undefined) {
-    clean = libraryDiagnosticsAreKnownEmpty(program);
-    program.librariesAreClean = clean;
-  }
   let text = 0;
-  for (const file of files) {
-    if (
-      file.isDeclarationFile &&
-      (options.skipLibCheck === true || (clean && program.isSourceFileDefaultLibrary(file.path)))
-    )
-      continue;
+  for (const file of program.getSourceFiles()) {
+    if (file.isDeclarationFile && options.skipLibCheck === true) continue;
     text += file.text.length;
     if (text >= littleText) return false;
   }
@@ -1687,7 +1673,6 @@ export function shareWithCheckers(checked: CheckedProgram): void {
     program.emitIndexes = new EmitIndexes(program);
     mark('emit indexes built');
   }
-  if (program.librariesAreClean === undefined) program.librariesAreClean = libraryDiagnosticsAreKnownEmpty(program);
   mark('libraries verified');
   publish(program);
   mark('program published');
