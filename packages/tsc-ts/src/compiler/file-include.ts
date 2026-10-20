@@ -514,15 +514,30 @@ export class IncludeProcessor {
   private compilerOptionsObject: ObjectLiteralExpression | undefined = undefined;
   private compilerOptionsComputed = false;
   private readonly redirectAndFileFormat = new Map<string, readonly Diagnostic[]>();
+  /** The number of processing diagnostics when the program was created (`noteProgramCreated`). */
+  private createdCount: number | undefined = undefined;
 
   constructor(
     readonly fileIncludeReasons = new Map<string, FileIncludeReason[]>(),
     readonly processingDiagnostics: ProcessingDiagnostic[] = [],
   ) {}
 
-  /** A processor with these reasons and processing diagnostics, whose diagnostics are computed for another program. */
+  /**
+   * A processor with these reasons and the processing diagnostics its program was created with, whose diagnostics are
+   * computed for another program. Computing the common source directory later adds diagnostics that the program
+   * does not report (`Program.commonSourceDirectory`), and those of a program shared with checker threads are
+   * immutable, so the copy has its own list.
+   */
   copy(): IncludeProcessor {
-    return new IncludeProcessor(this.fileIncludeReasons, this.processingDiagnostics);
+    return new IncludeProcessor(
+      this.fileIncludeReasons,
+      this.processingDiagnostics.slice(0, this.createdCount ?? this.processingDiagnostics.length),
+    );
+  }
+
+  /** The program is created: the processing diagnostics so far are those a copy takes. */
+  noteProgramCreated(): void {
+    this.createdCount = this.processingDiagnostics.length;
   }
 
   reasonsOf(path: string): readonly FileIncludeReason[] {

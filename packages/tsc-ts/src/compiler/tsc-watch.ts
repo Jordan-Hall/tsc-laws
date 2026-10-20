@@ -163,6 +163,25 @@ class Stamps {
   }
 
   /**
+   * The files whose time stamps changed, or `undefined` when a watched directory's did: a file was added,
+   * removed or renamed there.
+   */
+  changedFiles(): string[] | undefined {
+    const files: string[] = [];
+    for (const [path, time] of this.times) {
+      if (this.sys.getMTime(path) === time) continue;
+      if (this.directories.has(path)) return undefined;
+      files.push(path);
+    }
+    return files;
+  }
+
+  /** Takes the current time stamps of `paths`. */
+  refresh(paths: readonly string[]): void {
+    for (const path of paths) if (this.times.has(path)) this.times.set(path, this.sys.getMTime(path));
+  }
+
+  /**
    * Adds the directories whose events report changes of these paths: each directory, and each file's,
    * and for a file that is a symbolic link, its target's.
    */
@@ -428,6 +447,8 @@ class Watcher {
    * (`computeLastSignatures`).
    */
   private lastChecked: CheckedProgram | undefined = undefined;
+  /** The program of the last build, which a rebuild updates when only the text of its files changed. */
+  private lastProgram: Program | undefined = undefined;
   /** Whether a rebuild is running (`poll`), and whether a check came during it. */
   private building = false;
   private checkPending = false;
@@ -574,7 +595,7 @@ class Watcher {
     if (configChanged && !this.reloadConfig()) return done();
     if (this.configRead && watchRestart.restartsBeforeRebuild()) return done();
     this.status.report(Diagnostics.File_change_detected_Starting_incremental_compilation);
-    this.build(done);
+    this.build(done, configChanged ? undefined : this.stamps.changedFiles());
   }
 
   /** Rereads the config file; false (after reporting) if it can't be used. */
@@ -597,24 +618,31 @@ class Watcher {
     return true;
   }
 
-  /** Builds, on checker threads when the change affects many files, then calls `done`. */
-  private build(done: () => void): void {
+  /**
+   * Builds, on checker threads when the change affects many files, then calls `done`. `changedFiles` are
+   * the files whose time stamps changed, when no watched directory's and no config file's did.
+   */
+  private build(done: () => void, changedFiles?: readonly string[]): void {
     releaseProgramCaches();
     const sys = this.sys;
     const fs = new CachedFileSystem(new SystemFileSystem(sys));
-    if (this.config.configName !== '') {
-      // Pick up files added to or removed from included directories.
-      const parsed = new ConfigParser(fs, sys.currentDirectory).parseConfigFile(
-        this.config.configName,
-        this.commandLine.options,
-        this.commandLine.raw,
-        [],
-      );
-      if (parsed !== undefined) this.config = parsed;
+    let program = changedFiles !== undefined ? this.updatedProgram(changedFiles, fs) : undefined;
+    if (program === undefined) {
+      changedFiles = undefined;
+      if (this.config.configName !== '') {
+        // Pick up files added to or removed from included directories.
+        const parsed = new ConfigParser(fs, sys.currentDirectory).parseConfigFile(
+          this.config.configName,
+          this.commandLine.options,
+          this.commandLine.raw,
+          [],
+        );
+        if (parsed !== undefined) this.config = parsed;
+      }
+      this.files = this.files.next();
+      // A copy: a program shared with checker threads holds its config's errors (`copyCommandLine`).
+      program = new Program(copyCommandLine(this.config), new WatchCompilerHost(sys, fs, this.locale, this.files));
     }
-    this.files = this.files.next();
-    // A copy: a program shared with checker threads holds its config's errors (`copyCommandLine`).
-    const program = new Program(copyCommandLine(this.config), new WatchCompilerHost(sys, fs, this.locale, this.files));
     // The signatures the last build left as versions, for the files this one parsed.
     if (this.lastChecked !== undefined && this.snapshot !== undefined)
       computeLastSignatures(this.snapshot, this.lastChecked, this.files.parsed);
@@ -623,9 +651,34 @@ class Watcher {
     const signatures = new Map<string, string>();
     const threads = this.rebuildThreads(checked, signatures);
     // A new checker for checker threads: `rebuildThreads` may have emitted declarations with this one.
-    if (threads > 1) return this.recheckOnThreads(new CheckedProgram(program), threads, signatures, done);
-    this.finishBuild(checked, signatures);
+    if (threads > 1) return this.recheckOnThreads(new CheckedProgram(program), threads, signatures, done, changedFiles);
+    this.finishBuild(checked, signatures, changedFiles);
     done();
+  }
+
+  /**
+   * The last build's program with `changedFiles` read again (`Program.updateFile`, as tsgo's watch swaps a
+   * changed file into its program), or `undefined` when one of them cannot be swapped in and the program
+   * must be loaded again. No directory and no config file changed, so the root files are the same. The
+   * source files of the updated program are those of the next build (`WatchSourceFiles`), which takes the
+   * unchanged ones without reading them.
+   */
+  private updatedProgram(changedFiles: readonly string[], fs: CachedFileSystem): Program | undefined {
+    let program = this.lastProgram;
+    if (program === undefined) return undefined;
+    const files = this.files.next();
+    const host = new WatchCompilerHost(this.sys, fs, this.locale, files);
+    for (const fileName of changedFiles) {
+      const file = program.getSourceFile(fileName);
+      if (file === undefined) return undefined;
+      program = program.updateFile(file.path, host);
+      if (program === undefined) return undefined;
+    }
+    for (const file of program.getSourceFiles())
+      files.current.set(watchFileKey(file.fileName, file.path, file.externalModuleIndicatorOptions), file);
+    this.files = files;
+    mark(`program updated, ${changedFiles.length} files`);
+    return program;
   }
 
   /**
@@ -696,6 +749,7 @@ class Watcher {
     threads: number,
     signatures: ReadonlyMap<string, string>,
     done: () => void,
+    changedFiles?: readonly string[],
   ): void {
     const sys = this.sys;
     const program = checked.program;
@@ -714,14 +768,14 @@ class Watcher {
       if (rechecksOnThreads(files, threads, options.checkers !== undefined)) {
         checked.checkOnly = new Set(files);
         const finish = (): void => {
-          this.report(incremental);
+          this.report(incremental, changedFiles);
           done();
         };
         startParallelCheck(checked, threads, finish, true, incremental.emitKindsOnCheckers(files));
         return;
       }
     }
-    this.report(incremental);
+    this.report(incremental, changedFiles);
     done();
   }
 
@@ -729,13 +783,23 @@ class Watcher {
    * Checks (where checker threads didn't), emits and reports `checked`, and watches its inputs. `signatures`
    * are the shape signatures computed for `checked`'s files before (`rebuildThreads`).
    */
-  private finishBuild(checked: CheckedProgram, signatures?: ReadonlyMap<string, string>): void {
+  private finishBuild(
+    checked: CheckedProgram,
+    signatures?: ReadonlyMap<string, string>,
+    changedFiles?: readonly string[],
+  ): void {
     const times = new CompileTimes();
-    this.report(new IncrementalProgram(checked, times, this.snapshot, new SystemTimeStamps(this.sys), signatures));
+    this.report(
+      new IncrementalProgram(checked, times, this.snapshot, new SystemTimeStamps(this.sys), signatures),
+      changedFiles,
+    );
   }
 
-  /** Checks (where checker threads didn't), emits and reports `incremental`, and watches its inputs. */
-  private report(incremental: IncrementalProgram): void {
+  /**
+   * Checks (where checker threads didn't), emits and reports `incremental`, and watches its inputs: those of a
+   * program `updatedProgram` made are the last build's, with new time stamps for `changedFiles`.
+   */
+  private report(incremental: IncrementalProgram, changedFiles?: readonly string[]): void {
     const sys = this.sys;
     const program = incremental.program;
     const result = emitFilesAndReportErrors(
@@ -748,7 +812,9 @@ class Watcher {
     );
     this.snapshot = incremental.snapshot;
     this.lastChecked = incremental.checked;
-    this.watchInputs(program);
+    this.lastProgram = program;
+    if (changedFiles !== undefined) this.stamps.refresh(changedFiles);
+    else this.watchInputs(program);
     this.status.reportErrorCount(result.diagnostics.length);
   }
 
