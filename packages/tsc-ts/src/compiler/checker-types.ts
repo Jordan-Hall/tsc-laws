@@ -388,23 +388,6 @@ export class TypeAlias {
   }
 }
 
-/** One entry of a `TypeListCache`: the parts of its key, its value, and the next entry with the same hash. */
-class TypeListEntry<V> {
-  readonly types: readonly Type[];
-  readonly alias: TypeAlias | undefined;
-  readonly tag: number;
-  value: V;
-  next: TypeListEntry<V> | undefined;
-
-  constructor(types: readonly Type[], alias: TypeAlias | undefined, tag: number, value: V) {
-    this.types = types;
-    this.alias = alias;
-    this.tag = tag;
-    this.value = value;
-    this.next = undefined;
-  }
-}
-
 function sameTypeListParts(a: readonly Type[], b: readonly Type[]): boolean {
   if (a.length !== b.length) return false;
   for (let i = 0; i < a.length; i++) if (a[i]! !== b[i]!) return false;
@@ -421,34 +404,105 @@ function sameAliasParts(a: TypeAlias | undefined, b: TypeAlias | undefined): boo
  * aliasKey(alias)` plus a suffix spelled, without building them. A lookup takes a number hashing the
  * parts (`typeListHash`); entries keep their parts, so a match is exact and keys sharing a hash chain.
  * Like tsgo's hashed type list keys. A list must not change after it keys an entry.
+ *
+ * Entries are numbered in the order they are added: `heads` maps a hash to its first entry, and the
+ * lists and values of the entries are kept in arrays by number. Aliases, tags and the chains of
+ * entries that share a hash get arrays once an entry needs them.
  */
 export class TypeListCache<V> {
-  private readonly entries = new Map<number, TypeListEntry<V>>();
+  private heads: Map<number, number>;
+  private lists: (readonly Type[])[];
+  private values: V[];
+  private aliases: (TypeAlias | undefined)[] | undefined;
+  private tags: number[] | undefined;
+  /** The next entry with the same hash, or -1. */
+  private nexts: number[] | undefined;
+
+  constructor() {
+    this.heads = new Map<number, number>();
+    this.lists = [];
+    this.values = [];
+    this.aliases = undefined;
+    this.tags = undefined;
+    this.nexts = undefined;
+  }
 
   get(hash: number, types: readonly Type[], alias: TypeAlias | undefined, tag: number): V | undefined {
-    for (let e = this.entries.get(hash); e !== undefined; e = e.next)
-      if (e.tag === tag && sameTypeListParts(e.types, types) && sameAliasParts(e.alias, alias)) return e.value;
-    return undefined;
+    const entry = this.find(hash, types, alias, tag);
+    return entry >= 0 ? this.values[entry] : undefined;
   }
 
   set(hash: number, types: readonly Type[], alias: TypeAlias | undefined, tag: number, value: V): void {
-    const head = this.entries.get(hash);
-    if (head === undefined) {
-      this.entries.set(hash, new TypeListEntry(types, alias, tag, value));
-      return;
-    }
-    for (let e: TypeListEntry<V> | undefined = head; e !== undefined; e = e.next)
-      if (e.tag === tag && sameTypeListParts(e.types, types) && sameAliasParts(e.alias, alias)) {
-        e.value = value;
+    const head = this.heads.get(hash);
+    if (head !== undefined) {
+      const entry = this.findFrom(head, types, alias, tag);
+      if (entry >= 0) {
+        this.values[entry] = value;
         return;
       }
-    const entry = new TypeListEntry(types, alias, tag, value);
-    entry.next = head.next;
-    head.next = entry;
+    }
+    const entry = this.lists.length;
+    this.lists.push(types);
+    this.values.push(value);
+    const aliases = this.aliases;
+    if (aliases !== undefined) aliases.push(alias);
+    else if (alias !== undefined) {
+      const created: (TypeAlias | undefined)[] = [];
+      for (let i = 0; i < entry; i++) created.push(undefined);
+      created.push(alias);
+      this.aliases = created;
+    }
+    const tags = this.tags;
+    if (tags !== undefined) tags.push(tag);
+    else if (tag !== 0) {
+      const created: number[] = [];
+      for (let i = 0; i < entry; i++) created.push(0);
+      created.push(tag);
+      this.tags = created;
+    }
+    let nexts = this.nexts;
+    if (nexts !== undefined) nexts.push(-1);
+    if (head === undefined) {
+      this.heads.set(hash, entry);
+      return;
+    }
+    // A second entry with this hash: chain it after the first.
+    if (nexts === undefined) {
+      nexts = [];
+      for (let i = 0; i <= entry; i++) nexts.push(-1);
+      this.nexts = nexts;
+    }
+    nexts[entry] = nexts[head]!;
+    nexts[head] = entry;
   }
 
   clear(): void {
-    this.entries.clear();
+    this.heads = new Map<number, number>();
+    this.lists = [];
+    this.values = [];
+    this.aliases = undefined;
+    this.tags = undefined;
+    this.nexts = undefined;
+  }
+
+  /** The number of the entry with these parts, or -1. */
+  private find(hash: number, types: readonly Type[], alias: TypeAlias | undefined, tag: number): number {
+    const head = this.heads.get(hash);
+    return head !== undefined ? this.findFrom(head, types, alias, tag) : -1;
+  }
+
+  private findFrom(head: number, types: readonly Type[], alias: TypeAlias | undefined, tag: number): number {
+    const tags = this.tags;
+    const aliases = this.aliases;
+    const nexts = this.nexts;
+    for (let entry = head; entry >= 0; entry = nexts !== undefined ? nexts[entry]! : -1)
+      if (
+        (tags !== undefined ? tags[entry]! : 0) === tag &&
+        sameTypeListParts(this.lists[entry]!, types) &&
+        sameAliasParts(aliases !== undefined ? aliases[entry] : undefined, alias)
+      )
+        return entry;
+    return -1;
   }
 }
 
@@ -1694,6 +1748,45 @@ export class ArrayTypeMapper extends TypeMapper {
   mapsThisOnly(): boolean {
     return this.sources.length === 1 && isThisTypeParameter(this.sources[0]!);
   }
+
+  /** The number of targets, one per source. */
+  targetCount(): number {
+    return this.targets.length;
+  }
+
+  /** The target of the source at `index`. */
+  targetAt(index: number): Type {
+    return this.targets[index]!;
+  }
+}
+
+/**
+ * The mapper of a type reference's members: its type arguments, then the reference itself for the
+ * last source, the class or interface's `this` type. `targets` holds the type arguments only, so the
+ * reference's own list serves without a copy that adds the reference.
+ */
+export class ThisArgumentTypeMapper extends ArrayTypeMapper {
+  readonly thisTarget: Type;
+
+  constructor(sources: Type[], typeArguments: Type[], thisTarget: Type) {
+    super(sources, typeArguments);
+    this.thisTarget = thisTarget;
+  }
+
+  map(type: Type): Type {
+    const sources = this.sources;
+    const last = sources.length - 1;
+    for (let i = 0; i < last; i++) if (type === sources[i]!) return this.targets[i]!;
+    return type === sources[last]! ? this.thisTarget : type;
+  }
+
+  targetCount(): number {
+    return this.targets.length + 1;
+  }
+
+  targetAt(index: number): Type {
+    return index < this.targets.length ? this.targets[index]! : this.thisTarget;
+  }
 }
 
 /**
@@ -1769,6 +1862,18 @@ export function newTypeMapper(sources: Type[], targets: Type[]): TypeMapper {
   return sources.length >= indexedTypeMapperThreshold
     ? new IndexedArrayTypeMapper(sources, targets)
     : new ArrayTypeMapper(sources, targets);
+}
+
+/** `newTypeMapper(sources, [...typeArguments, thisTarget])`, without building that list where it can. */
+export function newThisArgumentTypeMapper(sources: Type[], typeArguments: Type[], thisTarget: Type): TypeMapper {
+  if (sources.length === 1) return new SimpleTypeMapper(sources[0]!, thisTarget);
+  if (sources.length >= indexedTypeMapperThreshold) {
+    const targets: Type[] = [];
+    for (const t of typeArguments) targets.push(t);
+    targets.push(thisTarget);
+    return new IndexedArrayTypeMapper(sources, targets);
+  }
+  return new ThisArgumentTypeMapper(sources, typeArguments, thisTarget);
 }
 
 export function mergeTypeMappers(m1: TypeMapper | undefined, m2: TypeMapper): TypeMapper {
