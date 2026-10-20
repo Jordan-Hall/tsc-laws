@@ -211,11 +211,15 @@ export function preparedPackageJsonLookups(): PackageJsonLookup[] | undefined {
   return parallelParse.packageJsons;
 }
 
-/** The FileLoader's lookup: the prepared file for these parse inputs, or `undefined`. */
+/**
+ * The FileLoader's lookup: the prepared file for these parse inputs, or `undefined`. With `text`, the text the
+ * program reads for the file, a prepared file of other text is not taken (a host that serves the file itself).
+ */
 export function takePreparedFile(
   fileName: string,
   path: string,
   options: ExternalModuleIndicatorOptions,
+  text?: string,
 ): SourceFile | undefined {
   if (parallelParse.files.size === 0) return undefined;
   const prepared = parallelParse.files.get(fileName);
@@ -223,7 +227,12 @@ export function takePreparedFile(
     parallelParse.unprepared++;
     return undefined;
   }
-  if (prepared.path !== path || prepared.jsx !== options.jsx || prepared.force !== options.force) {
+  if (
+    prepared.path !== path ||
+    prepared.jsx !== options.jsx ||
+    prepared.force !== options.force ||
+    (text !== undefined && prepared.file.text !== text)
+  ) {
     parallelParse.missed++;
     return undefined;
   }

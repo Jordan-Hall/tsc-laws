@@ -784,3 +784,38 @@ test('getTextOfNode and getSourceFileOfNode give what TypeScript gives', { skip 
   assert.deepEqual(failures.slice(0, 20), []);
   assert.ok(compared > 300, `${compared} nodes compared`);
 });
+
+test('a program takes a file parse threads prepared only when the host gives the same text', { skip }, async () => {
+  const api = await load('library/index.js');
+  const { parallelParse, PreparedFile } = await load('compiler/parallel-parse.js');
+  const { parseSourceFile } = await load('compiler/parser.js');
+  const { ParseOptions } = await load('compiler/ast.js');
+  const dir = tempDir('tsc-ts-library-');
+  cpSync(join(root, 'tests/fixtures/library'), dir, { recursive: true });
+  const fileName = join(dir, 'src/main.ts');
+  const diskText = readFileSync(fileName, 'utf8');
+  // What a parse thread prepares: the file, parsed with the inputs the program's loader uses (the fixture's
+  // `module: nodenext` makes every file a module: `force`).
+  const prepare = (text) => {
+    const options = { jsx: false, force: true };
+    const file = parseSourceFile(fileName, text, new ParseOptions(fileName, api.ScriptKind.Unknown, options));
+    parallelParse.files.set(fileName, new PreparedFile(fileName, fileName, false, true, file, '', ''));
+    return file;
+  };
+  try {
+    const same = prepare(diskText);
+    const program = api.createProgramFromConfigFile(join(dir, 'tsconfig.json'), hostFor(dir));
+    assert.ok(program.getSourceFile(fileName) === same, 'the prepared file');
+    program.dispose();
+
+    const other = prepare('export const prepared = 1;\n');
+    const second = api.createProgramFromConfigFile(join(dir, 'tsconfig.json'), hostFor(dir));
+    const file = second.getSourceFile(fileName);
+    assert.ok(file !== other, 'not the prepared file');
+    assert.equal(file.text, diskText);
+    second.dispose();
+  } finally {
+    parallelParse.files.clear();
+    parallelParse.taken.clear();
+  }
+});

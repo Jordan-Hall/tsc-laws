@@ -1,7 +1,11 @@
 // The file system a program of tsc-ts's public API reads through its host.
 
 import { diskEntries, diskReadFile, diskRealpath, diskStat } from './disk.js';
+import { ParseOptions, ScriptKind, type ExternalModuleIndicatorOptions, type SourceFile } from '../compiler/ast.js';
+import { CompilerHost } from '../compiler/file-loader.js';
 import { DirectoryEntries, FileSystem } from '../compiler/file-system.js';
+import { takePreparedFile } from '../compiler/parallel-parse.js';
+import { parseSourceFile } from '../compiler/parser.js';
 import type { ProgramHost } from './types.js';
 
 /**
@@ -36,5 +40,24 @@ export class HostFileSystem extends FileSystem {
 
   realpath(path: string): string {
     return this.host.realpath?.(path) ?? diskRealpath(path);
+  }
+}
+
+/**
+ * The compiler host of a program of tsc-ts's public API. A file that parse threads prepared, reading the disk, is
+ * taken only when the host gives the same text for it; the program parses the host's text otherwise.
+ */
+export class LibraryCompilerHost extends CompilerHost {
+  getSourceFile(
+    fileName: string,
+    path: string,
+    externalModuleIndicatorOptions: ExternalModuleIndicatorOptions,
+  ): SourceFile | undefined {
+    const text = this.readFile(fileName);
+    if (text === undefined) return undefined;
+    return (
+      takePreparedFile(fileName, path, externalModuleIndicatorOptions, text) ??
+      parseSourceFile(fileName, text, new ParseOptions(path, ScriptKind.Unknown, externalModuleIndicatorOptions))
+    );
   }
 }
