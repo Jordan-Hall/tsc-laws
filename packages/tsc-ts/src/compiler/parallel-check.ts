@@ -1445,8 +1445,15 @@ export function checkFromQueue(
   const emits: EmitResult[] = [];
   // Emit (or declaration emit) of a file right after checking it, with this checker.
   const emitting = checkersEmit(checked, emit);
-  // Under `noEmitOnError` emit waits for every file's diagnostics: outputs are held for the main thread.
-  const holding = emitting && checked.program.options.noEmitOnError === true ? new HoldingWriter() : undefined;
+  // Outputs are held for the main thread under `noEmitOnError`, where emit waits for every file's diagnostics,
+  // and when a composite program's rebuild emits on the threads (`emitKinds`): its main thread decides which
+  // unchanged declaration files not to write (`EmitFilesHandler.skipDtsOutputOfComposite`).
+  // Under `noEmitOnError` a file with diagnostics keeps the program from emitting (`blockEmit`).
+  const blocksOnErrors = emitting && checked.program.options.noEmitOnError === true;
+  const holding =
+    blocksOnErrors || (emitting && checked.program.options.composite === true && emitKinds !== undefined)
+      ? new HoldingWriter()
+      : undefined;
   const writer = emitting ? (holding ?? parallelCheck.writer) : undefined;
   const emitter = writer !== undefined || checkersReportDeclarations(checked) ? new ProgramEmitter(checked) : undefined;
   // An incremental program records the signatures of the declaration files on the main thread.
@@ -1482,7 +1489,7 @@ export function checkFromQueue(
     // Without `checking` the file is only emitted: declaration emit checks what it needs.
     const fileDiagnostics = checking ? checked.unfilteredDiagnosticsOfFile(files[i]!) : [];
     diagnostics.push(fileDiagnostics);
-    if (holding !== undefined && fileDiagnostics.length > 0) blockEmit(counter);
+    if (blocksOnErrors && fileDiagnostics.length > 0) blockEmit(counter);
     if (timeline)
       markAt(
         fileStart,
@@ -1492,7 +1499,7 @@ export function checkFromQueue(
       process.stderr.write(
         `checkers: file ${index} ${(performance.now() - fileStart).toFixed(1)}ms ${files[i]!.text.length} ${files[i]!.fileName}\n`,
       );
-    if (holding !== undefined && blocksEmit(counter)) {
+    if (blocksOnErrors && blocksEmit(counter)) {
       // The program won't emit (`handleNoEmitOnError`).
       const skipped = new EmitResult();
       skipped.emitSkipped = true;

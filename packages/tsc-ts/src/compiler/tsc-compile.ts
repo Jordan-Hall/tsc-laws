@@ -222,10 +222,9 @@ function recheckInParallel(
     done(emitStatusAndReportStatistics(sys, incrementalProgram, result));
   };
   // Reporting checks only programs without syntactic, program and global errors (getDiagnosticsOfProgram).
-  // The threads emit the files they check, as the checker that checks a file emits it on this thread
-  // (under noEmitOnError into memory, for this thread to write if there are no errors). Emit of a composite
-  // program may skip writing a declaration file (`skipDtsOutputOfComposite`): the threads only check its
-  // files, and this thread emits them, as build mode does (`recheckOnThreads`, tsc-build.ts).
+  // The threads emit the files they check, as the checker that checks a file emits it on this thread: into
+  // memory under noEmitOnError, for this thread to write if there are no errors, and for a composite program,
+  // whose unchanged declaration files this thread doesn't write (`skipDtsOutputOfComposite`).
   const options = program.options;
   if (
     !sharesPublishedGraphs ||
@@ -239,14 +238,7 @@ function recheckInParallel(
   mark(`${files.length} files to check`);
   if (!rechecksOnThreads(files, threads, options.checkers !== undefined)) return finish();
   checked.checkOnly = new Set(files);
-  const emits = options.composite !== true;
-  startParallelCheck(
-    checked,
-    threads,
-    finish,
-    emits,
-    emits ? incrementalProgram.emitKindsOnCheckers(files) : undefined,
-  );
+  startParallelCheck(checked, threads, finish, true, incrementalProgram.emitKindsOnCheckers(files));
 }
 
 /**

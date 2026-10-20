@@ -1754,6 +1754,30 @@ class SignatureRecordingWriter extends OutputWriter {
 }
 
 /**
+ * Writes the outputs a checker thread held for a file of a composite program as `SignatureRecordingWriter` writes
+ * them here: `skips` holds `skipDtsOutputOfComposite`'s answer for each of its declaration files, which is left
+ * unwritten when unchanged, and keeps its time stamp when only its map changed.
+ */
+class HeldDeclarationWriter extends OutputWriter {
+  constructor(
+    private readonly writer: OutputWriter,
+    private readonly skips: ReadonlyMap<string, number>,
+    private readonly host: TimeStampHost,
+  ) {
+    super();
+  }
+
+  write(fileName: string, text: string, declarationDiagnostics: readonly Diagnostic[]): string {
+    const skip = this.skips.get(fileName) ?? 0;
+    if (skip === 1) return skippedWrite;
+    const mtime = skip === 2 ? this.host.getMTime(fileName) : undefined;
+    const error = this.writer.write(fileName, text, declarationDiagnostics);
+    if (error === '' && mtime !== undefined) this.host.setMTime(fileName, mtime);
+    return error;
+  }
+}
+
+/**
  * Writes outputs with `writer` and keeps, for each declaration file, its name, its signature and the
  * signature compared for composite projects, as `SignatureRecordingWriter` computes them: for checker
  * threads that emit the files of an incremental program, whose main thread records them
@@ -1916,8 +1940,11 @@ class EmitFilesHandler {
         const emitOnly = emitOnlyOfPendingKind(pendingKind);
         const emitted = emittedOnCheckers.get(affectedFile);
         if (emitted !== undefined) {
-          result = writeHeldOutputs(emitted, writer);
-          this.recordDeclarationSignatures(affectedFile, emitted.declarationSignatures);
+          const skips = this.recordDeclarationSignatures(affectedFile, emitted.declarationSignatures);
+          result = writeHeldOutputs(
+            emitted,
+            skips === undefined ? writer : new HeldDeclarationWriter(writer, skips, program.host),
+          );
         } else {
           if (wrapped instanceof SignatureRecordingWriter) wrapped.file = affectedFile;
           result = program.emitter.emit([affectedFile], emitOnly, wrapped);
@@ -1977,23 +2004,31 @@ class EmitFilesHandler {
   }
 
   /**
-   * Records the declaration files a checker thread wrote for `file` (`EmitResult.declarationSignatures`),
-   * as `SignatureRecordingWriter` records the ones written here. Checker threads emit only programs
-   * without old build info, which have no old emit signatures, so no declaration file was to be skipped
-   * or to keep its time stamp.
+   * Records the declaration files a checker thread emitted for `file` (`EmitResult.declarationSignatures`),
+   * as `SignatureRecordingWriter` records the ones written here. For a composite program, returns what
+   * `skipDtsOutputOfComposite` answers for each declaration file, by file name: on a rebuild the thread held
+   * its outputs (parallel-check.ts) for `HeldDeclarationWriter` to write. A program without old build info
+   * has no old emit signatures, so its threads wrote their outputs, none of which was to be skipped.
    */
-  private recordDeclarationSignatures(file: SourceFile, signatures: readonly string[]): void {
+  private recordDeclarationSignatures(
+    file: SourceFile,
+    signatures: readonly string[],
+  ): Map<string, number> | undefined {
     const snapshot = this.program.snapshot;
-    if (!snapshot.canUseIncrementalState()) return;
+    if (!snapshot.canUseIncrementalState()) return undefined;
+    let skips: Map<string, number> | undefined = undefined;
     for (let i = 0; i + 2 < signatures.length; i += 3) {
       const info = snapshot.fileInfos.get(file.path);
       if (info !== undefined && info.signature === info.version) {
         const signature = signatures[i + 1]!;
         if (signature !== info.version) this.signatures.set(file.path, signature);
       }
-      if (snapshot.options.composite === true)
-        this.skipDtsOutputWithSignature(file, signatures[i]!, signatures[i + 2]!);
+      if (snapshot.options.composite === true) {
+        if (skips === undefined) skips = new Map<string, number>();
+        skips.set(signatures[i]!, this.skipDtsOutputWithSignature(file, signatures[i]!, signatures[i + 2]!));
+      }
     }
+    return skips;
   }
 
   private updateSnapshot(): EmitResult[] {

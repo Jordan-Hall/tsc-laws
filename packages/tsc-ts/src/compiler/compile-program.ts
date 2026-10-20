@@ -46,24 +46,29 @@ export class HoldingWriter extends OutputWriter {
 /**
  * Writes the outputs a checker thread held (`EmitResult.heldOutputs`) with `writer`; returns the emit
  * result as if the thread had written them: an output that fails to be written is an error instead of
- * an emitted file.
+ * an emitted file, and one the writer leaves unwritten (`skippedWrite`) isn't an emitted file.
  */
 export function writeHeldOutputs(result: EmitResult, writer: OutputWriter): EmitResult {
   const held = result.heldOutputs;
   let failed: Map<string, string> | undefined = undefined;
+  let skipped: Set<string> | undefined = undefined;
   for (let i = 0; i < held.length; i += 2) {
     const error = writer.write(held[i]!, held[i + 1]!, []);
-    if (error !== '' && error !== skippedWrite) {
+    if (error === skippedWrite) {
+      if (skipped === undefined) skipped = new Set<string>();
+      skipped.add(held[i]!);
+    } else if (error !== '') {
       if (failed === undefined) failed = new Map<string, string>();
       failed.set(held[i]!, error);
     }
   }
-  if (failed === undefined) return result;
+  if (failed === undefined && skipped === undefined) return result;
   const copy = new EmitResult();
   copy.emitSkipped = result.emitSkipped;
-  for (const f of result.emittedFiles) if (!failed.has(f)) copy.emittedFiles.push(f);
+  for (const f of result.emittedFiles)
+    if (failed?.has(f) !== true && skipped?.has(f) !== true) copy.emittedFiles.push(f);
   for (const e of result.errors) copy.errors.push(e);
-  for (const e of failed.values()) copy.errors.push(e);
+  if (failed !== undefined) for (const e of failed.values()) copy.errors.push(e);
   for (const u of result.unsupported) copy.unsupported.push(u);
   for (const d of result.diagnostics) copy.diagnostics.push(d);
   for (const s of result.declarationSignatures) copy.declarationSignatures.push(s);
