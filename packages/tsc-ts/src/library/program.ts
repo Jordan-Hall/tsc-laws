@@ -6,7 +6,6 @@ import '../compiler/compile-program.js';
 import type { SourceFile as CompilerSourceFile } from '../compiler/ast.js';
 import { dropLibGlobals } from '../compiler/checker-symbols.js';
 import type { Diagnostic as CompilerDiagnostic } from '../compiler/diagnostics.js';
-import { CompilerHost } from '../compiler/file-loader.js';
 import { CachedFileSystem } from '../compiler/file-system.js';
 import { getNormalizedAbsolutePath } from '../compiler/path.js';
 import { Program as CompilerProgram, sortAndDeduplicateDiagnostics } from '../compiler/program.js';
@@ -17,7 +16,7 @@ import { LibraryTypeChecker } from './checker.js';
 import type { CompilerOptions } from './compiler-options.generated.js';
 import { type DiagnosticKind, diagnosticOf, programDiagnostics } from './diagnostics.js';
 import { DisposedProgramError, internalError } from './errors.js';
-import { HostFileSystem } from './host.js';
+import { HostFileSystem, LibraryCompilerHost } from './host.js';
 import { type ApiCompilerOptions, compilerOptionsFromApi, compilerOptionsOf } from './options.js';
 import type {
   CreateProgramOptions,
@@ -111,7 +110,7 @@ function parsedConfig(
 
 function programOf(config: ParsedCommandLine, host: ProgramHost): Program {
   const fs = new CachedFileSystem(new HostFileSystem(host));
-  const compilerHost = new CompilerHost(fs, host.getCurrentDirectory(), host.getDefaultLibraryDirectory());
+  const compilerHost = new LibraryCompilerHost(fs, host.getCurrentDirectory(), host.getDefaultLibraryDirectory());
   return new LibraryProgram(new CheckedProgram(new CompilerProgram(config, compilerHost)));
 }
 

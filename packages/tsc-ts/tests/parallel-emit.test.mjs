@@ -231,3 +231,20 @@ test('diagnostics list union constituents in the order tsgo does', { skip: tscTs
   assert.equal(actual.stdout, expected.stdout);
   assert.equal(actual.status, expected.status);
 });
+
+// A thread that fails leaves its files to the main thread, so the output alone doesn't show it: the threads' trace
+// does. In native builds this runs parse and checker threads, under Node.js checker threads.
+test('parse and checker threads start and finish without failing', { skip: tscTsMissing }, () => {
+  const cwd = tempDir('tsc-ts-parallel-threads-');
+  for (const [path, content] of Object.entries(files)) {
+    mkdirSync(dirname(join(cwd, path)), { recursive: true });
+    writeFileSync(join(cwd, path), content);
+  }
+  const result = spawnSync(tscTs[0], [...tscTs.slice(1), '-p', '.', '--pretty', 'false', '--checkers', '3'], {
+    cwd,
+    env: { PATH: process.env.PATH ?? '', TSC_TS_LIB_DIR: bundledLibs, TSC_TS_CHECKERS_TRACE: '1' },
+    encoding: 'utf8',
+  });
+  assert.match(result.stderr, /checkers: finished/);
+  assert.doesNotMatch(result.stderr, /thread \d+ failed/);
+});
