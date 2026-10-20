@@ -400,7 +400,11 @@ const enum State {
 export class Printer extends NameGeneratorHost {
   readonly options: PrinterOptions;
   readonly context: EmitContext;
-  readonly nameGenerator: NameGenerator;
+  /**
+   * Generates the names of the printed file, created when first needed: it refers back to the printer (its host),
+   * and printing a type node never generates names.
+   */
+  private nameGeneratorStore: NameGenerator | undefined = undefined;
   currentSourceFile: SourceFile | undefined;
   private sourceText: string;
   private lineStarts: readonly number[];
@@ -435,11 +439,19 @@ export class Printer extends NameGeneratorHost {
   private mostRecentSourceMapSource: SourceFile | undefined;
   private mostRecentSourceMapSourceIndex: number;
 
+  get nameGenerator(): NameGenerator {
+    let generator = this.nameGeneratorStore;
+    if (generator === undefined) {
+      generator = new NameGenerator(this.context, this);
+      this.nameGeneratorStore = generator;
+    }
+    return generator;
+  }
+
   constructor(options: PrinterOptions, context: EmitContext | undefined) {
     super();
     this.options = options;
     this.context = context === undefined ? new EmitContext() : context;
-    this.nameGenerator = new NameGenerator(this.context, this);
     this.currentSourceFile = undefined;
     this.sourceText = '';
     this.lineStarts = [];

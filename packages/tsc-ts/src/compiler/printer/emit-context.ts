@@ -14,6 +14,7 @@ import {
 } from '../ast.js';
 import { SyntaxKind } from '../syntax-kind.js';
 import { EmitFlags, GeneratedIdentifierFlags } from './emit-flags.js';
+import { AutoGenerateInfo } from './auto-generate.js';
 import { NodeFactory } from './factory.js';
 import type { EmitHelper } from './helpers.js';
 import { isParseTreeNode, isPrologueDirective } from './utilities.js';
@@ -52,24 +53,6 @@ export class SynthesizedComment {
     this.text = text;
     this.hasLeadingNewLine = hasLeadingNewLine;
     this.hasTrailingNewLine = hasTrailingNewLine;
-  }
-}
-
-export class AutoGenerateInfo {
-  readonly flags: GeneratedIdentifierFlags;
-  /** Generated names with the same id print the same text; clones keep it. */
-  readonly id: number;
-  readonly prefix: string;
-  readonly suffix: string;
-  /** For `GeneratedIdentifierFlags.Node`, the node the name is generated from. */
-  readonly node: Node | undefined;
-
-  constructor(flags: GeneratedIdentifierFlags, id: number, prefix: string, suffix: string, node: Node | undefined) {
-    this.flags = flags;
-    this.id = id;
-    this.prefix = prefix;
-    this.suffix = suffix;
-    this.node = node;
   }
 }
 
@@ -147,14 +130,9 @@ export class VariableScope {
   }
 }
 
-let nextAutoGenerateId = 1;
+export { AutoGenerateInfo, newAutoGenerateId } from './auto-generate.js';
 
-export function newAutoGenerateId(): number {
-  return nextAutoGenerateId++;
-}
-
-export class EmitContext {
-  readonly factory: NodeFactory;
+export class EmitContext extends NodeFactory {
   readonly autoGenerate: Map<Node, AutoGenerateInfo>;
   readonly textSource: Map<Node, Node>;
   readonly original: Map<Node, Node>;
@@ -169,6 +147,7 @@ export class EmitContext {
   readonly emitHelpers: EmitHelper[];
 
   constructor() {
+    super();
     this.autoGenerate = new Map<Node, AutoGenerateInfo>();
     this.textSource = new Map<Node, Node>();
     this.original = new Map<Node, Node>();
@@ -180,7 +159,15 @@ export class EmitContext {
     this.varScopes = [];
     this.letScopes = [];
     this.emitHelpers = [];
-    this.factory = new NodeFactory(this);
+  }
+
+  /** The factory that creates nodes for this context: the context itself. */
+  get factory(): NodeFactory {
+    return this;
+  }
+
+  get context(): EmitContext {
+    return this;
   }
 
   /**
@@ -688,9 +675,5 @@ export class EmitContext {
 
   isCustomPrologue(node: Node): boolean {
     return (this.getEmitFlags(node) & EmitFlags.CustomPrologue) !== 0;
-  }
-
-  isCallToHelper(node: Node, helperName: string): boolean {
-    return this.factory.isCallToHelper(node, helperName);
   }
 }

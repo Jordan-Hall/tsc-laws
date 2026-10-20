@@ -175,7 +175,7 @@ export function tryReuseExistingNode(b: NodeBuilder, existing: Node): Node | und
   const oldTrackedSymbols = b.trackedSymbols;
   const oldEncounteredError = b.encounteredError;
   const oldApproximateLength = b.approximateLength;
-  b.tracker = new BuilderTracker(b, new RecoveryTracker(oldTracker, bound));
+  b.tracker = new BuilderTracker(b.reports, new RecoveryTracker(oldTracker, bound));
   b.trackedSymbols = [];
   const transformed = new ExistingNodeReuser(b, bound).visitNode(existing);
   b.tracker = oldTracker;
