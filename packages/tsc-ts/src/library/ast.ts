@@ -32,7 +32,7 @@ export interface TextRange {
 export interface Node extends TextRange {
   readonly kind: SyntaxKind;
   readonly flags: NodeFlags;
-  readonly parent: Node;
+  readonly parent: Node | undefined;
 }
 
 /** The children of a node in one list: `nodes`, and the range from the list's opening to its closing token. */

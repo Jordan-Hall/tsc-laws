@@ -1017,7 +1017,7 @@ export abstract class VisitorBase extends VisitorHooks {
           return this.factory.updateJSDocTypeTag(
             node,
             asIdentifier(this.visitNode(node.tagName), node.tagName),
-            this.visitNode(node.typeExpression),
+            required(this.visitNode(node.typeExpression), node.typeExpression),
             this.visitNodes(node.comment),
           );
         break;

@@ -10,7 +10,6 @@ export const nullable = new Set([
   'JSDocTemplateTag.Constraint',
   'TaggedTemplateExpression.QuestionDotToken',
   'BinaryExpression.Type',
-  'JSDocTypeTag.TypeExpression',
   'ImportAttribute.name',
   'BindingElement.name',
   'CaseOrDefaultClause.Expression',

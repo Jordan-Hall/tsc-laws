@@ -7,7 +7,9 @@
 //   src/library/ast.generated.ts               the node interfaces, from _scripts/ast.json through
 //                                              typescript-go's schema model (_scripts/schema.ts), as
 //                                              _scripts/generate-ts-ast.ts generates them, with tsc-ts's
-//                                              NodeList and ModifierList in place of NodeArray
+//                                              NodeList and ModifierList in place of NodeArray, without
+//                                              brand members, and with members typed as tsc-ts's nodes
+//                                              hold them
 //
 // Usage: node scripts/generate-api.mjs [--check]
 //
@@ -81,6 +83,28 @@ function generateCompilerOptions() {
   return notice('typescript-go _packages/native-preview/src/api/compilerOptions.ts') + '\n' + body;
 }
 
+// Where tsc-ts's nodes hold less than ast.json declares, the interfaces declare what the nodes hold.
+// NoSubstitutionTemplateLiteral stores no raw text (TypeScript 7's API gives undefined there): the base
+// declares it optional, and the kinds that store it declare it again.
+const unstoredBaseFields = new Map([
+  ['TemplateLiteralLikeNodeBase.RawText', ['TemplateHead', 'TemplateMiddle', 'TemplateTail']],
+]);
+const redeclared = new Set(
+  [...unstoredBaseFields].flatMap(([field, kinds]) => kinds.map((kind) => `${kind}.${field.split('.')[1]}`)),
+);
+// Members of a kind that shares its node with others, where the kind always or never has them: a case
+// clause always has an expression and a default clause never does.
+const variantMembers = new Map([
+  ['CaseClause.Expression', 'required'],
+  ['DefaultClause.Expression', 'absent'],
+]);
+
+// Member types ast.json gives narrower than the values tsgo's and tsc-ts's parsers store: `declare
+// global` is a module declaration with the `global` keyword.
+const memberTypes = new Map([
+  ['ModuleDeclaration.Keyword', 'SyntaxKind.ModuleKeyword | SyntaxKind.NamespaceKeyword | SyntaxKind.GlobalKeyword'],
+]);
+
 // The node interfaces. The functions below follow _scripts/generate-ts-ast.ts (generateAstGenerated).
 async function generateAst() {
   const { api } = await import(pathToFileURL(join(upstream, '_scripts/schema.ts')).href);
@@ -99,7 +123,12 @@ async function generateAst() {
   const tsMembers = (node) => node.members.filter((member) => !member.isKindParam() && !member.noTS);
   const isInheritedFromTsBase = (member) => member.inherited && !!member.inheritedField && !member.inheritedField.noTS;
   const tsInterfaceMembers = (node) =>
-    tsMembers(node).filter((member) => !isInheritedFromTsBase(member) || member.hasTypeScriptOverride());
+    tsMembers(node).filter(
+      (member) =>
+        !isInheritedFromTsBase(member) ||
+        member.hasTypeScriptOverride() ||
+        redeclared.has(`${node.name}.${member.name}`),
+    );
   const collapsedTextType = (name, type) =>
     name === 'text' && type.kind === 'list' && type.listKind === 'raw'
       ? type.elementType.formatTypeScript()
@@ -136,11 +165,22 @@ async function generateAst() {
     const exts = expandTsExtends(node.extendsKeys).map(baseTsName);
     return exts.length > 0 ? exts.join(', ') : 'Node';
   };
-  const member = (m, node) => {
-    const type = collapsedTextType(m.name, m.type) ?? m.type.formatTypeScript();
-    const optional = m.optional || (node !== undefined && nullable.has(`${node.name}.${m.name}`));
-    return `\n  readonly ${api.uncapitalize(m.name)}${optional ? '?' : ''}: ${type};`;
+  // Optional members are also `| undefined`: a node is a class instance, which has every member of its
+  // kind whether it is set or not.
+  const declare = (m, optional, node) => {
+    const type =
+      (node !== undefined ? memberTypes.get(`${node.name}.${m.name}`) : undefined) ??
+      collapsedTextType(m.name, m.type) ??
+      m.type.formatTypeScript();
+    return `\n  readonly ${api.uncapitalize(m.name)}${optional ? `?: ${type} | undefined` : `: ${type}`};`;
   };
+  const member = (m, node, kind) => {
+    const variant = kind === undefined ? undefined : variantMembers.get(`${kind}.${m.name}`);
+    if (variant === 'absent') return `\n  readonly ${api.uncapitalize(m.name)}?: undefined;`;
+    if (variant === 'required') return declare(m, false, node);
+    return declare(m, m.optional || nullable.has(`${node.name}.${m.name}`), node);
+  };
+  const baseMember = (m, base) => declare(m, m.optional || unstoredBaseFields.has(`${base.key}.${m.name}`));
 
   const parts = [];
   for (const { name, members } of api.kindAliases()) {
@@ -151,12 +191,13 @@ async function generateAst() {
   parts.push('');
   for (const base of api.bases()) {
     if (goOnlyBases.has(base.key)) continue;
-    const brand = base.brand ? `\n  readonly ${base.brand}: any;` : '';
+    // Without TypeScript 7's brand members (`_expressionBrand`): node kinds discriminate, and an
+    // implementation of these interfaces outside tsc-ts would have to copy the brand hierarchy.
     const fields = base.fields
       .filter((field) => !field.noTS)
-      .map(member)
+      .map((field) => baseMember(field, base))
       .join('');
-    parts.push(`export interface ${baseTsName(base)} extends ${resolveBaseExtends(base)} {${brand}${fields}\n}`);
+    parts.push(`export interface ${baseTsName(base)} extends ${resolveBaseExtends(base)} {${fields}\n}`);
   }
   parts.push('');
   const variants = [];
@@ -189,7 +230,7 @@ async function generateAst() {
   for (const { node, kind } of variants) {
     const members = tsMembers(node)
       .filter((m) => !isInheritedFromTsBase(m) || m.hasTypeScriptOverride())
-      .map((m) => member(m, node))
+      .map((m) => member(m, node, kind))
       .join('');
     parts.push(
       `export interface ${kind} extends ${deriveNodeTsExtends(node)} {\n  readonly kind: SyntaxKind.${kind};${members}\n}`,
