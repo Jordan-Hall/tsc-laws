@@ -51,7 +51,7 @@ import { getNameOfDeclaration, getNonAssignedNameOfDeclaration, hasSyntacticModi
 import { SyntaxKind } from '../syntax-kind.js';
 import { TokenFlags } from '../types.js';
 import type { EmitContext } from './emit-context.js';
-import { AutoGenerateInfo, newAutoGenerateId } from './emit-context.js';
+import { AutoGenerateInfo, newAutoGenerateId } from './auto-generate.js';
 import { EmitFlags, GeneratedIdentifierFlags } from './emit-flags.js';
 import { NodeFactoryBase } from './factory-base.js';
 import {
@@ -69,13 +69,13 @@ import {
 import { formatGeneratedName, isMemberName, nodeIsSynthesized } from './utilities.js';
 import { OuterExpressionKinds, isOuterExpression, outerExpressionOperand } from '../transformers/utilities.js';
 
-export class NodeFactory extends NodeFactoryBase {
-  readonly context: EmitContext;
-
-  constructor(context: EmitContext) {
-    super();
-    this.context = context;
-  }
+/**
+ * The node factory of an emit context. The context is the factory (`EmitContext` extends it), so the two are one
+ * object: a factory and a context that pointed at each other made every context a reference cycle.
+ */
+export abstract class NodeFactory extends NodeFactoryBase {
+  /** The emit context this factory belongs to: the factory itself. */
+  abstract get context(): EmitContext;
 
   protected finishUpdate(updated: Node, original: Node): boolean {
     updated.flags = original.flags;

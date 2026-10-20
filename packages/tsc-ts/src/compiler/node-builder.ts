@@ -296,16 +296,25 @@ class SerializedTypeEntry {
 }
 
 /**
+ * What a builder's tracker records for it. The builder and its tracker share it, so the tracker doesn't refer to
+ * the builder: a builder and a tracker that pointed at each other made every builder a reference cycle.
+ */
+export class BuilderReports {
+  reportedDiagnostic = false;
+  trackedSymbols: TrackedSymbol[] = [];
+}
+
+/**
  * The tracker a builder reports to: records the symbols it names and that a diagnostic was
- * reported, and forwards to the caller's tracker, if any.
+ * reported (`BuilderReports`), and forwards to the caller's tracker, if any.
  */
 export class BuilderTracker extends SymbolTracker {
-  readonly builder: NodeBuilder;
+  readonly reports: BuilderReports;
   readonly inner: SymbolTracker | undefined;
 
-  constructor(builder: NodeBuilder, inner: SymbolTracker | undefined) {
+  constructor(reports: BuilderReports, inner: SymbolTracker | undefined) {
     super();
-    this.builder = builder;
+    this.reports = reports;
     // Don't stack builder trackers.
     let unwrapped = inner;
     while (unwrapped instanceof BuilderTracker) unwrapped = unwrapped.inner;
@@ -314,12 +323,12 @@ export class BuilderTracker extends SymbolTracker {
 
   trackSymbol(symbol: Symbol, enclosingDeclaration: Node, meaning: SymbolFlags): boolean {
     if (this.inner !== undefined && this.inner.trackSymbol(symbol, enclosingDeclaration, meaning)) {
-      this.builder.reportedDiagnostic = true;
+      this.reports.reportedDiagnostic = true;
       return true;
     }
     // Type parameters don't need late painted statements.
     if ((symbol.flags & SymbolFlags.TypeParameter) === 0)
-      this.builder.trackedSymbols.push(new TrackedSymbol(symbol, enclosingDeclaration, meaning));
+      this.reports.trackedSymbols.push(new TrackedSymbol(symbol, enclosingDeclaration, meaning));
     return false;
   }
 
@@ -328,42 +337,42 @@ export class BuilderTracker extends SymbolTracker {
   }
 
   reportCyclicStructureError(): boolean {
-    this.builder.reportedDiagnostic = true;
+    this.reports.reportedDiagnostic = true;
     return this.inner !== undefined && this.inner.reportCyclicStructureError();
   }
 
   reportInaccessibleThisError(): boolean {
-    this.builder.reportedDiagnostic = true;
+    this.reports.reportedDiagnostic = true;
     return this.inner !== undefined && this.inner.reportInaccessibleThisError();
   }
 
   reportInaccessibleUniqueSymbolError(): boolean {
-    this.builder.reportedDiagnostic = true;
+    this.reports.reportedDiagnostic = true;
     return this.inner !== undefined && this.inner.reportInaccessibleUniqueSymbolError();
   }
 
   reportLikelyUnsafeImportRequiredError(specifier: string, symbolName: string): boolean {
-    this.builder.reportedDiagnostic = true;
+    this.reports.reportedDiagnostic = true;
     return this.inner !== undefined && this.inner.reportLikelyUnsafeImportRequiredError(specifier, symbolName);
   }
 
   reportNonSerializableProperty(propertyName: string): boolean {
-    this.builder.reportedDiagnostic = true;
+    this.reports.reportedDiagnostic = true;
     return this.inner !== undefined && this.inner.reportNonSerializableProperty(propertyName);
   }
 
   reportPrivateInBaseOfClassExpression(propertyName: string): boolean {
-    this.builder.reportedDiagnostic = true;
+    this.reports.reportedDiagnostic = true;
     return this.inner !== undefined && this.inner.reportPrivateInBaseOfClassExpression(propertyName);
   }
 
   reportTruncationError(): boolean {
-    this.builder.reportedDiagnostic = true;
+    this.reports.reportedDiagnostic = true;
     return this.inner !== undefined && this.inner.reportTruncationError();
   }
 
   reportNonlocalAugmentation(containingFile: SourceFile, parentSymbol: Symbol, augmentingSymbol: Symbol): boolean {
-    this.builder.reportedDiagnostic = true;
+    this.reports.reportedDiagnostic = true;
     return (
       this.inner !== undefined && this.inner.reportNonlocalAugmentation(containingFile, parentSymbol, augmentingSymbol)
     );
@@ -420,13 +429,13 @@ export class NodeBuilder {
   approximateLength = 0;
   encounteredError = false;
   truncating = false;
-  reportedDiagnostic = false;
   enclosingDeclaration: Node | undefined;
   readonly enclosingFile: SourceFile | undefined;
   inferTypeParameters: Type[] = [];
   private visitedTypesStore: Set<number> | undefined = undefined;
   private symbolDepthStore: Map<string, number> | undefined = undefined;
-  trackedSymbols: TrackedSymbol[] = [];
+  /** What its tracker records (`reportedDiagnostic`, `trackedSymbols`). */
+  readonly reports = new BuilderReports();
   mapper: TypeMapper | undefined = undefined;
   private reverseMappedStackStore: Symbol[] | undefined = undefined;
   private enclosingSymbolTypesStore: Map<number, Type> | undefined = undefined;
@@ -462,7 +471,23 @@ export class NodeBuilder {
     this.internalFlags = internalFlags;
     this.enclosingDeclaration = enclosingDeclaration;
     this.enclosingFile = enclosingDeclaration === undefined ? undefined : getSourceFileOfNode(enclosingDeclaration);
-    this.tracker = new BuilderTracker(this, tracker);
+    this.tracker = new BuilderTracker(this.reports, tracker);
+  }
+
+  get reportedDiagnostic(): boolean {
+    return this.reports.reportedDiagnostic;
+  }
+
+  set reportedDiagnostic(value: boolean) {
+    this.reports.reportedDiagnostic = value;
+  }
+
+  get trackedSymbols(): TrackedSymbol[] {
+    return this.reports.trackedSymbols;
+  }
+
+  set trackedSymbols(value: TrackedSymbol[]) {
+    this.reports.trackedSymbols = value;
   }
 
   // Created when first used: most types a builder writes need none of these.
