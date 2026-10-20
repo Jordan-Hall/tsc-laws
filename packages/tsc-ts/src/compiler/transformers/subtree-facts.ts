@@ -33,6 +33,7 @@ import {
   HeritageClause,
   getModifiers,
 } from '../ast.js';
+import { ClusteredIntLinkTable } from '../link-tables.js';
 import { isTypeNodeKind } from '../printer/utilities.js';
 import { SyntaxKind } from '../syntax-kind.js';
 
@@ -43,20 +44,27 @@ const enum Facts {
   Final = 2,
 }
 
+/** The answers `TypeScriptFacts.cache` stores; zero is unknown. */
+const enum Answer {
+  No = 1,
+  Yes = 2,
+}
+
 /** Memoized `containsTypeScript` answers for one emit. */
 export class TypeScriptFacts extends NodeVisitor {
-  private readonly cache: Map<Node, boolean>;
+  /** The answer for each node, by node id. */
+  private readonly cache: ClusteredIntLinkTable;
   private found: boolean;
 
   constructor() {
     super();
-    this.cache = new Map<Node, boolean>();
+    this.cache = new ClusteredIntLinkTable();
     this.found = false;
   }
 
   containsTypeScript(node: Node): boolean {
-    const cached = this.cache.get(node);
-    if (cached !== undefined) return cached;
+    const cached = this.cache.get(node.id);
+    if (cached !== 0) return cached === Answer.Yes;
     const own = ownFacts(node);
     let result = (own & Facts.TypeScript) !== 0;
     if (!result && (own & Facts.Final) === 0) {
@@ -66,7 +74,7 @@ export class TypeScriptFacts extends NodeVisitor {
       result = this.found;
       this.found = saved;
     }
-    this.cache.set(node, result);
+    this.cache.set(node.id, result ? Answer.Yes : Answer.No);
     return result;
   }
 

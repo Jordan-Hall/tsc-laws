@@ -12,6 +12,7 @@ import {
   VariableDeclaration,
   VariableStatement,
 } from '../ast.js';
+import { ClusteredLinkTable } from '../link-tables.js';
 import { SyntaxKind } from '../syntax-kind.js';
 import { EmitFlags, GeneratedIdentifierFlags } from './emit-flags.js';
 import { AutoGenerateInfo } from './auto-generate.js';
@@ -135,8 +136,10 @@ export { AutoGenerateInfo, newAutoGenerateId } from './auto-generate.js';
 export class EmitContext extends NodeFactory {
   readonly autoGenerate: Map<Node, AutoGenerateInfo>;
   readonly textSource: Map<Node, Node>;
-  readonly original: Map<Node, Node>;
-  readonly emitNodes: Map<Node, EmitNode>;
+  /** The node each node was made from, by node id. */
+  readonly original: ClusteredLinkTable<Node>;
+  /** The emit data of nodes, by node id. */
+  readonly emitNodes: ClusteredLinkTable<EmitNode>;
   private lastLookup: Node | undefined;
   private lastEmitNode: EmitNode | undefined;
   readonly assignedNames: Map<Node, Node>;
@@ -150,8 +153,8 @@ export class EmitContext extends NodeFactory {
     super();
     this.autoGenerate = new Map<Node, AutoGenerateInfo>();
     this.textSource = new Map<Node, Node>();
-    this.original = new Map<Node, Node>();
-    this.emitNodes = new Map<Node, EmitNode>();
+    this.original = new ClusteredLinkTable<Node>();
+    this.emitNodes = new ClusteredLinkTable<EmitNode>();
     this.lastLookup = undefined;
     this.lastEmitNode = undefined;
     this.assignedNames = new Map<Node, Node>();
@@ -187,7 +190,7 @@ export class EmitContext extends NodeFactory {
     let emitNode = this.lookup(node);
     if (emitNode === undefined) {
       emitNode = new EmitNode();
-      this.emitNodes.set(node, emitNode);
+      this.emitNodes.set(node.id, emitNode);
       this.lastLookup = node;
       this.lastEmitNode = emitNode;
     }
@@ -197,7 +200,7 @@ export class EmitContext extends NodeFactory {
   /** The emit data of `node`. The printer asks for several of a node's in a row, so the last answer is kept. */
   private lookup(node: Node): EmitNode | undefined {
     if (node === this.lastLookup) return this.lastEmitNode;
-    const emitNode = this.emitNodes.get(node);
+    const emitNode = this.emitNodes.get(node.id);
     this.lastLookup = node;
     this.lastEmitNode = emitNode;
     return emitNode;
@@ -210,29 +213,31 @@ export class EmitContext extends NodeFactory {
   }
 
   setOriginalEx(node: Node, original: Node, allowOverwrite: boolean): void {
-    const existing = this.original.get(node);
+    const existing = this.original.get(node.id);
     if (existing === undefined) {
-      this.original.set(node, original);
+      this.original.set(node.id, original);
       const emitNode = this.lookup(original);
       if (emitNode !== undefined) this.emitNode(node).copyFrom(emitNode);
-    } else if (allowOverwrite) this.original.set(node, original);
+    } else if (allowOverwrite) this.original.set(node.id, original);
     else if (existing !== original) throw new Error('Original node already set.');
   }
 
   unsetOriginal(node: Node): boolean {
-    return this.original.delete(node);
+    if (this.original.get(node.id) === undefined) return false;
+    this.original.set(node.id, undefined);
+    return true;
   }
 
   getOriginal(node: Node): Node | undefined {
-    return this.original.get(node);
+    return this.original.get(node.id);
   }
 
   /** The node at the end of the chain of original nodes. */
   mostOriginal(node: Node): Node {
-    let original = this.original.get(node);
+    let original = this.original.get(node.id);
     while (original !== undefined) {
       node = original;
-      original = this.original.get(node);
+      original = this.original.get(node.id);
     }
     return node;
   }
@@ -260,7 +265,7 @@ export class EmitContext extends NodeFactory {
       return name;
     let node = info.node!;
     const id = info.id;
-    let original = this.original.get(node);
+    let original = this.original.get(node.id);
     while (original !== undefined) {
       node = original;
       if (node instanceof Identifier || node instanceof PrivateIdentifier) {
@@ -275,7 +280,7 @@ export class EmitContext extends NodeFactory {
           continue;
         }
       }
-      original = this.original.get(node);
+      original = this.original.get(node.id);
     }
     return node;
   }

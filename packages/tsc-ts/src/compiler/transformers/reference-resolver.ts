@@ -48,6 +48,7 @@ import {
   isEnumConst,
   isExternalOrCommonJSModule,
 } from '../binder-utilities.js';
+import { IntLinkTable, LinkTable } from '../link-tables.js';
 import { NameResolver } from '../name-resolver.js';
 import { isSameNode } from './utilities.js';
 import { pathIsRelative } from '../path.js';
@@ -316,9 +317,10 @@ export class ReferenceResolver {
   private readonly enumValues: Map<Node, Evaluation>;
   private readonly computedEnums: Set<Node>;
   private readonly aliasTargets: Map<Symbol, Symbol>;
-  /** Value symbols of identifiers resolved as expressions, as the checker caches them. */
-  private readonly resolvedSymbols: Map<Node, Symbol>;
-  private readonly unresolvedReferences: Set<Node>;
+  /** Value symbols of identifiers resolved as expressions, as the checker caches them, by node id. */
+  private readonly resolvedSymbols: LinkTable<Symbol>;
+  /** 1 for each identifier, by node id, that resolved to no value symbol. */
+  private readonly unresolvedReferences: IntLinkTable;
   private readonly unresolvedAliases: Set<Symbol>;
   private readonly resolvingAliases: Set<Symbol>;
   /** The module each module specifier names (`null` for none), by specifier. */
@@ -340,8 +342,8 @@ export class ReferenceResolver {
     this.enumValues = new Map<Node, Evaluation>();
     this.computedEnums = new Set<Node>();
     this.aliasTargets = new Map<Symbol, Symbol>();
-    this.resolvedSymbols = new Map<Node, Symbol>();
-    this.unresolvedReferences = new Set<Node>();
+    this.resolvedSymbols = new LinkTable<Symbol>();
+    this.unresolvedReferences = new IntLinkTable();
     this.unresolvedAliases = new Set<Symbol>();
     this.resolvingAliases = new Set<Symbol>();
     this.specifierModules = new Map<Node, Symbol | null>();
@@ -364,20 +366,20 @@ export class ReferenceResolver {
 
   /** The value an identifier in an expression refers to, cached for later queries of the identifier. */
   getResolvedSymbol(node: Identifier): Symbol | undefined {
-    const cached = this.resolvedSymbols.get(node as Node);
+    const cached = this.resolvedSymbols.get(node.id);
     if (cached !== undefined) return cached;
-    if (this.unresolvedReferences.has(node as Node)) return undefined;
+    if (this.unresolvedReferences.get(node.id) !== 0) return undefined;
     const symbol = this.resolveName(node, node.text, SymbolFlags.Value | SymbolFlags.ExportValue);
-    if (symbol === undefined) this.unresolvedReferences.add(node as Node);
-    else this.resolvedSymbols.set(node as Node, symbol);
+    if (symbol === undefined) this.unresolvedReferences.set(node.id, 1);
+    else this.resolvedSymbols.set(node.id, symbol);
     return symbol;
   }
 
   private getReferencedValueSymbol(reference: Identifier, startInDeclarationContainer: boolean): Symbol | undefined {
     // An identifier resolved as an expression keeps that meaning, as with the checker's cache.
-    const cached = this.resolvedSymbols.get(reference as Node);
+    const cached = this.resolvedSymbols.get(reference.id);
     if (cached !== undefined) return cached;
-    if (this.unresolvedReferences.has(reference as Node)) return undefined;
+    if (this.unresolvedReferences.get(reference.id) !== 0) return undefined;
     let location: Node = reference;
     const parent = reference.parent;
     if (startInDeclarationContainer && parent !== undefined && isSameNode(getName(parent), reference)) {
@@ -443,7 +445,7 @@ export class ReferenceResolver {
   getReferencedImportDeclaration(node: Identifier): Node | undefined {
     // As the checker: an identifier that didn't resolve as a value may still name an alias.
     const reference: Node = node;
-    let symbol = this.resolvedSymbols.get(reference);
+    let symbol = this.resolvedSymbols.get(reference.id);
     if (symbol === undefined) symbol = this.resolveName(node, node.text, valueMeaning);
     if (
       symbol === undefined ||

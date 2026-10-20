@@ -26,6 +26,7 @@ import {
   getModifiers,
   getName,
 } from '../ast.js';
+import { ClusteredIntLinkTable } from '../link-tables.js';
 import { isTypeNodeKind } from '../printer/utilities.js';
 import { SyntaxKind } from '../syntax-kind.js';
 import { TokenFlags } from '../types.js';
@@ -75,22 +76,26 @@ const enum Exclusions {
   BindingPattern = SubtreeFacts.ContainsRestOrSpread,
 }
 
+/** Marks a computed entry of `SyntaxFacts.cache`, whose facts may be `None`. */
+const computedFacts = 1 << 30;
+
 /** Memoized subtree facts for one emit; synthesized nodes get theirs on first use. */
 export class SyntaxFacts extends NodeVisitor {
-  private readonly cache: Map<Node, SubtreeFacts>;
+  /** The facts of each node, by node id, with `computedFacts` set. */
+  private readonly cache: ClusteredIntLinkTable;
   private collected: SubtreeFacts;
 
   constructor() {
     super();
-    this.cache = new Map<Node, SubtreeFacts>();
+    this.cache = new ClusteredIntLinkTable();
     this.collected = SubtreeFacts.None;
   }
 
   of(node: Node): SubtreeFacts {
-    const cached = this.cache.get(node);
-    if (cached !== undefined) return cached;
+    const cached = this.cache.get(node.id);
+    if (cached !== 0) return cached & ~computedFacts;
     const facts = this.compute(node);
-    this.cache.set(node, facts);
+    this.cache.set(node.id, facts | computedFacts);
     return facts;
   }
 
