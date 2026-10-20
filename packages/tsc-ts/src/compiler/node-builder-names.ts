@@ -571,8 +571,10 @@ function shouldWriteTypeParametersInQualifiedName(b: NodeBuilder, chain: Symbol[
 
 function lookupTypeParameterNodes(b: NodeBuilder, chain: Symbol[], index: number): NodeList | undefined {
   const symbolId = getSymbolId(chain[index]!);
-  if (b.typeParameterSymbolList.has(symbolId)) return undefined;
-  b.typeParameterSymbolList.add(symbolId);
+  const symbolList = b.typeParameterSymbolList ?? new Set<number>();
+  if (symbolList.has(symbolId)) return undefined;
+  symbolList.add(symbolId);
+  b.typeParameterSymbolList = symbolList;
   if (shouldWriteTypeParametersInQualifiedName(b, chain, index)) {
     const typeArgumentNodes = lookupInstantiatedTypeArgumentNodes(b, chain, index);
     if (typeArgumentNodes !== undefined) return typeArgumentNodes;
@@ -601,8 +603,10 @@ function lookupInstantiatedTypeArgumentNodes(b: NodeBuilder, chain: Symbol[], in
 function lookupExpressionChainTypeArgumentNodes(b: NodeBuilder, chain: Symbol[], index: number): NodeList | undefined {
   if (!shouldWriteTypeParametersInQualifiedName(b, chain, index)) return undefined;
   const symbolId = getSymbolId(chain[index]!);
-  if (b.typeParameterSymbolList.has(symbolId)) return undefined;
-  b.typeParameterSymbolList.add(symbolId);
+  const symbolList = b.typeParameterSymbolList ?? new Set<number>();
+  if (symbolList.has(symbolId)) return undefined;
+  symbolList.add(symbolId);
+  b.typeParameterSymbolList = symbolList;
   const typeArgumentNodes = lookupInstantiatedTypeArgumentNodes(b, chain, index);
   if (typeArgumentNodes !== undefined) return typeArgumentNodes;
   const typeParameterNodes = b.typeParametersToTypeParameterDeclarations(chain[index]!);

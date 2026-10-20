@@ -424,25 +424,21 @@ export class NodeBuilder {
   enclosingDeclaration: Node | undefined;
   readonly enclosingFile: SourceFile | undefined;
   inferTypeParameters: Type[] = [];
-  readonly visitedTypes = new Set<number>();
-  /** Nesting depth of each symbol, node or constructor being written. */
-  readonly symbolDepth = new Map<string, number>();
+  private visitedTypesStore: Set<number> | undefined = undefined;
+  private symbolDepthStore: Map<string, number> | undefined = undefined;
   trackedSymbols: TrackedSymbol[] = [];
   mapper: TypeMapper | undefined = undefined;
-  readonly reverseMappedStack: Symbol[] = [];
-  /** Types of symbols being written, which may differ from their declared types. */
-  readonly enclosingSymbolTypes = new Map<number, Type>();
+  private reverseMappedStackStore: Symbol[] | undefined = undefined;
+  private enclosingSymbolTypesStore: Map<number, Type> | undefined = undefined;
   suppressReportInferenceFallback = false;
-  readonly remappedSymbolReferences = new Map<number, Symbol>();
-  // Per signature scope.
-  typeParameterNames = new Map<number, Identifier>();
-  typeParameterNamesByText = new Set<string>();
-  typeParameterNamesByTextNextNameCount = new Map<string, number>();
-  typeParameterSymbolList = new Set<number>();
-  /** Serialized types by enclosing declaration id, then type, flags and internal flags. */
-  readonly serializedTypes = new Map<number, Map<string, SerializedTypeEntry>>();
-  /** The kind of fake scope a block stands for: `params` or `typeParams`. */
-  readonly fakeScopes = new Map<Node, string>();
+  private remappedSymbolReferencesStore: Map<number, Symbol> | undefined = undefined;
+  // Per signature scope; undefined while empty.
+  typeParameterNames: Map<number, Identifier> | undefined = undefined;
+  typeParameterNamesByText: Set<string> | undefined = undefined;
+  typeParameterNamesByTextNextNameCount: Map<string, number> | undefined = undefined;
+  typeParameterSymbolList: Set<number> | undefined = undefined;
+  private serializedTypesStore: Map<number, Map<string, SerializedTypeEntry>> | undefined = undefined;
+  private fakeScopesStore: Map<Node, string> | undefined = undefined;
   /**
    * Declaration emit's pseudochecker: with it, types of declarations are written from what the
    * source wrote where that denotes the checker's type.
@@ -467,6 +463,40 @@ export class NodeBuilder {
     this.enclosingDeclaration = enclosingDeclaration;
     this.enclosingFile = enclosingDeclaration === undefined ? undefined : getSourceFileOfNode(enclosingDeclaration);
     this.tracker = new BuilderTracker(this, tracker);
+  }
+
+  // Created when first used: most types a builder writes need none of these.
+
+  get visitedTypes(): Set<number> {
+    return (this.visitedTypesStore ??= new Set<number>());
+  }
+
+  /** Nesting depth of each symbol, node or constructor being written. */
+  get symbolDepth(): Map<string, number> {
+    return (this.symbolDepthStore ??= new Map<string, number>());
+  }
+
+  get reverseMappedStack(): Symbol[] {
+    return (this.reverseMappedStackStore ??= []);
+  }
+
+  /** Types of symbols being written, which may differ from their declared types. */
+  get enclosingSymbolTypes(): Map<number, Type> {
+    return (this.enclosingSymbolTypesStore ??= new Map<number, Type>());
+  }
+
+  get remappedSymbolReferences(): Map<number, Symbol> {
+    return (this.remappedSymbolReferencesStore ??= new Map<number, Symbol>());
+  }
+
+  /** Serialized types by enclosing declaration id, then type, flags and internal flags. */
+  get serializedTypes(): Map<number, Map<string, SerializedTypeEntry>> {
+    return (this.serializedTypesStore ??= new Map<number, Map<string, SerializedTypeEntry>>());
+  }
+
+  /** The kind of fake scope a block stands for: `params` or `typeParams`. */
+  get fakeScopes(): Map<Node, string> {
+    return (this.fakeScopesStore ??= new Map<Node, string>());
   }
 
   /** `result`, or undefined if serialization failed. */
@@ -588,10 +618,12 @@ export class NodeBuilder {
     const savedNamesByText = this.typeParameterNamesByText;
     const savedNextNameCount = this.typeParameterNamesByTextNextNameCount;
     const savedSymbolList = this.typeParameterSymbolList;
-    this.typeParameterNames = new Map<number, Identifier>(savedNames);
-    this.typeParameterNamesByText = new Set<string>(savedNamesByText);
-    this.typeParameterNamesByTextNextNameCount = new Map<string, number>(savedNextNameCount);
-    this.typeParameterSymbolList = new Set<number>(savedSymbolList);
+    // The scope starts from the enclosing one's names, copied where there are any.
+    this.typeParameterNames = savedNames === undefined ? undefined : new Map<number, Identifier>(savedNames);
+    this.typeParameterNamesByText = savedNamesByText === undefined ? undefined : new Set<string>(savedNamesByText);
+    this.typeParameterNamesByTextNextNameCount =
+      savedNextNameCount === undefined ? undefined : new Map<string, number>(savedNextNameCount);
+    this.typeParameterSymbolList = savedSymbolList === undefined ? undefined : new Set<number>(savedSymbolList);
     const oldEnclosingDeclaration = this.enclosingDeclaration;
     const oldMapper = this.mapper;
     if (mapper !== undefined) this.mapper = mapper;
@@ -2056,7 +2088,7 @@ export class NodeBuilder {
   typeParameterToName(typeParameter: Type): Identifier {
     const generateNames = (this.flags & NodeBuilderFlags.GenerateNamesForShadowedTypeParams) !== 0;
     if (generateNames) {
-      const cached = this.typeParameterNames.get(typeParameter.id);
+      const cached = this.typeParameterNames?.get(typeParameter.id);
       if (cached !== undefined) return cached;
     }
     let result = symbolToName(this, typeParameter.symbol!, SymbolFlags.Type, true);
@@ -2068,10 +2100,10 @@ export class NodeBuilder {
     }
     if (generateNames) {
       const rawText = (result as Identifier).text;
-      let i = this.typeParameterNamesByTextNextNameCount.get(rawText) ?? 0;
+      let i = this.typeParameterNamesByTextNextNameCount?.get(rawText) ?? 0;
       let text = rawText;
       while (
-        this.typeParameterNamesByText.has(text) ||
+        this.typeParameterNamesByText?.has(text) === true ||
         this.typeParameterShadowsOtherTypeParameterInScope(text, typeParameter)
       ) {
         i++;
@@ -2079,9 +2111,15 @@ export class NodeBuilder {
       }
       if (text !== rawText) result = this.identifier(text);
       // Caching the largest suffix saves iterations when it grows large.
-      this.typeParameterNamesByTextNextNameCount.set(rawText, i);
-      this.typeParameterNames.set(typeParameter.id, result as Identifier);
-      this.typeParameterNamesByText.add(text);
+      const nextNameCount = this.typeParameterNamesByTextNextNameCount ?? new Map<string, number>();
+      const names = this.typeParameterNames ?? new Map<number, Identifier>();
+      const namesByText = this.typeParameterNamesByText ?? new Set<string>();
+      nextNameCount.set(rawText, i);
+      names.set(typeParameter.id, result as Identifier);
+      namesByText.add(text);
+      this.typeParameterNamesByTextNextNameCount = nextNameCount;
+      this.typeParameterNames = names;
+      this.typeParameterNamesByText = namesByText;
     }
     return result as Identifier;
   }
