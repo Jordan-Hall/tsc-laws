@@ -21,9 +21,9 @@ const { CheckedProgram } = await load('compiler/program-checker.js');
 
 // Both files widen a union in which a literal lacks `a`. In a.ts the missing `a` stands for a
 // property declared before b.ts, so a checker that kept one `a?: undefined` per name for a.ts would
-// print it first in b.ts's union. tsc 7.0.2 does: it prints b.ts's union as below by default and with
-// --checkers 2 (a.ts and b.ts on different checkers), but `{ a?: undefined; b: number; } | ...` with
-// --singleThreaded.
+// print it first in b.ts's union. TypeScript 7.1 keeps one per property and prints b.ts's union as
+// below with any number of checkers; tsc 7.0.2 kept one per name and printed
+// `{ a?: undefined; b: number; } | ...` with --singleThreaded.
 const dir = tempDir('tsc-ts-undefined-properties-project-');
 writeFileSync(
   join(dir, 'tsconfig.json'),
