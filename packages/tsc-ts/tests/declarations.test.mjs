@@ -223,6 +223,22 @@ async function emitBoth(files, name, flags) {
   return { expected: read('expected'), actual: read('actual') };
 }
 
+/**
+ * Emits declarations for `files` with tsc-ts and returns the file `name`, for cases where tsc-ts
+ * prints what TypeScript 7.1 prints and tsc 7.0.2 printed otherwise.
+ */
+async function emitTscTs(files, name, flags) {
+  const dir = tempDir('tsc-ts-declarations-undefined-');
+  const sources = Object.entries(files).map(([file, lines]) => {
+    writeFileSync(join(dir, file), [...lines, ''].join('\n'));
+    return join(dir, file);
+  });
+  const args = [...flags, '--declaration', '--emitDeclarationOnly', '--rootDir', dir];
+  const result = await run([...command, ...args, '--outDir', join(dir, 'actual'), ...sources]);
+  assert.equal(result.stderr.toString(), '');
+  return readFileSync(join(dir, 'actual', name), 'utf8');
+}
+
 test(
   'a literal that subtype reduction drops gives no property to a missing name',
   { skip: !existsSync(tsgo) && 'needs packages/tsgo/dist/tsgo' },
@@ -250,90 +266,183 @@ test(
   },
 );
 
-test(
-  'literals are dropped by widened type only where the syntax shows it',
-  { skip: !existsSync(tsgo) && 'needs packages/tsgo/dist/tsgo' },
-  async () => {
-    const { expected, actual } = await emitBoth(
-      {
-        'e.ts': ['export enum E { A, B, C }'],
-        'a.ts': [
-          "import { E } from './e';",
-          "type K = { kind: 'x' | 'y'; t?: string; u?: number };",
-          // Different members of an imported enum widen to the enum: the third literal is the first's.
-          'export function rule(x: number) {',
-          "  if (x === 0) return { before: 'a', after: 'b', action: { kind: E.C, text: ' * ' } };",
-          "  if (x === 1) return { previous: 'c', before: 'd', action: { kind: E.B } };",
-          "  return { before: 'e', after: 'f', action: { kind: E.A, text: '\\t' } };",
-          '}',
-          // The same reference narrowed to other types: the third literal stays.
-          'export function narrowed(v: string | number, x: number) {',
-          "  if (typeof v === 'string') return { a: v, b: 1 };",
-          "  if (x === 1) return { c: 'c', a: 1 };",
-          '  return { a: v, b: 2 };',
-          '}',
-          // `satisfies` keeps the literal types of the properties: the third literal stays.
-          'export function kept(x: number) {',
-          "  if (x === 0) return { kind: 'x', t: 'a' } satisfies K;",
-          "  if (x === 1) return { kind: 'y', u: 1 } satisfies K;",
-          "  return { kind: 'y', t: 'b' } satisfies K;",
-          '}',
-          // A namespace merged with an enum exports other values: the third literal stays.
-          'export enum N { A, B }',
-          "export namespace N { export const text = 'x'; export const count = 1; }",
-          'export function merged(x: number) {',
-          '  if (x === 0) return { a: 1, v: N.text };',
-          "  if (x === 1) return { b: 'b', v: N.A };",
-          '  return { a: 2, v: N.count };',
-          '}',
-        ],
-      },
-      'a.d.ts',
-      baseFlags,
-    );
-    assert.match(expected, /\| \{\n {4}after\?: undefined;\n {4}previous: string;/);
-    assert.match(expected, /\| \{\n {4}c\?: undefined;\n {4}a: number;\n {4}b: number;\n\}/);
-    assert.match(expected, /\| \{\n {4}u\?: undefined;\n {4}kind: "y";\n {4}t: string;\n\}/);
-    assert.match(expected, /\| \{\n {4}b\?: undefined;\n {4}a: number;\n {4}v: number;\n\}/);
-    assert.equal(actual, expected);
-  },
-);
+test('literals are dropped by widened type only where the syntax shows it', async () => {
+  // TypeScript 7.1's output. tsc 7.0.2 put merged's first `b?: undefined` before `a`, as the
+  // first `b` property its checker widened.
+  const actual = await emitTscTs(
+    {
+      'e.ts': ['export enum E { A, B, C }'],
+      'a.ts': [
+        "import { E } from './e';",
+        "type K = { kind: 'x' | 'y'; t?: string; u?: number };",
+        // Different members of an imported enum widen to the enum: the third literal is the first's.
+        'export function rule(x: number) {',
+        "  if (x === 0) return { before: 'a', after: 'b', action: { kind: E.C, text: ' * ' } };",
+        "  if (x === 1) return { previous: 'c', before: 'd', action: { kind: E.B } };",
+        "  return { before: 'e', after: 'f', action: { kind: E.A, text: '\\t' } };",
+        '}',
+        // The same reference narrowed to other types: the third literal stays.
+        'export function narrowed(v: string | number, x: number) {',
+        "  if (typeof v === 'string') return { a: v, b: 1 };",
+        "  if (x === 1) return { c: 'c', a: 1 };",
+        '  return { a: v, b: 2 };',
+        '}',
+        // `satisfies` keeps the literal types of the properties: the third literal stays.
+        'export function kept(x: number) {',
+        "  if (x === 0) return { kind: 'x', t: 'a' } satisfies K;",
+        "  if (x === 1) return { kind: 'y', u: 1 } satisfies K;",
+        "  return { kind: 'y', t: 'b' } satisfies K;",
+        '}',
+        // A namespace merged with an enum exports other values: the third literal stays.
+        'export enum N { A, B }',
+        "export namespace N { export const text = 'x'; export const count = 1; }",
+        'export function merged(x: number) {',
+        '  if (x === 0) return { a: 1, v: N.text };',
+        "  if (x === 1) return { b: 'b', v: N.A };",
+        '  return { a: 2, v: N.count };',
+        '}',
+      ],
+    },
+    'a.d.ts',
+    baseFlags,
+  );
+  assert.equal(
+    actual,
+    `import { E } from './e';
+export declare function rule(x: number): {
+    before: string;
+    after: string;
+    action: {
+        kind: E;
+        text: string;
+    };
+    previous?: undefined;
+} | {
+    after?: undefined;
+    previous: string;
+    before: string;
+    action: {
+        text?: undefined;
+        kind: E;
+    };
+};
+export declare function narrowed(v: string | number, x: number): {
+    a: string;
+    b: number;
+    c?: undefined;
+} | {
+    c: string;
+    a: number;
+    b?: undefined;
+} | {
+    c?: undefined;
+    a: number;
+    b: number;
+};
+export declare function kept(x: number): {
+    kind: "x";
+    t: string;
+    u?: undefined;
+} | {
+    kind: "y";
+    u: number;
+    t?: undefined;
+} | {
+    u?: undefined;
+    kind: "y";
+    t: string;
+};
+export declare enum N {
+    A = 0,
+    B = 1
+}
+export declare namespace N {
+    const text = "x";
+    const count = 1;
+}
+export declare function merged(x: number): {
+    a: number;
+    v: string;
+    b?: undefined;
+} | {
+    b: string;
+    v: N;
+    a?: undefined;
+} | {
+    b?: undefined;
+    a: number;
+    v: number;
+};
+`,
+  );
+});
 
-test(
-  'optional undefined properties of widened object literals are ordered as in tsgo',
-  { skip: !existsSync(tsgo) && 'needs packages/tsgo/dist/tsgo' },
-  async () => {
-    // A property added for a sibling literal takes the declarations of the property of that name in
-    // the file's first union that lacks it in a literal, and is ordered by that one's declaration.
-    // `o` is not a union, so g1's `a` comes after its `b`.
-    const { expected, actual } = await emitBoth(
-      {
-        'a.ts': [
-          'export const o = { a: 1, d: 1 };',
-          'export function g1(x: boolean) {',
-          '  if (x) return { b: 1 };',
-          '  return { a: 1, b: 2 };',
-          '}',
-          'export function g2(x: boolean) {',
-          '  if (x) return { b: 1 };',
-          '  return { b: 2, a: 1 };',
-          '}',
-          'export function g3(x: boolean) {',
-          '  if (x) return { b: 1, c: 1 };',
-          '  return { a: 1, c: 2, d: 3, b: 2 };',
-          '}',
-          'export const g4 = (x: boolean) => (x ? [{ e: { f: 1 } }, { e: {} }] : { e: { g: 1, f: 2 } });',
-        ],
-      },
-      'a.d.ts',
-      baseFlags,
-    );
-    assert.match(expected, /g1\(x: boolean\): \{\n {4}b: number;\n {4}a\?: undefined;/);
-    // In g2, `a` comes first: it is g1's `a`, declared before g2's `b`.
-    assert.match(expected, /g2\(x: boolean\): \{\n {4}a\?: undefined;\n {4}b: number;/);
-    assert.equal(actual, expected);
-  },
-);
+test('optional undefined properties of widened object literals are ordered by the sibling property', async () => {
+  // A property added for a sibling literal takes the declarations of the sibling's property, and is
+  // ordered by them, as in TypeScript 7.1: g2's `a?: undefined` follows its `b`. tsc 7.0.2 kept one
+  // such property per name, so g2's took g1's `a` and came first.
+  const actual = await emitTscTs(
+    {
+      'a.ts': [
+        'export const o = { a: 1, d: 1 };',
+        'export function g1(x: boolean) {',
+        '  if (x) return { b: 1 };',
+        '  return { a: 1, b: 2 };',
+        '}',
+        'export function g2(x: boolean) {',
+        '  if (x) return { b: 1 };',
+        '  return { b: 2, a: 1 };',
+        '}',
+        'export function g3(x: boolean) {',
+        '  if (x) return { b: 1, c: 1 };',
+        '  return { a: 1, c: 2, d: 3, b: 2 };',
+        '}',
+        'export const g4 = (x: boolean) => (x ? [{ e: { f: 1 } }, { e: {} }] : { e: { g: 1, f: 2 } });',
+      ],
+    },
+    'a.d.ts',
+    baseFlags,
+  );
+  assert.equal(
+    actual,
+    `export declare const o: {
+    a: number;
+    d: number;
+};
+export declare function g1(x: boolean): {
+    b: number;
+    a?: undefined;
+} | {
+    a: number;
+    b: number;
+};
+export declare function g2(x: boolean): {
+    b: number;
+    a?: undefined;
+} | {
+    b: number;
+    a: number;
+};
+export declare function g3(x: boolean): {
+    b: number;
+    c: number;
+    a?: undefined;
+    d?: undefined;
+} | {
+    a: number;
+    c: number;
+    d: number;
+    b: number;
+};
+export declare const g4: (x: boolean) => {
+    e: {
+        g: number;
+        f: number;
+    };
+} | {};
+`,
+  );
+});
 
 test(
   'optional undefined properties of widened object literals skip array literals without the global Array type',
@@ -360,8 +469,8 @@ test(
   'optional undefined properties of widened object literals follow the functions a returned call infers first',
   { skip: !existsSync(tsgo) && 'needs packages/tsgo/dist/tsgo' },
   async () => {
-    // f1's return type needs g3's, so g3's `a` comes first and g2's `a?: undefined` follows g2's `b`.
-    // R.get returns this.later() first, so later's `z` comes first.
+    // g2's and g3's `a?: undefined` follow their literals' `b` and `c`, whichever function f1's
+    // return type infers first. R.get returns this.later() first, so later's `z` comes first.
     const { expected, actual } = await emitBoth(
       {
         'a.ts': [
@@ -394,82 +503,77 @@ test(
   },
 );
 
-test(
-  'optional undefined properties of widened object literals follow calls of the functions their names resolve to',
-  { skip: !existsSync(tsgo) && 'needs packages/tsgo/dist/tsgo' },
-  async () => {
-    const g2g3 = [
-      'export function g2(x: boolean) {',
-      '  if (x) return { b: 1 };',
-      '  return { b: 2, a: 1 };',
-      '}',
-      'export function g3(x: boolean) {',
-      '  if (x) return { c: 1 };',
-      '  return { c: 2, a: 1 };',
-      '}',
-    ];
-    // f1's `g3` is its parameter, so g2 comes first.
-    const shadowed = await emitBoth(
-      {
-        'a.ts': ['export function f1(g3: (x: boolean) => { c: number }) {', '  return g3(true);', '}', ...g2g3],
-      },
-      'a.d.ts',
-      baseFlags,
-    );
-    assert.match(shadowed.expected, /g3\(x: boolean\): \{\n {4}a\?: undefined;\n {4}c: number;/);
-    assert.equal(shadowed.actual, shadowed.expected);
-    // v's initializer infers g2 before f1 infers g3.
-    const initializer = await emitBoth(
-      {
-        'a.ts': ['export const v = g2(true);', 'export function f1(x: boolean) {', '  return g3(x);', '}', ...g2g3],
-      },
-      'a.d.ts',
-      baseFlags,
-    );
-    assert.match(initializer.expected, /g3\(x: boolean\): \{\n {4}a\?: undefined;\n {4}c: number;/);
-    assert.equal(initializer.actual, initializer.expected);
-    // f1's type parameter `g3` and type alias `g2` don't hide the functions, so f1 infers g3 first.
-    const types = await emitBoth(
-      {
-        'a.ts': ['export function f1<g3>(x: boolean) {', '  type g2 = number;', '  return g3(x);', '}', ...g2g3],
-      },
-      'a.d.ts',
-      baseFlags,
-    );
-    assert.match(types.expected, /g3\(x: boolean\): \{\n {4}c: number;\n {4}a\?: undefined;/);
-    assert.equal(types.actual, types.expected);
-  },
-);
+test('optional undefined properties of widened object literals do not depend on the order functions are inferred in', async () => {
+  // As in TypeScript 7.1, g3's `a?: undefined` follows its `c` however the file reaches g3: through a
+  // parameter that shadows it, after another initializer infers g2, or behind a type parameter and
+  // a type alias of the same names. tsc 7.0.2 ordered it by the first `a` its checker widened.
+  const g2g3 = [
+    'export function g2(x: boolean) {',
+    '  if (x) return { b: 1 };',
+    '  return { b: 2, a: 1 };',
+    '}',
+    'export function g3(x: boolean) {',
+    '  if (x) return { c: 1 };',
+    '  return { c: 2, a: 1 };',
+    '}',
+  ];
+  const g3 = /g3\(x: boolean\): \{\n {4}c: number;\n {4}a\?: undefined;\n\} \| \{\n {4}c: number;\n {4}a: number;\n\};/;
+  for (const lines of [
+    ['export function f1(g3: (x: boolean) => { c: number }) {', '  return g3(true);', '}'],
+    ['export const v = g2(true);', 'export function f1(x: boolean) {', '  return g3(x);', '}'],
+    ['export function f1<g3>(x: boolean) {', '  type g2 = number;', '  return g3(x);', '}'],
+  ])
+    assert.match(await emitTscTs({ 'a.ts': [...lines, ...g2g3] }, 'a.d.ts', baseFlags), g3);
+});
 
-test(
-  'optional undefined properties of widened object literals keep their order when an importer infers a later function first',
-  { skip: !existsSync(tsgo) && 'needs packages/tsgo/dist/tsgo' },
-  async () => {
-    // b.ts imports a.ts, which imports b.ts, so b.ts comes first and its declarations infer g2
-    // before g1. tsgo checks each file on its own checker, from the top.
-    const { expected, actual } = await emitBoth(
-      {
-        'a.ts': [
-          'import { r } from "./b";',
-          'export function g1(x: boolean) {',
-          '  if (x) return { b: 1 };',
-          '  return { a: 1, b: 2 };',
-          '}',
-          'export function g2(x: boolean) {',
-          '  if (x) return { b: 1 };',
-          '  return { b: 2, a: 1 };',
-          '}',
-          'export const q = r;',
-        ],
-        'b.ts': ['import { g2 } from "./a";', 'export const r = g2(true);'],
-      },
-      'a.d.ts',
-      baseFlags.filter((flag) => flag !== '--noResolve'),
-    );
-    assert.match(expected, /g2\(x: boolean\): \{\n {4}a\?: undefined;\n {4}b: number;/);
-    assert.equal(actual, expected);
-  },
-);
+test('optional undefined properties of widened object literals keep their order when an importer infers a later function first', async () => {
+  // b.ts imports a.ts, which imports b.ts, so b.ts comes first and its declarations infer g2 before
+  // g1. TypeScript 7.1 prints g2's `a?: undefined` after its `b` either way; tsc 7.0.2 put it first.
+  const actual = await emitTscTs(
+    {
+      'a.ts': [
+        'import { r } from "./b";',
+        'export function g1(x: boolean) {',
+        '  if (x) return { b: 1 };',
+        '  return { a: 1, b: 2 };',
+        '}',
+        'export function g2(x: boolean) {',
+        '  if (x) return { b: 1 };',
+        '  return { b: 2, a: 1 };',
+        '}',
+        'export const q = r;',
+      ],
+      'b.ts': ['import { g2 } from "./a";', 'export const r = g2(true);'],
+    },
+    'a.d.ts',
+    baseFlags.filter((flag) => flag !== '--noResolve'),
+  );
+  assert.equal(
+    actual,
+    `export declare function g1(x: boolean): {
+    b: number;
+    a?: undefined;
+} | {
+    a: number;
+    b: number;
+};
+export declare function g2(x: boolean): {
+    b: number;
+    a?: undefined;
+} | {
+    b: number;
+    a: number;
+};
+export declare const q: {
+    b: number;
+    a?: undefined;
+} | {
+    b: number;
+    a: number;
+};
+`,
+  );
+});
 
 // Every 25th test case.
 function sample() {

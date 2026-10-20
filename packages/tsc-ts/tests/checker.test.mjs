@@ -17,7 +17,8 @@ const filler = (prefix, n = 40, indent = '') =>
 // `options` lists options for TSC_TS_CHECK_OPTIONS, separated by commas: boolean options, module, moduleResolution
 // and target as name=value, and the strict family, allowUnreachableCode and allowUnusedLabels as name=true or
 // name=false. A case with `corpus` checks that test case of TypeScript's corpus instead of `source`, and compares only
-// the diagnostics with the `codes` it lists to `expected`; all of them are compared to the oracle's.
+// the diagnostics with the `codes` it lists to `expected`; all of them are compared to the oracle's. A case with
+// `differsFromOracle` expects TypeScript 7.1's diagnostics where tsc 7.0.2, the oracle, reports others.
 const cases = [
   {
     name: 'module and target from TSC_TS_CHECK_OPTIONS',
@@ -446,13 +447,15 @@ const cases = [
     ],
   },
   {
-    // `[...][0]` widens the union of the array's elements, the first union that leaves `b` missing,
-    // so y's `b?: undefined` takes x's `b` and comes first.
+    // `[...][0]` widens the union of the array's elements, which leaves `b` missing too. As in
+    // TypeScript 7.1, y's `b?: undefined` takes y's own `b` and follows `a?: undefined`; tsc 7.0.2 kept
+    // one per name, so it took x's `b` and came first.
     name: 'undefined properties of widened object literals from an element of an array literal',
     source: ['let x = [{ a: 0 }, { a: 1, b: "x" }][0];', 'let y = !true ? { a: 0, b: 0 } : { c: 1 };', 'y = 1;'],
     expected: [
-      "/input.ts 2322 84 1 Type 'number' is not assignable to type '{ a: number; b: number; c?: undefined; } | { b?: undefined; a?: undefined; c: number; }'.",
+      "/input.ts 2322 84 1 Type 'number' is not assignable to type '{ a: number; b: number; c?: undefined; } | { a?: undefined; b?: undefined; c: number; }'.",
     ],
+    differsFromOracle: true,
   },
   {
     // 70 type parameters: the mappers of the tuple reference and of the call look their sources up in an index.
@@ -526,7 +529,16 @@ test(
   { skip: !existsSync(libs) && 'needs upstream sources', timeout: 300_000 },
   () => {
     const out = compileSources('tsc-ts-check-', ['drivers/check.ts']);
-    for (const { name, file: fileName = 'input.ts', options = '', source, corpus, codes, expected } of cases) {
+    for (const {
+      name,
+      file: fileName = 'input.ts',
+      options = '',
+      source,
+      corpus,
+      codes,
+      expected,
+      differsFromOracle,
+    } of cases) {
       const file = corpus !== undefined ? join(repo, 'upstream/TypeScript/tests/cases', corpus) : join(out, fileName);
       if (corpus === undefined) writeFileSync(file, source.join('\n') + '\n');
       const env = { ...process.env, TSC_TS_CHECK_OPTIONS: options };
@@ -537,7 +549,7 @@ test(
       const lines = actual.split('\n').filter((l) => l !== '');
       const compared = codes === undefined ? lines : lines.filter((l) => codes.includes(l.split(' ')[1]));
       assert.deepEqual(compared, expected, name);
-      if (existsSync(oracle)) {
+      if (existsSync(oracle) && differsFromOracle !== true) {
         const reference = execFileSync(oracle, [file, libs], { encoding: 'utf8', env })
           .split('\n')
           .filter((l) => l !== '');

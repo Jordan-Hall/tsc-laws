@@ -5,7 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { existsSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { tempDir } from './temp.mjs';
 import { tscTs, tscTsMissing } from './toolchain.mjs';
@@ -14,6 +14,16 @@ const root = resolve(import.meta.dirname, '../../..');
 const tsgo = join(root, 'packages/tsgo/dist/tsgo');
 const bundledLibs = join(root, 'upstream/typescript-go/internal/bundled/libs');
 const skip = (!existsSync(tsgo) && 'needs packages/tsgo/dist/tsgo') || tscTsMissing;
+
+/**
+ * TypeScript 7.1's stdout, by project name and variant, for the projects whose printed unions of widened
+ * object literals order their missing properties as 7.1 does and tsc 7.0.2 did not (7.0.2 kept one
+ * missing property per name). These compare with it instead of tsgo's stdout; stderr and the exit
+ * status still compare with tsgo.
+ */
+const typeScript71 = JSON.parse(
+  readFileSync(join(import.meta.dirname, 'fixtures/typescript-7.1/exact-optional.json'), 'utf8'),
+);
 
 const base = { target: 'ES2025', module: 'NodeNext', strict: true, noEmit: true, types: [], pretty: false };
 
@@ -261,8 +271,9 @@ test('diagnostics with exactOptionalPropertyTypes match tsgo', { skip, timeout: 
       // Each project has errors in the variants with exactOptionalPropertyTypes.
       if (variant.exactOptionalPropertyTypes) assert.notEqual(expected.stdout, '', `${name}: tsgo reports errors`);
       const label = `${name} ${JSON.stringify(variant)}`;
-      if (expected.stdout !== actual.stdout)
-        failures.push(`${label}: stdout\n--- tsgo\n${expected.stdout}--- ours\n${actual.stdout}`);
+      const expectedStdout = typeScript71[label] ?? expected.stdout;
+      if (expectedStdout !== actual.stdout)
+        failures.push(`${label}: stdout\n--- expected\n${expectedStdout}--- ours\n${actual.stdout}`);
       if (expected.stderr !== actual.stderr) failures.push(`${label}: stderr ${actual.stderr}`);
       if (expected.status !== actual.status)
         failures.push(`${label}: status tsgo ${expected.status}, ours ${actual.status}`);

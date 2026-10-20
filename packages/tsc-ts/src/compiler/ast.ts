@@ -8152,12 +8152,6 @@ export class SourceFile extends Node {
   patternAmbientModules: PatternAmbientModule[];
   /** UMD exports from `export as namespace N`. */
   globalExports: SymbolTable | undefined;
-  /**
-   * By name, the first property of the unions of the file's object literals that leave the name
-   * missing (checker-symbol-types.ts `scanSiblingProperties`), where a parse thread scanned the file
-   * and could resolve the enums the scan needed.
-   */
-  siblingProperties: Map<string, Node> | undefined;
 
   constructor(
     fileName: string,
@@ -8210,7 +8204,6 @@ export class SourceFile extends Node {
     this.symbolCount = 0;
     this.patternAmbientModules = [];
     this.globalExports = undefined;
-    this.siblingProperties = undefined;
   }
 
   forEachChild(v: NodeVisitor): boolean {
