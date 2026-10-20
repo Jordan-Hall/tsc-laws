@@ -394,9 +394,12 @@ export function parseSourceFile(fileName: string, text: string, options?: ParseO
     // Like other files (parseSourceFileWorker): reading the caches later never writes to the file.
     const json = p.parseJSONText();
     json.computeCaches();
+    p.release();
     return json;
   }
-  return p.parseSourceFileWorker();
+  const file = p.parseSourceFileWorker();
+  p.release();
+  return file;
 }
 
 /** Parses `text` as an entity name like `a.b.c`, or returns undefined if it isn't one. */
@@ -548,6 +551,15 @@ export class Parser extends ScannerErrorReporter {
     this.scanner = new Scanner(sourceText, unitsOnDemand);
     this.scanner.setOnError(this);
     this.scanner.setLanguageVariant(this.languageVariant);
+  }
+
+  /**
+   * Frees the scanner's copy of the text once the parser is done. The parser and its scanner and
+   * JSDoc parser refer to each other, so natively they're freed only by a cycle collection, which may
+   * come much later.
+   */
+  release(): void {
+    this.scanner.setText('');
   }
 
   token(): SyntaxKind {
@@ -6850,6 +6862,7 @@ export function getJSDoc(file: SourceFile, node: Node): readonly Node[] {
   }
   let parser = lazyJSDocParser;
   if (parser === undefined || lazyJSDocFile !== file) {
+    if (parser !== undefined) parser.release();
     // The parser scans only the comments it parses: copying the code units of the whole file each
     // time the checker moves to another file would cost more than parsing them.
     parser = new Parser(
@@ -6909,6 +6922,7 @@ let lazyJSDocFile: SourceFile | undefined;
 
 /** Forgets the file the lazy JSDoc parser last visited. */
 export function forgetLazyJSDocFile(): void {
+  if (lazyJSDocParser !== undefined) lazyJSDocParser.release();
   lazyJSDocParser = undefined;
   lazyJSDocFile = undefined;
 }
