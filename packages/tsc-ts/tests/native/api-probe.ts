@@ -5,11 +5,15 @@ import {
   createProgramFromConfigFile,
   type Diagnostic,
   type Expression,
+  getPreEmitDiagnostics,
+  getSourceFileOfNode,
+  getTextOfNode,
   InternalCompilerError,
   type Node,
   parseSourceFile,
   type Program,
   type Signature,
+  type StringLiteralLike,
   SignatureKind,
   type SourceFile,
   type Symbol,
@@ -17,6 +21,7 @@ import {
   symbolName,
   SyntaxKind,
   type Type,
+  type TupleTypeReference,
   type TypeChecker,
   walkPreorder,
 } from '../../src/library/index.js';
@@ -55,6 +60,7 @@ function probe(program: Program, checker: TypeChecker): void {
   for (const d of program.getSemanticDiagnostics()) print(`semantic ${diagnosticText(d)}`);
   for (const d of program.getSyntacticDiagnostics()) print(`syntactic ${diagnosticText(d)}`);
   for (const d of program.getGlobalDiagnostics()) print(`global ${diagnosticText(d)}`);
+  for (const d of getPreEmitDiagnostics(program)) print(`pre-emit ${diagnosticText(d)}`);
 
   const types: Type[] = [];
   const seen = new Set<Type>();
@@ -75,6 +81,9 @@ function probe(program: Program, checker: TypeChecker): void {
       const symbol = checker.getSymbolAtLocation(node);
       if (symbol !== undefined) symbols.push(symbol);
       print(`node ${nodeText(node)} symbol ${symbolText(symbol)}`);
+      print(`  text ${JSON.stringify(getTextOfNode(node).substring(0, 60))} ${getSourceFileOfNode(node) === file}`);
+      if (node.kind === SyntaxKind.StringLiteral || node.kind === SyntaxKind.NoSubstitutionTemplateLiteral)
+        print(`  string ${JSON.stringify((node as StringLiteralLike).text)}`);
       print(`  type ${keep(checker.getTypeAtLocation(node))}`);
       print(`  contextual ${keep(checker.getContextualType(node as Expression))}`);
       if (node.kind === SyntaxKind.CallExpression || node.kind === SyntaxKind.NewExpression) {
@@ -105,7 +114,16 @@ function probe(program: Program, checker: TypeChecker): void {
     print(
       `  array ${checker.isArrayType(type)} tuple ${checker.isTupleType(type)} arrayLike ${checker.isArrayLikeType(type)}`,
     );
+    if (isTupleTypeReference(type)) {
+      const target = type.getTarget();
+      if (target.isTupleType())
+        print(`  tuple target ${target.fixedLength} ${target.readonly} ${target.elementFlags.join(',')}`);
+    }
   }
+}
+
+function isTupleTypeReference(type: Type): type is TupleTypeReference {
+  return type.isTypeReference() && type.getTarget().isTupleType();
 }
 
 function signatureText(checker: TypeChecker, signature: Signature): string {

@@ -9,9 +9,11 @@ import type {
   Identifier,
   KeywordSyntaxKind,
   ModifierSyntaxKind,
+  NoSubstitutionTemplateLiteral,
   PropertyAccessExpression,
   PunctuationSyntaxKind,
   Statement,
+  StringLiteral,
   ThisExpression,
   Token,
 } from './ast.generated.js';
@@ -92,6 +94,7 @@ export interface PropertyAccessEntityNameExpression extends PropertyAccessExpres
 }
 
 export type EntityNameExpression = Identifier | PropertyAccessEntityNameExpression;
+export type StringLiteralLike = StringLiteral | NoSubstitutionTemplateLiteral;
 export type EntityNameOrEntityNameExpression = EntityName | EntityNameExpression;
 
 export interface JsxTagNamePropertyAccess extends PropertyAccessExpression {

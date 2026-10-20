@@ -12,7 +12,7 @@ import { getTokenPosOfNode } from '../compiler/astnav.js';
 import {
   getCombinedModifierFlags as compilerModifierFlags,
   getCombinedNodeFlags as compilerNodeFlags,
-  getSourceFileOfNode,
+  getSourceFileOfNode as compilerSourceFileOfNode,
 } from '../compiler/binder-utilities.js';
 import { getJSDoc as compilerGetJSDoc } from '../compiler/parser.js';
 import { computeLineOfPosition, tokenToString as compilerTokenToString } from '../compiler/scanner.js';
@@ -109,13 +109,29 @@ export function walkPreorder(root: Node, cb: (node: Node, depth: number) => void
  * first JSDoc comment where it has one.
  */
 export function tokenStartOfNode(node: Node, includeJSDoc = false): number {
-  const file = getSourceFileOfNode(compilerNode(node));
+  const file = compilerSourceFileOfNode(compilerNode(node));
   return getTokenPosOfNode(compilerNode(node), file, includeJSDoc);
+}
+
+/** The source file `node` is in: the root of its parents. */
+export function getSourceFileOfNode(node: Node): SourceFile {
+  let current = node;
+  while (current.parent !== undefined) current = current.parent;
+  return current as SourceFile;
+}
+
+/**
+ * The text of `node` in its source file, from the start of its first token (`tokenStartOfNode`) to its end:
+ * TypeScript's `node.getText()`.
+ */
+export function getTextOfNode(node: Node): string {
+  const file = compilerSourceFileOfNode(compilerNode(node));
+  return file.text.substring(getTokenPosOfNode(compilerNode(node), file, false), node.end);
 }
 
 /** The JSDoc comments of `node`, as the JSDoc nodes TypeScript 7 attaches to it (parsed on first use). */
 export function getJSDoc(node: Node): readonly JSDoc[] {
-  const file = getSourceFileOfNode(compilerNode(node));
+  const file = compilerSourceFileOfNode(compilerNode(node));
   return compilerGetJSDoc(file, compilerNode(node)) as unknown as readonly JSDoc[];
 }
 
