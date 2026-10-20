@@ -581,6 +581,18 @@ function compareTypeLists(c: Checker, s1: readonly Type[] | undefined, s2: reado
   return 0;
 }
 
+/** compareTypeLists of the targets of two array mappers. */
+function compareMapperTargets(c: Checker, a: ArrayTypeMapper, b: ArrayTypeMapper): number {
+  const n1 = a.targetCount();
+  const n2 = b.targetCount();
+  if (n1 !== n2) return n1 - n2;
+  for (let i = 0; i < n1; i++) {
+    const r = compareTypes(c, a.targetAt(i), b.targetAt(i));
+    if (r !== 0) return r;
+  }
+  return 0;
+}
+
 function compareElementLabels(n1: Node | undefined, n2: Node | undefined): number {
   if (n1 === n2) return 0;
   if (n1 === undefined) return -1;
@@ -626,7 +638,7 @@ export function compareTypeMappers(c: Checker, m1: TypeMapper | undefined, m2: T
       const a = m1 as ArrayTypeMapper;
       const b = m2 as ArrayTypeMapper;
       const r = compareTypeLists(c, a.sources, b.sources);
-      return r !== 0 ? r : compareTypeLists(c, a.targets, b.targets);
+      return r !== 0 ? r : compareMapperTargets(c, a, b);
     }
     case TypeMapperKind.Merged: {
       const a = m1 as MergedTypeMapper;
@@ -683,7 +695,7 @@ function declarationPlaces(c: Checker, t: Type): number[] {
   const mapper = (m: TypeMapper | undefined): void => {
     if (m === undefined) return;
     if (m instanceof SimpleTypeMapper) queue.push(m.target);
-    else if (m instanceof ArrayTypeMapper) for (const u of m.targets) queue.push(u);
+    else if (m instanceof ArrayTypeMapper) for (let i = 0; i < m.targetCount(); i++) queue.push(m.targetAt(i));
     else if (m instanceof ArrayToSingleTypeMapper) queue.push(m.target);
     else if (m instanceof MergedTypeMapper || m instanceof CompositeTypeMapper) {
       mapper(m.m1);

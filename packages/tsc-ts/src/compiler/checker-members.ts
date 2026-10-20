@@ -39,6 +39,7 @@ import {
   emptySignatures,
   emptySymbols,
   emptyTypes,
+  newThisArgumentTypeMapper,
   newTypeMapper,
   prependTypeMapping,
   LiteralType,
@@ -185,7 +186,7 @@ function resolveMembersOfType(c: Checker, t: Type): void {
     const objectFlags = t.objectFlags;
     if ((objectFlags & ObjectFlags.Reference) !== 0) resolveTypeReferenceMembers(c, t as TypeReference);
     else if ((objectFlags & ObjectFlags.ClassOrInterface) !== 0)
-      resolveObjectTypeMembers(c, membersHolder(c, t), t as InterfaceType, emptyTypes, emptyTypes);
+      resolveObjectTypeMembers(c, membersHolder(c, t), t as InterfaceType, emptyTypes, emptyTypes, undefined);
     else if ((objectFlags & ObjectFlags.ReverseMapped) !== 0) resolveReverseMappedTypeMembers(c, t);
     else if ((objectFlags & ObjectFlags.Anonymous) !== 0) resolveAnonymousTypeMembers(c, t as ObjectType);
     else if ((objectFlags & ObjectFlags.Mapped) !== 0) resolveMappedTypeMembers(c, t as MappedType);
@@ -197,29 +198,30 @@ function resolveTypeReferenceMembers(c: Checker, t: TypeReference): void {
   const source = t.target as InterfaceType;
   const typeParameters = source.allTypeParameters;
   const typeArguments = getTypeArguments(c, t);
-  let padded = typeArguments;
-  if (typeArguments.length === typeParameters.length - 1) {
-    // The reference itself is the `this` type argument.
-    padded = [];
-    for (const typeArgument of typeArguments) padded.push(typeArgument);
-    padded.push(t as Type);
-  }
-  resolveObjectTypeMembers(c, membersHolder(c, t), source, typeParameters, padded);
+  // With one type argument fewer than parameters, the reference itself is the `this` type argument.
+  const thisArgument = typeArguments.length === typeParameters.length - 1 ? (t as Type) : undefined;
+  resolveObjectTypeMembers(c, membersHolder(c, t), source, typeParameters, typeArguments, thisArgument);
 }
 
-function sameTypes(a: readonly Type[], b: readonly Type[]): boolean {
-  if (a.length !== b.length) return false;
-  for (let i = 0; i < a.length; i++) if (a[i]! !== b[i]!) return false;
-  return true;
+/** Whether `b`, followed by `last` where given, is the list `a`. */
+function sameTypes(a: readonly Type[], b: readonly Type[], last: Type | undefined): boolean {
+  const count = b.length;
+  if (a.length !== (last !== undefined ? count + 1 : count)) return false;
+  for (let i = 0; i < count; i++) if (a[i]! !== b[i]!) return false;
+  return last === undefined || a[count]! === last;
 }
 
-/** Resolves the members of an instantiation of `source` into `t`, the holder of its members. */
+/**
+ * Resolves the members of an instantiation of `source` into `t`, the holder of its members: with
+ * `typeArguments` for its type parameters, followed by `thisArgument` where given.
+ */
 function resolveObjectTypeMembers(
   c: Checker,
   t: StructuredType,
   source: InterfaceType,
   typeParameters: Type[],
   typeArguments: Type[],
+  thisArgument: Type | undefined,
 ): void {
   const declared = resolveDeclaredMembers(c, source);
   let mapper: TypeMapper | undefined;
@@ -230,14 +232,17 @@ function resolveObjectTypeMembers(
   let instantiated = false;
   // The member symbols of an instantiation are instantiated on demand (PendingInstantiatedMembers).
   let pending: PendingInstantiatedMembers | undefined;
-  if (sameTypes(typeParameters, typeArguments)) {
+  if (sameTypes(typeParameters, typeArguments, thisArgument)) {
     members = declared.declaredMembers;
     callSignatures = declared.declaredCallSignatures;
     constructSignatures = declared.declaredConstructSignatures;
     indexInfos = declared.declaredIndexInfos;
   } else {
     instantiated = true;
-    mapper = newTypeMapper(typeParameters, typeArguments);
+    mapper =
+      thisArgument !== undefined
+        ? newThisArgumentTypeMapper(typeParameters, typeArguments, thisArgument)
+        : newTypeMapper(typeParameters, typeArguments);
     pending = pendingInstantiatedTable(c, source, mapper);
     members = pending === undefined ? instantiateSymbolTable(c, declared.declaredMembers, mapper) : undefined;
     callSignatures = instantiateSignatures(c, declared.declaredCallSignatures, mapper);
@@ -245,6 +250,9 @@ function resolveObjectTypeMembers(
     indexInfos = instantiateIndexInfos(c, declared.declaredIndexInfos, mapper);
   }
   const baseTypes = getBaseTypes(c, source);
+  // The last type argument, the `this` type argument where the reference has one.
+  const lastArgument =
+    thisArgument ?? (typeArguments.length !== 0 ? typeArguments[typeArguments.length - 1]! : undefined);
   if (pending !== undefined) {
     resolvePendingObjectTypeMembers(
       c,
@@ -252,7 +260,7 @@ function resolveObjectTypeMembers(
       pending,
       baseTypes,
       mapper!,
-      typeArguments,
+      lastArgument,
       callSignatures,
       constructSignatures,
       indexInfos,
@@ -262,12 +270,11 @@ function resolveObjectTypeMembers(
   if (baseTypes.length !== 0) {
     members = !instantiated || members === undefined ? new Map(members ?? []) : members;
     setStructuredTypeMembers(c, t, members, callSignatures, constructSignatures, indexInfos);
-    const thisArgument = typeArguments.length !== 0 ? typeArguments[typeArguments.length - 1]! : undefined;
     t.objectFlags |= ObjectFlags.UnresolvedMembers;
     for (const baseType of baseTypes) {
       const instantiatedBaseType =
-        thisArgument !== undefined
-          ? getTypeWithThisArgument(c, instantiateType(c, baseType, mapper), thisArgument, false)
+        lastArgument !== undefined
+          ? getTypeWithThisArgument(c, instantiateType(c, baseType, mapper), lastArgument, false)
           : baseType;
       addInheritedMembers(members, getPropertiesOfType(c, instantiatedBaseType));
       // A base without signatures adds none: no copy of the list then.
@@ -807,7 +814,7 @@ function resolvePendingObjectTypeMembers(
   pending: PendingInstantiatedMembers,
   baseTypes: Type[],
   mapper: TypeMapper,
-  typeArguments: Type[],
+  thisArgument: Type | undefined,
   callSignatures: Signature[],
   constructSignatures: Signature[],
   indexInfos: IndexInfo[],
@@ -816,7 +823,6 @@ function resolvePendingObjectTypeMembers(
   if (baseTypes.length === 0) return;
   pending.hasBases = true;
   pending.resolving = true;
-  const thisArgument = typeArguments.length !== 0 ? typeArguments[typeArguments.length - 1]! : undefined;
   t.objectFlags |= ObjectFlags.UnresolvedMembers;
   for (const baseType of baseTypes) {
     const instantiatedBaseType =
