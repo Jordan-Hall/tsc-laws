@@ -2,14 +2,15 @@
 
 // The emit pipeline, loaded first as tsc-ts's command line loads it: programs and checked programs refer to its
 // classes (EmitIndexes, EmitResult), which scriptc compiles only when the program imports their modules as values.
-import '../compiler/compile-program.js';
+// CheckedProgram is imported through it, not as a side effect, so that the declarations of tsc-ts/api don't import
+// the compiler's modules.
+import { CheckedProgram } from '../compiler/compile-program.js';
 import type { SourceFile as CompilerSourceFile } from '../compiler/ast.js';
 import { dropLibGlobals } from '../compiler/checker-symbols.js';
 import type { Diagnostic as CompilerDiagnostic } from '../compiler/diagnostics.js';
 import { CachedFileSystem } from '../compiler/file-system.js';
 import { getNormalizedAbsolutePath } from '../compiler/path.js';
 import { Program as CompilerProgram, sortAndDeduplicateDiagnostics } from '../compiler/program.js';
-import { CheckedProgram } from '../compiler/program-checker.js';
 import { ConfigParser, ParsedCommandLine } from '../compiler/tsconfig.js';
 import type { SourceFile } from './ast.js';
 import { LibraryTypeChecker } from './checker.js';

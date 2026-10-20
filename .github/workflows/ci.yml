@@ -245,10 +245,30 @@ jobs:
       - run: npm run build:web
       - run: npm run test:routes -w @tsc-ts/web
 
+  # The npm packages as the release packs them, for linux-x64-gnu: pack.mjs --check installs them into a new project
+  # with only tsc-ts, compiles it, and type-checks and runs code that uses tsc-ts/api. The executable is the latest
+  # published one, because a pull request may not build natively and the check doesn't depend on its version.
+  package:
+    name: package (linux-x64-gnu)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Pack and check
+        run: |
+          tarball=$(npm pack @tsc-ts/linux-x64-gnu --pack-destination "$RUNNER_TEMP" --silent)
+          tar -xzf "$RUNNER_TEMP/$tarball" -C "$RUNNER_TEMP"
+          npm run pack:npm -w tsc-ts -- main platform --binary "$RUNNER_TEMP/package/lib/tsc-ts" --check
+
   # The one check branch protection needs: it fails when any job above failed or was cancelled.
   result:
     name: CI result
-    needs: [plan, checks, build, test, native-build, native-test, docs]
+    needs: [plan, checks, build, test, native-build, native-test, docs, package]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
