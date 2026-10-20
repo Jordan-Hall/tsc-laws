@@ -239,7 +239,14 @@ function recheckInParallel(
   mark(`${files.length} files to check or emit`);
   if (!rechecksOnThreads(files, threads, options.checkers !== undefined)) return finish();
   checked.checkOnly = new Set(files);
-  startParallelCheck(checked, threads, finish, true, incrementalProgram.emitKindsOnCheckers(files));
+  startParallelCheck(
+    checked,
+    threads,
+    finish,
+    true,
+    incrementalProgram.emitKindsOnCheckers(files),
+    incrementalProgram.checksOnCheckers,
+  );
 }
 
 /**
