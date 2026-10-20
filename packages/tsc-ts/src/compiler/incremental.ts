@@ -2533,10 +2533,12 @@ export class IncrementalProgram extends CompilerProgram {
    * semantic diagnostics the build info holds but whose outputs are pending (after a change of the
    * options that select outputs, or where an earlier build did not write them). Emitting a file asks
    * the checker about it, so threads that check and emit it spare this thread that work; the
-   * diagnostics reported for it are still those of the build info.
+   * diagnostics reported for it are still those of the build info. Where no file needs checking
+   * (`checksOnCheckers` false), the threads only emit, and emit checks what it needs.
    */
   filesForCheckers(): SourceFile[] {
     const result = this.filesToCheck();
+    this.checksOnCheckers = result.length > 0;
     const snapshot = this.snapshot;
     if (snapshot.options.noEmit === true || snapshot.affectedFilesPendingEmit.size === 0) return result;
     const program = this.program;
@@ -2556,6 +2558,9 @@ export class IncrementalProgram extends CompilerProgram {
     }
     return result;
   }
+
+  /** Whether the files `filesForCheckers` returned last include files to check, not only files to emit. */
+  checksOnCheckers = true;
 
   /**
    * For checker threads that check `files` (from `filesForCheckers`) and emit them, what the emit of each

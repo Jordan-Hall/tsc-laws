@@ -839,6 +839,7 @@ export class Orchestrator {
       },
       true,
       incrementalProgram.emitKindsOnCheckers(files),
+      incrementalProgram.checksOnCheckers,
     );
     return true;
   }
