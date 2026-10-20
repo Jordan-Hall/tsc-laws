@@ -797,9 +797,9 @@ export class Orchestrator {
    * The rest of `checkAndEmit` for a project with old build info on checker threads, as `tsc -p` rebuilds
    * (`recheckInParallel`, tsc-compile.ts): the program is shared with the threads first, then the
    * incremental program finds the files the change affects, and the threads check them when they are
-   * many enough (`rechecksOnThreads`). They also emit them, except where emit may skip writing a
-   * declaration file (composite): this thread then emits, as without threads. Returns whether the
-   * threads check, and then calls `then` once the project is emitted.
+   * many enough (`rechecksOnThreads`). They also emit them; for a composite program they hold the outputs, and
+   * this thread writes them without its unchanged declaration files (`skipDtsOutputOfComposite`). Returns
+   * whether the threads check, and then calls `then` once the project is emitted.
    */
   private recheckOnThreads(
     task: BuildTask,
@@ -830,7 +830,6 @@ export class Orchestrator {
       return false;
     }
     checked.checkOnly = new Set(files);
-    const emits = options.composite !== true;
     startParallelCheck(
       checked,
       count,
@@ -838,8 +837,8 @@ export class Orchestrator {
         this.emitAndReport(task, checked, times, oldSnapshot, checkTime, incrementalProgram);
         then();
       },
-      emits,
-      emits ? incrementalProgram.emitKindsOnCheckers(files) : undefined,
+      true,
+      incrementalProgram.emitKindsOnCheckers(files),
     );
     return true;
   }
