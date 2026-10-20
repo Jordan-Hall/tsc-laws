@@ -131,8 +131,6 @@ export class Program implements OutputPathsHost {
   mergedGlobals: MergedGlobals | undefined = undefined;
   /** What emit resolvers index for all files, built by the main thread for checker threads. */
   emitIndexes: EmitIndexes | undefined = undefined;
-  /** Whether the default library files are known to have no semantic diagnostics, for checker threads. */
-  librariesAreClean: boolean | undefined = undefined;
 
   /**
    * `loader`, if given, is a FileLoader of `host` and `commandLine` that has not loaded yet. With `previous`

@@ -26,7 +26,6 @@ import {
   type SourceFileMetadata,
 } from './program-utilities.js';
 import { bindSourceFile } from './binder.js';
-import { libraryDiagnosticsAreKnownEmpty } from './library-diagnostics.js';
 import { computeLineOfPosition } from './scanner.js';
 import { CommentDirectiveKind } from './types.js';
 
@@ -197,14 +196,11 @@ export function bindProgram(program: Program): void {
 }
 
 /**
- * A bound program with the checker that reports its diagnostics. Default library files are checked by a
- * checker of their own: tsgo spreads files over several checkers, so checking a library rarely changes
- * what the checker of another file reports, and other files are checked as if no library had been.
+ * A bound program with the checker that reports its diagnostics. It checks every file, the default
+ * library files too, as tsgo's checker does with the files it is given.
  */
 export class CheckedProgram {
   private reportingChecker: Checker | undefined = undefined;
-  private libraryChecker: Checker | undefined = undefined;
-  private librariesAreClean: boolean | undefined = undefined;
 
   constructor(readonly program: Program) {
     bindProgram(program);
@@ -229,12 +225,10 @@ export class CheckedProgram {
     return new Checker(new ProgramCheckerHost(this.program));
   }
 
-  /** Frees the checkers that report the program's diagnostics (`disposeChecker`). */
+  /** Frees the checker that reports the program's diagnostics (`disposeChecker`). */
   disposeCheckers(): void {
     if (this.reportingChecker !== undefined) disposeChecker(this.reportingChecker);
-    if (this.libraryChecker !== undefined) disposeChecker(this.libraryChecker);
     this.reportingChecker = undefined;
-    this.libraryChecker = undefined;
   }
 
   getBindDiagnostics(file: SourceFile | undefined): Diagnostic[] {
@@ -347,7 +341,7 @@ export class CheckedProgram {
   }
 
   getSuggestionDiagnostics(file: SourceFile | undefined): Diagnostic[] {
-    return this.collectChecked(file, (f) => this.checkerOf(f).getSuggestionDiagnostics(f));
+    return this.collectChecked(file, (f) => this.checker.getSuggestionDiagnostics(f));
   }
 
   /**
@@ -357,24 +351,10 @@ export class CheckedProgram {
    */
   getGlobalDiagnostics(withCheckerThreads = true): Diagnostic[] {
     if (this.program.getSourceFiles().length === 0) return [];
-    const libraryChecker = this.libraryChecker;
     const parallel = withCheckerThreads ? this.parallelGlobalDiagnostics : [];
     const own = this.ownGlobalDiagnostics ?? this.checker.getGlobalDiagnostics();
-    if (libraryChecker === undefined && parallel.length === 0) return own;
-    const result = [...own, ...parallel];
-    if (libraryChecker !== undefined) for (const d of libraryChecker.getGlobalDiagnostics()) result.push(d);
-    return sortAndDeduplicateDiagnostics(result);
-  }
-
-  /** The checker that checks `file`. */
-  private checkerOf(file: SourceFile): Checker {
-    if (!this.program.isSourceFileDefaultLibrary(file.path)) return this.checker;
-    let checker = this.libraryChecker;
-    if (checker === undefined) {
-      checker = this.createChecker();
-      this.libraryChecker = checker;
-    }
-    return checker;
+    if (parallel.length === 0) return own;
+    return sortAndDeduplicateDiagnostics([...own, ...parallel]);
   }
 
   /** Whether `file`'s bind and check diagnostics are reported. */
@@ -408,16 +388,8 @@ export class CheckedProgram {
 
   private getBindAndCheckDiagnostics(file: SourceFile): Diagnostic[] {
     const options = this.program.options;
-    if (this.program.isSourceFileDefaultLibrary(file.path)) {
-      let clean = this.librariesAreClean ?? this.program.librariesAreClean;
-      if (clean === undefined) {
-        clean = libraryDiagnosticsAreKnownEmpty(this.program);
-        this.librariesAreClean = clean;
-      }
-      if (clean) return [];
-    }
     const diagnostics = file.bindDiagnostics.slice();
-    for (const d of this.checkerOf(file).getDiagnostics(file)) diagnostics.push(d);
+    for (const d of this.checker.getDiagnostics(file)) diagnostics.push(d);
     if (isPlainJSFile(file, options)) {
       const result: Diagnostic[] = [];
       for (const d of diagnostics) if (plainJSErrors.has(d.code)) result.push(d);
