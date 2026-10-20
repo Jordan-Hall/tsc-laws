@@ -2793,7 +2793,12 @@ export class Parser extends ScannerErrorReporter {
         this.token() === SyntaxKind.AsteriskToken ? this.parseNamespaceImport() : this.parseNamedImports();
       if (skipJSDocLeadingAsterisks) this.scanner.setSkipJSDocLeadingAsterisks(false);
     }
-    const result = new ImportClause(phaseModifier, identifier, namedBindings);
+    // A clause without a phase modifier holds undefined, as decoded and factory-made clauses do.
+    const result = new ImportClause(
+      phaseModifier === SyntaxKind.Unknown ? undefined : phaseModifier,
+      identifier,
+      namedBindings,
+    );
     this.finishNode(result, pos);
     this.statementHasAwaitIdentifier = saveHasAwaitIdentifier;
     return result;

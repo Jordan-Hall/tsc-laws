@@ -483,96 +483,67 @@ export type LogicalOrCoalescingAssignmentOperator =
 export interface NodeBase extends Node {
   readonly flags: NodeFlags;
 }
-export interface StatementBase extends NodeBase {
-  readonly _statementBrand: any;
-}
+export interface StatementBase extends NodeBase {}
 export interface IterationStatementBase extends StatementBase {
   readonly statement: Statement;
 }
-export interface ExpressionBase extends NodeBase {
-  readonly _expressionBrand: any;
-}
-export interface UnaryExpressionBase extends ExpressionBase {
-  readonly _unaryExpressionBrand: any;
-}
-export interface UpdateExpressionBase extends UnaryExpressionBase {
-  readonly _updateExpressionBrand: any;
-}
-export interface LeftHandSideExpressionBase extends UpdateExpressionBase {
-  readonly _leftHandSideExpressionBrand: any;
-}
-export interface MemberExpressionBase extends LeftHandSideExpressionBase {
-  readonly _memberExpressionBrand: any;
-}
-export interface PrimaryExpressionBase extends MemberExpressionBase {
-  readonly _primaryExpressionBrand: any;
-}
-export interface TypeNodeBase extends NodeBase {
-  readonly _typeNodeBrand: any;
-}
+export interface ExpressionBase extends NodeBase {}
+export interface UnaryExpressionBase extends ExpressionBase {}
+export interface UpdateExpressionBase extends UnaryExpressionBase {}
+export interface LeftHandSideExpressionBase extends UpdateExpressionBase {}
+export interface MemberExpressionBase extends LeftHandSideExpressionBase {}
+export interface PrimaryExpressionBase extends MemberExpressionBase {}
+export interface TypeNodeBase extends NodeBase {}
 export interface NodeWithTypeArgumentsBase extends TypeNodeBase {
-  readonly typeArguments?: NodeList<TypeNode>;
+  readonly typeArguments?: NodeList<TypeNode> | undefined;
 }
-export interface JSDocTypeBase extends TypeNodeBase {
-  readonly _jsDocTypeBrand: any;
-}
-export interface DeclarationBase extends Node {
-  readonly _declarationBrand: any;
-}
+export interface JSDocTypeBase extends TypeNodeBase {}
+export interface DeclarationBase extends Node {}
 export interface ModifiersBase extends Node {
-  readonly modifiers?: ModifierList<ModifierLike>;
+  readonly modifiers?: ModifierList<ModifierLike> | undefined;
   readonly modifierFlags: ModifierFlags;
 }
 export interface FunctionLikeBase extends DeclarationBase {
-  readonly typeParameters?: NodeList<TypeParameterDeclaration>;
+  readonly typeParameters?: NodeList<TypeParameterDeclaration> | undefined;
   readonly parameters: NodeList<ParameterDeclaration>;
-  readonly type?: TypeNode;
-  readonly fullSignature?: TypeNode;
+  readonly type?: TypeNode | undefined;
+  readonly fullSignature?: TypeNode | undefined;
 }
 export interface BodyBase extends Node {
-  readonly asteriskToken?: AsteriskToken;
-  readonly body?: NodeBody;
+  readonly asteriskToken?: AsteriskToken | undefined;
+  readonly body?: NodeBody | undefined;
 }
 export interface FunctionLikeWithBodyBase extends FunctionLikeBase, BodyBase {
-  readonly _functionLikeDeclarationBrand: any;
-  readonly body?: BlockOrExpression;
+  readonly body?: BlockOrExpression | undefined;
 }
 export interface ClassLikeBase extends DeclarationBase, ModifiersBase {
-  readonly name?: Identifier;
-  readonly typeParameters?: NodeList<TypeParameterDeclaration>;
-  readonly heritageClauses?: NodeList<HeritageClause>;
+  readonly name?: Identifier | undefined;
+  readonly typeParameters?: NodeList<TypeParameterDeclaration> | undefined;
+  readonly heritageClauses?: NodeList<HeritageClause> | undefined;
   readonly members: NodeList<ClassElement>;
 }
 export interface LiteralLikeNodeBase extends Node {
   readonly text: string;
   readonly tokenFlags: TokenFlags;
 }
-export interface LiteralExpressionBase extends LiteralLikeNodeBase, PrimaryExpressionBase {
-  readonly _literalExpressionBrand: any;
-}
+export interface LiteralExpressionBase extends LiteralLikeNodeBase, PrimaryExpressionBase {}
 export interface TemplateLiteralLikeNodeBase extends LiteralLikeNodeBase {
-  readonly rawText: string;
+  readonly rawText?: string | undefined;
   readonly templateFlags: TokenFlags;
 }
-export interface TypeElementBase extends Node {
-  readonly _typeElementBrand: any;
-}
-export interface ClassElementBase extends Node {
-  readonly _classElementBrand: any;
-}
+export interface TypeElementBase extends Node {}
+export interface ClassElementBase extends Node {}
 export interface NamedMemberBase extends DeclarationBase, ModifiersBase {
   readonly name: PropertyName;
-  readonly postfixToken?: QuestionToken | ExclamationToken;
+  readonly postfixToken?: QuestionToken | ExclamationToken | undefined;
 }
-export interface ObjectLiteralElementBase extends Node {
-  readonly _objectLiteralBrand: any;
-}
+export interface ObjectLiteralElementBase extends Node {}
 export interface UnionOrIntersectionTypeNodeBase extends TypeNodeBase {
   readonly types: NodeList<TypeNode>;
 }
 export interface JSDocTagBase extends NodeBase {
   readonly tagName: Identifier;
-  readonly comment?: NodeList<JSDocComment>;
+  readonly comment?: NodeList<JSDocComment> | undefined;
 }
 export interface JSDocCommentBase extends NodeBase {
   readonly text: string;
@@ -609,7 +580,7 @@ export interface IfStatement extends StatementBase {
   readonly kind: SyntaxKind.IfStatement;
   readonly expression: Expression;
   readonly thenStatement: Statement;
-  readonly elseStatement?: Statement;
+  readonly elseStatement?: Statement | undefined;
 }
 export interface DoStatement extends IterationStatementBase {
   readonly kind: SyntaxKind.DoStatement;
@@ -621,21 +592,21 @@ export interface WhileStatement extends IterationStatementBase {
 }
 export interface ForStatement extends IterationStatementBase {
   readonly kind: SyntaxKind.ForStatement;
-  readonly initializer?: ForInitializer;
-  readonly condition?: Expression;
-  readonly incrementor?: Expression;
+  readonly initializer?: ForInitializer | undefined;
+  readonly condition?: Expression | undefined;
+  readonly incrementor?: Expression | undefined;
 }
 export interface BreakStatement extends StatementBase {
   readonly kind: SyntaxKind.BreakStatement;
-  readonly label?: Identifier;
+  readonly label?: Identifier | undefined;
 }
 export interface ContinueStatement extends StatementBase {
   readonly kind: SyntaxKind.ContinueStatement;
-  readonly label?: Identifier;
+  readonly label?: Identifier | undefined;
 }
 export interface ReturnStatement extends StatementBase {
   readonly kind: SyntaxKind.ReturnStatement;
-  readonly expression?: Expression;
+  readonly expression?: Expression | undefined;
 }
 export interface WithStatement extends StatementBase {
   readonly kind: SyntaxKind.WithStatement;
@@ -658,12 +629,12 @@ export interface ThrowStatement extends StatementBase {
 export interface TryStatement extends StatementBase {
   readonly kind: SyntaxKind.TryStatement;
   readonly tryBlock: Block;
-  readonly catchClause?: CatchClause;
-  readonly finallyBlock?: Block;
+  readonly catchClause?: CatchClause | undefined;
+  readonly finallyBlock?: Block | undefined;
 }
 export interface CatchClause extends NodeBase {
   readonly kind: SyntaxKind.CatchClause;
-  readonly variableDeclaration?: VariableDeclaration;
+  readonly variableDeclaration?: VariableDeclaration | undefined;
   readonly block: Block;
 }
 export interface DebuggerStatement extends StatementBase {
@@ -690,9 +661,9 @@ export interface VariableStatement extends StatementBase, ModifiersBase {
 export interface VariableDeclaration extends NodeBase, DeclarationBase {
   readonly kind: SyntaxKind.VariableDeclaration;
   readonly name: BindingName;
-  readonly exclamationToken?: ExclamationToken;
-  readonly type?: TypeNode;
-  readonly initializer?: Expression;
+  readonly exclamationToken?: ExclamationToken | undefined;
+  readonly type?: TypeNode | undefined;
+  readonly initializer?: Expression | undefined;
 }
 export interface VariableDeclarationList extends NodeBase {
   readonly kind: SyntaxKind.VariableDeclarationList;
@@ -700,26 +671,26 @@ export interface VariableDeclarationList extends NodeBase {
 }
 export interface ParameterDeclaration extends NodeBase, DeclarationBase, ModifiersBase {
   readonly kind: SyntaxKind.Parameter;
-  readonly dotDotDotToken?: DotDotDotToken;
+  readonly dotDotDotToken?: DotDotDotToken | undefined;
   readonly name: BindingName;
-  readonly questionToken?: QuestionToken;
-  readonly type?: TypeNode;
-  readonly initializer?: Expression;
+  readonly questionToken?: QuestionToken | undefined;
+  readonly type?: TypeNode | undefined;
+  readonly initializer?: Expression | undefined;
 }
 export interface BindingElement extends NodeBase, DeclarationBase {
   readonly kind: SyntaxKind.BindingElement;
-  readonly dotDotDotToken?: DotDotDotToken;
-  readonly propertyName?: PropertyName;
-  readonly name?: BindingName;
-  readonly initializer?: Expression;
+  readonly dotDotDotToken?: DotDotDotToken | undefined;
+  readonly propertyName?: PropertyName | undefined;
+  readonly name?: BindingName | undefined;
+  readonly initializer?: Expression | undefined;
 }
 export interface MissingDeclaration extends StatementBase, DeclarationBase, ModifiersBase {
   readonly kind: SyntaxKind.MissingDeclaration;
 }
 export interface FunctionDeclaration extends DeclarationBase, StatementBase, ModifiersBase, FunctionLikeWithBodyBase {
   readonly kind: SyntaxKind.FunctionDeclaration;
-  readonly name?: Identifier;
-  readonly body?: FunctionBody;
+  readonly name?: Identifier | undefined;
+  readonly body?: FunctionBody | undefined;
 }
 export interface ClassDeclaration extends DeclarationBase, StatementBase, ClassLikeBase {
   readonly kind: SyntaxKind.ClassDeclaration;
@@ -735,19 +706,19 @@ export interface HeritageClause extends NodeBase {
 export interface InterfaceDeclaration extends DeclarationBase, StatementBase, ModifiersBase {
   readonly kind: SyntaxKind.InterfaceDeclaration;
   readonly name: Identifier;
-  readonly typeParameters?: NodeList<TypeParameterDeclaration>;
-  readonly heritageClauses?: NodeList<HeritageClause>;
+  readonly typeParameters?: NodeList<TypeParameterDeclaration> | undefined;
+  readonly heritageClauses?: NodeList<HeritageClause> | undefined;
   readonly members: NodeList<TypeElement>;
 }
 export interface TypeAliasDeclaration extends DeclarationBase, StatementBase, ModifiersBase {
   readonly kind: SyntaxKind.TypeAliasDeclaration;
   readonly name: Identifier;
-  readonly typeParameters?: NodeList<TypeParameterDeclaration>;
+  readonly typeParameters?: NodeList<TypeParameterDeclaration> | undefined;
   readonly type: TypeNode;
 }
 export interface EnumMember extends NodeBase, NamedMemberBase {
   readonly kind: SyntaxKind.EnumMember;
-  readonly initializer?: Expression;
+  readonly initializer?: Expression | undefined;
 }
 export interface EnumDeclaration extends DeclarationBase, StatementBase, ModifiersBase {
   readonly kind: SyntaxKind.EnumDeclaration;
@@ -766,9 +737,9 @@ export interface NotEmittedTypeElement extends NodeBase, TypeElementBase {
 }
 export interface ImportDeclaration extends StatementBase, ModifiersBase, DeclarationBase {
   readonly kind: SyntaxKind.ImportDeclaration;
-  readonly importClause?: ImportClause;
+  readonly importClause?: ImportClause | undefined;
   readonly moduleSpecifier: Expression;
-  readonly attributes?: ImportAttributes;
+  readonly attributes?: ImportAttributes | undefined;
 }
 export interface ExternalModuleReference extends NodeBase {
   readonly kind: SyntaxKind.ExternalModuleReference;
@@ -785,7 +756,7 @@ export interface NamedImports extends NodeBase {
 export interface ExportAssignment extends DeclarationBase, StatementBase, ModifiersBase {
   readonly kind: SyntaxKind.ExportAssignment;
   readonly isExportEquals: boolean;
-  readonly type?: TypeNode;
+  readonly type?: TypeNode | undefined;
   readonly expression: Expression;
 }
 export interface NamespaceExportDeclaration extends DeclarationBase, StatementBase, ModifiersBase {
@@ -803,7 +774,7 @@ export interface NamedExports extends NodeBase {
 export interface ExportSpecifier extends NodeBase, DeclarationBase {
   readonly kind: SyntaxKind.ExportSpecifier;
   readonly isTypeOnly: boolean;
-  readonly propertyName?: ModuleExportName;
+  readonly propertyName?: ModuleExportName | undefined;
   readonly name: ModuleExportName;
 }
 export interface CallSignatureDeclaration extends NodeBase, DeclarationBase, FunctionLikeBase, TypeElementBase {
@@ -815,7 +786,7 @@ export interface ConstructSignatureDeclaration extends NodeBase, DeclarationBase
 export interface ConstructorDeclaration
   extends NodeBase, DeclarationBase, ModifiersBase, FunctionLikeWithBodyBase, ClassElementBase {
   readonly kind: SyntaxKind.Constructor;
-  readonly body?: FunctionBody;
+  readonly body?: FunctionBody | undefined;
 }
 export interface GetAccessorDeclaration
   extends
@@ -826,7 +797,7 @@ export interface GetAccessorDeclaration
     ObjectLiteralElementBase,
     NodeBase {
   readonly kind: SyntaxKind.GetAccessor;
-  readonly body?: FunctionBody;
+  readonly body?: FunctionBody | undefined;
 }
 export interface SetAccessorDeclaration
   extends
@@ -837,12 +808,12 @@ export interface SetAccessorDeclaration
     ObjectLiteralElementBase,
     NodeBase {
   readonly kind: SyntaxKind.SetAccessor;
-  readonly body?: FunctionBody;
+  readonly body?: FunctionBody | undefined;
 }
 export interface IndexSignatureDeclaration
   extends NodeBase, DeclarationBase, ModifiersBase, FunctionLikeBase, TypeElementBase, ClassElementBase {
   readonly kind: SyntaxKind.IndexSignature;
-  readonly type?: TypeNode;
+  readonly type?: TypeNode | undefined;
 }
 export interface MethodSignatureDeclaration extends NodeBase, NamedMemberBase, FunctionLikeBase, TypeElementBase {
   readonly kind: SyntaxKind.MethodSignature;
@@ -850,17 +821,17 @@ export interface MethodSignatureDeclaration extends NodeBase, NamedMemberBase, F
 export interface MethodDeclaration
   extends NodeBase, NamedMemberBase, FunctionLikeWithBodyBase, ClassElementBase, ObjectLiteralElementBase {
   readonly kind: SyntaxKind.MethodDeclaration;
-  readonly body?: FunctionBody;
+  readonly body?: FunctionBody | undefined;
 }
 export interface PropertySignatureDeclaration extends NodeBase, NamedMemberBase, TypeElementBase {
   readonly kind: SyntaxKind.PropertySignature;
-  readonly type?: TypeNode;
-  readonly initializer?: Expression;
+  readonly type?: TypeNode | undefined;
+  readonly initializer?: Expression | undefined;
 }
 export interface PropertyDeclaration extends NodeBase, NamedMemberBase, ClassElementBase {
   readonly kind: SyntaxKind.PropertyDeclaration;
-  readonly type?: TypeNode;
-  readonly initializer?: Expression;
+  readonly type?: TypeNode | undefined;
+  readonly initializer?: Expression | undefined;
 }
 export interface SemicolonClassElement extends NodeBase, DeclarationBase, ClassElementBase {
   readonly kind: SyntaxKind.SemicolonClassElement;
@@ -895,7 +866,7 @@ export interface NoSubstitutionTemplateLiteral extends ExpressionBase, TemplateL
 export interface BinaryExpression extends ExpressionBase, DeclarationBase, ModifiersBase {
   readonly kind: SyntaxKind.BinaryExpression;
   readonly left: Expression;
-  readonly type?: TypeNode;
+  readonly type?: TypeNode | undefined;
   readonly operatorToken: BinaryOperatorToken;
   readonly right: Expression;
 }
@@ -917,18 +888,18 @@ export interface PostfixUnaryExpression extends UpdateExpressionBase {
 }
 export interface YieldExpression extends ExpressionBase {
   readonly kind: SyntaxKind.YieldExpression;
-  readonly asteriskToken?: AsteriskToken;
-  readonly expression?: Expression;
+  readonly asteriskToken?: AsteriskToken | undefined;
+  readonly expression?: Expression | undefined;
 }
 export interface ArrowFunction extends ExpressionBase, DeclarationBase, ModifiersBase, FunctionLikeWithBodyBase {
   readonly kind: SyntaxKind.ArrowFunction;
-  readonly equalsGreaterThanToken?: EqualsGreaterThanToken;
+  readonly equalsGreaterThanToken?: EqualsGreaterThanToken | undefined;
   readonly body: ConciseBody;
 }
 export interface FunctionExpression
   extends PrimaryExpressionBase, DeclarationBase, ModifiersBase, FunctionLikeWithBodyBase {
   readonly kind: SyntaxKind.FunctionExpression;
-  readonly name?: Identifier;
+  readonly name?: Identifier | undefined;
   readonly body: FunctionBody;
 }
 export interface AsExpression extends ExpressionBase {
@@ -952,27 +923,27 @@ export interface ConditionalExpression extends ExpressionBase {
 export interface PropertyAccessExpression extends MemberExpressionBase {
   readonly kind: SyntaxKind.PropertyAccessExpression;
   readonly expression: Expression;
-  readonly questionDotToken?: QuestionDotToken;
+  readonly questionDotToken?: QuestionDotToken | undefined;
   readonly name: MemberName;
 }
 export interface ElementAccessExpression extends MemberExpressionBase {
   readonly kind: SyntaxKind.ElementAccessExpression;
   readonly expression: Expression;
-  readonly questionDotToken?: QuestionDotToken;
+  readonly questionDotToken?: QuestionDotToken | undefined;
   readonly argumentExpression: Expression;
 }
 export interface CallExpression extends LeftHandSideExpressionBase, DeclarationBase {
   readonly kind: SyntaxKind.CallExpression;
   readonly expression: Expression;
-  readonly questionDotToken?: QuestionDotToken;
-  readonly typeArguments?: NodeList<TypeNode>;
+  readonly questionDotToken?: QuestionDotToken | undefined;
+  readonly typeArguments?: NodeList<TypeNode> | undefined;
   readonly arguments: NodeList<Expression>;
 }
 export interface NewExpression extends PrimaryExpressionBase {
   readonly kind: SyntaxKind.NewExpression;
   readonly expression: Expression;
-  readonly typeArguments?: NodeList<TypeNode>;
-  readonly arguments?: NodeList<Expression>;
+  readonly typeArguments?: NodeList<TypeNode> | undefined;
+  readonly arguments?: NodeList<Expression> | undefined;
 }
 export interface MetaProperty extends PrimaryExpressionBase {
   readonly kind: SyntaxKind.MetaProperty;
@@ -1000,8 +971,8 @@ export interface TemplateSpan extends NodeBase {
 export interface TaggedTemplateExpression extends MemberExpressionBase {
   readonly kind: SyntaxKind.TaggedTemplateExpression;
   readonly tag: Expression;
-  readonly questionDotToken?: QuestionDotToken;
-  readonly typeArguments?: NodeList<TypeNode>;
+  readonly questionDotToken?: QuestionDotToken | undefined;
+  readonly typeArguments?: NodeList<TypeNode> | undefined;
   readonly template: TemplateLiteral;
 }
 export interface ParenthesizedExpression extends PrimaryExpressionBase {
@@ -1024,14 +995,14 @@ export interface SpreadAssignment extends NodeBase, DeclarationBase, ObjectLiter
 }
 export interface PropertyAssignment extends NodeBase, NamedMemberBase, ObjectLiteralElementBase {
   readonly kind: SyntaxKind.PropertyAssignment;
-  readonly type?: TypeNode;
+  readonly type?: TypeNode | undefined;
   readonly initializer: Expression;
 }
 export interface ShorthandPropertyAssignment extends NodeBase, NamedMemberBase, ObjectLiteralElementBase {
   readonly kind: SyntaxKind.ShorthandPropertyAssignment;
-  readonly type?: TypeNode;
-  readonly equalsToken?: EqualsToken;
-  readonly objectAssignmentInitializer?: Expression;
+  readonly type?: TypeNode | undefined;
+  readonly equalsToken?: EqualsToken | undefined;
+  readonly objectAssignmentInitializer?: Expression | undefined;
 }
 export interface DeleteExpression extends UnaryExpressionBase {
   readonly kind: SyntaxKind.DeleteExpression;
@@ -1095,7 +1066,7 @@ export interface TypeReferenceNode extends NodeWithTypeArgumentsBase {
 export interface ExpressionWithTypeArguments extends MemberExpressionBase {
   readonly kind: SyntaxKind.ExpressionWithTypeArguments;
   readonly expression: Expression;
-  readonly typeArguments?: NodeList<TypeNode>;
+  readonly typeArguments?: NodeList<TypeNode> | undefined;
 }
 export interface LiteralTypeNode extends TypeNodeBase {
   readonly kind: SyntaxKind.LiteralType;
@@ -1106,13 +1077,13 @@ export interface ThisTypeNode extends TypeNodeBase {
 }
 export interface TypePredicateNode extends TypeNodeBase {
   readonly kind: SyntaxKind.TypePredicate;
-  readonly assertsModifier?: AssertsKeyword;
+  readonly assertsModifier?: AssertsKeyword | undefined;
   readonly parameterName: TypePredicateParameterName;
-  readonly type?: TypeNode;
+  readonly type?: TypeNode | undefined;
 }
 export interface ImportAttribute extends NodeBase {
   readonly kind: SyntaxKind.ImportAttribute;
-  readonly name?: ImportAttributeName;
+  readonly name?: ImportAttributeName | undefined;
   readonly value: Expression;
 }
 export interface ImportAttributes extends NodeBase {
@@ -1127,12 +1098,12 @@ export interface TypeQueryNode extends NodeWithTypeArgumentsBase {
 }
 export interface MappedTypeNode extends TypeNodeBase, DeclarationBase {
   readonly kind: SyntaxKind.MappedType;
-  readonly readonlyToken?: ReadonlyKeyword | PlusToken | MinusToken;
+  readonly readonlyToken?: ReadonlyKeyword | PlusToken | MinusToken | undefined;
   readonly typeParameter: TypeParameterDeclaration;
-  readonly nameType?: TypeNode;
-  readonly questionToken?: QuestionToken | PlusToken | MinusToken;
-  readonly type?: TypeNode;
-  readonly members?: NodeList<TypeElement>;
+  readonly nameType?: TypeNode | undefined;
+  readonly questionToken?: QuestionToken | PlusToken | MinusToken | undefined;
+  readonly type?: TypeNode | undefined;
+  readonly members?: NodeList<TypeElement> | undefined;
 }
 export interface TypeLiteralNode extends TypeNodeBase, DeclarationBase {
   readonly kind: SyntaxKind.TypeLiteral;
@@ -1144,9 +1115,9 @@ export interface TupleTypeNode extends TypeNodeBase {
 }
 export interface NamedTupleMember extends TypeNodeBase, DeclarationBase {
   readonly kind: SyntaxKind.NamedTupleMember;
-  readonly dotDotDotToken?: DotDotDotToken;
+  readonly dotDotDotToken?: DotDotDotToken | undefined;
   readonly name: Identifier;
-  readonly questionToken?: QuestionToken;
+  readonly questionToken?: QuestionToken | undefined;
   readonly type: TypeNode;
 }
 export interface OptionalTypeNode extends TypeNodeBase {
@@ -1169,12 +1140,15 @@ export interface ConstructorTypeNode extends TypeNodeBase, ModifiersBase, Functi
 }
 export interface TemplateHead extends NodeBase, TemplateLiteralLikeNodeBase {
   readonly kind: SyntaxKind.TemplateHead;
+  readonly rawText: string;
 }
 export interface TemplateMiddle extends NodeBase, TemplateLiteralLikeNodeBase {
   readonly kind: SyntaxKind.TemplateMiddle;
+  readonly rawText: string;
 }
 export interface TemplateTail extends NodeBase, TemplateLiteralLikeNodeBase {
   readonly kind: SyntaxKind.TemplateTail;
+  readonly rawText: string;
 }
 export interface TemplateLiteralTypeNode extends TypeNodeBase {
   readonly kind: SyntaxKind.TemplateLiteralType;
@@ -1190,7 +1164,7 @@ export interface SyntheticExpression extends ExpressionBase {
   readonly kind: SyntaxKind.SyntheticExpression;
   readonly type: any;
   readonly isSpread: boolean;
-  readonly tupleNameSource?: Node;
+  readonly tupleNameSource?: Node | undefined;
 }
 export interface PartiallyEmittedExpression extends LeftHandSideExpressionBase {
   readonly kind: SyntaxKind.PartiallyEmittedExpression;
@@ -1214,13 +1188,13 @@ export interface JsxNamespacedName extends ExpressionBase {
 export interface JsxOpeningElement extends ExpressionBase {
   readonly kind: SyntaxKind.JsxOpeningElement;
   readonly tagName: JsxTagNameExpression;
-  readonly typeArguments?: NodeList<TypeNode>;
+  readonly typeArguments?: NodeList<TypeNode> | undefined;
   readonly attributes: JsxAttributes;
 }
 export interface JsxSelfClosingElement extends PrimaryExpressionBase {
   readonly kind: SyntaxKind.JsxSelfClosingElement;
   readonly tagName: JsxTagNameExpression;
-  readonly typeArguments?: NodeList<TypeNode>;
+  readonly typeArguments?: NodeList<TypeNode> | undefined;
   readonly attributes: JsxAttributes;
 }
 export interface JsxFragment extends PrimaryExpressionBase {
@@ -1238,7 +1212,7 @@ export interface JsxClosingFragment extends ExpressionBase {
 export interface JsxAttribute extends NodeBase, DeclarationBase {
   readonly kind: SyntaxKind.JsxAttribute;
   readonly name: JsxAttributeName;
-  readonly initializer?: JsxAttributeValue;
+  readonly initializer?: JsxAttributeValue | undefined;
 }
 export interface JsxSpreadAttribute extends ObjectLiteralElementBase, NodeBase {
   readonly kind: SyntaxKind.JsxSpreadAttribute;
@@ -1250,8 +1224,8 @@ export interface JsxClosingElement extends NodeBase {
 }
 export interface JsxExpression extends ExpressionBase {
   readonly kind: SyntaxKind.JsxExpression;
-  readonly dotDotDotToken?: DotDotDotToken;
-  readonly expression?: Expression;
+  readonly dotDotDotToken?: DotDotDotToken | undefined;
+  readonly expression?: Expression | undefined;
 }
 export interface JsxText extends ExpressionBase, LiteralLikeNodeBase {
   readonly kind: SyntaxKind.JsxText;
@@ -1264,7 +1238,7 @@ export interface SyntaxList extends NodeBase {
 export interface JSDoc extends NodeBase {
   readonly kind: SyntaxKind.JSDoc;
   readonly comment: NodeList<JSDocComment>;
-  readonly tags?: NodeList<JSDocTag>;
+  readonly tags?: NodeList<JSDocTag> | undefined;
 }
 export interface JSDocTypeExpression extends TypeNodeBase {
   readonly kind: SyntaxKind.JSDocTypeExpression;
@@ -1291,19 +1265,19 @@ export interface JSDocOptionalType extends JSDocTypeBase {
 }
 export interface JSDocTypeTag extends JSDocTagBase {
   readonly kind: SyntaxKind.JSDocTypeTag;
-  readonly typeExpression?: Node;
+  readonly typeExpression: Node;
 }
 export interface JSDocUnknownTag extends JSDocTagBase {
   readonly kind: SyntaxKind.JSDocUnknownTag;
 }
 export interface JSDocTemplateTag extends JSDocTagBase {
   readonly kind: SyntaxKind.JSDocTemplateTag;
-  readonly constraint?: Node;
+  readonly constraint?: Node | undefined;
   readonly typeParameters: NodeList<TypeParameterDeclaration>;
 }
 export interface JSDocReturnTag extends JSDocTagBase {
   readonly kind: SyntaxKind.JSDocReturnTag;
-  readonly typeExpression?: TypeNode;
+  readonly typeExpression?: TypeNode | undefined;
 }
 export interface JSDocPublicTag extends JSDocTagBase {
   readonly kind: SyntaxKind.JSDocPublicTag;
@@ -1325,7 +1299,7 @@ export interface JSDocDeprecatedTag extends JSDocTagBase {
 }
 export interface JSDocSeeTag extends JSDocTagBase {
   readonly kind: SyntaxKind.JSDocSeeTag;
-  readonly nameExpression?: TypeNode;
+  readonly nameExpression?: TypeNode | undefined;
 }
 export interface JSDocImplementsTag extends JSDocTagBase {
   readonly kind: SyntaxKind.JSDocImplementsTag;
@@ -1341,7 +1315,7 @@ export interface JSDocSatisfiesTag extends JSDocTagBase {
 }
 export interface JSDocThrowsTag extends JSDocTagBase {
   readonly kind: SyntaxKind.JSDocThrowsTag;
-  readonly typeExpression?: TypeNode;
+  readonly typeExpression?: TypeNode | undefined;
 }
 export interface JSDocThisTag extends JSDocTagBase {
   readonly kind: SyntaxKind.JSDocThisTag;
@@ -1349,14 +1323,14 @@ export interface JSDocThisTag extends JSDocTagBase {
 }
 export interface JSDocImportTag extends JSDocTagBase {
   readonly kind: SyntaxKind.JSDocImportTag;
-  readonly importClause?: ImportClause;
+  readonly importClause?: ImportClause | undefined;
   readonly moduleSpecifier: Expression;
-  readonly attributes?: ImportAttributes;
+  readonly attributes?: ImportAttributes | undefined;
 }
 export interface JSDocCallbackTag extends JSDocTagBase {
   readonly kind: SyntaxKind.JSDocCallbackTag;
   readonly typeExpression: TypeNode;
-  readonly name?: JSDocFullName;
+  readonly name?: JSDocFullName | undefined;
 }
 export interface JSDocOverloadTag extends JSDocTagBase {
   readonly kind: SyntaxKind.JSDocOverloadTag;
@@ -1364,21 +1338,21 @@ export interface JSDocOverloadTag extends JSDocTagBase {
 }
 export interface JSDocTypedefTag extends JSDocTagBase {
   readonly kind: SyntaxKind.JSDocTypedefTag;
-  readonly typeExpression?: Node;
-  readonly name?: JSDocFullName;
+  readonly typeExpression?: Node | undefined;
+  readonly name?: JSDocFullName | undefined;
 }
 export interface JSDocSignature extends JSDocTypeBase, FunctionLikeBase {
   readonly kind: SyntaxKind.JSDocSignature;
 }
 export interface JSDocNameReference extends TypeNodeBase {
   readonly kind: SyntaxKind.JSDocNameReference;
-  readonly name?: EntityName;
+  readonly name?: EntityName | undefined;
 }
 export interface ModuleDeclaration extends DeclarationBase, StatementBase, ModifiersBase, BodyBase {
   readonly kind: SyntaxKind.ModuleDeclaration;
-  readonly keyword: SyntaxKind.ModuleKeyword | SyntaxKind.NamespaceKeyword;
+  readonly keyword: SyntaxKind.ModuleKeyword | SyntaxKind.NamespaceKeyword | SyntaxKind.GlobalKeyword;
   readonly name: ModuleName;
-  readonly body?: ModuleBody;
+  readonly body?: ModuleBody | undefined;
 }
 export interface ImportEqualsDeclaration extends DeclarationBase, StatementBase, ModifiersBase {
   readonly kind: SyntaxKind.ImportEqualsDeclaration;
@@ -1389,27 +1363,27 @@ export interface ImportEqualsDeclaration extends DeclarationBase, StatementBase,
 export interface ExportDeclaration extends DeclarationBase, StatementBase, ModifiersBase {
   readonly kind: SyntaxKind.ExportDeclaration;
   readonly isTypeOnly: boolean;
-  readonly exportClause?: NamedExportBindings;
-  readonly moduleSpecifier?: Expression;
-  readonly attributes?: ImportAttributes;
+  readonly exportClause?: NamedExportBindings | undefined;
+  readonly moduleSpecifier?: Expression | undefined;
+  readonly attributes?: ImportAttributes | undefined;
 }
 export interface ImportTypeNode extends NodeWithTypeArgumentsBase {
   readonly kind: SyntaxKind.ImportType;
   readonly isTypeOf: boolean;
   readonly argument: TypeNode;
-  readonly attributes?: ImportAttributes;
-  readonly qualifier?: EntityName;
+  readonly attributes?: ImportAttributes | undefined;
+  readonly qualifier?: EntityName | undefined;
 }
 export interface ImportClause extends NodeBase, DeclarationBase {
   readonly kind: SyntaxKind.ImportClause;
-  readonly phaseModifier?: ImportPhaseModifierSyntaxKind;
-  readonly name?: Identifier;
-  readonly namedBindings?: NamedImportBindings;
+  readonly phaseModifier?: ImportPhaseModifierSyntaxKind | undefined;
+  readonly name?: Identifier | undefined;
+  readonly namedBindings?: NamedImportBindings | undefined;
 }
 export interface ImportSpecifier extends NodeBase, DeclarationBase {
   readonly kind: SyntaxKind.ImportSpecifier;
   readonly isTypeOnly: boolean;
-  readonly propertyName?: ModuleExportName;
+  readonly propertyName?: ModuleExportName | undefined;
   readonly name: Identifier;
 }
 export interface JSDocText extends JSDocCommentBase {
@@ -1417,22 +1391,22 @@ export interface JSDocText extends JSDocCommentBase {
 }
 export interface JSDocLink extends JSDocCommentBase {
   readonly kind: SyntaxKind.JSDocLink;
-  readonly name?: EntityName;
+  readonly name?: EntityName | undefined;
 }
 export interface JSDocLinkPlain extends JSDocCommentBase {
   readonly kind: SyntaxKind.JSDocLinkPlain;
-  readonly name?: EntityName;
+  readonly name?: EntityName | undefined;
 }
 export interface JSDocLinkCode extends JSDocCommentBase {
   readonly kind: SyntaxKind.JSDocLinkCode;
-  readonly name?: EntityName;
+  readonly name?: EntityName | undefined;
 }
 export interface TypeParameterDeclaration extends NodeBase, DeclarationBase, ModifiersBase {
   readonly kind: SyntaxKind.TypeParameter;
   readonly name: Identifier;
-  readonly constraint?: TypeNode;
-  readonly expression?: Expression;
-  readonly defaultType?: TypeNode;
+  readonly constraint?: TypeNode | undefined;
+  readonly expression?: Expression | undefined;
+  readonly defaultType?: TypeNode | undefined;
 }
 export interface SyntheticReferenceExpression extends ExpressionBase {
   readonly kind: SyntaxKind.SyntheticReferenceExpression;
@@ -1441,7 +1415,7 @@ export interface SyntheticReferenceExpression extends ExpressionBase {
 }
 export interface JSDocTypeLiteral extends JSDocTypeBase, DeclarationBase {
   readonly kind: SyntaxKind.JSDocTypeLiteral;
-  readonly jsdocPropertyTags?: readonly JSDocTag[];
+  readonly jsdocPropertyTags?: readonly JSDocTag[] | undefined;
   readonly isArrayType: boolean;
 }
 
@@ -1599,26 +1573,26 @@ export type IncrementExpression = UpdateExpressionBase;
 
 export interface ForInStatement extends StatementBase {
   readonly kind: SyntaxKind.ForInStatement;
-  readonly awaitModifier?: AwaitKeyword;
+  readonly awaitModifier?: AwaitKeyword | undefined;
   readonly initializer: ForInitializer;
   readonly expression: Expression;
   readonly statement: Statement;
 }
 export interface ForOfStatement extends StatementBase {
   readonly kind: SyntaxKind.ForOfStatement;
-  readonly awaitModifier?: AwaitKeyword;
+  readonly awaitModifier?: AwaitKeyword | undefined;
   readonly initializer: ForInitializer;
   readonly expression: Expression;
   readonly statement: Statement;
 }
 export interface CaseClause extends NodeBase {
   readonly kind: SyntaxKind.CaseClause;
-  readonly expression?: Expression;
+  readonly expression: Expression;
   readonly statements: NodeList<Statement>;
 }
 export interface DefaultClause extends NodeBase {
   readonly kind: SyntaxKind.DefaultClause;
-  readonly expression?: Expression;
+  readonly expression?: undefined;
   readonly statements: NodeList<Statement>;
 }
 export interface ObjectBindingPattern extends NodeBase {
@@ -1633,14 +1607,14 @@ export interface JSDocParameterTag extends JSDocTagBase {
   readonly kind: SyntaxKind.JSDocParameterTag;
   readonly name: EntityName;
   readonly isBracketed: boolean;
-  readonly typeExpression?: TypeNode;
+  readonly typeExpression?: TypeNode | undefined;
   readonly isNameFirst: boolean;
 }
 export interface JSDocPropertyTag extends JSDocTagBase {
   readonly kind: SyntaxKind.JSDocPropertyTag;
   readonly name: EntityName;
   readonly isBracketed: boolean;
-  readonly typeExpression?: TypeNode;
+  readonly typeExpression?: TypeNode | undefined;
   readonly isNameFirst: boolean;
 }
 export type ForInOrOfStatement = ForInStatement | ForOfStatement;

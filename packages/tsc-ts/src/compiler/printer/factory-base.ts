@@ -1524,7 +1524,7 @@ export abstract class NodeFactoryBase {
   updateJSDocTypeTag(
     node: JSDocTypeTag,
     tagName: Identifier,
-    typeExpression: Node | undefined,
+    typeExpression: Node,
     comment: NodeList | undefined,
   ): JSDocTypeTag {
     if (tagName !== node.tagName || typeExpression !== node.typeExpression || comment !== node.comment) {

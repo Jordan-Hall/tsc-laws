@@ -157,6 +157,12 @@ function binderFields(def) {
   return result;
 }
 
+/** Whether a definition extends `base`, directly or through other bases. */
+function extendsBase(names, base) {
+  for (const bn of names ?? []) if (bn === base || extendsBase(bases[bn]?.extends, base)) return true;
+  return false;
+}
+
 /** The node classes, with their kinds and members in factory/visitor order. */
 function nodeClasses() {
   const classes = [];
@@ -207,7 +213,11 @@ function nodeClasses() {
       const optional = field.optional === true || nullable.has(`${name}.${m.name}`);
       members.push({ name: fieldName(m.name), type, optional, child });
     }
-    classes.push({ name, kinds, members, hasKindParam, binder: binderFields(def) });
+    // Literal-like kinds that store no token flags (template literals, JSX text) report none, as
+    // TypeScript 7's API does.
+    const noTokenFlags =
+      extendsBase(def.extends, 'LiteralLikeNodeBase') && !members.some((m) => m.name === 'tokenFlags');
+    classes.push({ name, kinds, members, hasKindParam, binder: binderFields(def), noTokenFlags });
   }
   return classes;
 }
@@ -243,6 +253,12 @@ function emitClass(c) {
   for (const f of c.binder) lines.push(`    this.${f.name} = undefined;`);
   lines.push('  }');
   lines.push('');
+  if (c.noTokenFlags) {
+    lines.push('  get tokenFlags(): TokenFlags {');
+    lines.push('    return TokenFlags.None;');
+    lines.push('  }');
+    lines.push('');
+  }
   const children = fields.filter((m) => m.child !== undefined);
   lines.push(`  forEachChild(${children.length > 0 ? 'v' : '_v'}: NodeVisitor): boolean {`);
   children.forEach((m, i) => {

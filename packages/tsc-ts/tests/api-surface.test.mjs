@@ -1,7 +1,8 @@
 // tsc-ts/api's types (src/library) against tsc-ts's own objects: the generated files are current, the
-// public enums give tsc-ts's values for every member tsc-ts has, and tsc-ts's nodes have every child
-// field TypeScript 7's AST names for their kind (scripts/generate-api.mjs), as lists of NodeList shape
-// and with parents set.
+// public enums give tsc-ts's values for every member tsc-ts has, and tsc-ts's nodes hold what their API
+// interfaces declare (scripts/generate-api.mjs): every required member, nothing in a member declared
+// undefined, one of the declared kinds in a member typed by kinds, and lists of NodeList shape with
+// parents set.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
@@ -9,7 +10,6 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import ts from 'typescript';
-import { nullable } from '../scripts/ast-nullable.mjs';
 
 const root = resolve(import.meta.dirname, '..');
 const upstream = resolve(root, '../../upstream/typescript-go');
@@ -83,32 +83,72 @@ test('the public enums number kinds and flags as tsc-ts does', () => {
   assert.ok(compared > 750, `${compared} members compared`);
 });
 
+/**
+ * The members of each node kind as tsc-ts/api declares them, inherited ones included: whether a node may
+ * leave a member undefined, whether it must, and whether it holds a NodeList or ModifierList.
+ */
+function declaredMembers(SyntaxKind) {
+  const index = join(root, 'src/library/index.ts');
+  const program = ts.createProgram([index], {
+    noEmit: true,
+    strict: true,
+    target: ts.ScriptTarget.ES2024,
+    module: ts.ModuleKind.NodeNext,
+    moduleResolution: ts.ModuleResolutionKind.NodeNext,
+    types: [],
+  });
+  const checker = program.getTypeChecker();
+  const isUndefined = (t) => (t.flags & ts.TypeFlags.Undefined) !== 0;
+  const membersOfKind = new Map();
+  for (const exported of checker.getExportsOfModule(checker.getSymbolAtLocation(program.getSourceFile(index)))) {
+    const symbol = exported.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(exported) : exported;
+    if ((symbol.flags & ts.SymbolFlags.Interface) === 0) continue;
+    const type = checker.getDeclaredTypeOfSymbol(symbol);
+    const kindProperty = type.getProperty('kind');
+    if (kindProperty === undefined) continue;
+    const kindType = checker.getTypeOfSymbol(kindProperty);
+    if (kindType.isUnion() || kindType.symbol === undefined || SyntaxKind[kindType.symbol.name] === undefined) continue;
+    const members = [];
+    for (const property of checker.getPropertiesOfType(type)) {
+      if (['kind', 'flags', 'pos', 'end', 'parent'].includes(property.name)) continue;
+      const t = checker.getTypeOfSymbol(property);
+      if (t.getCallSignatures().length > 0) continue;
+      const parts = t.isUnion() ? t.types : [t];
+      const defined = t.getNonNullableType();
+      const text = checker.typeToString(defined);
+      // A member typed by some members of an enum (ImportClause.phaseModifier) holds one of them.
+      const literals = parts.filter((p) => !isUndefined(p));
+      const wholeEnum = defined.symbol !== undefined && (defined.symbol.flags & ts.SymbolFlags.Enum) !== 0;
+      const values =
+        !wholeEnum && literals.length > 0 && literals.every((p) => p.isNumberLiteral())
+          ? new Set(literals.map((p) => p.value))
+          : undefined;
+      members.push({
+        name: property.name,
+        optional: (property.flags & ts.SymbolFlags.Optional) !== 0 || parts.some(isUndefined),
+        absent: parts.every(isUndefined),
+        list: text.startsWith('ModifierList<') ? 'ModifierList' : text.startsWith('NodeList<') ? 'NodeList' : undefined,
+        values,
+      });
+    }
+    membersOfKind.set(SyntaxKind[kindType.symbol.name], members);
+  }
+  return membersOfKind;
+}
+
 test(
   'tsc-ts nodes have the fields of their API interfaces',
   { skip: noUpstream || (!existsSync(parserPath) && 'run npm run build') },
   async () => {
-    const { api } = await import(pathToFileURL(join(upstream, '_scripts/schema.ts')).href);
     const { parseSourceFile } = await import(pathToFileURL(parserPath).href);
     const { SyntaxKind } = await import(pathToFileURL(join(root, 'dist/tsc-ts/src/library/enums.generated.js')).href);
-
-    // The members of each kind, as ast.generated.ts declares them (with inherited ones).
-    const membersOfKind = new Map();
-    for (const node of api.nodes()) {
-      if (node.handWritten) continue;
-      const members = node.members
-        .filter((m) => !m.isKindParam() && !m.noTS && m.rawType !== 'SyntaxKind')
-        .map((m) => ({
-          name: api.uncapitalize(m.name),
-          optional: m.optional || nullable.has(`${node.name}.${m.name}`),
-          primitive: m.type.kind === 'primitive',
-          list: m.type.kind === 'list' ? m.listKind : undefined,
-        }));
-      for (const kind of node.allKinds()) membersOfKind.set(SyntaxKind[kind.name], members);
-    }
+    const membersOfKind = declaredMembers(SyntaxKind);
 
     const failures = new Set();
     const seen = new Set();
-    const check = (top) => {
+    // Trees with syntax errors may hold the token the parser found where a member names the kinds it
+    // expects (ImportAttributes.token), as tsgo's do.
+    const check = (top, valid) => {
       const stack = [top];
       while (stack.length > 0) {
         const node = stack.pop();
@@ -119,8 +159,12 @@ test(
           const value = node[member.name];
           const where = `${SyntaxKind[node.kind]}.${member.name}`;
           if (value === undefined) {
-            if (!member.optional && !member.primitive) failures.add(`${where}: undefined`);
-          } else if (member.list !== undefined && member.list !== 'raw') {
+            if (!member.optional) failures.add(`${where}: undefined`);
+          } else if (member.absent) {
+            failures.add(`${where}: set`);
+          } else if (valid && member.values !== undefined && !member.values.has(value)) {
+            failures.add(`${where}: ${value}`);
+          } else if (member.list !== undefined) {
             if (!Array.isArray(value.nodes) || typeof value.pos !== 'number') failures.add(`${where}: not a NodeList`);
             else if (member.list === 'ModifierList' && typeof value.modifierFlags !== 'number')
               failures.add(`${where}: not a ModifierList`);
@@ -148,10 +192,11 @@ test(
     walk(cases);
     for (const path of files) {
       const file = parseSourceFile(path, readFileSync(path, 'utf8'));
-      for (const statement of file.statements.nodes) check(statement);
-      check(file.endOfFileToken);
+      const valid = file.diagnostics.length === 0;
+      for (const statement of file.statements.nodes) check(statement, valid);
+      check(file.endOfFileToken, valid);
       // JSDoc is kept by the file, by the id of the node it documents (parsed eagerly for JavaScript).
-      if (file.jsDocs !== undefined) for (const docs of file.jsDocs.values()) for (const doc of docs) check(doc);
+      if (file.jsDocs !== undefined) for (const docs of file.jsDocs.values()) for (const doc of docs) check(doc, valid);
     }
     if (process.env.API_SURFACE_UNSEEN)
       console.log(

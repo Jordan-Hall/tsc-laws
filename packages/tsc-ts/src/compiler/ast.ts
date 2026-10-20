@@ -242,6 +242,12 @@ export abstract class Node implements ProgramLifetime {
 
   /** A copy of this subtree with the same positions and flags; parents are not set. */
   abstract deepClone(): Node;
+
+  /** The flags of the node's modifiers, ModifierFlags.None without any: TypeScript 7's API `modifierFlags`. */
+  get modifierFlags(): ModifierFlags {
+    const modifiers = getModifiers(this);
+    return modifiers === undefined ? ModifierFlags.None : modifiers.modifierFlags;
+  }
 }
 
 /** A program-wide id, unique among all nodes. */
@@ -3478,6 +3484,10 @@ export class NoSubstitutionTemplateLiteral extends Node {
     this.symbol = undefined;
   }
 
+  get tokenFlags(): TokenFlags {
+    return TokenFlags.None;
+  }
+
   forEachChild(_v: NodeVisitor): boolean {
     return false;
   }
@@ -5670,6 +5680,10 @@ export class TemplateHead extends Node {
     this.templateFlags = templateFlags & TokenFlags.TemplateLiteralLikeFlags;
   }
 
+  get tokenFlags(): TokenFlags {
+    return TokenFlags.None;
+  }
+
   forEachChild(_v: NodeVisitor): boolean {
     return false;
   }
@@ -5701,6 +5715,10 @@ export class TemplateMiddle extends Node {
     this.templateFlags = templateFlags & TokenFlags.TemplateLiteralLikeFlags;
   }
 
+  get tokenFlags(): TokenFlags {
+    return TokenFlags.None;
+  }
+
   forEachChild(_v: NodeVisitor): boolean {
     return false;
   }
@@ -5730,6 +5748,10 @@ export class TemplateTail extends Node {
     this.text = text;
     this.rawText = rawText;
     this.templateFlags = templateFlags & TokenFlags.TemplateLiteralLikeFlags;
+  }
+
+  get tokenFlags(): TokenFlags {
+    return TokenFlags.None;
   }
 
   forEachChild(_v: NodeVisitor): boolean {
@@ -6258,6 +6280,10 @@ export class JsxText extends Node {
     this.containsOnlyTriviaWhiteSpaces = containsOnlyTriviaWhiteSpaces;
   }
 
+  get tokenFlags(): TokenFlags {
+    return TokenFlags.None;
+  }
+
   forEachChild(_v: NodeVisitor): boolean {
     return false;
   }
@@ -6511,10 +6537,10 @@ export class JSDocOptionalType extends Node {
 
 export class JSDocTypeTag extends Node {
   tagName: Identifier;
-  typeExpression: Node | undefined;
+  typeExpression: Node;
   comment: NodeList | undefined;
 
-  constructor(tagName: Identifier, typeExpression: Node | undefined, comment: NodeList | undefined) {
+  constructor(tagName: Identifier, typeExpression: Node, comment: NodeList | undefined) {
     super(SyntaxKind.JSDocTypeTag);
     this.tagName = tagName;
     this.typeExpression = typeExpression;
@@ -6523,13 +6549,13 @@ export class JSDocTypeTag extends Node {
 
   forEachChild(v: NodeVisitor): boolean {
     if (v.visitNode(this.tagName)) return true;
-    if (this.typeExpression !== undefined && v.visitNode(this.typeExpression)) return true;
+    if (v.visitNode(this.typeExpression)) return true;
     return this.comment !== undefined && v.visitList(this.comment);
   }
 
   setParentOfChildren(): void {
     this.tagName.parent = this;
-    if (this.typeExpression !== undefined) this.typeExpression.parent = this;
+    this.typeExpression.parent = this;
     if (this.comment !== undefined) setParents(this.comment.nodes, this);
   }
 
@@ -6540,7 +6566,7 @@ export class JSDocTypeTag extends Node {
   copy(): JSDocTypeTag {
     const node = new JSDocTypeTag(
       this.tagName.copy(),
-      this.typeExpression === undefined ? undefined : this.typeExpression.deepClone(),
+      this.typeExpression.deepClone(),
       this.comment === undefined ? undefined : cloneList(this.comment),
     );
     node.flags = this.flags;

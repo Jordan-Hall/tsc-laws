@@ -1055,7 +1055,7 @@ class Decoder {
       case SyntaxKind.JSDocOptionalType:
         return new JSDocOptionalType(this.required(0));
       case SyntaxKind.JSDocTypeTag:
-        return new JSDocTypeTag(this.requiredIdentifier(0), this.node(1), this.list(2));
+        return new JSDocTypeTag(this.requiredIdentifier(0), this.required(1), this.list(2));
       case SyntaxKind.JSDocUnknownTag:
         return new JSDocUnknownTag(this.requiredIdentifier(0), this.list(1));
       case SyntaxKind.JSDocTemplateTag:
