@@ -152,12 +152,19 @@ export class Program implements OutputPathsHost {
       this.includeProcessor = processed.includeProcessor;
       for (const diagnostic of previous.programDiagnosticsList) this.programDiagnosticsList.push(diagnostic);
       for (const path of previous.emitBlockingPaths) this.emitBlockingPaths.add(path);
-      this.symlinks = previous.symlinks;
+      // The files and include reasons it takes from a program shared with checker threads are immutable, and
+      // so is that program's symlink cache: this one computes its own then (`getSymlinkCache`).
+      this.shared = previous.shared;
+      if (!previous.shared) this.symlinks = previous.symlinks;
+      // The same files are emitted, so the common source directory is the same. Its diagnostics are those
+      // `previous` was created with (`IncludeProcessor.copy`).
+      this.commonSourceDirectoryValue = previous.commonSourceDirectoryValue;
     } else {
       this.processed = (loader ?? new FileLoader(host, commandLine)).load();
       this.includeProcessor = this.processed.includeProcessor;
       this.verifyCompilerOptions();
     }
+    this.includeProcessor.noteProgramCreated();
   }
 
   /**

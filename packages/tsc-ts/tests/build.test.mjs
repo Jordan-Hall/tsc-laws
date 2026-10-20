@@ -983,6 +983,75 @@ test('--watch rebuilds on changes', { skip: tscTsMissing, timeout: 120_000 }, as
   assert.deepEqual(files, ['a.js', 'b.js', 'sub/c.js']);
 });
 
+// A rebuild takes the last program with the edited file swapped in while the edit keeps its imports, and loads the
+// program again when an edit imports a file outside it or drops that import (the same output as tsgo).
+test(
+  '--watch loads the program again when an edit changes the imports',
+  { skip: tscTsMissing, timeout: 120_000 },
+  async () => {
+    const files = {
+      'tsconfig.json': '{"compilerOptions":{"outDir":"out","rootDir":"."},"include":["src"]}',
+      'src/a.ts': 'export const a: number = 1;\n',
+      'lib/x.ts': 'export const x: string = 1;\n',
+    };
+    // In place, as an editor saves: a write that replaces the file changes its directory, which loads the program.
+    const edit = (text) => (dir) => writeFileSync(join(dir, 'src/a.ts'), text);
+    const steps = [
+      edit("import { x } from '../lib/x';\nexport const a = x;\n"),
+      edit("import { x } from '../lib/x';\nexport const a: number = x;\n"),
+      edit('export const a: number = 2;\n'),
+    ];
+    const { output } = await watchSequence(['--watch'], steps, files);
+    const x = "lib/x.ts(1,14): error TS2322: Type 'number' is not assignable to type 'string'.\n";
+    const a = "src/a.ts(2,14): error TS2322: Type 'string' is not assignable to type 'number'.\n";
+    const detected = '<time> - File change detected. Starting incremental compilation...\n\n';
+    assert.equal(
+      output,
+      '<time> - Starting compilation in watch mode...\n\n' +
+        '<time> - Found 0 errors. Watching for file changes.\n\n' +
+        detected +
+        x +
+        '<time> - Found 1 error. Watching for file changes.\n\n' +
+        detected +
+        x +
+        a +
+        '<time> - Found 2 errors. Watching for file changes.\n\n' +
+        detected +
+        '<time> - Found 0 errors. Watching for file changes.\n\n',
+    );
+  },
+);
+
+// An edit that moves a file's reference without changing it updates the program, and a diagnostic of the reference is
+// reported where the reference now is.
+test(
+  '--watch reports a moved reference where it is after an in-place edit',
+  { skip: tscTsMissing, timeout: 120_000 },
+  async () => {
+    const files = {
+      'tsconfig.json': '{"compilerOptions":{"noEmit":true},"include":["src"]}',
+      'src/a.ts': '/// <reference path="./missing.d.ts" />\nexport const a = 1;\n',
+    };
+    const steps = [
+      (dir) =>
+        writeFileSync(
+          join(dir, 'src/a.ts'),
+          '// moved\n/// <reference path="./missing.d.ts" />\nexport const a = 1;\n',
+        ),
+    ];
+    const { output } = await watchSequence(['--watch'], steps, files);
+    assert.equal(
+      output,
+      '<time> - Starting compilation in watch mode...\n\n' +
+        "src/a.ts(1,22): error TS6053: File './missing.d.ts' not found.\n" +
+        '<time> - Found 1 error. Watching for file changes.\n\n' +
+        '<time> - File change detected. Starting incremental compilation...\n\n' +
+        "src/a.ts(2,22): error TS6053: File './missing.d.ts' not found.\n" +
+        '<time> - Found 1 error. Watching for file changes.\n\n',
+    );
+  },
+);
+
 test('--build --watch rebuilds on changes', { skip: tscTsMissing, timeout: 120_000 }, async () => {
   const { output, files } = await watchSequence(['--build', '--watch'], watchSteps);
   assert.equal(output, watchOutput);
@@ -1092,6 +1161,75 @@ test(
 // with a change that affects every file: the rebuild takes the unchanged files of the first build, whose symbols got
 // no ids at creation, so it checks them on this thread rather than sharing them with checker threads. The output is
 // that of a watch on one thread.
+// A rebuild that swaps an edited file into a program shared with checker threads takes its immutable files and
+// include reasons; the file-processing error of an unchanged file is reported again from them.
+test(
+  "--watch reports an unchanged file's errors after a body edit on checker threads",
+  { skip: tscTsMissing, timeout: 120_000 },
+  async () => {
+    const files = {
+      'proj/tsconfig.json': JSON.stringify({
+        compilerOptions: { outDir: 'out', rootDir: 'src', strict: true },
+        include: ['src'],
+      }),
+      'proj/src/shared.ts': 'export const shared: number = 1;\n',
+    };
+    for (let i = 0; i < 200; i++)
+      files[`proj/src/m${i}.ts`] =
+        (i === 0 ? '/// <reference path="./missing.d.ts" />\n' : '') +
+        "import { shared } from './shared';\n" +
+        `export const value${i}: number = shared;\n`;
+    // In place: a replaced file changes its directory, and that loads the program.
+    const steps = [
+      (dir) =>
+        writeFileSync(
+          join(dir, 'proj/src/m1.ts'),
+          "import { shared } from './shared';\nexport const value1: number = shared;\nvoid 0;\n",
+        ),
+    ];
+    const run = (args) =>
+      watchSequence(['-p', 'proj', '--watch', ...args], steps, files, () => {}, { TSC_TS_WATCH_MEMORY: '0' });
+    const expected = await run(['--singleThreaded']);
+    const threaded = await run(['--checkers', '2']);
+    assert.equal((expected.output.match(/error TS6053: File '\.\/missing\.d\.ts' not found\./g) ?? []).length, 2);
+    assert.equal(threaded.output, expected.output);
+  },
+);
+
+// A rebuild that swaps an edited file into a program shared with checker threads reports the processing diagnostics
+// the program was created with: the common source directory that the rebuild's declaration signatures need adds
+// rootDir diagnostics that neither the first build nor tsgo reports.
+test(
+  '--watch keeps the diagnostics a program was created with after a body edit on checker threads',
+  { skip: tscTsMissing, timeout: 120_000 },
+  async () => {
+    const files = {
+      'proj/tsconfig.json': JSON.stringify({
+        compilerOptions: { noEmit: true, strict: true },
+        include: ['src', '../extra/x.ts'],
+      }),
+      'extra/x.ts': 'export const x = 1;\n',
+      'proj/src/shared.ts': "export { x } from '../../extra/x';\n",
+    };
+    for (let i = 0; i < 200; i++)
+      files[`proj/src/m${i}.ts`] = "import { x } from './shared';\n" + `export const value${i}: number = x;\n`;
+    // In place: a replaced file changes its directory, and that loads the program.
+    const steps = [
+      (dir) =>
+        writeFileSync(
+          join(dir, 'proj/src/m1.ts'),
+          "import { x } from './shared';\nexport const value1: number = x;\nvoid 0;\n",
+        ),
+    ];
+    const run = (args) =>
+      watchSequence(['-p', 'proj', '--watch', ...args], steps, files, () => {}, { TSC_TS_WATCH_MEMORY: '0' });
+    const expected = await run(['--singleThreaded']);
+    const threaded = await run(['--checkers', '2']);
+    assert.equal((expected.output.match(/Found 0 errors/g) ?? []).length, 2);
+    assert.equal(threaded.output, expected.output);
+  },
+);
+
 test('--watch after a config edit turns checker threads on', { skip: tscTsMissing, timeout: 120_000 }, async () => {
   const config = (checkers) =>
     `{"compilerOptions":{"outDir":"out","rootDir":"src","strict":true,"checkers":${checkers}},"include":["src"]}`;

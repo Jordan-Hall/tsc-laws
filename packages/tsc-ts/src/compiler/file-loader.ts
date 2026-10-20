@@ -416,7 +416,7 @@ export function withReplacedFile(processed: ProcessedFiles, file: SourceFile): P
     processed.importHelpersImportSpecifiers,
     processed.libFiles,
     processed.sourceFilesFoundSearchingNodeModules,
-    processed.includeProcessor.copy(),
+    processed.includeProcessor.copy(file.path),
     processed.outputFileToProjectReferenceSource,
     processed.redirectTargets,
     processed.redirectFilesByPath,
