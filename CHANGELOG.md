@@ -4,6 +4,27 @@
 
 <!-- release:start -->
 
+## 0.0.5
+
+### Highlights
+
+- **Programmatic API:** `tsc-ts/api` adds `createProgram`, `Program`, `TypeChecker`, `parseSourceFile`, the node functions (including `getSourceFileOfNode` and `getTextOfNode`), `getPreEmitDiagnostics` and `dispose()`, with tsc-ts's own nodes, symbols, types and signatures. Its node interfaces now declare what tsc-ts's nodes hold: `parent` may be undefined, optional members are `?: T | undefined`, and members that were declared but never set (`modifierFlags`, `tokenFlags`, `phaseModifier`) hold TypeScript 7's values. The API compiles with scriptc, and its native build gives the same answers as the Node build.
+- **Composite rebuilds:** An incremental rebuild of a composite program (any project with references) checks and emits the files a change affects on checker threads. Rebuilding TypeScript 5.8 after an edit to `core.ts`: `-p src/compiler` 1.96 s → 0.85 s, `-b src/tsc` 1.01 s → 0.88 s. Outputs, the declaration files written or left unchanged, and the build info are the same.
+- **`noEmitOnError` builds:** The main thread takes each file's declaration diagnostics from the checker thread that emitted it instead of running the declaration transform again (typescript-eslint `-b` clean build: 5.39 s → 3.23 s, peak RSS down 20%).
+- **Memory:** A parser frees its copy of the file's text as soon as it's done, instead of at the next cycle collection (TypeScript 5.8 `src/compiler`, single-threaded: emit peak 330 MB → 312 MB, check 333 MB → 318 MB).
+
+### Fixes
+
+- **Enums:** A number member of an enum is no longer assignable to a string member of the same enum (`enum M { A, B = 'b' }; const x: M.B = M.A` reports TS2322), as TypeScript 7.0.2 does.
+- **Default library files:** With `skipLibCheck` off, the default library files are checked with the checker of the other files, as TypeScript 7.0.2 does. Excalidraw no longer reports TS2430 twice. A one-file program that checks its libraries now takes 0.19 s (0.05 s before; TypeScript 7.0.2: 0.26 s).
+
+### Improvements
+
+- `typeToString` of simple types is about 20% faster in native builds: a node builder creates its tables on first use, and the objects of one call no longer form reference cycles.
+- The thread entry moves out of `main.ts`, so a host embedding tsc-ts can start the same parse and checker threads. tsc-ts/api's programs use a file the parse threads prepared only when the host gives the same text for it.
+
+<!-- release:end -->
+
 ## 0.0.4
 
 ### Highlights
@@ -26,8 +47,6 @@
 - When a program has syntactic, option or other program errors, checker threads emit its files without checking them, as one checker and TypeScript 7.0.2 do (rxjs with its option error: 1.5 s → 0.15 s; TypeScript 7.0.2: 0.73 s).
 - The check for a mapped type with a `keyof` constraint reads the constraint as a type operator node, the node type it has. No change in output.
 - Adds a project test for callbacks of generic JSX components whose props type is conditional (#210).
-
-<!-- release:end -->
 
 ## 0.0.3
 
