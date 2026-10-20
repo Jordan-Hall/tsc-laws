@@ -96,3 +96,73 @@ export class SparseLinkTable<T> {
     this.values.clear();
   }
 }
+
+/**
+ * Values by id for ids in a few clusters, as one file's emit uses them: the file's nodes and the
+ * nodes the emit synthesizes, far above them. Pages of `LinkPaging.Size` ids are found through a
+ * map from the page index, so the ids between clusters cost nothing, and the page of the last
+ * lookup is kept, since lookups come in runs of nearby ids.
+ */
+export class ClusteredLinkTable<T> {
+  private readonly pages = new Map<number, (T | undefined)[]>();
+  private lastIndex = -1;
+  private lastPage: (T | undefined)[] | undefined = undefined;
+
+  get(id: number): T | undefined {
+    const page = this.pageOf(id >> LinkPaging.Bits);
+    return page !== undefined ? page[id & LinkPaging.Mask] : undefined;
+  }
+
+  set(id: number, value: T | undefined): void {
+    const index = id >> LinkPaging.Bits;
+    const page = this.pageOf(index);
+    if (page !== undefined) page[id & LinkPaging.Mask] = value;
+    else if (value !== undefined) {
+      const created: (T | undefined)[] = [];
+      for (let i = 0; i < LinkPaging.Size; i++) created.push(undefined);
+      created[id & LinkPaging.Mask] = value;
+      this.pages.set(index, created);
+      this.lastPage = created;
+    }
+  }
+
+  private pageOf(index: number): (T | undefined)[] | undefined {
+    if (index !== this.lastIndex) {
+      this.lastIndex = index;
+      this.lastPage = this.pages.get(index);
+    }
+    return this.lastPage;
+  }
+}
+
+/** Int32 values by id, zero where none is stored, for ids in a few clusters (`ClusteredLinkTable`). */
+export class ClusteredIntLinkTable {
+  private readonly pages = new Map<number, Int32Array>();
+  private lastIndex = -1;
+  private lastPage: Int32Array | undefined = undefined;
+
+  get(id: number): number {
+    const page = this.pageOf(id >> LinkPaging.Bits);
+    return page !== undefined ? page[id & LinkPaging.Mask]! : 0;
+  }
+
+  set(id: number, value: number): void {
+    const index = id >> LinkPaging.Bits;
+    const page = this.pageOf(index);
+    if (page !== undefined) page[id & LinkPaging.Mask] = value;
+    else if (value !== 0) {
+      const created = new Int32Array(LinkPaging.Size);
+      created[id & LinkPaging.Mask] = value;
+      this.pages.set(index, created);
+      this.lastPage = created;
+    }
+  }
+
+  private pageOf(index: number): Int32Array | undefined {
+    if (index !== this.lastIndex) {
+      this.lastIndex = index;
+      this.lastPage = this.pages.get(index);
+    }
+    return this.lastPage;
+  }
+}
