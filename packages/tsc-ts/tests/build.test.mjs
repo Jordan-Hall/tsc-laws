@@ -1022,6 +1022,36 @@ test(
   },
 );
 
+// An edit that moves a file's reference without changing it updates the program, and a diagnostic of the reference is
+// reported where the reference now is.
+test(
+  '--watch reports a moved reference where it is after an in-place edit',
+  { skip: tscTsMissing, timeout: 120_000 },
+  async () => {
+    const files = {
+      'tsconfig.json': '{"compilerOptions":{"noEmit":true},"include":["src"]}',
+      'src/a.ts': '/// <reference path="./missing.d.ts" />\nexport const a = 1;\n',
+    };
+    const steps = [
+      (dir) =>
+        writeFileSync(
+          join(dir, 'src/a.ts'),
+          '// moved\n/// <reference path="./missing.d.ts" />\nexport const a = 1;\n',
+        ),
+    ];
+    const { output } = await watchSequence(['--watch'], steps, files);
+    assert.equal(
+      output,
+      '<time> - Starting compilation in watch mode...\n\n' +
+        "src/a.ts(1,22): error TS6053: File './missing.d.ts' not found.\n" +
+        '<time> - Found 1 error. Watching for file changes.\n\n' +
+        '<time> - File change detected. Starting incremental compilation...\n\n' +
+        "src/a.ts(2,22): error TS6053: File './missing.d.ts' not found.\n" +
+        '<time> - Found 1 error. Watching for file changes.\n\n',
+    );
+  },
+);
+
 test('--build --watch rebuilds on changes', { skip: tscTsMissing, timeout: 120_000 }, async () => {
   const { output, files } = await watchSequence(['--build', '--watch'], watchSteps);
   assert.equal(output, watchOutput);

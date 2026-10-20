@@ -425,6 +425,14 @@ export class ProcessingDiagnostic {
     return new ProcessingDiagnostic(this.kind, this.file, this.reason?.copy(), this.message, this.args);
   }
 
+  /** This diagnostic with `renew(reason)` for its reason; itself when that is its reason. */
+  withReason(renew: (reason: FileIncludeReason) => FileIncludeReason): ProcessingDiagnostic {
+    const reason = this.reason === undefined ? undefined : renew(this.reason);
+    return reason === this.reason
+      ? this
+      : new ProcessingDiagnostic(this.kind, this.file, reason, this.message, this.args);
+  }
+
   toDiagnostic(program: Program): Diagnostic {
     const reason = this.reason;
     if (this.kind === ProcessingDiagnosticKind.UnknownReference && reason !== undefined) {
@@ -526,12 +534,29 @@ export class IncludeProcessor {
    * A processor with these reasons and the processing diagnostics its program was created with, whose diagnostics are
    * computed for another program. Computing the common source directory later adds diagnostics that the program
    * does not report (`Program.commonSourceDirectory`), and those of a program shared with checker threads are
-   * immutable, so the copy has its own list.
+   * immutable, so the copy has its own list. The reasons written in `replaced`, the path of the file
+   * `Program.updateFile` swaps in, are new: a reason keeps where its file writes it, which the new text may move. Each
+   * is copied once, so a diagnostic and the file's reasons still share it.
    */
-  copy(): IncludeProcessor {
+  copy(replaced?: string): IncludeProcessor {
+    const created = this.processingDiagnostics.slice(0, this.createdCount ?? this.processingDiagnostics.length);
+    if (replaced === undefined) return new IncludeProcessor(this.fileIncludeReasons, created);
+    const copies = new Map<FileIncludeReason, FileIncludeReason>();
+    const renew = (reason: FileIncludeReason): FileIncludeReason => {
+      if (reason.file !== replaced) return reason;
+      let copy = copies.get(reason);
+      if (copy === undefined) {
+        copy = reason.copy();
+        copies.set(reason, copy);
+      }
+      return copy;
+    };
+    const reasons = new Map<string, FileIncludeReason[]>();
+    for (const [path, list] of this.fileIncludeReasons)
+      reasons.set(path, list.some((reason) => reason.file === replaced) ? list.map(renew) : list);
     return new IncludeProcessor(
-      this.fileIncludeReasons,
-      this.processingDiagnostics.slice(0, this.createdCount ?? this.processingDiagnostics.length),
+      reasons,
+      created.map((diagnostic) => diagnostic.withReason(renew)),
     );
   }
 
