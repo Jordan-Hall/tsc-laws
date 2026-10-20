@@ -2529,7 +2529,36 @@ export class IncrementalProgram extends CompilerProgram {
   }
 
   /**
-   * For checker threads that check `files` (from `filesToCheck`) and emit them, what the emit of each
+   * The files checker threads take in a rebuild: those `filesToCheck` returns, then the files whose
+   * semantic diagnostics the build info holds but whose outputs are pending (after a change of the
+   * options that select outputs, or where an earlier build did not write them). Emitting a file asks
+   * the checker about it, so threads that check and emit it spare this thread that work; the
+   * diagnostics reported for it are still those of the build info.
+   */
+  filesForCheckers(): SourceFile[] {
+    const result = this.filesToCheck();
+    const snapshot = this.snapshot;
+    if (snapshot.options.noEmit === true || snapshot.affectedFilesPendingEmit.size === 0) return result;
+    const program = this.program;
+    const taken = new Set(result);
+    for (const [path, emitKind] of snapshot.affectedFilesPendingEmit) {
+      if (getPendingEmitKind(emitKind, 0) === 0) continue;
+      const file = program.getSourceFileByPath(path);
+      if (
+        file === undefined ||
+        taken.has(file) ||
+        this.checked.skipTypeChecking(file) ||
+        !program.sourceFileMayBeEmitted(file, false)
+      )
+        continue;
+      taken.add(file);
+      result.push(file);
+    }
+    return result;
+  }
+
+  /**
+   * For checker threads that check `files` (from `filesForCheckers`) and emit them, what the emit of each
    * file includes, by file index: its pending emit (`EmitFilesHandler.emitFilesIncremental`), or -1.
    * The incremental program's emit then takes what the threads emitted.
    */
