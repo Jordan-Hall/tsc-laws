@@ -109,6 +109,11 @@ export class EmitResult {
    */
   readonly heldOutputs: string[];
   emitSkipped: boolean;
+  /**
+   * Whether the declaration transform ran, so that `diagnostics` holds the declaration diagnostics of
+   * the files emitted (only declaration emit reports diagnostics).
+   */
+  declarationTransformed: boolean;
 
   constructor() {
     this.emittedFiles = [];
@@ -118,6 +123,7 @@ export class EmitResult {
     this.declarationSignatures = [];
     this.heldOutputs = [];
     this.emitSkipped = false;
+    this.declarationTransformed = false;
   }
 }
 
@@ -181,6 +187,7 @@ function emitDeclarationFile(
   const context = new EmitContext();
   const transformer = new DeclarationTransformer(context, host, options, resolver, declarationFilePath);
   const transformed = transformer.transformSourceFile(file);
+  result.declarationTransformed = true;
   const diagnostics = transformer.diagnostics;
   for (let i = 0; i < diagnostics.length; i++) result.diagnostics.push(diagnostics[i]);
   if (diagnostics.length > 0 && !forced) {

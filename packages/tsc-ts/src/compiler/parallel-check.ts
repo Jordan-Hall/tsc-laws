@@ -183,7 +183,7 @@ class ResultPacker {
   }
 
   emit(result: EmitResult): void {
-    this.nums.push(result.emitSkipped ? 1 : 0);
+    this.nums.push((result.emitSkipped ? 1 : 0) | (result.declarationTransformed ? 2 : 0));
     this.strList(result.emittedFiles);
     this.strList(result.errors);
     this.strList(result.unsupported);
@@ -310,7 +310,9 @@ class ResultUnpacker {
 
   emit(): EmitResult {
     const result = new EmitResult();
-    result.emitSkipped = this.next() === 1;
+    const flags = this.next();
+    result.emitSkipped = (flags & 1) !== 0;
+    result.declarationTransformed = (flags & 2) !== 0;
     this.strList(result.emittedFiles);
     this.strList(result.errors);
     this.strList(result.unsupported);
@@ -1771,7 +1773,18 @@ export function startParallelCheck(
     // Files without declaration diagnostics or emit results here get them on this thread (PlainProgram).
     if (checkersReportDeclarations(checked)) checked.declarationsInParallel = perFileDeclarations;
     for (const [i, result] of emittedHere) perFileEmits[i] = result;
-    if (checkersEmit(checked, emits)) checked.emittedInParallel = perFileEmits;
+    if (checkersEmit(checked, emits)) {
+      checked.emittedInParallel = perFileEmits;
+      // A file whose declarations were emitted has its declaration diagnostics in the emit result, so
+      // the program doesn't transform it again for them (handleNoEmitOnError).
+      if (!checkersReportDeclarations(checked) && getEmitDeclarations(checked.program.options)) {
+        for (let i = 0; i < perFileEmits.length; i++) {
+          const emitted = perFileEmits[i];
+          if (emitted !== undefined && emitted.declarationTransformed) perFileDeclarations[i] = emitted.diagnostics;
+        }
+        checked.declarationsInParallel = perFileDeclarations;
+      }
+    }
     done(performance.now() - start);
   };
   const record = (result: CheckerResult): void => {
@@ -1907,6 +1920,7 @@ class Revival {
   private emit(copy: EmitResult): EmitResult {
     const result = new EmitResult();
     result.emitSkipped = copy.emitSkipped;
+    result.declarationTransformed = copy.declarationTransformed;
     for (const f of copy.emittedFiles) result.emittedFiles.push(f);
     for (const e of copy.errors) result.errors.push(e);
     for (const u of copy.unsupported) result.unsupported.push(u);
