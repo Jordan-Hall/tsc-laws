@@ -14,7 +14,7 @@ import {
   type MessageWithArgs,
 } from './diagnostics.js';
 import { type ExternalModuleIndicatorOptions, ParseOptions, ScriptKind, type SourceFile } from './ast.js';
-import { CompilerHost, FileLoader } from './file-loader.js';
+import { CompilerHost, FileLoader, releaseLater } from './file-loader.js';
 import { CachedFileSystem } from './file-system.js';
 import { clearLibGlobalsCache } from './checker-symbols.js';
 import { forgetLazyJSDocFile, parseSourceFile } from './parser.js';
@@ -544,6 +544,8 @@ class Watcher {
     };
     session.start(config.fileNames, () => {
       const program = new Program(config, host, loader);
+      // The session's callbacks keep the loader: its tasks go once checking has started.
+      releaseLater(loader);
       this.files = this.files.next();
       for (const file of program.getSourceFiles()) {
         const indicator = file.externalModuleIndicatorOptions;
