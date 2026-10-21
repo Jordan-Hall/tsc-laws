@@ -7,6 +7,8 @@
 // checker that touches part of a program (as each of several parallel checkers does) stores only
 // the pages it touches.
 
+import type { Symbol } from './symbol.js';
+
 /** Links are stored in pages of 256 ids. */
 export const enum LinkPaging {
   Bits = 8,
@@ -164,5 +166,178 @@ export class ClusteredIntLinkTable {
       this.lastPage = this.pages.get(index);
     }
     return this.lastPage;
+  }
+}
+
+/** The number of set bits of a 32-bit value. */
+function bitCount(x: number): number {
+  x = x - ((x >>> 1) & 0x55555555);
+  x = (x & 0x33333333) + ((x >>> 2) & 0x33333333);
+  x = (x + (x >>> 4)) & 0x0f0f0f0f;
+  return Math.imul(x, 0x01010101) >>> 24;
+}
+
+/**
+ * A page of a `CompactSymbolLinkTable`: one bit per id of the page in eight 32-id words, the number
+ * of symbols stored before each word, and the symbols in id order. The words are fields, so a
+ * lookup reads one object before the symbols. The class isn't generic, so natively the words are
+ * 32-bit fields: every write stores an int32.
+ */
+class CompactLinkPage {
+  readonly values: Symbol[];
+  private w0: number;
+  private w1: number;
+  private w2: number;
+  private w3: number;
+  private w4: number;
+  private w5: number;
+  private w6: number;
+  private w7: number;
+  /** Byte `w & 3` of `before0` (words 1 to 3) or of `before1` (words 4 to 7): the values before word `w`. */
+  private before0: number;
+  private before1: number;
+
+  constructor() {
+    this.values = [];
+    this.w0 = 0;
+    this.w1 = 0;
+    this.w2 = 0;
+    this.w3 = 0;
+    this.w4 = 0;
+    this.w5 = 0;
+    this.w6 = 0;
+    this.w7 = 0;
+    this.before0 = 0;
+    this.before1 = 0;
+  }
+
+  /** The presence bits of ids `32 * word` to `32 * word + 31`. */
+  word(word: number): number {
+    switch (word) {
+      case 0:
+        return this.w0;
+      case 1:
+        return this.w1;
+      case 2:
+        return this.w2;
+      case 3:
+        return this.w3;
+      case 4:
+        return this.w4;
+      case 5:
+        return this.w5;
+      case 6:
+        return this.w6;
+      default:
+        return this.w7;
+    }
+  }
+
+  setWord(word: number, bits: number): void {
+    switch (word) {
+      case 0:
+        this.w0 = bits | 0;
+        break;
+      case 1:
+        this.w1 = bits | 0;
+        break;
+      case 2:
+        this.w2 = bits | 0;
+        break;
+      case 3:
+        this.w3 = bits | 0;
+        break;
+      case 4:
+        this.w4 = bits | 0;
+        break;
+      case 5:
+        this.w5 = bits | 0;
+        break;
+      case 6:
+        this.w6 = bits | 0;
+        break;
+      default:
+        this.w7 = bits | 0;
+    }
+  }
+
+  /** The index in `values` of the value of `slot` (an id's low bits), or of where it goes. */
+  rank(slot: number, bits: number): number {
+    const word = slot >> 5;
+    const before = ((word < 4 ? this.before0 : this.before1) >>> ((word & 3) << 3)) & 0xff;
+    return before + bitCount(bits & ((1 << (slot & 31)) - 1));
+  }
+
+  /** Adds `delta` to the counts of the words after `word`. */
+  shiftCounts(word: number, delta: number): void {
+    for (let w = word + 1; w < 8; w++) {
+      const step = delta << ((w & 3) << 3);
+      if (w < 4) this.before0 = (this.before0 + step) | 0;
+      else this.before1 = (this.before1 + step) | 0;
+    }
+  }
+}
+
+/**
+ * Symbols by node id, for ids a checker resolves in one in four to one in eight of the ids of the
+ * pages it touches, as it resolves the identifiers and names of the files it checks. Pages of
+ * `LinkPaging.Size` ids keep a presence bit per id and only the symbols stored, so a symbol costs
+ * about one array slot. A `LinkTable` page costs a slot for every id, and a `Map` entry also
+ * stores its key and a share of the hash buckets. At fewer values per page than that, the page's
+ * own allocations outweigh what it saves, and a `SparseLinkTable` costs less.
+ */
+export class CompactSymbolLinkTable {
+  readonly pages: (CompactLinkPage | undefined)[] = [];
+  /** The number of symbols stored. */
+  size = 0;
+
+  get(id: number): Symbol | undefined {
+    const page = this.pages[id >> LinkPaging.Bits];
+    if (page === undefined) return undefined;
+    const slot = id & LinkPaging.Mask;
+    const bits = page.word(slot >> 5);
+    if ((bits & (1 << (slot & 31))) === 0) return undefined;
+    return page.values[page.rank(slot, bits)];
+  }
+
+  set(id: number, value: Symbol | undefined): void {
+    const index = id >> LinkPaging.Bits;
+    let page = this.pages[index];
+    if (page === undefined) {
+      if (value === undefined) return;
+      while (this.pages.length <= index) this.pages.push(undefined);
+      page = new CompactLinkPage();
+      this.pages[index] = page;
+    }
+    const slot = id & LinkPaging.Mask;
+    const word = slot >> 5;
+    const bit = 1 << (slot & 31);
+    const bits = page.word(word);
+    const at = page.rank(slot, bits);
+    const values = page.values;
+    if ((bits & bit) !== 0) {
+      if (value !== undefined) {
+        values[at] = value;
+        return;
+      }
+      for (let i = at; i < values.length - 1; i++) values[i] = values[i + 1]!;
+      values.pop();
+      page.setWord(word, bits & ~bit);
+      page.shiftCounts(word, -1);
+      this.size--;
+      return;
+    }
+    if (value === undefined) return;
+    values.push(value);
+    for (let i = values.length - 1; i > at; i--) values[i] = values[i - 1]!;
+    values[at] = value;
+    page.setWord(word, bits | bit);
+    page.shiftCounts(word, 1);
+    this.size++;
+  }
+
+  clear(): void {
+    this.pages.length = 0;
+    this.size = 0;
   }
 }
