@@ -152,18 +152,24 @@ export class SymbolRareFields implements ProgramLifetime {
   exportSymbol: Symbol | undefined = undefined;
   /** All declarations of a symbol that has more than one (`getDeclarations`). */
   declarations: Node[] | undefined = undefined;
+  /** The value declaration where it is not the first declaration (`Symbol.valueDeclaration`). */
+  valueDeclaration: Node | undefined = undefined;
 }
+
+/** In `Symbol.bits`, above the check flags: the value declaration is the first declaration. */
+const valueDeclarationIsFirst = 1 << 30;
 
 export class Symbol implements ProgramLifetime {
   flags: SymbolFlags;
-  checkFlags: CheckFlags;
+  /** The check flags, and `valueDeclarationIsFirst`. */
+  private bits: number;
   readonly name: string;
   /**
    * The first declaration. A symbol with more keeps all of them in its rare fields; read them with
-   * `declarationCount`, `declarationAt` and `getDeclarations`.
+   * `declarationCount`, `declarationAt` and `getDeclarations`. Written only through `setFirst`,
+   * which keeps the value declaration.
    */
   declaration: Node | undefined;
-  valueDeclaration: Node | undefined;
   parent: Symbol | undefined;
   private rareFields: SymbolRareFields | undefined;
   /** Assigned on first use by `getSymbolId`, or at creation while threads share the program; 0 until then. */
@@ -171,13 +177,51 @@ export class Symbol implements ProgramLifetime {
 
   constructor(flags: SymbolFlags, name: string) {
     this.flags = flags;
-    this.checkFlags = CheckFlags.None;
+    this.bits = 0;
     this.name = name;
     this.declaration = undefined;
-    this.valueDeclaration = undefined;
     this.parent = undefined;
     this.rareFields = undefined;
     this.id = idsAtCreation ? takeSymbolId() : 0;
+  }
+
+  get checkFlags(): CheckFlags {
+    return (this.bits & ~valueDeclarationIsFirst) as CheckFlags;
+  }
+
+  set checkFlags(flags: CheckFlags) {
+    this.bits = (this.bits & valueDeclarationIsFirst) | flags;
+  }
+
+  /** Makes `node` the first declaration, keeping the value declaration. */
+  setFirst(node: Node | undefined): void {
+    if ((this.bits & valueDeclarationIsFirst) !== 0 && node !== this.declaration) {
+      // The value declaration stays what it was.
+      this.rareFieldsOrNew().valueDeclaration = this.declaration;
+      this.bits &= ~valueDeclarationIsFirst;
+    }
+    this.declaration = node;
+  }
+
+  /**
+   * The declaration of the symbol's value. Almost always the first declaration, which a bit of `bits`
+   * says; any other is kept in the rare fields.
+   */
+  get valueDeclaration(): Node | undefined {
+    if ((this.bits & valueDeclarationIsFirst) !== 0) return this.declaration;
+    const group = this.rareFields;
+    return group === undefined ? undefined : group.valueDeclaration;
+  }
+
+  set valueDeclaration(node: Node | undefined) {
+    const group = this.rareFields;
+    if (node !== undefined && node === this.declaration) {
+      this.bits |= valueDeclarationIsFirst;
+      if (group !== undefined) group.valueDeclaration = undefined;
+      return;
+    }
+    this.bits &= ~valueDeclarationIsFirst;
+    if (node !== undefined || group !== undefined) this.rareFieldsOrNew().valueDeclaration = node;
   }
 
   private rareFieldsOrNew(): SymbolRareFields {
@@ -353,7 +397,7 @@ const noDeclarations: Node[] = [];
 export function addDeclaration(symbol: Symbol, node: Node): void {
   const first = symbol.declaration;
   if (first === undefined) {
-    symbol.declaration = node;
+    symbol.setFirst(node);
     return;
   }
   const more = symbol.moreDeclarations;
@@ -395,13 +439,13 @@ export function hasDeclaration(symbol: Symbol, node: Node): boolean {
 
 /** Gives `target` the declarations of `source`; a list of several is shared, as the list was before. */
 export function copyDeclarations(target: Symbol, source: Symbol): void {
-  target.declaration = source.declaration;
+  target.setFirst(source.declaration);
   target.moreDeclarations = source.moreDeclarations;
 }
 
 /** Replaces the declarations of `symbol` with `declarations`, which it keeps when they are more than one. */
 export function setDeclarations(symbol: Symbol, declarations: readonly Node[]): void {
-  symbol.declaration = declarations.length !== 0 ? declarations[0] : undefined;
+  symbol.setFirst(declarations.length !== 0 ? declarations[0] : undefined);
   symbol.moreDeclarations = declarations.length > 1 ? (declarations as Node[]) : undefined;
 }
 
