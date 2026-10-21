@@ -507,6 +507,50 @@ export class TypeListCache<V> {
 }
 
 /**
+ * One list for each sequence of types that a checker keeps (`Checker.typeLists`): references and
+ * instantiation caches hold the same type arguments in many places, mostly lists of one or two types,
+ * and share one list for them. A list must not change once it is in the table.
+ */
+export class TypeListTable {
+  private readonly heads = new Map<number, number>();
+  private readonly lists: Type[][] = [];
+  /** The next list with the same hash, or -1, once two lists share one. */
+  private nexts: number[] | undefined = undefined;
+
+  /**
+   * The list in the table with the types of `types`, in order, or `types` itself, which joins the
+   * table. `hash` is `typeListHash(types, undefined, 0)`.
+   */
+  intern(hash: number, types: Type[]): Type[] {
+    if (types.length === 0) return types;
+    const head = this.heads.get(hash);
+    const nexts = this.nexts;
+    if (head !== undefined)
+      for (let entry = head; entry >= 0; entry = nexts !== undefined ? nexts[entry]! : -1) {
+        const list = this.lists[entry]!;
+        if (sameTypeListParts(list, types)) return list;
+      }
+    const entry = this.lists.length;
+    this.lists.push(types);
+    if (nexts !== undefined) nexts.push(-1);
+    if (head === undefined) {
+      this.heads.set(hash, entry);
+      return types;
+    }
+    // A second list with this hash: chain it after the first.
+    let chain = nexts;
+    if (chain === undefined) {
+      chain = [];
+      for (let i = 0; i <= entry; i++) chain.push(-1);
+      this.nexts = chain;
+    }
+    chain[entry] = chain[head]!;
+    chain[head] = entry;
+    return types;
+  }
+}
+
+/**
  * The references to a generic class, interface or tuple type, by the hash of their type arguments
  * (`createTypeReference`). A reference is its own entry: a lookup compares its type arguments. A
  * reference whose hash another reference has is kept in `collisions`.

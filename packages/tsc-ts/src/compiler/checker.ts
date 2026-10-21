@@ -66,6 +66,7 @@ import {
   emptyTypes,
   VarianceFlags,
   TypeListCache,
+  TypeListTable,
   type ConditionalType,
   type InterfaceType,
   type TypeChecking,
@@ -435,6 +436,8 @@ export class Checker implements TypeChecking {
   readonly templateLiteralTypes = new Map<string, Type>();
   /** Instantiations of template literal types: the instantiated types, tagged with the template's id. */
   readonly templateLiteralInstantiations = new TypeListCache<Type>();
+  /** The type argument lists that references and instantiations keep, one of each (`TypeListTable`). */
+  readonly typeLists = new TypeListTable();
   readonly stringMappingTypes = new Map<string, Type>();
   readonly substitutionTypes = new Map<string, Type>();
   readonly subtypeReductionCache = new TypeListCache<Type[]>();
