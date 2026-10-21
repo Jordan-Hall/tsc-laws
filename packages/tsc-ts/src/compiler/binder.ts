@@ -41,6 +41,7 @@ import {
   PrefixUnaryExpression,
   PropertyAccessExpression,
   QualifiedName,
+  ReferenceIdentifier,
   type SourceFile,
   SwitchStatement,
   TryStatement,
@@ -808,7 +809,7 @@ class Binder extends NodeVisitor {
     // the container's locals; anonymous declarations like type literals go in no table.
     switch (node.kind) {
       case SyntaxKind.Identifier:
-        (node as Identifier).flowNode = this.currentFlowValue();
+        if (node instanceof ReferenceIdentifier) node.flowNode = this.currentFlowValue();
         this.checkContextualIdentifier(node as Identifier);
         break;
       case SyntaxKind.ThisKeyword:

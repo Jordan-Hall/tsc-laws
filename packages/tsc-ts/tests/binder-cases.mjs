@@ -22,13 +22,56 @@ export function firstDifference(expected, actual) {
 }
 
 /**
+ * tsgo's output without the flow nodes of the identifiers the driver lists on a `plain-identifiers`
+ * line: tsc-ts keeps a flow node only on identifiers that can be read as references. The flow
+ * nodes left are renumbered in the order the output first references them, as both drivers
+ * number them, and the ones only those identifiers referenced are dropped.
+ */
+export function withoutPlainIdentifierFlows(expected, actual) {
+  const actualLines = actual.split('\n');
+  const at = actualLines.findIndex((line) => line.startsWith('plain-identifiers '));
+  if (at < 0) return { expected, actual };
+  const plain = new Set(actualLines[at].split(' ').slice(1));
+  actualLines.splice(at, 1);
+  const lines = expected.split('\n').filter((line) => !(line.startsWith('flowof ') && plain.has(line.split(' ')[1])));
+  const flowLines = new Map();
+  for (const line of lines) {
+    const match = /^flow @(\d+) (.*)$/.exec(line);
+    if (match) flowLines.set(match[1], match[2]);
+  }
+  const ids = new Map();
+  const order = [];
+  const renumber = (text) =>
+    text.replace(/@(\d+)/g, (_, id) => {
+      if (!ids.has(id)) {
+        ids.set(id, ids.size);
+        order.push(id);
+      }
+      return '@' + ids.get(id);
+    });
+  const result = [];
+  let flowsAt = -1;
+  for (const line of lines) {
+    if (line.startsWith('flowof ')) result.push(renumber(line));
+    else if (line.startsWith('flow @')) {
+      if (flowsAt < 0) flowsAt = result.length;
+    } else result.push(line);
+  }
+  const flows = [];
+  for (let i = 0; i < order.length; i++) flows.push(`flow @${i} ${renumber(flowLines.get(order[i]))}`);
+  if (flowsAt >= 0) result.splice(flowsAt, 0, ...flows);
+  return { expected: result.join('\n'), actual: actualLines.join('\n') };
+}
+
+/**
  * Compares binding of one file with `flags`. When the outputs differ, also compares the
  * parse trees, so binder differences can be told from parser ones.
  */
 export async function compareBinding(command, path, flags) {
   const [expected, actual] = await Promise.all([run([bindOracle, path, ...flags]), run([...command, path, ...flags])]);
   const ok = expected.code === 0 && actual.code === 0;
-  const difference = ok ? firstDifference(expected.stdout.toString(), actual.stdout.toString()) : undefined;
+  const outputs = withoutPlainIdentifierFlows(expected.stdout.toString(), actual.stdout.toString());
+  const difference = ok ? firstDifference(outputs.expected, outputs.actual) : undefined;
   if (ok && difference === undefined) return { match: true };
   const named = flags.includes('--named') ? ['--named'] : [];
   const [expectedTree, actualTree] = await Promise.all([
