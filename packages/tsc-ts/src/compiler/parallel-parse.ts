@@ -494,7 +494,9 @@ export class ParseSession {
   }
 
   private post(i: number, chunk: LoadMessage): void {
-    this.workers[i]!.postMessage(chunk);
+    // Published, the chunk reaches the thread by pointer: copying its names into the message took the
+    // main thread 25-45 us per chunk, which during config read delays the matching of root files.
+    this.workers[i]!.postMessage(publish(chunk));
     this.outstanding[i] = this.outstanding[i]! + 1;
     if (chunk.kinds[0] === LoadKind.Library && largeLibraries.has(chunk.names[0]!)) this.blocked[i] = true;
     this.busy++;
