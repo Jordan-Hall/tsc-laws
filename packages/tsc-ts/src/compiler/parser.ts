@@ -491,7 +491,7 @@ export class Parser extends ScannerErrorReporter {
   signatureParameterFlags: ParseFlags;
 
   /** Parses JSDoc comments and, in JavaScript files, reparses their tags. */
-  readonly jsdoc: JSDocParser;
+  jsdoc: JSDocParser;
   /**
    * Returned instead of `undefined` by hot element parsers: a `Node | undefined` result is boxed natively
    * for every node returned.
@@ -554,12 +554,15 @@ export class Parser extends ScannerErrorReporter {
   }
 
   /**
-   * Frees the scanner's copy of the text once the parser is done. The parser and its scanner and
-   * JSDoc parser refer to each other, so natively they're freed only by a cycle collection, which may
-   * come much later.
+   * Frees the scanner's copy of the text once the parser is done, and drops the references back to
+   * this parser from its scanner and JSDoc parser. Natively, the parser is then freed as soon as its
+   * caller lets go of it, instead of at a cycle collection, which may come much later (on a parse
+   * thread, not before the thread exits).
    */
   release(): void {
     this.scanner.setText('');
+    this.scanner.setOnError(undefined);
+    this.jsdoc = releasedParser().jsdoc;
   }
 
   token(): SyntaxKind {
@@ -806,14 +809,10 @@ export class Parser extends ScannerErrorReporter {
     }
     collectExternalModuleReferences(result);
     if (result.isJS()) result.jsDiagnostics = attachFileToDiagnostics(this.jsDiagnostics, result);
-    // Declaration files get their caches on first use (in a thread's copy once they may be shared,
-    // `useThreadTextCaches`); the file's DiagnosticFile exists from here on, so reading it never
-    // writes to the file. The scanner holds the text's code units unless a nested parse cut its text short.
-    const scanner = this.scanner;
-    if (result.isDeclarationFile) result.diagnosticFile();
-    else if (scanner.text === result.text && scanner.end === result.text.length)
-      result.computeCachesFromUnits(scanner.chars);
-    else result.computeCaches();
+    // Files get their line starts on first use (in a thread's copy once they may be shared,
+    // `useThreadTextCaches`): most files are never pointed into by a diagnostic. The file's
+    // DiagnosticFile exists from here on, so reading it never writes to the file.
+    result.diagnosticFile();
     return result;
   }
 
@@ -6933,6 +6932,17 @@ export function forgetLazyJSDocFile(): void {
 }
 
 const viableKeywordSuggestions = getViableKeywordSuggestions();
+
+// A parser whose JSDoc parser released parsers keep (`Parser.release`), created on first use.
+let releasedParserValue: Parser | undefined;
+function releasedParser(): Parser {
+  let parser = releasedParserValue;
+  if (parser === undefined) {
+    parser = new Parser('/', '/', '', ScriptKind.TS, new ExternalModuleIndicatorOptions(false, false));
+    releasedParserValue = parser;
+  }
+  return parser;
+}
 
 function getSpaceSuggestion(expressionText: string): string {
   for (const keyword of viableKeywordSuggestions)

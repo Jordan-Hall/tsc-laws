@@ -18,7 +18,7 @@ import {
   type Locale,
   type MessageWithArgs,
 } from './diagnostics.js';
-import { CompilerHost, FileLoader } from './file-loader.js';
+import { CompilerHost, FileLoader, releaseLater } from './file-loader.js';
 import { CachedFileSystem, FileSystem, type DirectoryEntries } from './file-system.js';
 import { Program, sortAndDeduplicateDiagnostics } from './program.js';
 import { ConfigParser, ParsedCommandLine as ProjectConfig } from './tsconfig.js';
@@ -471,6 +471,8 @@ function executeCompile(sys: System, commandLine: ParsedCommandLine): CommandLin
             result = createProgram(host, own);
           }
           done(result);
+          // The session's callbacks keep the loader: its tasks go once checking has started.
+          releaseLater(loader);
         });
         // The build info of an incremental program is read while the threads parse: reading it needs
         // only the config (compile and recheckInParallel, tsc-compile.ts, take it from here).

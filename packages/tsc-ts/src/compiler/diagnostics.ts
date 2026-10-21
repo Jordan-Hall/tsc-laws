@@ -2,7 +2,7 @@
  * Diagnostics: message lookup and localization, the `Diagnostic` type, and tsc's plain and
  * pretty diagnostic output.
  */
-import { CharacterCodes, isDigit, isUnicodeWhiteSpace, utf8Length } from './character-codes.js';
+import { isDigit, isUnicodeWhiteSpace, utf8Length } from './character-codes.js';
 import { Locale, translations } from './diagnostic-locales.js';
 import { Diagnostics, messageCodes, messageFlags, messageKeys, messageTexts } from './diagnostic-messages.js';
 import { getPathComponentsRelativeTo, getPathFromPathComponents, isRootedDiskPath, pathIsAbsolute } from './path.js';
@@ -146,15 +146,15 @@ function toWellFormed(text: string): string {
 /**
  * Where this thread computes the line starts and UTF-8 offsets of files that may be shared with other
  * threads (`useThreadTextCaches`): a copy of each such file, by file, that computes them in place.
- * Files leave the parser with line starts, except declaration files, and without UTF-8 offsets.
+ * Files leave the parser without line starts and UTF-8 offsets, except JSON files, which have line
+ * starts.
  */
 let threadCopies: Map<DiagnosticFile, DiagnosticFile> | undefined = undefined;
 
 /**
  * Makes this thread compute the caches of files that do not have them yet in copies of its own: the
- * files may be published (immutable) and shared with other threads. Declaration files leave the
- * parser without them (`Parser.parseSourceFile`): they make up most of the text of a typical program,
- * and are rarely checked or pointed into by a diagnostic.
+ * files may be published (immutable) and shared with other threads. Files leave the parser without
+ * them (`Parser.parseSourceFile`): most files are never pointed into by a diagnostic.
  */
 export function useThreadTextCaches(): void {
   if (threadCopies === undefined) threadCopies = new Map<DiagnosticFile, DiagnosticFile>();
@@ -172,15 +172,6 @@ function threadCopyOf(file: DiagnosticFile): DiagnosticFile | undefined {
     copies.set(file, copy);
   }
   return copy;
-}
-
-/** The position of the first code unit at or after `pos` that is a CR or below, or not ASCII; or `end`. */
-function skipPlainASCII(units: Uint16Array, pos: number, end: number): number {
-  for (let i = pos | 0; i < end; i = (i + 1) | 0) {
-    const c = units[i] | 0;
-    if (c <= CharacterCodes.carriageReturn || c >= 0x80) return i;
-  }
-  return end;
 }
 
 /** The text of a file diagnostics point into. */
@@ -204,36 +195,6 @@ export class DiagnosticFile {
    */
   computeCaches(): void {
     if (this.lineStarts.length === 0) this.lineStarts = computeLineStarts(this.text);
-  }
-
-  /**
-   * Like `computeCaches`, from the text's UTF-16 code units `units[0, text.length)`, so the text
-   * itself is neither searched nor copied.
-   */
-  computeCachesFromUnits(units: Uint16Array): void {
-    const text = this.text;
-    // ASCII texts are searched faster than walked.
-    if (this.lineStarts.length !== 0 || Buffer.byteLength(text, 'utf8') === text.length) {
-      this.computeCaches();
-      return;
-    }
-    const length = text.length | 0;
-    const lineStarts: number[] = [0];
-    // Visit only the code units that may break a line; `skipPlainASCII` runs over the rest without
-    // calls, so native builds keep its loop on registers. A CR followed by an LF leaves the line start
-    // to the LF.
-    for (let i = skipPlainASCII(units, 0, length); i < length; i = skipPlainASCII(units, (i + 1) | 0, length)) {
-      const ch = units[i] | 0;
-      if (
-        ch === CharacterCodes.lineFeed ||
-        (ch === CharacterCodes.carriageReturn &&
-          (i + 1 >= length || (units[(i + 1) | 0] | 0) !== CharacterCodes.lineFeed)) ||
-        ch === CharacterCodes.lineSeparator ||
-        ch === CharacterCodes.paragraphSeparator
-      )
-        lineStarts.push(i + 1);
-    }
-    this.lineStarts = lineStarts;
   }
 
   /** Start offsets of each line, split at CR, LF, CRLF, LS and PS. */

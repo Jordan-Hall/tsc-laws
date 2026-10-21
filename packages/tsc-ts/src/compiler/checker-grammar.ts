@@ -130,7 +130,7 @@ import { ModuleKind, ScriptTarget, getEmitModuleKind } from './options.js';
 import { fileExtensionIsOneOf, isExternalModuleNameRelative } from './path.js';
 import { SourceFileMetadata, getEmitModuleFormatOfFile, getImpliedNodeFormatForEmit } from './program-utilities.js';
 import { CharacterCodes } from './character-codes.js';
-import { Scanner, ScannerErrorReporter, computeLineOfPosition, skipTrivia, tokenToString } from './scanner.js';
+import { Scanner, ScannerErrorReporter, skipTrivia, tokenToString } from './scanner.js';
 import { typeToString } from './type-printer.js';
 import type { ScriptTarget as LanguageTarget } from './types.js';
 import { SyntaxKind } from './syntax-kind.js';
@@ -1437,11 +1437,23 @@ function checkGrammarArrowFunction(g: GrammarChecker, node: Node): boolean {
   }
   const arrowToken = arrow.equalsGreaterThanToken;
   if (arrowToken === undefined) return false;
-  const lineStarts = g.file.lineStarts();
   return (
-    computeLineOfPosition(lineStarts, arrowToken.pos) !== computeLineOfPosition(lineStarts, arrowToken.end) &&
+    hasLineBreak(g.file.text, arrowToken.pos, arrowToken.end) &&
     grammarErrorOnNode(g, arrowToken, Diagnostics.Line_terminator_not_permitted_before_arrow)
   );
+}
+
+/**
+ * Whether a line starts in `(pos, end]`, so that `pos` and `end` are on different lines: after an
+ * LF, LS or PS, or a CR that no LF follows (`computeLineStarts`), without the file's line starts.
+ */
+function hasLineBreak(text: string, pos: number, end: number): boolean {
+  for (let i = pos; i < end; i++) {
+    const c = text.charCodeAt(i);
+    if (c === 0x0a || c === 0x2028 || c === 0x2029) return true;
+    if (c === 0x0d && text.charCodeAt(i + 1) !== 0x0a) return true;
+  }
+  return false;
 }
 
 function checkGrammarForGenerator(g: GrammarChecker, node: Node): boolean {

@@ -205,7 +205,7 @@ export class LoadedReference {
  * What a parse thread's FileLoader found loading a file it prepared (parallel-parse.ts): the same
  * as the program's FileLoader finds, since both load with the same options and file system. The
  * program's FileLoader takes it instead of resolving the file's references, imports and type
- * directives again. Published with the file, so the reasons are copied when taken.
+ * directives again, and takes its reasons as they are (they are immutable).
  */
 export class LoadedFile {
   constructor(
@@ -630,6 +630,21 @@ export class FileLoader {
     mark('loader collected');
     this.mapper.loader = undefined;
     return result;
+  }
+
+  /**
+   * Drops the tasks once the program has its files, so that whatever holds the loader after loading
+   * (a parse session's callbacks) no longer keeps every file's task, sub-task list and resolution
+   * traces. Freeing them takes a while on large programs, so the drivers call this once checking
+   * has started (`releaseLater`).
+   */
+  release(): void {
+    this.rootTasks.length = 0;
+    this.taskDataByPath.clear();
+    this.work.length = 0;
+    this.subTasksAhead.clear();
+    this.referenceTasks.clear();
+    this.paths.clear();
   }
 
   /**
@@ -1092,7 +1107,7 @@ export class FileLoader {
         new ParseTask(
           reference.normalizedFilePath,
           libFile,
-          reference.reason.copy(),
+          reference.reason,
           false,
           reference.increaseDepth,
           reference.elideOnDepth,
@@ -1452,6 +1467,11 @@ export class FileLoader {
 }
 
 const noPackageJsonLookups: readonly PackageJsonLookup[] = [];
+
+/** Releases `loader` (`FileLoader.release`) on a later turn of the event loop, while checking runs. */
+export function releaseLater(loader: FileLoader): void {
+  setImmediate(() => loader.release());
+}
 
 function addIncludeReason(processor: IncludeProcessor, task: ParseTask, reason: FileIncludeReason): void {
   const redirected = task.redirectedParseTask;

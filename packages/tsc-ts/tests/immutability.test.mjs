@@ -187,22 +187,21 @@ function assertImmutable(args, minimumFrozen = 100000) {
 
 const emitOptions = (dir) => ['--noEmit', 'false', '--outDir', dir, '--declaration', '--declarationMap', '--sourceMap'];
 
-// The parser leaves the line starts and UTF-8 offsets of declaration files to first use; once files
-// may be shared (`useThreadTextCaches`), a thread computes them in a copy of its own.
+// The parser leaves the line starts and UTF-8 offsets of files to first use; once files may be
+// shared (`useThreadTextCaches`), a thread computes them in a copy of its own.
 test('a shared file gets its line starts and UTF-8 offsets without being written', () => {
   const text = "declare const a: '\u00e9';\r\n/** \u{1f600} */\rdeclare const b: string;\u2028export {};\n";
   const plain = parseSourceFile('/p/plain.d.ts', text).diagnosticFile();
   const shared = parseSourceFile('/p/shared.d.ts', text);
   const file = shared.diagnosticFile();
-  // Other files get their line starts from the scanner's code units at parse time: reading them
-  // writes nothing, before this thread computes caches in copies too. Their UTF-8 offsets, like those
-  // of declaration files, are computed on first use, in copies once files may be shared.
-  const units = parseSourceFile('/p/units.ts', text).diagnosticFile();
+  const source = parseSourceFile('/p/source.ts', text);
+  const units = source.diagnosticFile();
+  Object.freeze(source);
   Object.freeze(units);
-  assert.deepEqual(units.getLineStarts(), plain.getLineStarts());
   Object.freeze(shared);
   Object.freeze(file);
   useThreadTextCaches();
+  assert.deepEqual(units.getLineStarts(), plain.getLineStarts());
   for (let pos = 0; pos <= text.length; pos++) assert.equal(units.toUtf8Offset(pos), plain.toUtf8Offset(pos));
   for (let pos = 0; pos <= Buffer.byteLength(text, 'utf8'); pos++)
     assert.equal(units.fromUtf8Offset(pos), plain.fromUtf8Offset(pos));

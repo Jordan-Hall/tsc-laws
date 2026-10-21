@@ -425,6 +425,8 @@ class Directives {
   private readonly byLine = new Map<number, { pos: number; end: number; kind: CommentDirectiveKind }>();
 
   constructor(readonly file: SourceFile) {
+    // Most files have no directives, and need no line starts.
+    if (file.commentDirectives.length === 0) return;
     const lineStarts = file.diagnosticFile().getLineStarts();
     for (const directive of file.commentDirectives) {
       const line = computeLineOfPosition(lineStarts, directive.pos);

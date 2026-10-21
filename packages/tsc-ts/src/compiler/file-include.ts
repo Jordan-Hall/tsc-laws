@@ -30,13 +30,12 @@ export const enum FileIncludeKind {
   AutomaticTypeDirectiveFile,
 }
 
-/** One reason a file is in the program. */
+/**
+ * One reason a file is in the program. Reasons are immutable, so the program's loader takes the
+ * reasons a parse thread found as they are; what they compute for a program is kept by its
+ * IncludeProcessor (`ReasonCache`).
+ */
 export class FileIncludeReason {
-  private relativeDiagnostic: Diagnostic | undefined = undefined;
-  private absoluteDiagnostic: Diagnostic | undefined = undefined;
-  private location: ReferenceFileLocation | undefined = undefined;
-  private relatedInfo: Diagnostic | null | undefined = undefined;
-
   private constructor(
     readonly kind: FileIncludeKind,
     /** The referencing file's path, for references from a file. */
@@ -80,7 +79,7 @@ export class FileIncludeReason {
     return new FileIncludeReason(kind, file, index, synthetic, '', undefined);
   }
 
-  /** The same reason without what it has computed (a parse thread's reasons are immutable). */
+  /** The same reason as a new object (`IncludeProcessor.copy`). */
   copy(): FileIncludeReason {
     return new FileIncludeReason(this.kind, this.file, this.index, this.synthetic, this.typeReference, this.packageId);
   }
@@ -90,7 +89,8 @@ export class FileIncludeReason {
   }
 
   getReferencedLocation(program: Program): ReferenceFileLocation {
-    if (this.location !== undefined) return this.location;
+    const cache = program.includeProcessor.cacheOf(this);
+    if (cache !== undefined && cache.location !== undefined) return cache.location;
     const file = program.getSourceFileByPath(this.file);
     if (file === undefined) throw new Error('referencing file is not in the program');
     let location: ReferenceFileLocation;
@@ -142,18 +142,20 @@ export class FileIncludeReason {
           false,
         );
     }
-    if (!program.isShared()) this.location = location;
+    if (!program.isShared()) program.includeProcessor.newCacheOf(this).location = location;
     return location;
   }
 
   /** The reason as a message, with file names relative to the current directory if `relative`. */
   toDiagnostic(program: Program, relative: boolean): Diagnostic {
-    const cached = relative ? this.relativeDiagnostic : this.absoluteDiagnostic;
+    const cache = program.includeProcessor.cacheOf(this);
+    const cached = cache === undefined ? undefined : relative ? cache.relativeDiagnostic : cache.absoluteDiagnostic;
     if (cached !== undefined) return cached;
     const diagnostic = this.computeDiagnostic(program, relative);
     if (program.isShared()) return diagnostic;
-    if (relative) this.relativeDiagnostic = diagnostic;
-    else this.absoluteDiagnostic = diagnostic;
+    const own = program.includeProcessor.newCacheOf(this);
+    if (relative) own.relativeDiagnostic = diagnostic;
+    else own.absoluteDiagnostic = diagnostic;
     return diagnostic;
   }
 
@@ -286,9 +288,10 @@ export class FileIncludeReason {
 
   /** Where in the config or a file this reason is written, as related information; `undefined` if nowhere. */
   toRelatedInfo(program: Program): Diagnostic | undefined {
-    if (this.relatedInfo !== undefined) return this.relatedInfo ?? undefined;
+    const cache = program.includeProcessor.cacheOf(this);
+    if (cache !== undefined && cache.relatedInfo !== undefined) return cache.relatedInfo ?? undefined;
     const info = this.computeRelatedInfo(program);
-    if (!program.isShared()) this.relatedInfo = info ?? null;
+    if (!program.isShared()) program.includeProcessor.newCacheOf(this).relatedInfo = info ?? null;
     return info;
   }
 
@@ -517,8 +520,18 @@ function stripLibAffixes(name: string): string {
 }
 
 /** Include reasons of every file and the diagnostics found while loading them. */
+/** What a reason computed for the program of an IncludeProcessor. */
+class ReasonCache {
+  relativeDiagnostic: Diagnostic | undefined = undefined;
+  absoluteDiagnostic: Diagnostic | undefined = undefined;
+  location: ReferenceFileLocation | undefined = undefined;
+  relatedInfo: Diagnostic | null | undefined = undefined;
+}
+
 export class IncludeProcessor {
   private computed: Diagnostic[] | undefined = undefined;
+  /** What each reason computed for this processor's program, once it computed something. */
+  private readonly reasonCaches = new Map<FileIncludeReason, ReasonCache>();
   private compilerOptionsObject: ObjectLiteralExpression | undefined = undefined;
   private compilerOptionsComputed = false;
   private readonly redirectAndFileFormat = new Map<string, readonly Diagnostic[]>();
@@ -529,6 +542,21 @@ export class IncludeProcessor {
     readonly fileIncludeReasons = new Map<string, FileIncludeReason[]>(),
     readonly processingDiagnostics: ProcessingDiagnostic[] = [],
   ) {}
+
+  /** What `reason` computed for this processor's program, if anything. */
+  cacheOf(reason: FileIncludeReason): ReasonCache | undefined {
+    return this.reasonCaches.get(reason);
+  }
+
+  /** The cache of `reason`, created if needed. */
+  newCacheOf(reason: FileIncludeReason): ReasonCache {
+    let cache = this.reasonCaches.get(reason);
+    if (cache === undefined) {
+      cache = new ReasonCache();
+      this.reasonCaches.set(reason, cache);
+    }
+    return cache;
+  }
 
   /**
    * A processor with these reasons and the processing diagnostics its program was created with, whose diagnostics are
