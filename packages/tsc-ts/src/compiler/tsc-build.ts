@@ -725,12 +725,9 @@ export class Orchestrator {
       // Threads parse and bind the program's files ahead of it (parallel-parse.ts), as for plain
       // compiles. Here also when the program is checked on this thread, with one checker or after a
       // change with old build info, whose program is parsed in full all the same. The
-      // program's FileLoader takes the files they prepared, and resolves their imports and
-      // references itself (`takesPreparedResolutions`): the build info lists the `package.json`
-      // files the program's module resolution looked up, and which ones it looks up depends on the
-      // order of its resolutions and on what its own caches hold. Declaration files that earlier
-      // projects of the build parsed come from the build's cache, and parse threads don't load
-      // them again.
+      // program's FileLoader takes the files they prepared and the resolutions found loading them.
+      // Declaration files that earlier projects of the build parsed come from the build's cache,
+      // and parse threads don't load them again.
       const libraryDirectory = getNormalizedAbsolutePath(sys.defaultLibraryPath, sys.currentDirectory);
       const session = new ParseSession(
         parseThreads(checkers),
@@ -742,9 +739,15 @@ export class Orchestrator {
           buildSourceFileNames.has(kind === LoadKind.Library ? combinePaths(libraryDirectory, name) : name),
       );
       session.start(config.fileNames, () => {
-        const loader = new FileLoader(host, config);
-        loader.takesPreparedResolutions = false;
-        const program = new Program(config, host, loader);
+        // The program takes the resolutions the threads found, as `tsc -p` does, and is loaded
+        // again resolving every file itself only where their `package.json` lookups may miss some
+        // of its own (`hasAllPackageJsonLookups`), which the build info lists.
+        let program = new Program(config, host, new FileLoader(host, config));
+        if (!program.hasAllPackageJsonLookups()) {
+          const loader = new FileLoader(host, config);
+          loader.takesPreparedResolutions = false;
+          program = new Program(config, host, loader);
+        }
         reportPreparedFiles(program.getSourceFiles().map((f) => f.fileName));
         if (!this.checkAndEmit(task, program, parseStart, times, oldSnapshot, mayUseThreads, then)) then();
       });
