@@ -33,7 +33,7 @@ import type { DeferredCollisionCheck } from './checker-generated-code.js';
 import type { EmitHelperFileLinks } from './checker-emit-helpers.js';
 import { sideOf } from './side-state.js';
 import type { Node, PatternAmbientModule, SourceFile } from './ast.js';
-import { IntLinkTable, LinkTable, SparseLinkTable } from './link-tables.js';
+import { CompactSymbolLinkTable, IntLinkTable, LinkTable, SparseLinkTable } from './link-tables.js';
 import { getErrorRangeForNode, getSourceFileOfNode } from './binder-utilities.js';
 import { Diagnostic, type DiagnosticMessage, Diagnostics, compareDiagnostics } from './diagnostics.js';
 import {
@@ -378,7 +378,7 @@ export class Checker implements TypeChecking {
   /** Bits of SymbolFlags for the meanings in which a symbol was referenced. */
   readonly symbolReferenceKinds = new IntLinkTable();
   /** The resolved symbol of an identifier, entity name or call. */
-  readonly resolvedSymbols = new SparseLinkTable<Symbol>();
+  readonly resolvedSymbols = new CompactSymbolLinkTable();
   /** The resolved type of a type node or expression. */
   readonly resolvedTypes = new SparseLinkTable<Type>();
   /** The resolved signature of a call-like node or a signature declaration. */
