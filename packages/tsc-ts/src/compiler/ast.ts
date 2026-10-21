@@ -8109,6 +8109,24 @@ export class JSDocParameterOrPropertyTag extends Node {
   }
 }
 
+// The lists of a source file that has none. Most files have no diagnostics, references, pragmas
+// or ambient modules, so they share these instead of holding empty arrays of their own. A list
+// that grows replaces an empty one rather than pushing to it (appendToList).
+export const emptyDiagnostics: readonly Diagnostic[] = [];
+export const emptyNodes: readonly Node[] = [];
+export const emptyStrings: readonly string[] = [];
+export const emptyCommentDirectives: readonly CommentDirective[] = [];
+export const emptyPragmas: readonly Pragma[] = [];
+export const emptyFileReferences: readonly FileReference[] = [];
+export const emptyPatternAmbientModules: readonly PatternAmbientModule[] = [];
+
+/** `list` with `item` appended: a new array when `list` is empty (it may be shared), else `list` itself. */
+export function appendToList<T>(list: readonly T[], item: T): readonly T[] {
+  if (list.length === 0) return [item];
+  (list as T[]).push(item);
+  return list;
+}
+
 export class SourceFile extends Node {
   readonly fileName: string;
   readonly path: string;
@@ -8118,10 +8136,10 @@ export class SourceFile extends Node {
   endOfFileToken: Token;
 
   // Set by the parser.
-  diagnostics: Diagnostic[];
+  diagnostics: readonly Diagnostic[];
   /** Diagnostics for TypeScript-only syntax in JavaScript files. */
-  jsDiagnostics: Diagnostic[];
-  jsDocDiagnostics: Diagnostic[];
+  jsDiagnostics: readonly Diagnostic[];
+  jsDocDiagnostics: readonly Diagnostic[];
   languageVariant: LanguageVariant;
   scriptKind: ScriptKind;
   isDeclarationFile: boolean;
@@ -8136,20 +8154,20 @@ export class SourceFile extends Node {
   /** Module specifiers of imports, exports, `require` calls and `import()` types, in source order. */
   imports: Node[];
   /** Names of `declare module "x"` augmentations and `declare global` blocks in modules. */
-  moduleAugmentations: Node[];
-  ambientModuleNames: string[];
+  moduleAugmentations: readonly Node[];
+  ambientModuleNames: readonly string[];
   commentDirectives: readonly CommentDirective[];
-  pragmas: Pragma[];
-  referencedFiles: FileReference[];
-  typeReferenceDirectives: FileReference[];
-  libReferenceDirectives: FileReference[];
+  pragmas: readonly Pragma[];
+  referencedFiles: readonly FileReference[];
+  typeReferenceDirectives: readonly FileReference[];
+  libReferenceDirectives: readonly FileReference[];
   checkJsDirective: CheckJsDirective | undefined;
   /** The first CommonJS `module.exports`/`exports.x` use in a JavaScript file. */
   commonJSModuleIndicator: Node | undefined;
   /** What makes this file a module: an import or export statement, `import.meta`, a JSX tag, or the file itself when forced. */
   externalModuleIndicator: Node | undefined;
   /** Nodes cloned by JSDoc reparsing, sorted by position. */
-  reparsedClones: Node[];
+  reparsedClones: readonly Node[];
   /** Whether JSDoc of TypeScript files is parsed on first use. */
   hasLazyJSDoc: boolean;
   /**
@@ -8164,12 +8182,12 @@ export class SourceFile extends Node {
   locals: SymbolTable | undefined;
   nextContainer: Node | undefined;
   isBound: boolean;
-  bindDiagnostics: Diagnostic[];
+  bindDiagnostics: readonly Diagnostic[];
   /** The flow at the end of the file. */
   endFlowNode: FlowNode | undefined;
   symbolCount: number;
   /** Ambient modules with a `*` in their name, like `declare module "*.css"`. */
-  patternAmbientModules: PatternAmbientModule[];
+  patternAmbientModules: readonly PatternAmbientModule[];
   /** UMD exports from `export as namespace N`. */
   globalExports: SymbolTable | undefined;
 
@@ -8188,9 +8206,9 @@ export class SourceFile extends Node {
     this.externalModuleIndicatorOptions = externalModuleIndicatorOptions;
     this.statements = statements;
     this.endOfFileToken = endOfFileToken;
-    this.diagnostics = [];
-    this.jsDiagnostics = [];
-    this.jsDocDiagnostics = [];
+    this.diagnostics = emptyDiagnostics;
+    this.jsDiagnostics = emptyDiagnostics;
+    this.jsDocDiagnostics = emptyDiagnostics;
     this.languageVariant = 0;
     this.scriptKind = ScriptKind.Unknown;
     this.isDeclarationFile = false;
@@ -8201,17 +8219,17 @@ export class SourceFile extends Node {
     this.nodeCount = 0;
     this.textCount = 0;
     this.imports = [];
-    this.moduleAugmentations = [];
-    this.ambientModuleNames = [];
-    this.commentDirectives = [];
-    this.pragmas = [];
-    this.referencedFiles = [];
-    this.typeReferenceDirectives = [];
-    this.libReferenceDirectives = [];
+    this.moduleAugmentations = emptyNodes;
+    this.ambientModuleNames = emptyStrings;
+    this.commentDirectives = emptyCommentDirectives;
+    this.pragmas = emptyPragmas;
+    this.referencedFiles = emptyFileReferences;
+    this.typeReferenceDirectives = emptyFileReferences;
+    this.libReferenceDirectives = emptyFileReferences;
     this.checkJsDirective = undefined;
     this.commonJSModuleIndicator = undefined;
     this.externalModuleIndicator = undefined;
-    this.reparsedClones = [];
+    this.reparsedClones = emptyNodes;
     this.hasLazyJSDoc = false;
     this.jsDocs = undefined;
     this.diagnosticFileCache = undefined;
@@ -8219,10 +8237,10 @@ export class SourceFile extends Node {
     this.locals = undefined;
     this.nextContainer = undefined;
     this.isBound = false;
-    this.bindDiagnostics = [];
+    this.bindDiagnostics = emptyDiagnostics;
     this.endFlowNode = undefined;
     this.symbolCount = 0;
-    this.patternAmbientModules = [];
+    this.patternAmbientModules = emptyPatternAmbientModules;
     this.globalExports = undefined;
   }
 

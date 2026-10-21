@@ -277,7 +277,7 @@ export function checkExpressionWithContextualType(
     checkMode | CheckMode.Contextual | (inferenceContext !== undefined ? CheckMode.Inferential : 0),
   );
   // Intra-expression inference sites only matter during this check.
-  if (inferenceContext !== undefined) inferenceContext.intraExpressionInferenceSites = [];
+  if (inferenceContext !== undefined) inferenceContext.intraExpressionInferenceSites = undefined;
   // Contextually typed literals keep their literal types rather than widening during inference.
   if (
     maybeTypeOfKind(t, TypeFlags.Literal) &&

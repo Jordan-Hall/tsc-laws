@@ -174,12 +174,15 @@ function threadCopyOf(file: DiagnosticFile): DiagnosticFile | undefined {
   return copy;
 }
 
+/** The empty value of a file's position tables until they are computed. */
+const noNumbers: readonly number[] = [];
+
 /** The text of a file diagnostics point into. */
 export class DiagnosticFile {
   readonly fileName: string;
   readonly text: string;
   // Computed on first use; never empty once computed.
-  private lineStarts: number[] = [];
+  private lineStarts: readonly number[] = noNumbers;
   /** Whether this is a thread's copy of a possibly shared file (`threadCopyOf`). */
   isThreadCopy = false;
 
@@ -210,8 +213,8 @@ export class DiagnosticFile {
   // The non-ASCII characters, in order: their UTF-16 offsets, UTF-8 lengths, and the UTF-8 bytes
   // beyond one per UTF-16 code unit of the text up to and including each. Unset until first used.
   private nonASCIIStarts: number[] | undefined = undefined;
-  private nonASCIILengths: number[] = [];
-  private extraBytes: number[] = [];
+  private nonASCIILengths: readonly number[] = noNumbers;
+  private extraBytes: readonly number[] = noNumbers;
 
   private getNonASCIIStarts(): number[] {
     let starts = this.nonASCIIStarts;
@@ -221,8 +224,8 @@ export class DiagnosticFile {
       if (Buffer.byteLength(text, 'utf8') !== text.length) {
         // Scanning the UTF-8 encoding is faster than reading each code unit.
         const bytes = Buffer.from(text, 'utf8');
-        const lengths = this.nonASCIILengths;
-        const extraBytes = this.extraBytes;
+        const lengths: number[] = [];
+        const extraBytes: number[] = [];
         let extra = 0;
         for (let i = 0; i < bytes.length; i++) {
           const b = bytes[i]!;
@@ -235,6 +238,8 @@ export class DiagnosticFile {
           extraBytes.push(extra);
           i += length - 1;
         }
+        this.nonASCIILengths = lengths;
+        this.extraBytes = extraBytes;
       }
       this.nonASCIIStarts = starts;
     }

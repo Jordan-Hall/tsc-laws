@@ -306,7 +306,8 @@ export class InferenceContext {
   returnMapper: TypeMapper | undefined = undefined;
   outerReturnMapper: TypeMapper | undefined = undefined;
   inferredTypeParameters: Type[] | undefined = undefined;
-  intraExpressionInferenceSites: IntraExpressionInferenceSite[] = [];
+  /** Created on the first site; most contexts get none. */
+  intraExpressionInferenceSites: IntraExpressionInferenceSite[] | undefined = undefined;
 
   constructor(
     c: Checker,
@@ -402,7 +403,7 @@ export function createOuterReturnMapper(c: Checker, context: InferenceContext): 
 }
 
 export function addIntraExpressionInferenceSite(context: InferenceContext, node: Node, type: Type): void {
-  context.intraExpressionInferenceSites.push(new IntraExpressionInferenceSite(node, type));
+  (context.intraExpressionInferenceSites ??= []).push(new IntraExpressionInferenceSite(node, type));
 }
 
 export function clearCachedInferences(inferences: InferenceInfo[]): void {
@@ -2126,7 +2127,8 @@ export function instantiateReverseMappedType(c: Checker, t: ReverseMappedType, m
 /** Infers early from intra-expression sites (context-sensitive elements of object and array literals). */
 export function inferFromIntraExpressionSites(c: Checker, context: InferenceContext): void {
   const sites = context.intraExpressionInferenceSites;
-  context.intraExpressionInferenceSites = [];
+  if (sites === undefined) return;
+  context.intraExpressionInferenceSites = undefined;
   for (const site of sites) {
     const contextualType = getContextualTypeForInference(c, site.node);
     if (contextualType !== undefined)

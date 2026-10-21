@@ -4,6 +4,7 @@
 // Fields of `instanceof`-narrowed nodes are read through `as` casts: scriptc reads them
 // statically, but reads fields of a narrowed value dynamically.
 import {
+  appendToList,
   BinaryExpression,
   BindingElement,
   CallExpression,
@@ -795,7 +796,7 @@ class Binder extends NodeVisitor {
   }
 
   addDiagnostic(diagnostic: Diagnostic): void {
-    this.file.bindDiagnostics.push(diagnostic);
+    this.file.bindDiagnostics = appendToList(this.file.bindDiagnostics, diagnostic);
   }
 
   // Traversal
@@ -1973,7 +1974,10 @@ class Binder extends NodeVisitor {
         if (starIndex >= 0 && text.indexOf('*', starIndex + 1) >= 0)
           this.errorOnFirstToken(name, Diagnostics.Pattern_0_can_have_at_most_one_Asterisk_character, [text]);
         else if (starIndex >= 0)
-          this.file.patternAmbientModules.push(new PatternAmbientModule(text, starIndex, symbol));
+          this.file.patternAmbientModules = appendToList(
+            this.file.patternAmbientModules,
+            new PatternAmbientModule(text, starIndex, symbol),
+          );
       }
       return;
     }
