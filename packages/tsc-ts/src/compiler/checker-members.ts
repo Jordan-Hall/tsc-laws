@@ -4,7 +4,6 @@ import type { Node } from './ast.js';
 import { getCombinedModifierFlags, getDeclarationOfKind } from './binder-utilities.js';
 import { Diagnostics } from './diagnostics.js';
 import { ModifierFlags, getSymbol, MappedTypeNode, getName } from './ast.js';
-import { CheckFlags, InternalSymbolName, type Symbol, SymbolFlags, type SymbolTable, getSymbolId } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
 import type { Checker } from './checker.js';
 import {
@@ -153,6 +152,18 @@ import {
 import { getGlobalBigIntType, getGlobalESSymbolType } from './checker-globals.js';
 import { isLateBoundName, isNumericLiteralName } from './checker-utilities.js';
 import { lazyObjectFlags, sideOf } from './side-state.js';
+import {
+  CheckFlags,
+  copyDeclarations,
+  declarationCount,
+  getDeclarations,
+  getSymbolId,
+  InternalSymbolName,
+  setDeclarations,
+  type Symbol,
+  SymbolFlags,
+  type SymbolTable,
+} from './symbol.js';
 
 // ---- Resolution
 
@@ -1005,7 +1016,7 @@ function resolveAnonymousTypeMembers(c: Checker, t: ObjectType): void {
     const varsOnly = new Map<string, Symbol>();
     for (const p of members.values()) {
       if ((p.flags & SymbolFlags.BlockScoped) !== 0) continue;
-      if ((p.flags & SymbolFlags.ValueModule) !== 0 && isOnlyAmbientModuleDeclarations(p.declarations)) continue;
+      if ((p.flags & SymbolFlags.ValueModule) !== 0 && isOnlyAmbientModuleDeclarations(getDeclarations(p))) continue;
       varsOnly.set(p.name, p);
     }
     members = varsOnly;
@@ -1771,7 +1782,7 @@ export function createUnionOrIntersectionProperty(
     if (firstValueDeclaration === undefined) firstValueDeclaration = prop.valueDeclaration;
     else if (prop.valueDeclaration !== undefined && prop.valueDeclaration !== firstValueDeclaration)
       hasNonUniformValueDeclaration = true;
-    for (const d of prop.declarations) declarations.push(d);
+    for (const d of getDeclarations(prop)) declarations.push(d);
     const t = getTypeOfSymbol(c, prop);
     if (firstType === undefined) {
       firstType = t;
@@ -1789,7 +1800,7 @@ export function createUnionOrIntersectionProperty(
   }
   for (const t of indexTypes) propTypes.push(t);
   const result = c.newSymbolWithCheckFlags(propFlags | optionalFlag, name, checkFlags | syntheticFlag);
-  result.declarations = declarations;
+  setDeclarations(result, declarations);
   if (!hasNonUniformValueDeclaration && firstValueDeclaration !== undefined) {
     result.valueDeclaration = firstValueDeclaration;
     result.parent = getSymbol(firstValueDeclaration)?.parent;
@@ -1827,13 +1838,13 @@ export function isPrototypeProperty(symbol: Symbol): boolean {
 function hasCommonDeclaration(symbols: Symbol[]): boolean {
   let common: Set<Node> | undefined;
   for (const symbol of symbols) {
-    if (symbol.declarations.length === 0) return false;
+    if (declarationCount(symbol) === 0) return false;
     if (common === undefined) {
-      common = new Set(symbol.declarations);
+      common = new Set(getDeclarations(symbol));
       continue;
     }
     const next = new Set<Node>();
-    for (const d of symbol.declarations) if (common.has(d)) next.add(d);
+    for (const d of getDeclarations(symbol)) if (common.has(d)) next.add(d);
     if (next.size === 0) return false;
     common = next;
   }
@@ -1842,7 +1853,7 @@ function hasCommonDeclaration(symbols: Symbol[]): boolean {
 
 export function createSymbolWithType(c: Checker, source: Symbol, t: Type | undefined): Symbol {
   const symbol = c.newSymbolWithCheckFlags(source.flags, source.name, source.checkFlags & CheckFlags.Readonly);
-  symbol.declarations = source.declarations;
+  copyDeclarations(symbol, source);
   symbol.parent = source.parent;
   symbol.valueDeclaration = source.valueDeclaration;
   const id = getSymbolId(symbol);

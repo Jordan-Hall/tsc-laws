@@ -46,7 +46,6 @@ import {
   getStrictOptionValue,
   shouldPreserveConstEnums,
 } from '../options.js';
-import { type Symbol, SymbolFlags } from '../symbol.js';
 import { SyntaxKind } from '../syntax-kind.js';
 import { getDeclarationOfAliasSymbol, type ReferenceResolver } from './reference-resolver.js';
 import {
@@ -56,6 +55,7 @@ import {
   nodeCanBeDecorated,
 } from './decorator-utilities.js';
 import { hasDecorators, hasSyntacticModifier } from './utilities.js';
+import { getDeclarations, type Symbol, SymbolFlags } from '../symbol.js';
 
 export class AliasReferences extends NodeVisitor {
   readonly options: CompilerOptions;
@@ -214,7 +214,7 @@ export class AliasReferences extends NodeVisitor {
     const symbol = this.resolver.getSymbolOfDeclaration(node);
     if (symbol === undefined) return undefined;
     const kind = node.kind === SyntaxKind.SetAccessor ? SyntaxKind.GetAccessor : SyntaxKind.SetAccessor;
-    for (const declaration of symbol.declarations) if (declaration.kind === kind) return declaration;
+    for (const declaration of getDeclarations(symbol)) if (declaration.kind === kind) return declaration;
     return undefined;
   }
 

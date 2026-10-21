@@ -24,9 +24,9 @@ import {
   getIsTypeOnly,
 } from '../ast.js';
 import { getStrictOptionValue } from '../options.js';
-import { Symbol, SymbolFlags } from '../symbol.js';
 import { SyntaxKind } from '../syntax-kind.js';
 import { ConstantKind, type ReferenceResolver } from './reference-resolver.js';
+import { declarationAt, declarationCount, getDeclarations, Symbol, SymbolFlags } from '../symbol.js';
 
 /** What a type reference in decorator metadata serializes to. */
 export const enum TypeReferenceSerializationKind {
@@ -62,9 +62,9 @@ export function getTypeReferenceSerializationKind(
   let isTypeOnly = false;
   if (typeName instanceof QualifiedName) {
     const root = resolveEntityName(resolver, getFirstIdentifier(typeName), SymbolFlags.Value, true, location);
-    if (root !== undefined && root !== unknownSymbol && root.declarations.length > 0) {
+    if (root !== undefined && root !== unknownSymbol && declarationCount(root) > 0) {
       isTypeOnly = true;
-      for (const declaration of root.declarations)
+      for (const declaration of getDeclarations(root))
         if (!isTypeOnlyImportOrExportDeclaration(declaration)) {
           isTypeOnly = false;
           break;
@@ -155,8 +155,8 @@ function hasConstructSignature(resolver: ReferenceResolver, type: Node, location
   if (type instanceof TypeReferenceNode) {
     const symbol = resolveEntityName(resolver, type.typeName, SymbolFlags.Type, false, location);
     if (symbol === undefined || symbol === unknownSymbol) return false;
-    for (let i = 0; i < symbol.declarations.length; i++) {
-      const declaration = symbol.declarations[i]!;
+    for (let i = 0; i < declarationCount(symbol); i++) {
+      const declaration = declarationAt(symbol, i);
       if (
         declaration instanceof InterfaceDeclaration &&
         hasMember(declaration.members.nodes, SyntaxKind.ConstructSignature)
@@ -196,22 +196,22 @@ class TypeClassifier {
     }
     if ((flags & SymbolFlags.Class) !== 0) return TypeReferenceSerializationKind.ObjectType;
     if ((flags & SymbolFlags.TypeAlias) !== 0) {
-      for (let i = 0; i < symbol.declarations.length; i++) {
-        const declaration = symbol.declarations[i]!;
+      for (let i = 0; i < declarationCount(symbol); i++) {
+        const declaration = declarationAt(symbol, i);
         if (declaration instanceof TypeAliasDeclaration)
           return this.ofTypeNode(declaration.type, declaration, depth + 1);
       }
       return TypeReferenceSerializationKind.ObjectType;
     }
     if ((flags & SymbolFlags.TypeParameter) !== 0) {
-      const declaration = symbol.declarations.length > 0 ? symbol.declarations[0]! : undefined;
+      const declaration = declarationCount(symbol) > 0 ? symbol.declaration! : undefined;
       if (declaration instanceof TypeParameterDeclaration && declaration.constraint !== undefined)
         return this.ofTypeNode(declaration.constraint, declaration, depth + 1);
       return TypeReferenceSerializationKind.ObjectType;
     }
     if ((flags & SymbolFlags.Interface) !== 0) {
-      for (let i = 0; i < symbol.declarations.length; i++) {
-        const declaration = symbol.declarations[i]!;
+      for (let i = 0; i < declarationCount(symbol); i++) {
+        const declaration = declarationAt(symbol, i);
         if (
           declaration instanceof InterfaceDeclaration &&
           hasMember(declaration.members.nodes, SyntaxKind.CallSignature)
@@ -226,8 +226,8 @@ class TypeClassifier {
   private ofEnum(symbol: Symbol): TypeReferenceSerializationKind {
     let strings = false;
     let numbers = false;
-    for (let i = 0; i < symbol.declarations.length; i++) {
-      const declaration = symbol.declarations[i]!;
+    for (let i = 0; i < declarationCount(symbol); i++) {
+      const declaration = declarationAt(symbol, i);
       if (!(declaration instanceof EnumDeclaration)) continue;
       const members = declaration.members.nodes;
       for (let j = 0; j < members.length; j++) {

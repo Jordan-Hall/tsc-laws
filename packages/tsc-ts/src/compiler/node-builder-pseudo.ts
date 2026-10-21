@@ -84,7 +84,6 @@ import {
 import { tryReuseExistingNode } from './node-builder-reuse.js';
 import { EmitFlags } from './printer/emit-flags.js';
 import { compareTypesIdentical } from './relations.js';
-import { CheckFlags, type Symbol, SymbolFlags } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
 import { NodeBuilderFlags } from './transformers/declarations-resolver.js';
 import {
@@ -106,6 +105,7 @@ import {
 } from './transformers/declarations-pseudo.js';
 import { tryGetTextOfPropertyName } from './transformers/declarations-syntactic.js';
 import { TokenFlags } from './types.js';
+import { CheckFlags, declarationCount, type Symbol, SymbolFlags } from './symbol.js';
 
 /** Resolves no names: `undefined` in an expression is the undefined value, as tsgo's pseudochecker assumes. */
 class NoNames extends NameResolver {
@@ -562,7 +562,7 @@ export function pseudoTypeEquivalentToType(
       const targetProps = getPropertiesOfType(c, undefinedStripped);
       // Accessor pairs are two members but one property.
       let targetDeclCount = 0;
-      for (const prop of targetProps) targetDeclCount += prop.declarations.length;
+      for (const prop of targetProps) targetDeclCount += declarationCount(prop);
       if (pt.members.length !== targetDeclCount) return false;
       for (const e of pt.members) {
         let targetProp: Symbol | undefined = undefined;

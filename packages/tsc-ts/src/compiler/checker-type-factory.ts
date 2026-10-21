@@ -9,7 +9,6 @@ import { TypeSystemPropertyName, popTypeResolution, pushTypeResolution } from '.
 import { isGenericIndexType } from './checker-type-operators.js';
 import { compareCodePoints } from './diagnostics.js';
 import { Diagnostics } from './diagnostic-messages.js';
-import { CheckFlags, type Symbol, SymbolFlags, type SymbolTable, getSymbolId } from './symbol.js';
 import type { Checker } from './checker.js';
 import {
   CachedTypeKind,
@@ -79,6 +78,7 @@ import {
 import { addOptionality } from './checker-symbol-types.js';
 import { getSourceFileOfNode } from './binder-utilities.js';
 import { isPartOfTypeNode } from './transformers/alias-references.js';
+import { CheckFlags, declarationCount, getSymbolId, type Symbol, SymbolFlags, type SymbolTable } from './symbol.js';
 
 export const enum UnionReduction {
   None = 0,
@@ -514,11 +514,11 @@ export function compareSymbols(c: Checker, s1: Symbol | undefined, s2: Symbol | 
   if (s1 === s2) return 0;
   if (s1 === undefined) return 1;
   if (s2 === undefined) return -1;
-  if (s1.declarations.length !== 0 && s2.declarations.length !== 0) {
-    const r = compareNodes(c, s1.declarations[0]!, s2.declarations[0]!);
+  if (declarationCount(s1) !== 0 && declarationCount(s2) !== 0) {
+    const r = compareNodes(c, s1.declaration!, s2.declaration!);
     if (r !== 0) return r;
-  } else if (s1.declarations.length !== 0) return -1;
-  else if (s2.declarations.length !== 0) return 1;
+  } else if (declarationCount(s1) !== 0) return -1;
+  else if (declarationCount(s2) !== 0) return 1;
   const r = compareCodePoints(s1.name, s2.name);
   if (r !== 0) return r;
   if (structuralTies) return 0;
@@ -687,8 +687,8 @@ function declarationPlaces(c: Checker, t: Type): number[] {
   const queue: Type[] = [t];
   const seen = new Set<Type>();
   const visit = (symbol: Symbol | undefined): void => {
-    if (symbol === undefined || symbol.declarations.length === 0) return;
-    const node = symbol.declarations[0]!;
+    if (symbol === undefined || declarationCount(symbol) === 0) return;
+    const node = symbol.declaration!;
     const file = sourceFileOf(node);
     (file.isDeclarationFile ? libraryPlaces : places).push((c.fileIndex.get(file) ?? 0) * 0x4000000 + node.pos);
   };

@@ -99,7 +99,7 @@ import { type ApiCompilerOptions as CompilerOptions, compilerOptionsOf } from '.
 import type { Diagnostic } from '../library/types.js';
 export type { ApiCompilerOptions as CompilerOptions } from '../library/options.js';
 import { type DiagnosticKind, diagnosticOf, programDiagnostics } from '../library/diagnostics.js';
-import { getSymbolId, type Symbol as CompilerSymbol, type SymbolTable } from '../compiler/symbol.js';
+import { getDeclarations, getSymbolId, type Symbol as CompilerSymbol, type SymbolTable } from '../compiler/symbol.js';
 import type { SyntaxKind } from '../compiler/syntax-kind.js';
 import { ConfigParser, ParsedCommandLine } from '../compiler/tsconfig.js';
 import { isTypeAssignableTo } from '../compiler/relations.js';
@@ -956,7 +956,7 @@ export function symbolCheckFlags(symbol: Symbol): number {
 }
 
 export function symbolDeclarations(symbol: Symbol): Node[] {
-  return symbol.declarations.slice();
+  return getDeclarations(symbol).slice();
 }
 
 export function symbolValueDeclaration(symbol: Symbol): Node | undefined {

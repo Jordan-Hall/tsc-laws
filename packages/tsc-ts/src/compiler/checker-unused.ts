@@ -49,7 +49,6 @@ import {
 } from './binder-utilities.js';
 import { type Checker, createDiagnosticForNode } from './checker.js';
 import { Diagnostic, DiagnosticCategory, Diagnostics } from './diagnostics.js';
-import { CheckFlags, type Symbol, SymbolFlags, getSymbolId } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
 import { getMergedSymbol, getSymbolOfDeclaration } from './checker-symbols.js';
 import { getResolvedSymbol } from './checker-expressions.js';
@@ -61,6 +60,7 @@ import type { Type } from './checker-types.js';
 import { getLiteralTypeFromPropertyName } from './checker-type-operators.js';
 import { getPropertyOfType } from './checker-members.js';
 import { getPropertyNameFromType, isTypeUsableAsPropertyName } from './checker-utilities.js';
+import { CheckFlags, getDeclarations, getSymbolId, type Symbol, SymbolFlags } from './symbol.js';
 
 // ---- References
 
@@ -438,7 +438,7 @@ function checkUnusedLocalsAndParameters(c: Checker, node: Node): void {
       (local.flags & SymbolFlags.ModuleExports) !== 0
     )
       continue;
-    for (const declaration of local.declarations) {
+    for (const declaration of getDeclarations(local)) {
       switch (declaration.kind) {
         case SyntaxKind.VariableDeclaration:
         case SyntaxKind.Parameter:
@@ -634,7 +634,7 @@ function isUnreferencedTypeParameter(c: Checker, typeParameter: Node): boolean {
 }
 
 function allDeclarationsInSameSourceFile(symbol: Symbol): boolean {
-  const declarations = symbol.declarations;
+  const declarations = getDeclarations(symbol);
   if (declarations.length <= 1) return true;
   const file = getSourceFileOfNode(declarations[0]!);
   for (let i = 1; i < declarations.length; i++) if (getSourceFileOfNode(declarations[i]!) !== file) return false;

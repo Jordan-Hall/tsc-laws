@@ -13,7 +13,6 @@ import {
 import { getSymbolNameForPrivateIdentifier } from './binder.js';
 import { getCombinedModifierFlags } from './binder-utilities.js';
 import { Diagnostic, type DiagnosticMessage, Diagnostics, messageElidedInCompatibilityPyramid } from './diagnostics.js';
-import { CheckFlags, type Symbol, SymbolFlags, getSymbolId } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
 import { isContextSensitive } from './checker-functions.js';
 import { type Checker, createDiagnosticForNode } from './checker.js';
@@ -224,6 +223,7 @@ import {
   isNumericLiteralName,
   maybeTypeOfKind,
 } from './checker-utilities.js';
+import { CheckFlags, declarationCount, getDeclarations, getSymbolId, type Symbol, SymbolFlags } from './symbol.js';
 
 // ---- Results and caches
 
@@ -754,8 +754,8 @@ function isEnumTypeRelatedTo(c: Checker, source: Symbol, target: Symbol, reporte
       c.enumRelation.set(key, RelationComparisonResult.Failed);
       return false;
     }
-    const sourceDecl = sourceProperty.declarations.find((d) => d.kind === SyntaxKind.EnumMember);
-    const targetDecl = targetProperty.declarations.find((d) => d.kind === SyntaxKind.EnumMember);
+    const sourceDecl = getDeclarations(sourceProperty).find((d) => d.kind === SyntaxKind.EnumMember);
+    const targetDecl = getDeclarations(targetProperty).find((d) => d.kind === SyntaxKind.EnumMember);
     if (sourceDecl === undefined || targetDecl === undefined) continue;
     computeEnumMemberValues(c, sourceDecl.parent!);
     computeEnumMemberValues(c, targetDecl.parent!);
@@ -1375,8 +1375,8 @@ export class Relater extends TypeComparer {
             return true;
           }
           const objectLiteralDeclaration =
-            source.symbol !== undefined && source.symbol.declarations.length !== 0
-              ? source.symbol.declarations[0]!
+            source.symbol !== undefined && declarationCount(source.symbol) !== 0
+              ? source.symbol.declaration!
               : undefined;
           const valueDeclaration = prop.valueDeclaration;
           let suggestion: Symbol | undefined = undefined;
@@ -3037,9 +3037,9 @@ export class Relater extends TypeComparer {
         names[0],
         names[1],
       ]);
-      if (unmatchedProperty.declarations.length !== 0)
+      if (declarationCount(unmatchedProperty) !== 0)
         this.relatedInfo.push(
-          createDiagnosticForNode(unmatchedProperty.declarations[0]!, Diagnostics.X_0_is_declared_here, [propName]),
+          createDiagnosticForNode(unmatchedProperty.declaration!, Diagnostics.X_0_is_declared_here, [propName]),
         );
     } else if (this.tryElaborateArrayLikeErrors(source, target, false)) {
       const names = getTypeNamesForErrorDisplay(c, source, target);
@@ -3486,7 +3486,7 @@ export class Relater extends TypeComparer {
     if (
       (source.flags & TypeFlags.TypeParameter) !== 0 &&
       source.symbol !== undefined &&
-      source.symbol.declarations.length !== 0 &&
+      declarationCount(source.symbol) !== 0 &&
       getConstraintOfType(c, source) === undefined
     ) {
       const syntheticParam = cloneTypeParameter(c, source);
@@ -3494,7 +3494,7 @@ export class Relater extends TypeComparer {
       if (hasNonCircularBaseConstraint(c, syntheticParam)) {
         this.relatedInfo.push(
           createDiagnosticForNode(
-            source.symbol.declarations[0]!,
+            source.symbol.declaration!,
             Diagnostics.This_type_parameter_might_need_an_extends_0_constraint,
             [typeToString(c, target)],
           ),
@@ -4504,7 +4504,7 @@ import { getTypeAliasInstantiation } from './checker-type-nodes.js';
 
 export function getTypeParameterModifiers(tp: Type): ModifierFlags {
   let flags = 0;
-  if (tp.symbol !== undefined) for (const d of tp.symbol.declarations) flags |= getCombinedModifierFlags(d);
+  if (tp.symbol !== undefined) for (const d of getDeclarations(tp.symbol)) flags |= getCombinedModifierFlags(d);
   return flags & (ModifierFlags.In | ModifierFlags.Out | ModifierFlags.Const);
 }
 

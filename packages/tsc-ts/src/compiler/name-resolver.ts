@@ -55,9 +55,9 @@ import {
   getIsolatedModules,
   getUseDefineForClassFields,
 } from './options.js';
-import { InternalSymbolName, Symbol, SymbolFlags, type SymbolTable } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
 import { ScriptTarget } from './types.js';
+import { getDeclarations, InternalSymbolName, Symbol, SymbolFlags, type SymbolTable } from './symbol.js';
 
 export class NameResolver {
   readonly compilerOptions: CompilerOptions;
@@ -596,7 +596,7 @@ function isInParameter(declaration: Node | undefined): boolean {
 
 /** The local symbol of an `export default` declaration. */
 export function getLocalSymbolForExportDefault(symbol: Symbol): Symbol | undefined {
-  const declarations = symbol.declarations;
+  const declarations = getDeclarations(symbol);
   if (declarations.length === 0 || !hasSyntacticModifier(declarations[0]!, ModifierFlags.Default)) return undefined;
   for (const declaration of declarations) {
     const localSymbol = getLocalSymbol(declaration);
@@ -623,7 +623,7 @@ function isDeferredContext(location: Node, lastLocation: Node | undefined): bool
 }
 
 function isTypeParameterSymbolDeclaredInContainer(symbol: Symbol, container: Node): boolean {
-  for (const declaration of symbol.declarations)
+  for (const declaration of getDeclarations(symbol))
     if (declaration.kind === SyntaxKind.TypeParameter && declaration.parent === container) return true;
   return false;
 }

@@ -52,7 +52,7 @@ import { getJSDoc } from './parser.js';
 import { isAssignmentOperator, isLeftHandSideExpression, isStringLiteralLike, nodeIsMissing } from './ast-utilities.js';
 import { Scanner, computeLineOfPosition, skipTrivia } from './scanner.js';
 import { SyntaxKind } from './syntax-kind.js';
-import { InternalSymbolName, type Symbol } from './symbol.js';
+import { getDeclarations, InternalSymbolName, type Symbol } from './symbol.js';
 
 // Modifiers and flags
 
@@ -1003,7 +1003,7 @@ export function moduleExportNameIsDefault(node: Node): boolean {
 }
 
 export function getDeclarationOfKind(symbol: Symbol, kind: SyntaxKind): Node | undefined {
-  for (const declaration of symbol.declarations) if (declaration.kind === kind) return declaration;
+  for (const declaration of getDeclarations(symbol)) if (declaration.kind === kind) return declaration;
   return undefined;
 }
 

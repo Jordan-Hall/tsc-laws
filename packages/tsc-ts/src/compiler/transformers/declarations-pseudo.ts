@@ -37,9 +37,9 @@ import {
 import { isFunctionLike, nodeIsMissing } from '../ast-utilities.js';
 import { getCombinedNodeFlags, hasSyntacticModifier, isIdentifierNamed } from '../binder-utilities.js';
 import type { NameResolver } from '../name-resolver.js';
-import { type Symbol, SymbolFlags } from '../symbol.js';
 import { SyntaxKind } from '../syntax-kind.js';
 import { getAllAccessorDeclarations } from './declarations-diagnostics.js';
+import { declarationCount, getDeclarations, type Symbol, SymbolFlags } from '../symbol.js';
 
 export const enum PseudoTypeKind {
   /** The type an annotation denotes. */
@@ -359,7 +359,7 @@ export class PseudoChecker {
     // A property declared more than once has the type of its first declaration; only the checker
     // knows which, so the type is still written from this one but counted as uncertain.
     const symbol = getSymbol(node);
-    if (symbol !== undefined && symbol.declarations.length > 1) this.uncertain++;
+    if (symbol !== undefined && declarationCount(symbol) > 1) this.uncertain++;
     if (node instanceof PropertyDeclaration) {
       const initializer = node.initializer;
       if (initializer !== undefined && !isContextuallyTyped(node)) {
@@ -388,7 +388,10 @@ export class PseudoChecker {
     const initializer = declaration.initializer;
     // As tsgo, the file's own declarations; merged ones are left to the checker's type comparison.
     const symbol = declaration.symbol;
-    if (initializer !== undefined && (symbol === undefined || countVariableDeclarations(symbol.declarations) === 1)) {
+    if (
+      initializer !== undefined &&
+      (symbol === undefined || countVariableDeclarations(getDeclarations(symbol)) === 1)
+    ) {
       if (!isContextuallyTyped(declaration)) {
         // Const template literals may become literal types, so they aren't inferred.
         if (
@@ -695,7 +698,7 @@ function accessorAnnotation(node: Node): Node | undefined {
   return undefined;
 }
 
-function countVariableDeclarations(declarations: Node[]): number {
+function countVariableDeclarations(declarations: readonly Node[]): number {
   if (declarations.length === 1) return 1;
   let count = 0;
   for (const declaration of declarations) if (declaration.kind === SyntaxKind.VariableDeclaration) count++;

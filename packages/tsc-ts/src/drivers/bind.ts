@@ -26,7 +26,7 @@ import { type Diagnostic, Locale } from '../compiler/diagnostics.js';
 import { FlowFlags, type FlowNode, FlowReduceLabel, FlowSwitchClause } from '../compiler/flow.js';
 import { NameResolver } from '../compiler/name-resolver.js';
 import { parseSourceFile } from '../compiler/parser.js';
-import { type Symbol, SymbolFlags, type SymbolTable } from '../compiler/symbol.js';
+import { declarationCount, getDeclarations, type Symbol, SymbolFlags, type SymbolTable } from '../compiler/symbol.js';
 import { SyntaxKind } from '../compiler/syntax-kind.js';
 import './lowering.js';
 
@@ -113,7 +113,7 @@ function sortedNames(table: SymbolTable): string[] {
 
 function symbolText(symbol: Symbol | undefined): string {
   if (symbol === undefined) return '-';
-  return `${quote(symbol.name)}:${symbol.flags}:${symbol.declarations.length}`;
+  return `${quote(symbol.name)}:${symbol.flags}:${declarationCount(symbol)}`;
 }
 
 class Printer extends NodeVisitor {
@@ -239,7 +239,7 @@ class Printer extends NodeVisitor {
     for (let i = 0; i < this.symbols.length; i++) {
       const s = this.symbols[i]!;
       const declarations: string[] = [];
-      for (const d of s.declarations) declarations.push(this.node(d));
+      for (const d of getDeclarations(s)) declarations.push(this.node(d));
       let line = `symbol #${i} ${quote(s.name)} ${s.flags} decls=[${declarations.join(' ')}] value=${this.node(s.valueDeclaration)} parent=${this.sym(s.parent)} export=${this.sym(s.exportSymbol)}`;
       if (s.members !== undefined && s.members.size > 0) line += ` members=${this.table(s.members)}`;
       if (s.exports !== undefined && s.exports.size > 0) line += ` exports=${this.table(s.exports)}`;

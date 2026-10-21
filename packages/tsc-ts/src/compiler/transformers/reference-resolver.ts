@@ -53,9 +53,19 @@ import { NameResolver } from '../name-resolver.js';
 import { isSameNode } from './utilities.js';
 import { pathIsRelative } from '../path.js';
 import { type CompilerOptions, shouldPreserveConstEnums } from '../options.js';
-import { InternalSymbolName, Symbol, SymbolFlags, type SymbolTable, addDeclaration } from '../symbol.js';
 import { SyntaxKind } from '../syntax-kind.js';
 import { TokenFlags } from '../types.js';
+import {
+  addDeclaration,
+  declarationAt,
+  declarationCount,
+  getDeclarations,
+  InternalSymbolName,
+  setDeclarations,
+  Symbol,
+  SymbolFlags,
+  type SymbolTable,
+} from '../symbol.js';
 
 export const enum ConstantKind {
   None,
@@ -211,7 +221,7 @@ export class MergedGlobals {
       )
         return source;
       result = new Symbol(resolved.flags | SymbolFlags.Transient, resolved.name);
-      result.declarations = resolved.declarations.slice();
+      setDeclarations(result, getDeclarations(resolved).slice());
       result.parent = resolved.parent;
       result.valueDeclaration = resolved.valueDeclaration;
       result.members = resolved.members === undefined ? undefined : new Map<string, Symbol>(resolved.members);
@@ -229,7 +239,7 @@ export class MergedGlobals {
     if ((result.flags & SymbolFlags.ConstEnumOnlyModule) === 0) sourceFlags &= ~SymbolFlags.ConstEnumOnlyModule;
     result.flags |= sourceFlags;
     if (source.valueDeclaration !== undefined) setValueDeclaration(result, source.valueDeclaration);
-    for (let i = 0; i < source.declarations.length; i++) addDeclaration(result, source.declarations[i]!);
+    for (let i = 0; i < declarationCount(source); i++) addDeclaration(result, declarationAt(source, i));
     if (source.members !== undefined) {
       if (result.members === undefined) result.members = new Map<string, Symbol>();
       this.mergeTable(result.members, source.members, undefined);
@@ -479,7 +489,7 @@ export class ReferenceResolver {
     if (resolved === undefined) return undefined;
     const symbol = this.getExportSymbolOfValueSymbolIfExported(resolved);
     const declarations: Node[] = [];
-    for (const declaration of symbol.declarations)
+    for (const declaration of getDeclarations(symbol))
       if (isValueDeclarationKind(declaration.kind)) declarations.push(declaration);
     return declarations;
   }
@@ -528,7 +538,7 @@ export class ReferenceResolver {
     if (exports === undefined || exports.has(name) || name === InternalSymbolName.Default) return false;
     const star = exports.get(InternalSymbolName.ExportStar);
     if (star === undefined) return false;
-    for (const declaration of star.declarations) {
+    for (const declaration of getDeclarations(star)) {
       if (!(declaration instanceof ExportDeclaration)) continue;
       const target = this.resolveExternalModuleSymbol(
         this.resolveModuleSpecifier(declaration, declaration.moduleSpecifier),
@@ -541,8 +551,8 @@ export class ReferenceResolver {
 
   /** Whether a symbol is declared in the global scope. */
   isGlobalSymbol(symbol: Symbol): boolean {
-    if (symbol.declarations.length === 0) return false;
-    const container = getDeclarationContainer(symbol.declarations[0]!);
+    if (declarationCount(symbol) === 0) return false;
+    const container = getDeclarationContainer(symbol.declaration!);
     return container instanceof SourceFile && !isExternalOrCommonJSModule(container as SourceFile);
   }
 
@@ -748,7 +758,7 @@ export class ReferenceResolver {
     if (name === InternalSymbolName.Default) return undefined;
     const star = exports.get(InternalSymbolName.ExportStar);
     if (star === undefined) return undefined;
-    for (const declaration of star.declarations) {
+    for (const declaration of getDeclarations(star)) {
       if (!(declaration instanceof ExportDeclaration)) continue;
       const target = this.resolveExternalModuleSymbol(
         this.resolveModuleSpecifier(declaration, declaration.moduleSpecifier),
@@ -928,7 +938,7 @@ export class ReferenceResolver {
     if (symbol === undefined) return noEvaluation;
     if (expression instanceof Identifier && (expression.text === 'Infinity' || expression.text === 'NaN')) {
       // A global `Infinity` or `NaN`; without lib files these don't resolve at all.
-      if (symbol.declarations.length > 0 && isAmbientGlobal(symbol))
+      if (declarationCount(symbol) > 0 && isAmbientGlobal(symbol))
         return numberEvaluation(expression.text === 'NaN' ? NaN : Infinity);
     }
     if ((symbol.flags & SymbolFlags.EnumMember) !== 0) return this.evaluateEnumMemberSymbol(symbol, location);
@@ -1031,8 +1041,8 @@ export function isEntityNameExpressionNode(node: Node): boolean {
 }
 
 function isAmbientGlobal(symbol: Symbol): boolean {
-  for (let i = 0; i < symbol.declarations.length; i++)
-    if ((symbol.declarations[i].flags & NodeFlags.Ambient) === 0) return false;
+  for (let i = 0; i < declarationCount(symbol); i++)
+    if ((declarationAt(symbol, i).flags & NodeFlags.Ambient) === 0) return false;
   return true;
 }
 
@@ -1114,8 +1124,8 @@ function isAliasSymbolDeclaration(node: Node): boolean {
 }
 
 export function getDeclarationOfAliasSymbol(symbol: Symbol): Node | undefined {
-  for (let i = symbol.declarations.length - 1; i >= 0; i--) {
-    const declaration = symbol.declarations[i]!;
+  for (let i = declarationCount(symbol) - 1; i >= 0; i--) {
+    const declaration = declarationAt(symbol, i);
     if (isAliasSymbolDeclaration(declaration)) return declaration;
   }
   return undefined;

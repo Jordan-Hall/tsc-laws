@@ -59,7 +59,6 @@ import { getTypeFromTypeNode } from '../compiler/checker-type-nodes.js';
 import { getLocalSymbolForExportDefault } from '../compiler/name-resolver.js';
 import { type Program } from '../compiler/program.js';
 import { computeLineOfPosition, tokenToString } from '../compiler/scanner.js';
-import { CheckFlags, InternalSymbolName, type Symbol, SymbolFlags } from '../compiler/symbol.js';
 import { SyntaxKind } from '../compiler/syntax-kind.js';
 import {
   getPropertySymbolOfDestructuringAssignment,
@@ -117,6 +116,14 @@ import {
 } from './utilities.js';
 import { getTokenPosOfNode, getTouchingPropertyName, getTouchingToken } from '../compiler/astnav.js';
 import { getDirectoryPath, isExternalModuleNameRelative, resolvePath } from '../compiler/path.js';
+import {
+  CheckFlags,
+  declarationCount,
+  getDeclarations,
+  InternalSymbolName,
+  type Symbol,
+  SymbolFlags,
+} from '../compiler/symbol.js';
 
 export const enum DefinitionKind {
   Symbol,
@@ -149,7 +156,7 @@ export class SymbolAndEntries {
   definitionNode(): Node | undefined {
     if (this.definition.node !== undefined) return this.definition.node;
     const symbol = this.definition.symbol;
-    return symbol !== undefined && symbol.declarations.length > 0 ? symbol.declarations[0] : undefined;
+    return symbol !== undefined && declarationCount(symbol) > 0 ? symbol.declaration : undefined;
   }
 }
 
@@ -241,7 +248,7 @@ export function getSignatureUsages(c: Checker, program: Program, signatureDecl: 
   for (const entry of entries) {
     const symbol = entry.definition.symbol;
     if (symbol === undefined) continue;
-    for (const declaration of symbol.declarations) {
+    for (const declaration of getDeclarations(symbol)) {
       const declarationName = getName(declaration);
       if (declarationName !== undefined) declarationNames.add(declarationName);
     }
@@ -635,9 +642,9 @@ function getReferencedSymbolsForModuleIfDeclaredBySourceFile(
   sourceFiles: readonly SourceFile[],
   sourceFileNames: Set<string>,
 ): SymbolAndEntries[] | undefined {
-  if (symbol === undefined || (symbol.flags & SymbolFlags.Module) === 0 || symbol.declarations.length === 0)
+  if (symbol === undefined || (symbol.flags & SymbolFlags.Module) === 0 || declarationCount(symbol) === 0)
     return undefined;
-  const moduleSourceFile = symbol.declarations.find((d) => d.kind === SyntaxKind.SourceFile);
+  const moduleSourceFile = getDeclarations(symbol).find((d) => d.kind === SyntaxKind.SourceFile);
   if (moduleSourceFile === undefined) return undefined;
   const exportEquals = symbol.exports?.get(InternalSymbolName.ExportEquals);
   // `import("mod")` references are added for the `export =` anyway.
@@ -716,12 +723,12 @@ function getReferencedSymbolsForModule(
     }
   }
   // The module declarations themselves.
-  for (const declaration of symbol.declarations)
+  for (const declaration of getDeclarations(symbol))
     if (declaration instanceof ModuleDeclaration && sourceFileNames.has(getSourceFileOfNode(declaration).fileName))
       references.push(nodeEntry(declaration.name));
   const exported = symbol.exports?.get(InternalSymbolName.ExportEquals);
   if (exported !== undefined)
-    for (const declaration of exported.declarations) {
+    for (const declaration of getDeclarations(exported)) {
       const file = getSourceFileOfNode(declaration);
       if (!sourceFileNames.has(file.fileName)) continue;
       let node: Node | undefined;
@@ -816,7 +823,7 @@ function skipPastExportOrImportSpecifierOrUnion(
   const parent = node.parent!;
   if (parent instanceof ExportSpecifier) return getLocalSymbolForExportSpecifier(c, node, symbol, parent);
   // A property declared in `{ type: "a" } | { type: "b" }` uses the union's property.
-  for (const declaration of symbol.declarations) {
+  for (const declaration of getDeclarations(symbol)) {
     if (declaration.parent === undefined) {
       // UMD module and global merges, and CommonJS module exports.
       if ((symbol.flags & (SymbolFlags.Transient | SymbolFlags.ModuleExports)) !== 0) continue;
@@ -842,7 +849,7 @@ function getSymbolScope(symbol: Symbol): Node | undefined {
     (valueDeclaration.kind === SyntaxKind.FunctionExpression || valueDeclaration.kind === SyntaxKind.ClassExpression)
   )
     return valueDeclaration;
-  const declarations = symbol.declarations;
+  const declarations = getDeclarations(symbol);
   if (declarations.length === 0) return undefined;
   // A private member is only visible in its class.
   if ((symbol.flags & (SymbolFlags.Property | SymbolFlags.Method)) !== 0) {
@@ -1136,7 +1143,7 @@ class SearchState {
 
   /** Searches the files declaring an imported symbol, which may export it. */
   searchForImportedSymbol(symbol: Symbol): void {
-    for (const declaration of symbol.declarations) {
+    for (const declaration of getDeclarations(symbol)) {
       const exportingFile = getSourceFileOfNode(declaration);
       this.getReferencesInSourceFile(
         exportingFile,
@@ -1378,7 +1385,7 @@ function hasOwnConstructor(classDeclaration: Node): boolean {
 function findOwnConstructorReferences(classSymbol: Symbol, file: SourceFile, addNode: (node: Node) => void): void {
   const constructorSymbol = getClassConstructorSymbol(classSymbol);
   if (constructorSymbol !== undefined)
-    for (const declaration of constructorSymbol.declarations)
+    for (const declaration of getDeclarations(constructorSymbol))
       if (declaration.kind === SyntaxKind.Constructor) {
         const keyword = findChildTokenOfKind(declaration, SyntaxKind.ConstructorKeyword, file);
         if (keyword !== undefined) addNode(keyword);
@@ -1397,7 +1404,7 @@ function findOwnConstructorReferences(classSymbol: Symbol, file: SourceFile, add
 function findSuperConstructorAccesses(classDeclaration: Node, addNode: (node: Node) => void): void {
   const constructorSymbol = getClassConstructorSymbol(getSymbol(classDeclaration)!);
   if (constructorSymbol === undefined) return;
-  for (const declaration of constructorSymbol.declarations) {
+  for (const declaration of getDeclarations(constructorSymbol)) {
     if (declaration.kind !== SyntaxKind.Constructor) continue;
     const body = getBody(declaration);
     if (body !== undefined)

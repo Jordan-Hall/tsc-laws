@@ -30,7 +30,6 @@ import { Diagnostic, type DiagnosticMessage, Diagnostics, chainDiagnostic } from
 import { JsxEmit } from './options.js';
 import { parseIsolatedEntityName } from './parser.js';
 import { skipTrivia } from './scanner.js';
-import { InternalSymbolName, type Symbol, SymbolFlags, type SymbolTable, getSymbolId } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
 import { type Checker, createDiagnosticForNode } from './checker.js';
 import {
@@ -162,6 +161,15 @@ import { getIndexedAccessType } from './checker-type-operators.js';
 import { filterType, isTupleType } from './checker-type-factory.js';
 import { createTypeFromGenericGlobalType } from './checker-type-factory.js';
 import { isTypeAssignableTo } from './relations.js';
+import {
+  copyDeclarations,
+  declarationCount,
+  getSymbolId,
+  InternalSymbolName,
+  type Symbol,
+  SymbolFlags,
+  type SymbolTable,
+} from './symbol.js';
 
 const enum JsxFlags {
   None = 0,
@@ -549,12 +557,8 @@ function getNameFromJsxElementAttributesContainer(c: Checker, containerName: str
       const props = getPropertiesOfType(c, getDeclaredTypeOfSymbol(c, sym));
       if (props.length === 0) return '';
       if (props.length === 1) return props[0]!.name;
-      if (sym.declarations.length !== 0)
-        c.error(
-          sym.declarations[0]!,
-          Diagnostics.The_global_type_JSX_0_may_not_have_more_than_one_property,
-          containerName,
-        );
+      if (declarationCount(sym) !== 0)
+        c.error(sym.declaration!, Diagnostics.The_global_type_JSX_0_may_not_have_more_than_one_property, containerName);
     }
   }
   return InternalSymbolName.Missing;
@@ -953,7 +957,7 @@ export function createJsxAttributesTypeFromAttributesProperty(
         const exprType = checkJsxAttribute(c, attributeDecl, checkMode);
         objectFlags |= exprType.objectFlags & ObjectFlags.PropagatingFlags;
         const attributeSymbol = c.newSymbol(SymbolFlags.Property | member.flags, member.name);
-        attributeSymbol.declarations = member.declarations;
+        copyDeclarations(attributeSymbol, member);
         attributeSymbol.parent = member.parent;
         if (member.valueDeclaration !== undefined) attributeSymbol.valueDeclaration = member.valueDeclaration;
         const id = getSymbolId(attributeSymbol);

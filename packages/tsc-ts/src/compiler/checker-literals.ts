@@ -1,6 +1,6 @@
 // Object literal types: freshness and regular forms.
 import type { Checker } from './checker.js';
-import { CheckFlags, type Symbol, getSymbolId } from './symbol.js';
+import { CheckFlags, copyDeclarations, getSymbolId, type Symbol } from './symbol.js';
 import { CachedTypeKind, cachedTypeKey, ObjectFlags, type Type, TypeFlags } from './checker-types.js';
 import { createAnonymousType } from './checker-type-factory.js';
 import { getPropertiesOfObjectType, resolveStructuredTypeMembers } from './checker-members.js';
@@ -41,7 +41,7 @@ export function getRegularTypeOfObjectLiteral(c: Checker, t: Type): Type {
 
 function createSymbolWithTypeLocal(c: Checker, source: Symbol, t: Type): Symbol {
   const symbol = c.newSymbolWithCheckFlags(source.flags, source.name, source.checkFlags & CheckFlags.Readonly);
-  symbol.declarations = source.declarations;
+  copyDeclarations(symbol, source);
   symbol.parent = source.parent;
   symbol.valueDeclaration = source.valueDeclaration;
   const id = getSymbolId(symbol);

@@ -89,7 +89,6 @@ import { combinePaths, getDirectoryPath, getNormalizedAbsolutePath, normalizePat
 import type { EmitContext } from '../printer/emit-context.js';
 import { EmitFlags } from '../printer/emit-flags.js';
 import { isIdentifierText } from '../scanner.js';
-import { Symbol, SymbolFlags, type SymbolTable, addDeclaration } from '../symbol.js';
 import { SyntaxKind } from '../syntax-kind.js';
 import { TokenFlags } from '../types.js';
 import type { SyntacticEmitResolver } from './emit-resolver.js';
@@ -126,6 +125,15 @@ import {
   typesOf,
   undefinedType,
 } from './declarations-pseudo.js';
+import {
+  addDeclaration,
+  declarationCount,
+  getDeclarations,
+  setDeclarations,
+  Symbol,
+  SymbolFlags,
+  type SymbolTable,
+} from '../symbol.js';
 
 const emptyTable: SymbolTable = new Map<string, Symbol>();
 
@@ -275,7 +283,7 @@ export class SyntacticDeclarationEmitResolver extends DeclarationEmitResolver {
     while (symbol !== undefined && !visited.has(symbol)) {
       visited.add(symbol);
       let next: Symbol | undefined = undefined;
-      for (const declaration of symbol.declarations) {
+      for (const declaration of getDeclarations(symbol)) {
         this.visibility.set(declaration, true);
         if (
           declaration instanceof ImportEqualsDeclaration &&
@@ -420,7 +428,7 @@ export class SyntacticDeclarationEmitResolver extends DeclarationEmitResolver {
     shouldComputeAliasesToMakeVisible: boolean,
   ): SymbolAccessibilityResult | undefined {
     const aliases: Node[] = [];
-    for (const declaration of symbol.declarations) {
+    for (const declaration of getDeclarations(symbol)) {
       if (declaration.kind === SyntaxKind.Identifier || this.isDeclarationVisible(declaration)) continue;
       let statement: Node | undefined = undefined;
       // Imports and unexported declarations can name types if their parent is visible.
@@ -505,7 +513,7 @@ export class SyntacticDeclarationEmitResolver extends DeclarationEmitResolver {
     const symbol = this.getSymbolOfDeclaration(node);
     if (symbol === undefined) return false;
     const signatures: Node[] = [];
-    const declarations = symbol.declarations;
+    const declarations = getDeclarations(symbol);
     for (let i = 0; i < declarations.length; i++) {
       const declaration = declarations[i]!;
       if (!isFunctionLike(declaration)) continue;
@@ -544,7 +552,7 @@ export class SyntacticDeclarationEmitResolver extends DeclarationEmitResolver {
       const symbol = this.resolveName(node, node.text, SymbolFlags.Value | SymbolFlags.ExportValue);
       if (symbol === undefined) return undefined;
       const resolved = symbol.exportSymbol ?? symbol;
-      return resolved.valueDeclaration ?? (resolved.declarations.length > 0 ? resolved.declarations[0]! : undefined);
+      return resolved.valueDeclaration ?? (declarationCount(resolved) > 0 ? resolved.declaration! : undefined);
     }
     if (!(node instanceof PropertyAccessExpression) || !(node.name instanceof Identifier)) return undefined;
     const name = node.name.text;
@@ -799,7 +807,7 @@ export class SyntacticDeclarationEmitResolver extends DeclarationEmitResolver {
 
   private hasMergedDeclarations(declaration: Node): boolean {
     const symbol = getSymbol(declaration);
-    return symbol !== undefined && this.pseudo.getMergedSymbol(symbol).declarations.length > symbol.declarations.length;
+    return symbol !== undefined && declarationCount(this.pseudo.getMergedSymbol(symbol)) > declarationCount(symbol);
   }
 
   /** Whether a parameter's pseudo-type already has `undefined`, so none is added. */
@@ -1404,7 +1412,7 @@ class PseudoTypeWriter {
 
 /** Parameters and type parameters are in scope where the signature's types are written. */
 function isSignatureLocal(symbol: Symbol): boolean {
-  const declaration = symbol.valueDeclaration ?? (symbol.declarations.length > 0 ? symbol.declarations[0] : undefined);
+  const declaration = symbol.valueDeclaration ?? (declarationCount(symbol) > 0 ? symbol.declaration : undefined);
   return (
     declaration !== undefined &&
     (declaration.kind === SyntaxKind.Parameter || declaration.kind === SyntaxKind.TypeParameter)
@@ -1779,7 +1787,7 @@ function mergeInto(target: Map<string, Symbol>, source: SymbolTable, mergedSymbo
     if (mergedSymbols.get(existing) !== existing) {
       // The first merge replaces the first file's symbol with a copy.
       merged = new Symbol(existing.flags, name);
-      merged.declarations = existing.declarations.slice();
+      setDeclarations(merged, getDeclarations(existing).slice());
       merged.valueDeclaration = existing.valueDeclaration;
       merged.exports = copyTable(existing.exports);
       merged.members = copyTable(existing.members);
@@ -1788,7 +1796,7 @@ function mergeInto(target: Map<string, Symbol>, source: SymbolTable, mergedSymbo
       target.set(name, merged);
     }
     merged.flags |= symbol.flags;
-    for (const declaration of symbol.declarations) addDeclaration(merged, declaration);
+    for (const declaration of getDeclarations(symbol)) addDeclaration(merged, declaration);
     merged.valueDeclaration ??= symbol.valueDeclaration;
     if (symbol.exports !== undefined) {
       merged.exports ??= new Map<string, Symbol>();

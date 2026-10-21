@@ -112,7 +112,6 @@ import {
   tryExtractTSExtension,
   tryGetExtensionFromPath,
 } from './path.js';
-import { InternalSymbolName, type Symbol, SymbolFlags, type SymbolTable, getSymbolId } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
 import { isExpressionNode } from './transformers/alias-references.js';
 import { type Checker, type CheckerHost, createDiagnosticForNode } from './checker.js';
@@ -162,6 +161,17 @@ import { createPromiseType } from './checker-iteration.js';
 import { symbolToString, typeToString } from './type-printer.js';
 import { checkTypeAssignableToAndOptionallyElaborate } from './checker-expressions.js';
 import { grammarErrorOnNode } from './checker-operators.js';
+import {
+  declarationAt,
+  declarationCount,
+  getDeclarations,
+  getSymbolId,
+  InternalSymbolName,
+  setDeclarations,
+  type Symbol,
+  SymbolFlags,
+  type SymbolTable,
+} from './symbol.js';
 
 // ---- Resolution
 
@@ -787,7 +797,7 @@ function isOnlyImportableAsDefault(c: Checker, usage: Node, resolvedModule: Symb
 function getSourceFileOfModuleSymbol(symbol: Symbol): SourceFile | undefined {
   let declaration = symbol.valueDeclaration;
   if (declaration === undefined)
-    for (const d of symbol.declarations)
+    for (const d of getDeclarations(symbol))
       if (!(isAmbientModule(d) && isModuleAugmentationExternal(d)) && !isGlobalScopeAugmentation(d)) {
         declaration = d;
         break;
@@ -857,7 +867,7 @@ function createDefaultPropertyWrapperForModule(
 
 function cloneTypeAsModuleType(c: Checker, symbol: Symbol, moduleType: Type): Symbol {
   const result = c.newSymbol(symbol.flags, symbol.name);
-  result.declarations = symbol.declarations.slice();
+  setDeclarations(result, getDeclarations(symbol).slice());
   result.valueDeclaration = symbol.valueDeclaration;
   if (symbol.members !== undefined) result.members = new Map(symbol.members);
   if (symbol.exports !== undefined) result.exports = new Map(symbol.exports);
@@ -869,7 +879,7 @@ function cloneTypeAsModuleType(c: Checker, symbol: Symbol, moduleType: Type): Sy
 
 function getSourceFileDeclaration(symbol: Symbol | undefined): SourceFile | undefined {
   if (symbol === undefined) return undefined;
-  for (const d of symbol.declarations) if (d.kind === SyntaxKind.SourceFile) return d as SourceFile;
+  for (const d of getDeclarations(symbol)) if (d.kind === SyntaxKind.SourceFile) return d as SourceFile;
   return undefined;
 }
 
@@ -919,7 +929,7 @@ function canHaveSyntheticDefault(
 }
 
 function hasSyntacticDefault(symbol: Symbol): boolean {
-  for (const d of symbol.declarations) if (isSyntacticDefault(d)) return true;
+  for (const d of getDeclarations(symbol)) if (isSyntacticDefault(d)) return true;
   return false;
 }
 
@@ -1154,7 +1164,7 @@ function reportNonDefaultExport(c: Checker, moduleSymbol: Symbol, node: Node): v
   );
   const exportStar = moduleSymbol.exports?.get(InternalSymbolName.ExportStar);
   if (exportStar === undefined) return;
-  for (const d of exportStar.declarations) {
+  for (const d of getDeclarations(exportStar)) {
     const specifier = getModuleSpecifier(d);
     if (d.kind !== SyntaxKind.ExportDeclaration || specifier === undefined) continue;
     const resolved = resolveExternalModuleName(c, d, specifier, false);
@@ -1304,9 +1314,9 @@ function combineValueAndTypeSymbols(c: Checker, valueSymbol: Symbol, typeSymbol:
   if ((typeSymbol.flags & SymbolFlags.Value) !== 0) return typeSymbol;
   if ((valueSymbol.flags & (SymbolFlags.Type | SymbolFlags.Namespace)) !== 0) return valueSymbol;
   const result = c.newSymbol(valueSymbol.flags | typeSymbol.flags, valueSymbol.name);
-  const declarations = valueSymbol.declarations.slice();
-  for (const d of typeSymbol.declarations) if (!declarations.includes(d)) declarations.push(d);
-  result.declarations = declarations;
+  const declarations = getDeclarations(valueSymbol).slice();
+  for (const d of getDeclarations(typeSymbol)) if (!declarations.includes(d)) declarations.push(d);
+  setDeclarations(result, declarations);
   result.parent = valueSymbol.parent ?? typeSymbol.parent;
   result.valueDeclaration = valueSymbol.valueDeclaration;
   if (typeSymbol.members !== undefined) result.members = new Map(typeSymbol.members);
@@ -1412,10 +1422,10 @@ function reportNonExportedMember(
           symbolToString(c, exportedSymbol),
         )
       : c.error(name, Diagnostics.Module_0_declares_1_locally_but_it_is_not_exported, moduleName, declarationName);
-  for (let i = 0; i < localSymbol.declarations.length; i++)
+  for (let i = 0; i < declarationCount(localSymbol); i++)
     diagnostic.addRelatedInfo(
       createDiagnosticForNode(
-        localSymbol.declarations[i]!,
+        declarationAt(localSymbol, i),
         i === 0 ? Diagnostics.X_0_is_declared_here : Diagnostics.X_and_here,
         [declarationName],
       ),
@@ -1985,7 +1995,7 @@ class ExportCollector {
     if (exportStars !== undefined) {
       const nested: SymbolTable = new Map<string, Symbol>();
       const lookupTable = new Map<string, ExportCollision>();
-      for (const node of exportStars.declarations) {
+      for (const node of getDeclarations(exportStars)) {
         const specifier = (node as ExportDeclaration).moduleSpecifier;
         const resolved = resolveExternalModuleName(this.c, node, specifier, false);
         const exported = this.visit(resolved, node, isTypeOnly || getIsTypeOnly(node));
@@ -2551,7 +2561,7 @@ function checkExportSpecifier(c: Checker, node: Node): void {
     symbol !== undefined &&
     (symbol === c.undefinedSymbol ||
       symbol === c.globalThisSymbol ||
-      (symbol.declarations.length > 0 && isGlobalSourceFile(getDeclarationContainer(symbol.declarations[0]!))))
+      (declarationCount(symbol) > 0 && isGlobalSourceFile(getDeclarationContainer(symbol.declaration!))))
   )
     c.error(
       exportedName,

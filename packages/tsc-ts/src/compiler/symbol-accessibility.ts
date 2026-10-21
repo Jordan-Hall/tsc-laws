@@ -52,7 +52,6 @@ import {
 import { getTypeOfSymbol } from './checker-symbol-types.js';
 import { compareSymbols } from './checker-type-factory.js';
 import { TypeFlags } from './checker-types.js';
-import { InternalSymbolName, type Symbol, SymbolFlags, type SymbolTable, getSymbolId } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
 import { SymbolAccessibility, SymbolAccessibilityResult, accessible } from './transformers/declarations-resolver.js';
 import {
@@ -63,6 +62,15 @@ import {
 } from './transformers/declarations-syntactic.js';
 import { isImplicitlyExportedJSDocDeclaration } from './binder-utilities.js';
 import { symbolToString } from './type-printer.js';
+import {
+  declarationCount,
+  getDeclarations,
+  getSymbolId,
+  InternalSymbolName,
+  type Symbol,
+  SymbolFlags,
+  type SymbolTable,
+} from './symbol.js';
 
 /** The kinds of symbol table, which with a node or symbol id name a table in a scope walk. */
 const enum TableKind {
@@ -157,7 +165,7 @@ function isSymbolAccessibleWorker(
   if (result !== undefined) return result;
   // A symbol not exported from its module, or from another module without an alias, can't be named.
   let symbolExternalModule: Symbol | undefined = undefined;
-  for (const d of symbol.declarations) {
+  for (const d of getDeclarations(symbol)) {
     symbolExternalModule = getExternalModuleContainer(c, d);
     if (symbolExternalModule !== undefined) break;
   }
@@ -230,7 +238,7 @@ function isAnySymbolAccessible(
 }
 
 export function hasNonGlobalAugmentationExternalModuleDeclaration(symbol: Symbol): boolean {
-  for (const d of symbol.declarations) if (hasNonGlobalAugmentationExternalModuleSymbol(d)) return true;
+  for (const d of getDeclarations(symbol)) if (hasNonGlobalAugmentationExternalModuleSymbol(d)) return true;
   return false;
 }
 
@@ -275,7 +283,7 @@ function getWithAlternativeContainers(
   meaning: SymbolFlags,
 ): Symbol[] {
   const additionalContainers: Symbol[] = [];
-  for (const d of container.declarations) {
+  for (const d of getDeclarations(container)) {
     const fileSymbol = getFileSymbolIfFileSymbolExportEqualsContainer(c, d, container);
     if (fileSymbol !== undefined) additionalContainers.push(fileSymbol);
   }
@@ -400,7 +408,7 @@ function getExternalModuleContainers(c: Checker, symbol: Symbol): Symbol[] {
 /** The position in `Checker.files` of the external module `symbol`, or -1 for any other symbol. */
 function externalModuleFileIndex(c: Checker, symbol: Symbol | undefined): number {
   if (symbol === undefined || (symbol.flags & SymbolFlags.ValueModule) === 0) return -1;
-  for (const declaration of symbol.declarations) {
+  for (const declaration of getDeclarations(symbol)) {
     if (declaration.kind !== SyntaxKind.SourceFile) continue;
     const file = declaration as SourceFile;
     if (isExternalModule(file) && getSymbolOfDeclaration(c, declaration) === symbol) return c.fileIndex.get(file) ?? -1;
@@ -451,8 +459,8 @@ function scanExternalModuleContainers(c: Checker, symbol: Symbol): Symbol[] {
 
 /** The variable `var a = { x: 1 }` declares, for the anonymous `__object` symbol of its literal. */
 function getVariableDeclarationOfObjectLiteral(c: Checker, symbol: Symbol, meaning: SymbolFlags): Symbol | undefined {
-  if ((meaning & SymbolFlags.Value) === 0 || symbol.declarations.length === 0) return undefined;
-  const firstDecl = symbol.declarations[0]!;
+  if ((meaning & SymbolFlags.Value) === 0 || declarationCount(symbol) === 0) return undefined;
+  const firstDecl = symbol.declaration!;
   const parent = firstDecl.parent;
   if (parent === undefined || !(parent instanceof VariableDeclaration)) return undefined;
   if (
@@ -504,7 +512,7 @@ export function getContainersOfSymbol(
   const addCandidate = (s: Symbol | undefined): void => {
     if (s !== undefined && candidates.indexOf(s) < 0) candidates.push(s);
   };
-  for (const d of symbol.declarations) {
+  for (const d of getDeclarations(symbol)) {
     const parent = d.parent;
     if (!isAmbientModule(d) && parent !== undefined) {
       // A direct child of a module.
@@ -672,7 +680,7 @@ class ChainSearch {
         (this.useOnlyExternalAliasing && !hasExternalModuleImportEqualsDeclaration(fromTable)) ||
         (isLocalNameLookup && hasNamespaceReexportDeclaration(fromTable)) ||
         // Exports are in scope, but export specifiers aren't.
-        (!ignoreQualification && fromTable.declarations.some((d) => d.kind === SyntaxKind.ExportSpecifier))
+        (!ignoreQualification && getDeclarations(fromTable).some((d) => d.kind === SyntaxKind.ExportSpecifier))
       )
         continue;
       const resolved = resolveAlias(c, fromTable);
@@ -788,11 +796,11 @@ function compareSymbolChains(c: Checker, a: Symbol[], b: Symbol[]): number {
 }
 
 function isUMDExportSymbol(symbol: Symbol): boolean {
-  return symbol.declarations.length > 0 && symbol.declarations[0].kind === SyntaxKind.NamespaceExportDeclaration;
+  return declarationCount(symbol) > 0 && symbol.declaration!.kind === SyntaxKind.NamespaceExportDeclaration;
 }
 
 function hasNamespaceReexportDeclaration(symbol: Symbol): boolean {
-  for (const d of symbol.declarations) if (isNamespaceReexportDeclaration(d)) return true;
+  for (const d of getDeclarations(symbol)) if (isNamespaceReexportDeclaration(d)) return true;
   return false;
 }
 
@@ -805,7 +813,7 @@ function isNamespaceReexportDeclaration(node: Node): boolean {
 }
 
 function hasExternalModuleImportEqualsDeclaration(symbol: Symbol): boolean {
-  for (const d of symbol.declarations) if (isExternalModuleImportEqualsDeclaration(d)) return true;
+  for (const d of getDeclarations(symbol)) if (isExternalModuleImportEqualsDeclaration(d)) return true;
   return false;
 }
 
@@ -829,7 +837,7 @@ export function needsQualification(
     // Qualify if the symbol of this name has the meaning sought.
     const shouldResolveAlias =
       (fromTable.flags & SymbolFlags.Alias) !== 0 &&
-      !fromTable.declarations.some((d) => d.kind === SyntaxKind.ExportSpecifier);
+      !getDeclarations(fromTable).some((d) => d.kind === SyntaxKind.ExportSpecifier);
     if (shouldResolveAlias) fromTable = resolveAlias(c, fromTable);
     const flags = shouldResolveAlias ? getSymbolFlags(c, fromTable) : fromTable.flags;
     if ((flags & meaning) !== 0) {
@@ -842,8 +850,8 @@ export function needsQualification(
 }
 
 function isPropertyOrMethodDeclarationSymbol(symbol: Symbol): boolean {
-  if (symbol.declarations.length === 0) return false;
-  for (const declaration of symbol.declarations) {
+  if (declarationCount(symbol) === 0) return false;
+  for (const declaration of getDeclarations(symbol)) {
     switch (declaration.kind) {
       case SyntaxKind.PropertyDeclaration:
       case SyntaxKind.MethodDeclaration:
@@ -1094,7 +1102,7 @@ export function hasVisibleDeclarations(
     markDeclarationVisible(c, declaration);
     if (aliases.indexOf(statement) < 0) aliases.push(statement);
   };
-  for (const declaration of symbol.declarations) {
+  for (const declaration of getDeclarations(symbol)) {
     if (declaration.kind === SyntaxKind.Identifier || isDeclarationVisible(c, declaration)) continue;
     // Unexported imports can name types if their parent is visible.
     const anyImport = getAnyImportSyntax(declaration);

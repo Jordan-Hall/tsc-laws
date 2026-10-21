@@ -15,7 +15,6 @@ import {
   TypeQueryNode,
 } from './ast.js';
 import { Diagnostics } from './diagnostics.js';
-import { CheckFlags, type Symbol, SymbolFlags, getSymbolId } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
 import type { Checker, VarianceReporting } from './checker.js';
 import {
@@ -79,6 +78,15 @@ import {
 import { getConstraintDeclaration } from './checker-declared-types.js';
 import { isTypeAssignableTo } from './relations.js';
 import { getFirstIdentifier } from './checker-symbols.js';
+import {
+  CheckFlags,
+  copyDeclarations,
+  declarationCount,
+  getDeclarations,
+  getSymbolId,
+  type Symbol,
+  SymbolFlags,
+} from './symbol.js';
 
 // ---- Mappers that need the checker
 
@@ -292,7 +300,7 @@ export function couldContainTypeVariables(c: Checker, type: Type): boolean {
               SymbolFlags.Class |
               SymbolFlags.TypeLiteral |
               SymbolFlags.ObjectLiteral)) !==
-            0 && type.symbol.declarations.length !== 0;
+            0 && declarationCount(type.symbol) !== 0;
       }
       if (!result)
         result =
@@ -324,7 +332,7 @@ function isNonGenericTopLevelType(type: Type): boolean {
   const alias = type.alias;
   if (alias === undefined || alias.typeArguments.length !== 0) return false;
   let declaration: Node | undefined;
-  for (const d of alias.symbol.declarations)
+  for (const d of getDeclarations(alias.symbol))
     if (d.kind === SyntaxKind.TypeAliasDeclaration || d.kind === SyntaxKind.JSTypeAliasDeclaration) {
       declaration = d;
       break;
@@ -433,7 +441,7 @@ function getObjectTypeInstantiation(
   if ((type.objectFlags & ObjectFlags.Reference) !== 0) declaration = (type as TypeReference).node!;
   else if ((type.objectFlags & ObjectFlags.InstantiationExpressionType) !== 0)
     declaration = (type as InstantiationExpressionType).node!;
-  else declaration = type.symbol!.declarations[0]!;
+  else declaration = type.symbol!.declaration!;
   const links = c.nodeLinks(declaration);
   let target: ObjectType;
   if ((type.objectFlags & ObjectFlags.Reference) !== 0) target = c.resolvedTypes.get(declaration.id) as ObjectType;
@@ -451,7 +459,7 @@ function getObjectTypeInstantiation(
       } else if ((target.symbol!.flags & (SymbolFlags.Method | SymbolFlags.TypeLiteral)) !== 0) {
         const referenced: Type[] = [];
         for (const tp of typeParameters) {
-          for (const d of type.symbol!.declarations) {
+          for (const d of getDeclarations(type.symbol!)) {
             if (isTypeParameterPossiblyReferenced(c, tp, d)) {
               referenced.push(tp);
               break;
@@ -551,12 +559,12 @@ class ReferenceFinder extends NodeVisitor {
           !(firstIdentifier.kind === SyntaxKind.Identifier && firstIdentifier.text === 'this')
         ) {
           const symbol = getResolvedSymbolOfIdentifier(this.c, firstIdentifier);
-          const tpDeclaration = tp.symbol!.declarations[0]!;
+          const tpDeclaration = tp.symbol!.declaration!;
           let scope: Node | undefined;
           if (tpDeclaration.kind === SyntaxKind.TypeParameter) scope = tpDeclaration.parent;
           else if (tp.isThisType) scope = tpDeclaration;
           if (scope !== undefined) {
-            for (const d of symbol.declarations) if (isNodeDescendantOf(d, scope)) return true;
+            for (const d of getDeclarations(symbol)) if (isNodeDescendantOf(d, scope)) return true;
             const args = getTypeArgumentNodes(node);
             if (args !== undefined) for (const a of args.nodes) if (this.containsReference(a)) return true;
             return false;
@@ -596,9 +604,9 @@ export function isNodeDescendantOf(node: Node, ancestor: Node): boolean {
  */
 export function isTypeParameterPossiblyReferenced(c: Checker, tp: Type, node: Node): boolean {
   const typeParameter = tp as TypeParameter;
-  if (tp.symbol === undefined || tp.symbol.declarations.length !== 1) return true;
+  if (tp.symbol === undefined || declarationCount(tp.symbol) !== 1) return true;
   const finder = new ReferenceFinder(c, typeParameter);
-  const container = tp.symbol.declarations[0]!.parent;
+  const container = tp.symbol.declaration!.parent;
   for (let n: Node | undefined = node; n !== container; n = n.parent) {
     if (n === undefined || n.kind === SyntaxKind.Block) return true;
     if (n.kind === SyntaxKind.ConditionalType && finder.containsReference((n as ConditionalTypeNode).extendsType))
@@ -785,7 +793,7 @@ export function newInstantiatedSymbol(c: Checker, symbol: Symbol, mapper: TypeMa
     CheckFlags.Instantiated |
     (symbol.checkFlags &
       (CheckFlags.Readonly | CheckFlags.Late | CheckFlags.OptionalParameter | CheckFlags.RestParameter));
-  result.declarations = symbol.declarations;
+  copyDeclarations(result, symbol);
   result.parent = symbol.parent;
   result.valueDeclaration = symbol.valueDeclaration;
   const id = getSymbolId(result);
@@ -797,8 +805,8 @@ export function newInstantiatedSymbol(c: Checker, symbol: Symbol, mapper: TypeMa
 
 /** Conservatively, whether a parameter or member's type can't reference `this`. */
 export function isThisless(symbol: Symbol): boolean {
-  if (symbol.declarations.length !== 1) return false;
-  const declaration = symbol.declarations[0]!;
+  if (declarationCount(symbol) !== 1) return false;
+  const declaration = symbol.declaration!;
   switch (declaration.kind) {
     case SyntaxKind.Parameter:
     case SyntaxKind.PropertyDeclaration:

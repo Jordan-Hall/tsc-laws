@@ -3,7 +3,6 @@
 import { BinaryExpression, ExportAssignment, Identifier, type Node, type SourceFile, getExpression } from '../ast.js';
 import { getNameOfDeclaration, getSourceFileOfNode } from '../binder-utilities.js';
 import { type Diagnostic, type DiagnosticMessage, Diagnostics } from '../diagnostics.js';
-import { type Symbol, SymbolFlags } from '../symbol.js';
 import { SyntaxKind } from '../syntax-kind.js';
 import {
   DiagnosticContext,
@@ -20,6 +19,7 @@ import {
   type SymbolAccessibilityResult,
   SymbolTracker,
 } from './declarations-resolver.js';
+import { getDeclarations, type Symbol, SymbolFlags } from '../symbol.js';
 
 export class DeclarationTracker extends SymbolTracker {
   readonly resolver: DeclarationEmitResolver;
@@ -160,13 +160,13 @@ export class DeclarationTracker extends SymbolTracker {
 
   reportNonlocalAugmentation(containingFile: SourceFile, parentSymbol: Symbol, augmentingSymbol: Symbol): boolean {
     let primary: Node | undefined = undefined;
-    for (const declaration of parentSymbol.declarations)
+    for (const declaration of getDeclarations(parentSymbol))
       if (getSourceFileOfNode(declaration) === containingFile) {
         primary = declaration;
         break;
       }
     if (primary === undefined) return false;
-    for (const augmentation of augmentingSymbol.declarations) {
+    for (const augmentation of getDeclarations(augmentingSymbol)) {
       if (getSourceFileOfNode(augmentation) === containingFile) continue;
       const diagnostic = createDiagnosticForNode(
         augmentation,

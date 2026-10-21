@@ -29,7 +29,6 @@ import { isFunctionLike } from './ast-utilities.js';
 import { type Checker, createDiagnosticForNode } from './checker.js';
 import { type Diagnostic, Diagnostics } from './diagnostics.js';
 import { ScriptTarget } from './options.js';
-import { type Symbol, SymbolFlags } from './symbol.js';
 import { getSymbolOfDeclaration } from './checker-symbols.js';
 import { getTypeOfSymbol } from './checker-symbol-types.js';
 import { isPropertyInitializedInStaticBlocks } from './checker-classes.js';
@@ -38,6 +37,7 @@ import { getExportSymbolOfValueSymbolIfExported } from './checker-symbols.js';
 import { getBaseTypes, getDeclaredTypeOfSymbol } from './checker-declared-types.js';
 import { getPropertyOfType } from './checker-members.js';
 import { FunctionFlags, getFunctionFlags } from './checker-utilities.js';
+import { getDeclarations, type Symbol, SymbolFlags } from './symbol.js';
 
 /** Reports a block-scoped variable, class or enum resolved at `errorLocation` before its declaration. */
 export function checkResolvedBlockScopedVariable(c: Checker, resolved: Symbol, errorLocation: Node): void {
@@ -50,7 +50,7 @@ export function checkResolvedBlockScopedVariable(c: Checker, resolved: Symbol, e
   )
     return;
   let declaration: Node | undefined;
-  for (const d of result.declarations) {
+  for (const d of getDeclarations(result)) {
     if (isBlockOrCatchScoped(d) || isClassLike(d) || d.kind === SyntaxKind.EnumDeclaration) {
       declaration = d;
       break;

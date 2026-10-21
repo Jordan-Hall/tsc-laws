@@ -39,7 +39,6 @@ import {
   isDeclarationStatementKind,
 } from './binder-utilities.js';
 import { Diagnostics } from './diagnostics.js';
-import { CheckFlags, type Symbol, SymbolFlags, getSymbolId } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
 import type { Checker } from './checker.js';
 import {
@@ -115,6 +114,7 @@ import { checkExpression, checkExpressionCached, getResolvedSymbol } from './che
 import { checkExpressionWithTypeArguments } from './checker-calls.js';
 import { getIntendedTypeFromJSDocTypeReference } from './checker-jsdoc.js';
 import { getCombinedNodeFlags, hasSyntacticModifier } from './binder-utilities.js';
+import { CheckFlags, getDeclarations, getSymbolId, type Symbol, SymbolFlags } from './symbol.js';
 
 export function getTypeFromTypeNode(c: Checker, node: Node): Type {
   return getConditionalFlowTypeOfType(c, getTypeFromTypeNodeWorker(c, node), node);
@@ -720,7 +720,7 @@ export function getAliasSymbolForTypeNode(c: Checker, node: Node): Symbol | unde
 
 function isLocalTypeAlias(symbol: Symbol): boolean {
   let declaration: Node | undefined;
-  for (const d of symbol.declarations) {
+  for (const d of getDeclarations(symbol)) {
     if (isTypeAlias(d)) {
       declaration = d;
       break;

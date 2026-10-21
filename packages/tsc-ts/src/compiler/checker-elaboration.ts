@@ -16,7 +16,6 @@ import {
 import { getSourceFileOfNode } from './binder-utilities.js';
 import { type Diagnostic, type DiagnosticMessage, Diagnostics } from './diagnostics.js';
 import { SyntaxKind } from './syntax-kind.js';
-import { type Symbol, SymbolFlags } from './symbol.js';
 import { type Checker, createDiagnosticForNode } from './checker.js';
 import { AccessFlags, SignatureKind, type Type, TypeFlags } from './checker-types.js';
 import { getNumberLiteralType, getUnionType, isTupleType, typesOf } from './checker-type-factory.js';
@@ -49,6 +48,7 @@ import { FunctionFlags, getFunctionFlags } from './checker-utilities.js';
 import { typeToString } from './type-printer.js';
 import { CheckMode } from './checker-types.js';
 import { elaborateJsxComponents } from './checker-jsx.js';
+import { declarationCount, type Symbol, SymbolFlags } from './symbol.js';
 
 /** Checks that `source` relates to `target`, elaborating into `expr` when possible. */
 export function checkTypeRelatedToAndOptionallyElaborate(
@@ -381,13 +381,13 @@ export function elaborateElement(
   }
   if (
     !issuedElaboration &&
-    ((targetProp !== undefined && targetProp.declarations.length !== 0) ||
-      (target.symbol !== undefined && target.symbol.declarations.length !== 0))
+    ((targetProp !== undefined && declarationCount(targetProp) !== 0) ||
+      (target.symbol !== undefined && declarationCount(target.symbol) !== 0))
   ) {
     const targetNode =
-      targetProp !== undefined && targetProp.declarations.length !== 0
-        ? targetProp.declarations[0]!
-        : target.symbol!.declarations[0]!;
+      targetProp !== undefined && declarationCount(targetProp) !== 0
+        ? targetProp.declaration!
+        : target.symbol!.declaration!;
     if (propertyName === '' || (nameType.flags & TypeFlags.UniqueESSymbol) !== 0)
       propertyName = typeToString(c, nameType);
     if (!c.host.isSourceFileDefaultLibrary(getSourceFileOfNode(targetNode)))
@@ -456,10 +456,10 @@ function elaborateArrowFunction(
   checkTypeRelatedTo(c, sourceReturn, targetReturn, relation, returnExpression, undefined, diagnostics);
   if (diagnostics.length === 0) return false;
   const diagnostic = diagnostics[0]!;
-  if (target.symbol !== undefined && target.symbol.declarations.length !== 0)
+  if (target.symbol !== undefined && declarationCount(target.symbol) !== 0)
     diagnostic.addRelatedInfo(
       createDiagnosticForNode(
-        target.symbol.declarations[0]!,
+        target.symbol.declaration!,
         Diagnostics.The_expected_type_comes_from_the_return_type_of_this_signature,
         [],
       ),

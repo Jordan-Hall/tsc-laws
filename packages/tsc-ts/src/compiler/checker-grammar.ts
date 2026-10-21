@@ -131,11 +131,11 @@ import { fileExtensionIsOneOf, isExternalModuleNameRelative } from './path.js';
 import { SourceFileMetadata, getEmitModuleFormatOfFile, getImpliedNodeFormatForEmit } from './program-utilities.js';
 import { CharacterCodes } from './character-codes.js';
 import { Scanner, ScannerErrorReporter, computeLineOfPosition, skipTrivia, tokenToString } from './scanner.js';
-import { SymbolFlags } from './symbol.js';
 import { typeToString } from './type-printer.js';
 import type { ScriptTarget as LanguageTarget } from './types.js';
 import { SyntaxKind } from './syntax-kind.js';
 import { findMismatchedAugmentsTag } from './checker-jsdoc.js';
+import { getDeclarations, SymbolFlags } from './symbol.js';
 
 /** Runs the grammar checks of every node of `file`. */
 export function checkGrammarSourceFile(c: Checker, file: SourceFile): void {
@@ -1266,7 +1266,7 @@ function getFirstAccessorOfPair(c: Checker, node: Node): Node {
   const symbol = getSymbolOfDeclaration(c, node);
   if (symbol === undefined) return node;
   const otherKind = node.kind === SyntaxKind.GetAccessor ? SyntaxKind.SetAccessor : SyntaxKind.GetAccessor;
-  for (const declaration of symbol.declarations)
+  for (const declaration of getDeclarations(symbol))
     if (declaration.kind === otherKind && declaration.pos < node.pos) return declaration;
   return node;
 }

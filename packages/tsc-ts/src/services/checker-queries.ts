@@ -17,13 +17,13 @@ import { checkRightHandSideOfForOf } from '../compiler/checker-statements.js';
 import { getMembersOfSymbol, getSymbolOfMeaning } from '../compiler/checker-symbols.js';
 import { getStringLiteralType, isLiteralType } from '../compiler/checker-type-factory.js';
 import { getLiteralTypeFromPropertyName } from '../compiler/checker-type-operators.js';
-import { CheckFlags, type Symbol, SymbolFlags, getSymbolId } from '../compiler/symbol.js';
 import { CheckMode, type Type, TypeFlags, UnionOrIntersectionType } from '../compiler/checker-types.js';
 import { getPropertyNameFromType, isTypeUsableAsPropertyName } from '../compiler/checker-utilities.js';
 import { getTypeOfExpression } from '../compiler/checker-expressions.js';
 import { isTypeAssignableTo } from '../compiler/relations.js';
 import { SyntaxKind } from '../compiler/syntax-kind.js';
 import { getAllSuperTypeNodes, getTextOfPropertyName } from './utilities.js';
+import { CheckFlags, getDeclarations, getSymbolId, type Symbol, SymbolFlags } from '../compiler/symbol.js';
 
 export function isExternalModuleSymbol(symbol: Symbol): boolean {
   return (symbol.flags & SymbolFlags.Module) !== 0 && symbol.name.startsWith('"');
@@ -200,7 +200,7 @@ export function getPropertySymbolsFromBaseTypes(
   const recur = (symbol: Symbol): Symbol | undefined => {
     if ((symbol.flags & (SymbolFlags.Class | SymbolFlags.Interface)) === 0 || seen.has(symbol)) return undefined;
     seen.add(symbol);
-    for (const declaration of symbol.declarations) {
+    for (const declaration of getDeclarations(symbol)) {
       for (const typeReference of getAllSuperTypeNodes(declaration)) {
         const propertyType = getTypeAtLocation(c, typeReference);
         if (propertyType.symbol === undefined) continue;

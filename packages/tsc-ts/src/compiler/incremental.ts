@@ -89,10 +89,10 @@ import {
   isDeclarationFileName,
   toPath,
 } from './path.js';
-import { lastSymbolIdValue, SymbolFlags, type Symbol } from './symbol.js';
 import type { ParsedCommandLine } from './tsconfig.js';
 import { hash128String, toHex } from './xxh3.js';
 import { preparedVersion } from './parallel-parse.js';
+import { getDeclarations, lastSymbolIdValue, type Symbol, SymbolFlags } from './symbol.js';
 
 /** The hash of file text that build info records as a version or signature. */
 export function computeHash(text: string): string {
@@ -1191,7 +1191,7 @@ function isModuleWithStringLiteralName(node: Node): boolean {
 
 function addReferencedFilesFromSymbol(file: SourceFile, referenced: Set<string>, symbol: Symbol | undefined): void {
   if (symbol === undefined) return;
-  for (const declaration of symbol.declarations) {
+  for (const declaration of getDeclarations(symbol)) {
     const declarationFile = getSourceFileOfNode(declaration);
     if (declarationFile !== file) referenced.add(declarationFile.path);
   }
@@ -1259,7 +1259,7 @@ function getAmbientModuleFiles(checked: CheckedProgram): string[] {
   const result = new Set<string>();
   for (const [name, symbol] of checked.checker.globals) {
     if (name.length >= 2 && name.charCodeAt(0) === 0x22 && name.charCodeAt(name.length - 1) === 0x22) {
-      for (const declaration of symbol.declarations) result.add(getSourceFileOfNode(declaration).path);
+      for (const declaration of getDeclarations(symbol)) result.add(getSourceFileOfNode(declaration).path);
     }
   }
   return [...result];
@@ -1620,7 +1620,7 @@ class AffectedFilesHandler {
         const aliased = resolveAlias(checker, exported);
         if (aliased === exported) continue;
         if ((aliased.flags & SymbolFlags.ConstEnum) !== 0) {
-          if (aliased.declarations.some((d) => getSourceFileOfNode(d) === affectedFile)) {
+          if (getDeclarations(aliased).some((d) => getSourceFileOfNode(d) === affectedFile)) {
             invalidateJsFiles = true;
             break;
           }

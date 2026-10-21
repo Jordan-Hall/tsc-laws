@@ -6,10 +6,10 @@ import { getTypeOfSymbolAtLocation } from '../compiler/checker-services.js';
 import { getNonNullableType } from '../compiler/checker-flow.js';
 import { isThisInTypeQuery } from '../compiler/checker-expressions.js';
 import { NodeFlags } from '../compiler/ast.js';
-import { CheckFlags, type Symbol, SymbolFlags } from '../compiler/symbol.js';
 import { SyntaxKind } from '../compiler/syntax-kind.js';
 import { getCallSignatures, getRootSymbols } from './completion-checker.js';
 import { findAncestorOrQuit, FindAncestorResult, isFunctionBlock } from './completion-utilities.js';
+import { CheckFlags, declarationCount, getDeclarations, type Symbol, SymbolFlags } from '../compiler/symbol.js';
 
 export const enum ScriptElementKind {
   Unknown,
@@ -121,7 +121,7 @@ function getSymbolKindOfConstructorPropertyMethodAccessorFunctionOrVar(
     if (valueDeclaration !== undefined && isVarUsing(valueDeclaration)) return ScriptElementKind.VariableUsingElement;
     if (valueDeclaration !== undefined && isVarAwaitUsing(valueDeclaration))
       return ScriptElementKind.VariableAwaitUsingElement;
-    if (symbol.declarations.some(isLet)) return ScriptElementKind.LetElement;
+    if (getDeclarations(symbol).some(isLet)) return ScriptElementKind.LetElement;
     return isLocalVariableOrFunction(symbol)
       ? ScriptElementKind.LocalVariableElement
       : ScriptElementKind.VariableElement;
@@ -174,7 +174,7 @@ function isLet(node: Node): boolean {
 }
 
 function isFirstDeclarationOfSymbolParameter(symbol: Symbol): boolean {
-  const declaration = symbol.declarations.length > 0 ? symbol.declarations[0] : undefined;
+  const declaration = declarationCount(symbol) > 0 ? symbol.declaration : undefined;
   return (
     findAncestorOrQuit(declaration, (n) => {
       if (n.kind === SyntaxKind.Parameter) return FindAncestorResult.True;
@@ -192,7 +192,7 @@ function isFirstDeclarationOfSymbolParameter(symbol: Symbol): boolean {
 function isLocalVariableOrFunction(symbol: Symbol): boolean {
   // Exported symbols aren't local.
   if (symbol.parent !== undefined) return false;
-  for (const declaration of symbol.declarations) {
+  for (const declaration of getDeclarations(symbol)) {
     if (declaration.kind === SyntaxKind.FunctionExpression) return true;
     if (declaration.kind !== SyntaxKind.VariableDeclaration && declaration.kind !== SyntaxKind.FunctionDeclaration)
       continue;

@@ -24,7 +24,6 @@ import { type Checker, createDiagnosticForNode } from './checker.js';
 import { type Signature, SignatureFlags, type Type } from './checker-types.js';
 import { type Diagnostic, Diagnostics } from './diagnostics.js';
 import { getJSDoc } from './parser.js';
-import { type Symbol, SymbolFlags } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
 import { getDeclarationOfAliasSymbol, getParentOfSymbol, resolveAlias } from './checker-symbols.js';
 import { getTargetOfAliasDeclaration } from './checker-modules.js';
@@ -33,6 +32,7 @@ import { entityNameToString } from './checker-expressions.js';
 import { isErrorType } from './checker-type-factory.js';
 import { getPropertyOfType } from './checker-members.js';
 import { signatureToString } from './type-printer.js';
+import { declarationCount, getDeclarations, type Symbol, SymbolFlags } from './symbol.js';
 
 /** Whether `declaration`, or the statement it belongs to, has a `@deprecated` JSDoc tag. */
 export function isDeprecatedDeclaration(declaration: Node): boolean {
@@ -56,7 +56,7 @@ function getJSDocDeprecatedTag(node: Node): Node | undefined {
  * members when all are.
  */
 export function isDeprecatedSymbol(c: Checker, symbol: Symbol): boolean {
-  const declarations = symbol.declarations;
+  const declarations = getDeclarations(symbol);
   const parentSymbol = getParentOfSymbol(c, symbol);
   if (parentSymbol !== undefined && declarations.length > 1)
     return (parentSymbol.flags & SymbolFlags.Interface) !== 0
@@ -208,7 +208,7 @@ function isUncalledFunctionReference(c: Checker, node: Node, symbol: Symbol): bo
       node.kind === SyntaxKind.Identifier &&
       hasMatchingArgument(c, parent, node)
     );
-  for (const d of symbol.declarations) if (isFunctionLikeKind(d.kind) && !isDeprecatedDeclaration(d)) return false;
+  for (const d of getDeclarations(symbol)) if (isFunctionLikeKind(d.kind) && !isDeprecatedDeclaration(d)) return false;
   return true;
 }
 
@@ -263,9 +263,9 @@ export function resolveAliasWithDeprecationCheck(c: Checker, symbol: Symbol, loc
   while ((current.flags & SymbolFlags.Alias) !== 0) {
     const target = getImmediateAliasedSymbol(c, current);
     if (target === undefined || target === targetSymbol) break;
-    if (target.declarations.length !== 0) {
+    if (declarationCount(target) !== 0) {
       if (isDeprecatedSymbol(c, target)) {
-        addDeprecatedSuggestion(c, location, target.declarations, target.name);
+        addDeprecatedSuggestion(c, location, getDeclarations(target), target.name);
         break;
       }
       if (current === targetSymbol) break;
@@ -288,11 +288,11 @@ function getImmediateAliasedSymbol(c: Checker, symbol: Symbol): Symbol | undefin
 export function checkDeprecatedIdentifier(c: Checker, node: Node, localOrExportSymbol: Symbol): void {
   const targetSymbol = resolveAliasWithDeprecationCheck(c, localOrExportSymbol, node);
   if (
-    targetSymbol.declarations.length !== 0 &&
+    declarationCount(targetSymbol) !== 0 &&
     isDeprecatedSymbol(c, targetSymbol) &&
     isUncalledFunctionReference(c, node, targetSymbol)
   )
-    addDeprecatedSuggestion(c, node, targetSymbol.declarations, getText(node));
+    addDeprecatedSuggestion(c, node, getDeclarations(targetSymbol), getText(node));
 }
 
 /** Reports a property access to a deprecated property. */
@@ -301,9 +301,9 @@ export function checkDeprecatedProperty(c: Checker, node: Node, right: Node, pro
   if (
     isDeprecatedSymbol(c, targetPropSymbol) &&
     isUncalledFunctionReference(c, node, targetPropSymbol) &&
-    targetPropSymbol.declarations.length !== 0
+    declarationCount(targetPropSymbol) !== 0
   )
-    addDeprecatedSuggestion(c, right, targetPropSymbol.declarations, getText(right));
+    addDeprecatedSuggestion(c, right, getDeclarations(targetPropSymbol), getText(right));
 }
 
 /** Reports a property access resolved through a deprecated index signature. */
@@ -314,11 +314,7 @@ export function checkDeprecatedIndexSignature(c: Checker, right: Node, declarati
 
 /** Reports an element access or indexed access type selecting a deprecated property. */
 export function checkDeprecatedIndexedAccess(c: Checker, accessNode: Node, prop: Symbol, propName: string): void {
-  if (
-    prop.declarations.length === 0 ||
-    !isDeprecatedSymbol(c, prop) ||
-    !isUncalledFunctionReference(c, accessNode, prop)
-  )
+  if (declarationCount(prop) === 0 || !isDeprecatedSymbol(c, prop) || !isUncalledFunctionReference(c, accessNode, prop))
     return;
   const deprecatedNode =
     accessNode.kind === SyntaxKind.ElementAccessExpression
@@ -326,7 +322,7 @@ export function checkDeprecatedIndexedAccess(c: Checker, accessNode: Node, prop:
       : accessNode.kind === SyntaxKind.IndexedAccessType
         ? (accessNode as IndexedAccessTypeNode).indexType
         : accessNode;
-  addDeprecatedSuggestion(c, deprecatedNode, prop.declarations, propName);
+  addDeprecatedSuggestion(c, deprecatedNode, getDeclarations(prop), propName);
 }
 
 /** Reports a type reference or import type naming a deprecated type. */
@@ -334,9 +330,9 @@ export function checkDeprecatedTypeReference(c: Checker, node: Node, type: Type)
   if (isErrorType(c, type)) return;
   const symbol = c.resolvedSymbols.get(node.id);
   if (symbol === undefined) return;
-  for (const d of symbol.declarations) {
+  for (const d of getDeclarations(symbol)) {
     if (isTypeDeclaration(d) && isDeprecatedDeclaration(d)) {
-      addDeprecatedSuggestion(c, getDeprecatedSuggestionNode(node), symbol.declarations, symbol.name);
+      addDeprecatedSuggestion(c, getDeprecatedSuggestionNode(node), getDeclarations(symbol), symbol.name);
       return;
     }
   }
@@ -345,8 +341,8 @@ export function checkDeprecatedTypeReference(c: Checker, node: Node, type: Type)
 /** Reports an import specifier importing a deprecated declaration. */
 export function checkDeprecatedImportSpecifier(c: Checker, node: Node, symbol: Symbol): void {
   const targetSymbol = resolveAliasWithDeprecationCheck(c, symbol, node);
-  if (isDeprecatedSymbol(c, targetSymbol) && targetSymbol.declarations.length !== 0)
-    addDeprecatedSuggestion(c, node, targetSymbol.declarations, targetSymbol.name);
+  if (isDeprecatedSymbol(c, targetSymbol) && declarationCount(targetSymbol) !== 0)
+    addDeprecatedSuggestion(c, node, getDeclarations(targetSymbol), targetSymbol.name);
 }
 
 /** Reports a JSX attribute setting a deprecated property of the element's contextual props type. */
@@ -354,6 +350,6 @@ export function checkDeprecatedJsxAttribute(c: Checker, contextualType: Type, at
   const name = attribute.name;
   if (name.kind !== SyntaxKind.Identifier) return;
   const prop = getPropertyOfType(c, contextualType, getText(name));
-  if (prop !== undefined && prop.declarations.length !== 0 && isDeprecatedSymbol(c, prop))
-    addDeprecatedSuggestion(c, name, prop.declarations, getText(name));
+  if (prop !== undefined && declarationCount(prop) !== 0 && isDeprecatedSymbol(c, prop))
+    addDeprecatedSuggestion(c, name, getDeclarations(prop), getText(name));
 }

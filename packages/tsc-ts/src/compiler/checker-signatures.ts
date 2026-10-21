@@ -30,7 +30,6 @@ import {
   getDeclarationOfKind,
 } from './binder-utilities.js';
 import { Diagnostics } from './diagnostics.js';
-import { InternalSymbolName, type Symbol, SymbolFlags } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
 import type { Checker } from './checker.js';
 import {
@@ -111,6 +110,7 @@ import { isTypeAssignableTo, type TypeComparer } from './relations.js';
 import { getReturnTypeFromBody, getTypePredicateFromBody } from './checker-functions.js';
 import { checkComputedPropertyName } from './checker-expressions.js';
 import { hasLateBindableIndexSignature } from './checker-utilities.js';
+import { declarationCount, getDeclarations, InternalSymbolName, type Symbol, SymbolFlags } from './symbol.js';
 
 // ---- From declarations
 
@@ -118,7 +118,7 @@ import { hasLateBindableIndexSignature } from './checker-utilities.js';
 export function getSignaturesOfSymbol(c: Checker, symbol: Symbol | undefined): Signature[] {
   if (symbol === undefined) return [];
   const result: Signature[] = [];
-  const declarations = symbol.declarations;
+  const declarations = getDeclarations(symbol);
   for (let i = 0; i < declarations.length; i++) {
     const decl = declarations[i]!;
     if (!isFunctionLikeNode(decl)) continue;
@@ -362,7 +362,7 @@ export function getReturnTypeFromAnnotation(c: Checker, declaration: Node): Type
   if (declaration.kind === SyntaxKind.GetAccessor) {
     const symbol = getSymbolOfDeclaration(c, declaration);
     if (symbol !== undefined) {
-      const setter = symbol.declarations.find((d) => d.kind === SyntaxKind.SetAccessor);
+      const setter = getDeclarations(symbol).find((d) => d.kind === SyntaxKind.SetAccessor);
       if (setter !== undefined) {
         const parameters = getParameters(setter);
         if (parameters !== undefined) {
@@ -898,7 +898,7 @@ export function getIndexInfosOfIndexSymbol(c: Checker, indexSymbol: Symbol, sibl
   let readonlyNumber = true;
   let readonlySymbol = true;
   const propertySymbols: Symbol[] = [];
-  for (const declaration of indexSymbol.declarations) {
+  for (const declaration of getDeclarations(indexSymbol)) {
     if (declaration.kind === SyntaxKind.IndexSignature) {
       const parameters = getParameters(declaration)?.nodes ?? [];
       const returnTypeNode = getType(declaration);
@@ -952,7 +952,7 @@ import { ContextFlags, getContextualTypeEx } from './checker-contextual.js';
 /** Whether `symbol` is a known symbol or has a computed name of a symbol type. */
 function isSymbolWithSymbolName(c: Checker, symbol: Symbol): boolean {
   if (symbol.name.startsWith('\ufffe@')) return true;
-  const name = symbol.declarations.length !== 0 ? getName(symbol.declarations[0]!) : undefined;
+  const name = declarationCount(symbol) !== 0 ? getName(symbol.declaration!) : undefined;
   return (
     name !== undefined &&
     name.kind === SyntaxKind.ComputedPropertyName &&
@@ -963,7 +963,7 @@ function isSymbolWithSymbolName(c: Checker, symbol: Symbol): boolean {
 /** Whether `symbol` has a numeric name, or a computed name of a number type. */
 function isSymbolWithNumericName(c: Checker, symbol: Symbol): boolean {
   if (isNumericLiteralName(symbol.name)) return true;
-  const name = symbol.declarations.length !== 0 ? getName(symbol.declarations[0]!) : undefined;
+  const name = declarationCount(symbol) !== 0 ? getName(symbol.declaration!) : undefined;
   if (name === undefined) return false;
   if (name.kind === SyntaxKind.ComputedPropertyName)
     return isTypeAssignableToKind(c, checkComputedPropertyName(c, name), TypeFlags.NumberLike);
@@ -985,7 +985,7 @@ function getObjectLiteralIndexInfo(c: Checker, isReadonly: boolean, properties: 
       (keyType === c.esSymbolType && isSymbolWithSymbolName(c, prop))
     ) {
       propTypes.push(getTypeOfSymbol(c, prop));
-      if (isSymbolWithComputedName(prop)) components.push(prop.declarations[0]!);
+      if (isSymbolWithComputedName(prop)) components.push(prop.declaration!);
     }
   }
   const unionType =
@@ -996,8 +996,8 @@ function getObjectLiteralIndexInfo(c: Checker, isReadonly: boolean, properties: 
 }
 
 function isSymbolWithComputedName(symbol: Symbol): boolean {
-  if (symbol.declarations.length === 0) return false;
-  const name = getName(symbol.declarations[0]!);
+  if (declarationCount(symbol) === 0) return false;
+  const name = getName(symbol.declaration!);
   return name !== undefined && name.kind === SyntaxKind.ComputedPropertyName;
 }
 

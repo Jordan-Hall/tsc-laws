@@ -13,7 +13,6 @@ import {
   type ConditionalTypeNode,
 } from './ast.js';
 import { hasSyntacticModifier } from './binder-utilities.js';
-import { CheckFlags, type Symbol, SymbolFlags, getSymbolId } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
 import type { Checker } from './checker.js';
 import {
@@ -194,6 +193,15 @@ import { getTypeFromTypeNode } from './checker-type-nodes.js';
 import { getMergedSymbol, getSymbolOfDeclaration } from './checker-symbols.js';
 import { parsePseudoBigInt } from './pseudo-bigint.js';
 import { getContextualTypeForInference } from './checker-contextual.js';
+import {
+  CheckFlags,
+  copyDeclarations,
+  declarationCount,
+  getDeclarations,
+  getSymbolId,
+  type Symbol,
+  SymbolFlags,
+} from './symbol.js';
 
 export const enum InferenceFlags {
   None = 0,
@@ -427,7 +435,7 @@ export function someInferenceHasCandidatesOrDefault(inferences: InferenceInfo[])
 function hasTypeParameterDefault(tp: Type): boolean {
   const symbol = tp.symbol;
   if (symbol === undefined) return false;
-  for (const d of symbol.declarations)
+  for (const d of getDeclarations(symbol))
     if (d.kind === SyntaxKind.TypeParameter && (d as TypeParameterDeclaration).defaultType !== undefined) return true;
   return false;
 }
@@ -1324,10 +1332,10 @@ function isTopLevelClassStaticSide(t: Type): boolean {
     (symbol.flags &
       (SymbolFlags.Function | SymbolFlags.Method | SymbolFlags.TypeLiteral | SymbolFlags.ObjectLiteral)) !==
       0 ||
-    symbol.declarations.length === 0
+    declarationCount(symbol) === 0
   )
     return false;
-  for (const d of symbol.declarations) {
+  for (const d of getDeclarations(symbol)) {
     if (
       d.kind !== SyntaxKind.ClassDeclaration &&
       d.kind !== SyntaxKind.InterfaceDeclaration &&
@@ -1370,7 +1378,7 @@ function createEmptyObjectTypeFromStringLiteral(c: Checker, t: Type): Type {
     const literalProp = c.newSymbol(SymbolFlags.Property, name);
     c.symbolTypes.set(getSymbolId(literalProp), c.anyType);
     if (u.symbol !== undefined) {
-      literalProp.declarations = u.symbol.declarations;
+      copyDeclarations(literalProp, u.symbol);
       literalProp.valueDeclaration = u.symbol.valueDeclaration;
     }
     members.set(name, literalProp);
@@ -1495,7 +1503,7 @@ export function isConstTypeVariable(c: Checker, t: Type | undefined, depth: numb
   if (depth >= 5 || t === undefined) return false;
   if ((t.flags & TypeFlags.TypeParameter) !== 0) {
     if (t.symbol === undefined) return false;
-    for (const d of t.symbol.declarations) if (hasSyntacticModifier(d, ModifierFlags.Const)) return true;
+    for (const d of getDeclarations(t.symbol)) if (hasSyntacticModifier(d, ModifierFlags.Const)) return true;
     return false;
   }
   if ((t.flags & TypeFlags.UnionOrIntersection) !== 0) {
@@ -2031,7 +2039,7 @@ export function resolveReverseMappedTypeMembers(c: Checker, t: ReverseMappedType
       prop.name,
       checkFlags,
     );
-    inferredProp.declarations = prop.declarations;
+    copyDeclarations(inferredProp, prop);
     const links = c.symbolLinks(inferredProp);
     const id = inferredProp.id;
     c.symbolNameTypes.set(id, c.symbolNameTypes.get(getSymbolId(prop)));
@@ -2484,7 +2492,7 @@ export function getInferredTypeParameterConstraint(c: Checker, t: Type, omitType
   const inferences: Type[] = [];
   const symbol = t.symbol;
   if (symbol !== undefined)
-    for (const declaration of symbol.declarations) {
+    for (const declaration of getDeclarations(symbol)) {
       if (declaration.parent === undefined || declaration.parent.kind !== SyntaxKind.InferType) continue;
       let child: Node = declaration.parent;
       let parent = child.parent;

@@ -25,7 +25,6 @@ import {
   type TypeReferenceNode,
 } from './ast.js';
 import { Diagnostics, Diagnostic } from './diagnostics.js';
-import { CheckFlags, InternalSymbolName, type Symbol, SymbolFlags, getSymbolId } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
 import type { Checker } from './checker.js';
 import {
@@ -189,6 +188,15 @@ import {
   instantiateReverseMappedType as instantiateReverseMappedTypeOfInference,
   resolveReverseMappedTypeMembers as resolveReverseMappedTypeMembersOfInference,
 } from './checker-inference.js';
+import {
+  CheckFlags,
+  copyDeclarations,
+  declarationCount,
+  getSymbolId,
+  InternalSymbolName,
+  type Symbol,
+  SymbolFlags,
+} from './symbol.js';
 
 // ---- Genericity
 
@@ -1658,7 +1666,7 @@ export function resolveMappedTypeMembers(c: Checker, t: MappedType): void {
       c.symbolKeyTypes.set(symbolId, keyType);
       if (modifiersProp !== undefined) {
         c.symbolSyntheticOrigins.set(symbolId, modifiersProp);
-        if (shouldLinkPropDeclarations) prop.declarations = modifiersProp.declarations;
+        if (shouldLinkPropDeclarations) copyDeclarations(prop, modifiersProp);
       }
       members.set(propName, prop);
     } else if (isValidIndexKeyType(c, propNameType) || (propNameType.flags & (TypeFlags.Any | TypeFlags.Enum)) !== 0) {
@@ -2251,7 +2259,7 @@ function computeReferenceArgs(c: Checker, root: ConditionalRoot): ReferenceArgs 
     let kind = ReferenceArgKind.Fixed;
     let inferTypeParameter: Type | undefined;
     for (const tp of root.inferTypeParameters) {
-      const declaration = tp.symbol?.declarations[0];
+      const declaration = tp.symbol?.declaration;
       if (
         declaration === undefined ||
         isNodeDescendantOf(declaration, argNode) ||
@@ -2265,9 +2273,9 @@ function computeReferenceArgs(c: Checker, root: ConditionalRoot): ReferenceArgs 
       const inner = skipTypeParentheses(argNode);
       if (inner.kind === SyntaxKind.InferType) {
         const tp = root.inferTypeParameters.find(
-          (t) => t.symbol!.declarations[0] === (inner as InferTypeNode).typeParameter,
+          (t) => t.symbol!.declaration === (inner as InferTypeNode).typeParameter,
         );
-        if (tp !== undefined && tp.symbol!.declarations.length === 1 && !isReferencedInOtherArg(c, tp, argNodes, i)) {
+        if (tp !== undefined && declarationCount(tp.symbol!) === 1 && !isReferencedInOtherArg(c, tp, argNodes, i)) {
           kind = ReferenceArgKind.Infer;
           inferTypeParameter = tp;
         }

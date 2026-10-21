@@ -30,7 +30,6 @@ import {
   isStringOrNumericLiteralLike,
   isVariableDeclarationInitializedToRequire,
 } from './binder-utilities.js';
-import { type Symbol, SymbolFlags } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
 import type { Checker } from './checker.js';
 import { ObjectFlags, type Type, TypeFlags } from './checker-types.js';
@@ -67,6 +66,7 @@ import {
   getTypeOfPropertyInBaseClass,
   isAutoTypedProperty,
 } from './checker-classes.js';
+import { declarationCount, getDeclarations, type Symbol, SymbolFlags } from './symbol.js';
 
 /** How the `this.x` assignments declaring a property are typed. */
 const enum ThisAssignmentKind {
@@ -99,7 +99,7 @@ export function getWidenedTypeForAssignmentDeclaration(c: Checker, symbol: Symbo
   else if (kind === ThisAssignmentKind.Method) t = getTypeOfPropertyInBaseClass(c, symbol);
   if (t === undefined) {
     const types: Type[] = [];
-    const declarations = symbol.declarations;
+    const declarations = getDeclarations(symbol);
     for (let i = 0; i < declarations.length; i++) {
       const declaration = declarations[i]!;
       const declaredType = declaration instanceof BinaryExpression ? (declaration as BinaryExpression).type : undefined;
@@ -234,7 +234,7 @@ function getThisAssignmentKind(c: Checker, symbol: Symbol): ThisAssignmentKind {
   if (links.thisAssignmentKind !== 0) return (links.thisAssignmentKind - 1) as ThisAssignmentKind;
   let allThis = true;
   let typeAnnotation: Node | undefined;
-  for (const declaration of symbol.declarations) {
+  for (const declaration of getDeclarations(symbol)) {
     if (!(declaration instanceof BinaryExpression)) {
       allThis = false;
       break;
@@ -276,7 +276,7 @@ export function isConstructorDeclaredThisProperty(c: Checker, symbol: Symbol): b
 }
 
 function getDeclaringConstructor(symbol: Symbol): Node | undefined {
-  for (const declaration of symbol.declarations) {
+  for (const declaration of getDeclarations(symbol)) {
     const container = getThisContainer(declaration, false, false);
     if (container.kind === SyntaxKind.Constructor) return container;
   }
@@ -498,5 +498,5 @@ export function isUndefinedAssignmentToCommonJSExport(c: Checker, left: Node, ri
   if (assignment.symbol === undefined) return false;
   if (getAssignmentDeclarationKind(assignment) !== JSDeclarationKind.ExportsProperty) return false;
   const symbol = c.resolvedSymbols.get(left.id);
-  return symbol !== undefined && symbol.declarations.length > 1 && (rightType.flags & TypeFlags.Undefined) !== 0;
+  return symbol !== undefined && declarationCount(symbol) > 1 && (rightType.flags & TypeFlags.Undefined) !== 0;
 }

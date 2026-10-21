@@ -21,7 +21,6 @@ import {
 } from './ast.js';
 import { getSourceFileOfNode, isEnumConst, isObjectLiteralMethod } from './binder-utilities.js';
 import { Diagnostics } from './diagnostics.js';
-import { type Symbol, SymbolFlags } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
 import { type Checker, createDiagnosticForNode } from './checker.js';
 import { elaborateNeverIntersection } from './checker-property-access.js';
@@ -88,6 +87,7 @@ import { getIndexedAccessType, isGenericMappedType } from './checker-type-operat
 import { getSignatureInstantiation } from './checker-signatures.js';
 import { evaluateEnumMember, EvaluatedFlags, EvaluatedKind } from './checker-evaluator.js';
 import { checkTypeAssignableTo, isTypeIdenticalTo } from './relations.js';
+import { getDeclarations, type Symbol, SymbolFlags } from './symbol.js';
 
 export { getParentOfSymbol };
 
@@ -153,7 +153,7 @@ export function getDeclaredTypeOfClassOrInterface(c: Checker, symbol: Symbol): I
 }
 
 function isThislessInterface(c: Checker, symbol: Symbol): boolean {
-  for (const declaration of symbol.declarations) {
+  for (const declaration of getDeclarations(symbol)) {
     if (declaration.kind !== SyntaxKind.InterfaceDeclaration) continue;
     if ((declaration.flags & NodeFlags.ContainsThis) !== 0) return false;
     for (const node of getExtendsHeritageClauseElements(declaration)) {
@@ -201,7 +201,7 @@ export function getExtendsHeritageClauseElement(node: Node): Node | undefined {
 }
 
 export function getClassLikeDeclarationOfSymbol(symbol: Symbol): Node | undefined {
-  for (const d of symbol.declarations)
+  for (const d of getDeclarations(symbol))
     if (d.kind === SyntaxKind.ClassDeclaration || d.kind === SyntaxKind.ClassExpression) return d;
   return undefined;
 }
@@ -210,7 +210,7 @@ function getOuterTypeParametersOfClassOrInterface(c: Checker, symbol: Symbol): T
   let declaration = symbol.valueDeclaration;
   if ((symbol.flags & (SymbolFlags.Class | SymbolFlags.Function)) === 0) {
     declaration = undefined;
-    for (const d of symbol.declarations) {
+    for (const d of getDeclarations(symbol)) {
       if (d.kind === SyntaxKind.InterfaceDeclaration) {
         declaration = d;
         break;
@@ -310,7 +310,7 @@ export function getLocalTypeParametersOfClassOrInterfaceOrTypeAlias(c: Checker, 
 }
 
 function appendLocalTypeParameters(c: Checker, types: Type[], symbol: Symbol): Type[] {
-  for (const node of symbol.declarations) {
+  for (const node of getDeclarations(symbol)) {
     if (
       node.kind === SyntaxKind.InterfaceDeclaration ||
       node.kind === SyntaxKind.ClassDeclaration ||
@@ -343,7 +343,7 @@ export function getDeclaredTypeOfTypeAlias(c: Checker, symbol: Symbol): Type {
   if (links.declaredType !== undefined) return links.declaredType;
   if (!pushTypeResolution(c, symbol, TypeSystemPropertyName.DeclaredType)) return c.errorType;
   let declaration: Node | undefined;
-  for (const d of symbol.declarations)
+  for (const d of getDeclarations(symbol))
     if (d.kind === SyntaxKind.TypeAliasDeclaration || d.kind === SyntaxKind.JSTypeAliasDeclaration) {
       declaration = d;
       break;
@@ -374,7 +374,7 @@ export function getDeclaredTypeOfEnum(c: Checker, symbol: Symbol): Type {
   const links = c.symbolLinks(symbol);
   if (links.declaredType !== undefined) return links.declaredType;
   const memberTypes: Type[] = [];
-  for (const declaration of symbol.declarations) {
+  for (const declaration of getDeclarations(symbol)) {
     if (declaration.kind !== SyntaxKind.EnumDeclaration) continue;
     for (const member of (declaration as EnumDeclaration).members.nodes) {
       if (!hasBindableName(member)) continue;
@@ -561,7 +561,7 @@ export function getBaseTypes(c: Checker, t: Type): Type[] {
       if ((t.symbol!.flags & SymbolFlags.Interface) !== 0) resolveBaseTypesOfInterface(c, t as InterfaceType);
     }
     if (!popTypeResolution(c))
-      for (const declaration of t.symbol!.declarations)
+      for (const declaration of getDeclarations(t.symbol!))
         if (declaration.kind === SyntaxKind.ClassDeclaration || declaration.kind === SyntaxKind.InterfaceDeclaration)
           reportCircularBaseType(c, declaration, t);
     // Circular defaults may leave members partially resolved; reset them.
@@ -659,7 +659,7 @@ function isInJS(node: Node): boolean {
 }
 
 function resolveBaseTypesOfInterface(c: Checker, t: InterfaceType): void {
-  for (const declaration of t.symbol!.declarations) {
+  for (const declaration of getDeclarations(t.symbol!)) {
     if (declaration.kind !== SyntaxKind.InterfaceDeclaration) continue;
     for (const node of getExtendsHeritageClauseElements(declaration)) {
       const baseType = getReducedType(c, getTypeFromTypeNode(c, node));
@@ -798,7 +798,7 @@ export function hasNonCircularBaseConstraint(c: Checker, t: Type): boolean {
 
 export function getConstraintDeclaration(t: Type): Node | undefined {
   if (t.symbol !== undefined)
-    for (const d of t.symbol.declarations)
+    for (const d of getDeclarations(t.symbol))
       if (d.kind === SyntaxKind.TypeParameter) {
         const constraint = (d as TypeParameterDeclaration).constraint;
         if (constraint !== undefined) return constraint;
@@ -850,7 +850,7 @@ export function getResolvedTypeParameterDefault(c: Checker, t: TypeParameter): T
       side.resolvedDefaultType = c.resolvingDefaultType;
       let defaultType: Type = c.noConstraintType;
       if (t.symbol !== undefined)
-        for (const d of t.symbol.declarations)
+        for (const d of getDeclarations(t.symbol))
           if (d.kind === SyntaxKind.TypeParameter) {
             const node = (d as TypeParameterDeclaration).defaultType;
             if (node !== undefined) {
@@ -878,7 +878,7 @@ export function getMinTypeArgumentCount(c: Checker, typeParameters: readonly Typ
 /** Whether a type parameter is declared with a default, without resolving it. */
 function hasTypeParameterDefault(t: Type): boolean {
   if (t.symbol === undefined) return false;
-  for (const d of t.symbol.declarations)
+  for (const d of getDeclarations(t.symbol))
     if (d.kind === SyntaxKind.TypeParameter && (d as TypeParameterDeclaration).defaultType !== undefined) return true;
   return false;
 }
