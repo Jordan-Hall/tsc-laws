@@ -575,6 +575,8 @@ export class Checker implements TypeChecking {
    */
   readonly freeMapperCaches: Map<number, Type>[] = [];
   freeMapperCacheCount = 0;
+  /** Empty lists for type arguments that are compared with cached instantiations before any is kept. */
+  readonly freeTypeLists: Type[][] = [];
   conditionalConstraintDepth = 0;
 
   readonly suggestionResolver: SuggestionNameResolver;

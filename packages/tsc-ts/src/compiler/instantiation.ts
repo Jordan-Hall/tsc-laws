@@ -189,8 +189,18 @@ export function instantiateTypeWithAlias(
   alias: TypeAlias | undefined,
 ): Type {
   if (mapper === undefined) return type;
-  // Aliases with type arguments may be copied with new arguments even when the type itself has no type variables.
-  if (!couldContainTypeVariables(c, type) && !aliasCouldContainTypeVariables(c, type)) return type;
+  // `couldContainTypeVariables`, answered here when the type's own flags decide it. Aliases with type
+  // arguments may be copied with new arguments even when the type itself has no type variables.
+  let could: boolean;
+  if ((type.flags & TypeFlags.StructuredOrInstantiable) === 0) could = false;
+  else {
+    const objectFlags = type.objectFlags;
+    could =
+      (objectFlags & ObjectFlags.CouldContainTypeVariablesComputed) !== 0
+        ? (objectFlags & ObjectFlags.CouldContainTypeVariables) !== 0
+        : couldContainTypeVariables(c, type);
+  }
+  if (!could && (type.alias === undefined || !aliasCouldContainTypeVariables(c, type))) return type;
   if (c.instantiationDepth === 100 || c.instantiationCount >= 5000000) {
     // Probably infinitely expanding generic types; stop with the error type.
     c.error(c.currentNode, Diagnostics.Type_instantiation_is_excessively_deep_and_possibly_infinite);
@@ -437,6 +447,11 @@ function getObjectTypeInstantiation(
   mapper: TypeMapper,
   alias: TypeAlias | undefined,
 ): Type {
+  if (
+    (type.objectFlags & ObjectFlags.Reference) === 0 &&
+    (lazyObjectFlags(c, type) & ObjectFlags.OuterTypeParametersEmpty) !== 0
+  )
+    return type;
   let declaration: Node;
   if ((type.objectFlags & ObjectFlags.Reference) !== 0) declaration = (type as TypeReference).node!;
   else if ((type.objectFlags & ObjectFlags.InstantiationExpressionType) !== 0)
@@ -471,14 +486,26 @@ function getObjectTypeInstantiation(
     }
     links.outerTypeParameters = typeParameters;
   }
-  if (typeParameters.length === 0) return type;
-  const combinedMapper = combineTypeMappers(c, type.mapper, mapper);
-  let typeArguments: Type[] = [];
-  for (const tp of typeParameters) typeArguments.push(combinedMapper.map(tp));
+  if (typeParameters.length === 0) {
+    if ((type.objectFlags & ObjectFlags.Reference) === 0)
+      sideOf(c, type).objectFlags |= ObjectFlags.OuterTypeParametersEmpty;
+    return type;
+  }
+  // The type arguments, mapped as `combineTypeMappers(c, type.mapper, mapper)` maps them, into a
+  // list of the checker's that is copied only when the instantiation is new.
+  const typeMapper = type.mapper;
+  const mapped = c.freeTypeLists.pop() ?? [];
+  for (const tp of typeParameters) {
+    if (typeMapper === undefined) mapped.push(mapper.map(tp));
+    else {
+      const t1 = typeMapper.map(tp);
+      mapped.push(t1 !== tp ? instantiateType(c, t1, mapper) : mapper.map(tp));
+    }
+  }
   const newAlias = alias ?? instantiateTypeAlias(c, type.alias, mapper);
   const singleSignature = (type.objectFlags & ObjectFlags.SingleSignatureType) !== 0;
   const tag = singleSignature ? 1 : 0;
-  const hash = typeListHash(typeArguments, newAlias, tag);
+  const hash = typeListHash(mapped, newAlias, tag);
   const generic = sideOf(c, target);
   let instantiations = generic.instantiations;
   if (instantiations === undefined) {
@@ -486,41 +513,47 @@ function getObjectTypeInstantiation(
     instantiations.set(typeListHash(typeParameters, target.alias, 0), typeParameters, target.alias, 0, target);
     generic.instantiations = instantiations;
   }
-  let result = instantiations.get(hash, typeArguments, newAlias, tag);
-  if (result === undefined) {
-    // The cache and the instantiation's mapper keep the type arguments.
-    typeArguments = c.typeLists.intern(typeListHash(typeArguments, undefined, 0), typeArguments);
-    let newMapper = newTypeMapper(typeParameters, typeArguments);
-    if ((target.objectFlags & ObjectFlags.SingleSignatureType) !== 0)
-      newMapper = combineTypeMappers(c, newMapper, mapper);
-    if ((target.objectFlags & ObjectFlags.Reference) !== 0)
-      result = createDeferredTypeReference(
-        c,
-        (type as TypeReference).target!,
-        (type as TypeReference).node!,
-        newMapper,
-        newAlias,
-      );
-    else if ((target.objectFlags & ObjectFlags.Mapped) !== 0)
-      result = instantiateMappedType(c, target as MappedType, newMapper, newAlias);
-    else result = instantiateAnonymousType(c, target, newMapper, newAlias);
-    instantiations.set(hash, typeArguments, newAlias, tag, result);
-    if (
-      (result.flags & TypeFlags.ObjectFlagsType) !== 0 &&
-      (lazyObjectFlags(c, result) & ObjectFlags.CouldContainTypeVariablesComputed) === 0
-    ) {
-      // Type variable containment follows from the type arguments.
-      let couldContain = false;
-      for (const t of typeArguments)
-        if (couldContainTypeVariables(c, t)) {
-          couldContain = true;
-          break;
-        }
-      if ((result.objectFlags & (ObjectFlags.Mapped | ObjectFlags.Anonymous | ObjectFlags.Reference)) !== 0)
-        sideOf(c, result).objectFlags |=
-          ObjectFlags.CouldContainTypeVariablesComputed | (couldContain ? ObjectFlags.CouldContainTypeVariables : 0);
-      else if (!couldContain) sideOf(c, result).objectFlags |= ObjectFlags.CouldContainTypeVariablesComputed;
-    }
+  const cached = instantiations.get(hash, mapped, newAlias, tag);
+  if (cached !== undefined) {
+    mapped.length = 0;
+    c.freeTypeLists.push(mapped);
+    return cached;
+  }
+  // The cache and the instantiation's mapper keep the type arguments.
+  const typeArguments = c.typeLists.intern(typeListHash(mapped, undefined, 0), mapped.slice());
+  mapped.length = 0;
+  c.freeTypeLists.push(mapped);
+  let result: Type;
+  let newMapper = newTypeMapper(typeParameters, typeArguments);
+  if ((target.objectFlags & ObjectFlags.SingleSignatureType) !== 0)
+    newMapper = combineTypeMappers(c, newMapper, mapper);
+  if ((target.objectFlags & ObjectFlags.Reference) !== 0)
+    result = createDeferredTypeReference(
+      c,
+      (type as TypeReference).target!,
+      (type as TypeReference).node!,
+      newMapper,
+      newAlias,
+    );
+  else if ((target.objectFlags & ObjectFlags.Mapped) !== 0)
+    result = instantiateMappedType(c, target as MappedType, newMapper, newAlias);
+  else result = instantiateAnonymousType(c, target, newMapper, newAlias);
+  instantiations.set(hash, typeArguments, newAlias, tag, result);
+  if (
+    (result.flags & TypeFlags.ObjectFlagsType) !== 0 &&
+    (lazyObjectFlags(c, result) & ObjectFlags.CouldContainTypeVariablesComputed) === 0
+  ) {
+    // Type variable containment follows from the type arguments.
+    let couldContain = false;
+    for (const t of typeArguments)
+      if (couldContainTypeVariables(c, t)) {
+        couldContain = true;
+        break;
+      }
+    if ((result.objectFlags & (ObjectFlags.Mapped | ObjectFlags.Anonymous | ObjectFlags.Reference)) !== 0)
+      sideOf(c, result).objectFlags |=
+        ObjectFlags.CouldContainTypeVariablesComputed | (couldContain ? ObjectFlags.CouldContainTypeVariables : 0);
+    else if (!couldContain) sideOf(c, result).objectFlags |= ObjectFlags.CouldContainTypeVariablesComputed;
   }
   return result;
 }
