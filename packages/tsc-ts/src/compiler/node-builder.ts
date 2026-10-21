@@ -2833,7 +2833,7 @@ function getTypeAliasForTypeLiteral(c: Checker, t: Type): Symbol | undefined {
 /** A copy of `t`, whose members are `resolved`, without its abstract construct signatures. */
 function getResolvedTypeWithoutAbstractConstructSignatures(c: Checker, t: Type, resolved: StructuredType): Type {
   if (resolved.constructSignatures.length === 0) return t;
-  const side = sideOf(c, t as StructuredType);
+  const side = membersHolder(c, t);
   if (side.objectTypeWithoutAbstractConstructSignatures !== undefined)
     return side.objectTypeWithoutAbstractConstructSignatures;
   const constructSignatures = resolved.constructSignatures.filter((s) => (s.flags & SignatureFlags.Abstract) === 0);

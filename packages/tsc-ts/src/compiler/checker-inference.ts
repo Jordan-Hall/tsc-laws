@@ -1460,7 +1460,7 @@ function hasUnmatchedProperty(c: Checker, source: Type, target: Type, matchDiscr
   const t = getReducedApparentType(c, target);
   if (
     (t.flags & TypeFlags.UnionOrIntersection) === 0 ||
-    sideOf(c, t as UnionOrIntersectionType).resolvedProperties !== undefined
+    sideOf(c, t as UnionOrIntersectionType).membersOf?.resolvedProperties !== undefined
   )
     return getUnmatchedProperty(c, source, target, false, matchDiscriminantProperties) !== undefined;
   const containingType = t as UnionOrIntersectionType;
