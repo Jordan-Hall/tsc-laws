@@ -2138,7 +2138,7 @@ export function createTypeReferenceEx(c: Checker, target: Type, typeArguments: T
     target.symbol,
   ) as TypeReference;
   type.target = target;
-  type.resolvedTypeArguments = typeArguments;
+  type.resolvedTypeArguments = c.typeLists.intern(hash, typeArguments);
   references.add(hash, type);
   return type;
 }

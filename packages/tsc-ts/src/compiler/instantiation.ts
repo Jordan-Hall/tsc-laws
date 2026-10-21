@@ -473,7 +473,7 @@ function getObjectTypeInstantiation(
   }
   if (typeParameters.length === 0) return type;
   const combinedMapper = combineTypeMappers(c, type.mapper, mapper);
-  const typeArguments: Type[] = [];
+  let typeArguments: Type[] = [];
   for (const tp of typeParameters) typeArguments.push(combinedMapper.map(tp));
   const newAlias = alias ?? instantiateTypeAlias(c, type.alias, mapper);
   const singleSignature = (type.objectFlags & ObjectFlags.SingleSignatureType) !== 0;
@@ -488,6 +488,8 @@ function getObjectTypeInstantiation(
   }
   let result = instantiations.get(hash, typeArguments, newAlias, tag);
   if (result === undefined) {
+    // The cache and the instantiation's mapper keep the type arguments.
+    typeArguments = c.typeLists.intern(typeListHash(typeArguments, undefined, 0), typeArguments);
     let newMapper = newTypeMapper(typeParameters, typeArguments);
     if ((target.objectFlags & ObjectFlags.SingleSignatureType) !== 0)
       newMapper = combineTypeMappers(c, newMapper, mapper);
@@ -658,9 +660,15 @@ export function instantiateTypeAlias(
   alias: TypeAlias | undefined,
   mapper: TypeMapper,
 ): TypeAlias | undefined {
-  return alias === undefined
-    ? undefined
-    : new TypeAlias(alias.symbol, instantiateTypes(c, alias.typeArguments, mapper));
+  if (alias === undefined) return undefined;
+  const typeArguments = instantiateTypes(c, alias.typeArguments, mapper);
+  // The alias's type keeps its type arguments.
+  return new TypeAlias(
+    alias.symbol,
+    typeArguments === alias.typeArguments
+      ? typeArguments
+      : c.typeLists.intern(typeListHash(typeArguments, undefined, 0), typeArguments),
+  );
 }
 
 /** Instantiates each type; returns `types` itself when nothing changed. */
