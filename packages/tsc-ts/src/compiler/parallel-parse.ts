@@ -86,6 +86,11 @@ export function preparedVersion(file: SourceFile): string {
   return prepared !== undefined && prepared.file === file ? prepared.version : '';
 }
 
+/** Whether a parse thread prepared `fileName`. */
+export function isPrepared(fileName: string): boolean {
+  return parallelParse.files.has(fileName);
+}
+
 /** What a parse thread's FileLoader found loading `fileName`, if the thread prepared it. */
 export function preparedLoad(fileName: string): LoadedFile | undefined {
   if (parallelParse.files.size === 0) return undefined;

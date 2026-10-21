@@ -29,6 +29,8 @@ const { assignSymbolIdsAtCreation } = await load('compiler/symbol.js');
 const { ConfigParser } = await load('compiler/tsconfig.js');
 const { CachedFileSystem } = await load('compiler/file-system.js');
 const { SystemFileSystem } = await load('compiler/tsc-cli.js');
+const { CompilerHost, FileLoader } = await load('compiler/file-loader.js');
+const { Program } = await load('compiler/program.js');
 
 const Root = 0;
 const Library = 2;
@@ -87,7 +89,13 @@ function describe(program) {
   const lines = [program.explainFiles(locale)];
   for (const d of program.getProgramDiagnostics()) lines.push('program ' + diagnostic(d));
   for (const file of program.getSourceFiles()) {
-    lines.push('file ' + file.fileName + ' ' + JSON.stringify(program.sourceFileMetadata(file.path)));
+    lines.push(
+      'file ' +
+        file.fileName +
+        ' ' +
+        JSON.stringify(program.sourceFileMetadata(file.path)) +
+        (program.isSourceFileFromExternalLibrary(file) ? ' external' : ''),
+    );
     const resolutions = program.processed.resolvedModules.get(file.path);
     for (const [key, resolved] of resolutions?.entries() ?? [])
       lines.push(`  module ${key} ${resolved.resolvedFileName} ${resolved.isExternalLibraryImport}`);
@@ -155,6 +163,111 @@ test('the program takes what parse threads found loading their files and is the 
   assert.match(expected, /include .*a\.ts:\d+-\d+:2688:missing-types/);
   assert.match(expected, /include .*a\.ts:\d+-\d+:6053:/);
 });
+
+// While parse threads load files, the program's FileLoader takes each batch as it comes
+// (`FileLoader.walkAhead`): work that would parse a file not prepared yet waits for the batch with it.
+// One file per chunk here, in the order the queue hands them out, so that files come before the files
+// they import, and libraries before the root files. Returns the program, and how many prepared files
+// the loader took before the program loaded.
+function loadBatchByBatch(dir, libraries) {
+  const args = ['-p', dir];
+  assignSymbolIdsAtCreation();
+  useLazyJSDocTable();
+  const sys = createNodeSystem(bundledLibs, '');
+  const fs = new CachedFileSystem(new SystemFileSystem(sys));
+  const errors = [];
+  const config = new ConfigParser(fs, sys.currentDirectory).parseConfigFile(
+    join(dir, 'tsconfig.json'),
+    undefined,
+    undefined,
+    errors,
+  );
+  assert.deepEqual(errors, []);
+  const host = new CompilerHost(fs, sys.currentDirectory, sys.defaultLibraryPath);
+  const loader = new FileLoader(host, config);
+  const thread = parseThreadOfCommandLine(args, join(dir, 'tsconfig.json'), bundledLibs);
+  const queue = new ParseQueue();
+  for (const name of libraries) queue.push(Library, name, 0);
+  queue.push(AutomaticTypes, '', 0);
+  for (const name of config.fileNames) queue.push(Root, name, 0);
+  let rootFilesAdded = false;
+  for (let chunk = queue.next(100); chunk !== undefined; chunk = queue.next(100)) {
+    assert.equal(chunk.names.length, 1);
+    const batch = thread.load(chunk);
+    for (const prepared of batch.files) parallelParse.files.set(prepared.fileName, prepared);
+    for (let k = 0; k < batch.added.names.length; k++)
+      queue.push(batch.added.kinds[k], batch.added.names[k], batch.added.depths[k]);
+    const lookups = batch.packageJsons;
+    for (let k = 0; k < lookups.directories.length; k++)
+      parallelParse.packageJsons.push(
+        new PackageJsonLookup(lookups.directories[k], lookups.exists[k], lookups.directoryExists[k]),
+      );
+    if (!rootFilesAdded) rootFilesAdded = loader.addRootFiles(1);
+    loader.walkAhead(batch.files);
+  }
+  const takenAhead = parallelParse.used;
+  return { program: new Program(config, host, loader), takenAhead };
+}
+
+test('a program loaded batch by batch while files are prepared is the same program', () => {
+  const dir = project();
+  clearPrepared();
+  const plain = executeCommandLine(createNodeSystem(bundledLibs, ''), ['-p', dir]);
+  assert.equal(plain.kind, 'compile');
+  const expected = describe(plain.program);
+
+  const { program, takenAhead } = loadBatchByBatch(dir, ['lib.es2022.d.ts', 'lib.dom.d.ts']);
+  assert.ok(takenAhead > 0);
+  assert.equal(parallelParse.used, program.getSourceFiles().length);
+  assert.equal(describe(program), expected);
+  assert.ok(program.hasAllPackageJsonLookups());
+});
+
+// The depth at which a file is first loaded decides the depth of the files it adds, and with it which
+// JavaScript files in node_modules are within maxNodeModuleJsDepth. In tsgo's order the second root
+// loads x.js at depth 1, so y.js, which x.js imports, is at depth 2 and loaded; loaded first through
+// the first root's package, x.js would be at depth 2 and y.js past the limit. The batches come in the
+// order that loads the first root's package first, and walking ahead keeps tsgo's order.
+test('a program loaded batch by batch is the same program when files are reached at other depths', () => {
+  const dir = tempDir('tsc-ts-parallel-load-depths-');
+  const pkg = (name) => JSON.stringify({ name, version: '1.0.0', main: 'index.js' });
+  const files = {
+    'tsconfig.json': JSON.stringify({
+      compilerOptions: { allowJs: true, maxNodeModuleJsDepth: 2, noEmit: true, lib: ['es2022'], types: [] },
+      include: ['src'],
+    }),
+    'src/a.ts': "import 'outer';\n",
+    'src/b.ts': "import 'x';\n",
+    'node_modules/outer/package.json': pkg('outer'),
+    'node_modules/outer/index.js': "import 'x';\n",
+    'node_modules/x/package.json': pkg('x'),
+    'node_modules/x/index.js': "import 'y';\n",
+    'node_modules/y/package.json': pkg('y'),
+    'node_modules/y/index.js': 'export const y = 1;\n',
+  };
+  for (const [name, text] of Object.entries(files)) {
+    mkdirSync(dirname(join(dir, name)), { recursive: true });
+    writeFileSync(join(dir, name), text);
+  }
+  clearPrepared();
+  const plain = executeCommandLine(createNodeSystem(bundledLibs, ''), ['-p', dir]);
+  assert.equal(plain.kind, 'compile');
+  const expected = describe(plain.program);
+  assert.match(expected, /node_modules\/y\/index\.js/);
+
+  const { program, takenAhead } = loadBatchByBatch(dir, ['lib.es2022.d.ts']);
+  assert.ok(takenAhead > 0);
+  assert.equal(describe(program), expected);
+});
+
+function clearPrepared() {
+  parallelParse.files.clear();
+  parallelParse.used = 0;
+  parallelParse.missed = 0;
+  parallelParse.unprepared = 0;
+  parallelParse.taken.clear();
+  parallelParse.packageJsons.length = 0;
+}
 
 test('a source file of a referenced project loaded ahead queues the file it is redirected to', () => {
   const dir = tempDir('tsc-ts-parallel-load-references-');

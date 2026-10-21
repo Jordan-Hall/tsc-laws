@@ -36,6 +36,7 @@ import {
   LoadKind,
   type LoadJobs,
   type PreparedFile,
+  isPrepared,
   preparedLoad,
   preparedPackageJsonLookups,
   takePreparedFile,
@@ -527,6 +528,10 @@ export class FileLoader {
   private rootFilesAdded = 0;
   /** The sub-tasks of prepared files, by file name, built ahead by `takeAhead`. */
   private readonly subTasksAhead = new Map<string, SubTasksAhead>();
+  /** Whether the work of the root tasks is queued (`startRootTasks`). */
+  private rootTasksStarted = false;
+  /** Set while `walkAhead` runs: the walk stops at work that would parse a file not prepared yet. */
+  private walkingAhead = false;
   /**
    * Whether a file that parse threads prepared is loaded from what its thread found (its metadata
    * and resolutions). If not, only the parsed and bound file is taken, and this loader looks up the
@@ -573,11 +578,8 @@ export class FileLoader {
     return end === rootFiles.length;
   }
 
-  /**
-   * Builds ahead what loading takes from each of `files` (`takeLoadedFile`): the main thread does
-   * this while parse threads load more files (parallel-parse.ts).
-   */
-  takeAhead(files: readonly PreparedFile[]): void {
+  /** Builds ahead what loading takes from each of `files` (`takeLoadedFile`). */
+  private takeAhead(files: readonly PreparedFile[]): void {
     for (const prepared of files) {
       const loaded = prepared.loaded;
       if (loaded === undefined) continue;
@@ -587,10 +589,39 @@ export class FileLoader {
     }
   }
 
+  /**
+   * Loads what it can while parse threads load more files (parallel-parse.ts), the main thread's work
+   * for each batch they return: builds ahead what loading takes from its `files` (`takeAhead`), and once
+   * every root file's task is added, runs the walk `load` would run, in the same order, up to work that
+   * would parse a file the threads have not prepared yet. A later batch, or `load`, goes on from there.
+   * The order decides the program where a file is reached at several depths (the depth it is first
+   * loaded at decides the depths of the files it adds), so the walk keeps it.
+   */
+  walkAhead(files: readonly PreparedFile[]): void {
+    this.takeAhead(files);
+    if (!this.rootTasksStarted && this.rootFilesAdded < this.config.fileNames.length) return;
+    this.startRootTasks();
+    this.walkingAhead = true;
+    this.walk();
+    this.walkingAhead = false;
+  }
+
   load(): ProcessedFiles {
-    const rootFiles = this.config.fileNames;
-    this.addRootFiles(rootFiles.length);
-    if (rootFiles.length > 0 && this.options.noLib !== true) {
+    this.addRootFiles(this.config.fileNames.length);
+    this.startRootTasks();
+    mark('loader roots added');
+    this.walk();
+    mark('loader walked');
+    const result = this.collect();
+    mark('loader collected');
+    this.mapper.loader = undefined;
+    return result;
+  }
+
+  /** Adds the tasks of the libraries and of the automatic type directives, after those of the root files. */
+  private addLastRootTasks(): void {
+    if (this.config.fileNames.length === 0) return;
+    if (this.options.noLib !== true) {
       const lib = this.options.lib;
       if (lib === undefined) {
         const libFile = this.pathForLibFile(getDefaultLibFileName(this.options));
@@ -604,32 +635,39 @@ export class FileLoader {
         }
       }
     }
-    if (rootFiles.length > 0) {
-      const containingDirectory =
-        this.options.configFilePath !== undefined
-          ? getDirectoryPath(this.options.configFilePath)
-          : this.host.currentDirectory;
-      this.rootTasks.push(
-        new ParseTask(
-          combinePaths(containingDirectory, inferredTypesContainingFile),
-          undefined,
-          undefined,
-          true,
-          false,
-          false,
-          undefined,
-        ),
-      );
-    }
+    const containingDirectory =
+      this.options.configFilePath !== undefined
+        ? getDirectoryPath(this.options.configFilePath)
+        : this.host.currentDirectory;
+    this.rootTasks.push(
+      new ParseTask(
+        combinePaths(containingDirectory, inferredTypesContainingFile),
+        undefined,
+        undefined,
+        true,
+        false,
+        false,
+        undefined,
+      ),
+    );
+  }
 
-    mark('loader roots added');
+  /** Adds the last root tasks and queues the work of every root task, once every root file's task is added. */
+  private startRootTasks(): void {
+    if (this.rootTasksStarted) return;
+    this.rootTasksStarted = true;
+    this.addLastRootTasks();
     this.start(this.rootTasks, 0);
-    for (let work = this.work.pop(); work !== undefined; work = this.work.pop()) this.run(work);
-    mark('loader walked');
-    const result = this.collect();
-    mark('loader collected');
-    this.mapper.loader = undefined;
-    return result;
+  }
+
+  private walk(): void {
+    for (let work = this.work.pop(); work !== undefined; work = this.work.pop()) {
+      if (this.walkingAhead && this.parsesUnprepared(work.tasks[work.index], work.data)) {
+        this.work.push(work);
+        return;
+      }
+      this.run(work);
+    }
   }
 
   /**
@@ -996,6 +1034,17 @@ export class FileLoader {
         this.start(taskByFileName.subTasks, data.lowestDepth);
       }
     }
+  }
+
+  /**
+   * Whether running the work of `task` (of `data`'s path) may parse a file that parse threads have not
+   * prepared yet: a task of the path not loaded yet, or `task`, a new casing.
+   */
+  private parsesUnprepared(task: ParseTask, data: ParseTaskData): boolean {
+    if (!data.tasks.has(task.normalizedFilePath) && !isPrepared(task.normalizedFilePath)) return true;
+    for (const other of data.tasks.values())
+      if (!other.loaded && !other.isForAutomaticTypeDirective && !isPrepared(other.normalizedFilePath)) return true;
+    return false;
   }
 
   private loadTask(task: ParseTask): void {
