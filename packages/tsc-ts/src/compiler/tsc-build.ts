@@ -721,10 +721,10 @@ export class Orchestrator {
     const host = new BuildCompilerHost(sys, this.fs, this.locale);
     const configOptions = config.options;
     const checkers = threads ? checkerThreads(configOptions.checkers, configOptions.singleThreaded) : 1;
-    if (checkers > 1 && parallelParse.spawn !== undefined) {
+    if (threads && configOptions.singleThreaded !== true && parallelParse.spawn !== undefined) {
       // Threads parse and bind the program's files ahead of it (parallel-parse.ts), as for plain
-      // compiles that check on threads. Here also when the program is checked on this thread, as
-      // after a change with old build info, whose program is parsed in full all the same. The
+      // compiles. Here also when the program is checked on this thread, with one checker or after a
+      // change with old build info, whose program is parsed in full all the same. The
       // program's FileLoader takes the files they prepared, and resolves their imports and
       // references itself (`takesPreparedResolutions`): the build info lists the `package.json`
       // files the program's module resolution looked up, and which ones it looks up depends on the

@@ -340,6 +340,46 @@ const scenarios = {
       { args: ['-b', '--checkers', '2'], edit: { 'tsconfig.tsbuildinfo': null } },
     ],
   },
+  // In native builds, programs checked by one checker are parsed on parse threads (unless --singleThreaded):
+  // the first step without build info, the rebuilds after a body and an exported-signature edit, a plain
+  // check, an emit and -b builds.
+  'one checker after parse threads': {
+    files: {
+      'tsconfig.json':
+        '{"compilerOptions":{"incremental":true,"noEmit":true,"declaration":true,"outDir":"out","rootDir":"src"},' +
+        '"include":["src"]}',
+      'src/base.ts':
+        'export interface Shape { kind: string; size: number }\nexport const unit = { kind: "u", size: 1 };\n',
+      'src/a.ts': 'import { Shape, unit } from "./base";\nexport const a = (s: Shape) => [s, unit];\n',
+      'src/b.ts': 'import { unit } from "./base";\nexport const b = { ...unit, extra: true };\n',
+      'src/c.ts': 'import * as base from "./base";\nexport const c: base.Shape = base.unit;\n',
+      'src/e.ts': 'import { unit } from "./base";\nexport const e: number = unit.kind;\n',
+      'src/f.ts': 'import { a } from "./a";\nexport const f = a({ kind: "f", size: 2 });\n',
+    },
+    steps: [
+      { args: ['--checkers', '1'] },
+      {
+        args: ['--checkers', '1'],
+        edit: { 'src/f.ts': 'import { a } from "./a";\nexport const f = a({ kind: "f", size: 2 });\nvoid 0;\n' },
+      },
+      {
+        args: ['--checkers', '1'],
+        edit: {
+          'src/base.ts':
+            'export interface Shape { kind: string; size: number; label?: string }\n' +
+            'export const unit = { kind: "u", size: 1, label: "unit" };\n',
+        },
+      },
+      { args: ['--checkers', '1', '--singleThreaded'], edit: { 'src/b.ts': 'export const b = 2;\n' } },
+      { args: ['--checkers', '1', '--incremental', 'false'] },
+      { args: ['--checkers', '1', '--incremental', 'false', '--noEmit', 'false', '--listEmittedFiles'] },
+      {
+        args: ['-b', '--checkers', '1'],
+        edit: { 'src/c.ts': 'import * as base from "./base";\nexport const c = base.unit;\n' },
+      },
+      { args: ['-b', '--checkers', '1', '--force'] },
+    ],
+  },
   // In native builds, -b rebuilds with build info check the files a change affects on two checker threads:
   // the composite project's threads only check, and it emits on the main thread; the other project's
   // threads also emit.
