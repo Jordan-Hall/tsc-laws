@@ -39,10 +39,10 @@
     "bench": "node scripts/bench.mjs"
   },
   "dependencies": {
-    "@scriptc/threads": "0.3.6"
+    "@scriptc/threads": "0.4.0"
   },
   "devDependencies": {
-    "@scriptc/types": "^0.3.6",
+    "@scriptc/types": "^0.4.0",
     "@tsc-ts/tsgo": "*"
   },
   "engines": {
