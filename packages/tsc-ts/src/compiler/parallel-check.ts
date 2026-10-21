@@ -454,10 +454,14 @@ export function autoCheckers(cpus: number, fit: number): number {
 /**
  * The number of threads that parse ahead of a program checked by `checkers` checkers: every CPU this
  * process may run on, as tsgo parses on every core whatever its checker count (parse threads hand
- * their files to the shared program; what else they allocate is reused by the checker threads).
+ * their files to the shared program; what else they allocate is reused by the checker threads), but
+ * one. The main thread hands out the chunks they load: with a thread on every CPU, it waits for a CPU
+ * each time a thread returns a chunk, and so does that thread for its next chunk (VS Code's parse took
+ * 18-57 ms longer with 16 threads on 16 CPUs than with 15).
  */
 export function parseThreads(checkers: number): number {
-  return Math.max(checkers, Math.min(availableParallelism(), maxAutoCheckers));
+  const cpus = availableParallelism();
+  return Math.max(1, Math.min(cpus - 1, Math.max(checkers, Math.min(cpus, maxAutoCheckers))));
 }
 
 /**
