@@ -504,11 +504,12 @@ export const rootFilesPerChunk = 32;
 
 /**
  * Whether threads parse and bind the files of a program with `options` ahead of it (parallel-parse.ts):
- * where checker threads may be used. Also for an incremental program with build info, which is checked
- * on this thread (`checksIncrementalOnThreads`) but parsed in full all the same, as in build mode.
+ * unless `--singleThreaded` is given, as tsgo parses on every core whatever its checker count. Also with
+ * one checker, which checks on this thread, and for an incremental program with build info, whose
+ * program is parsed in full all the same, as in build mode.
  */
 function parsesAhead(options: CompilerOptions): boolean {
-  return checkerThreads(options.checkers, options.singleThreaded) > 1 && parallelParse.spawn !== undefined;
+  return options.singleThreaded !== true && parallelParse.spawn !== undefined;
 }
 
 /**
