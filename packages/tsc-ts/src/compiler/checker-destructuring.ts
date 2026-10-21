@@ -33,7 +33,6 @@ import {
   isPrivateIdentifierClassElementDeclaration,
 } from './binder-utilities.js';
 import { Diagnostics } from './diagnostics.js';
-import { CheckFlags, SymbolFlags, type Symbol, getSymbolId } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
 import type { Checker } from './checker.js';
 import {
@@ -116,6 +115,7 @@ import { TypeFacts, getNonNullableType, getTypeWithFacts, hasTypeFacts } from '.
 import { sliceTupleType } from './checker-signatures.js';
 import { getPropertyNameFromType, isTypeUsableAsPropertyName, maybeTypeOfKind } from './checker-utilities.js';
 import { checkPropertyAccessibility } from './checker-property-access.js';
+import { CheckFlags, copyDeclarations, getDeclarations, getSymbolId, type Symbol, SymbolFlags } from './symbol.js';
 
 function isBindingPatternNode(node: Node | undefined): boolean {
   return (
@@ -766,7 +766,7 @@ export function isSpreadableProperty(prop: Symbol): boolean {
     (prop.flags & (SymbolFlags.Method | SymbolFlags.GetAccessor | SymbolFlags.SetAccessor)) === 0;
   let hasPrivateName = false;
   let inClass = false;
-  for (const d of prop.declarations) {
+  for (const d of getDeclarations(prop)) {
     if (isPrivateIdentifierClassElementDeclaration(d)) hasPrivateName = true;
     if (d.parent !== undefined && isClassLike(d.parent)) inClass = true;
   }
@@ -785,7 +785,7 @@ export function getSpreadSymbol(c: Checker, prop: Symbol, readonly: boolean): Sy
   );
   const id = getSymbolId(result);
   c.symbolTypes.set(id, isSetonlyAccessor ? c.undefinedType : getTypeOfSymbol(c, prop));
-  result.declarations = prop.declarations;
+  copyDeclarations(result, prop);
   c.symbolNameTypes.set(id, c.symbolNameTypes.get(getSymbolId(prop)));
   c.symbolSyntheticOrigins.set(id, prop);
   return result;

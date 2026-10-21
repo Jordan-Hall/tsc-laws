@@ -95,7 +95,6 @@ import { tryReuseExistingNode } from './node-builder-reuse.js';
 import type { CompilerOptions, ModuleKind } from './options.js';
 import type { EmitContext } from './printer/emit-context.js';
 import { isTypeIdenticalTo } from './relations.js';
-import { CheckFlags, type Symbol, SymbolFlags } from './symbol.js';
 import {
   beginDeclarationEmitVisibility,
   isDeclarationVisible,
@@ -116,6 +115,7 @@ import { SyntacticEmitResolver } from './transformers/emit-resolver.js';
 import type { Evaluation, ReferenceResolver } from './transformers/reference-resolver.js';
 import { TypeReferenceSerializationKind } from './transformers/type-serialization.js';
 import { TokenFlags } from './types.js';
+import { CheckFlags, declarationCount, getDeclarations, type Symbol, SymbolFlags } from './symbol.js';
 
 const declarationEmitInternalFlags = NodeBuilderInternalFlags.AllowUnresolvedNames;
 const aliasMeaning = SymbolFlags.Value | SymbolFlags.Type | SymbolFlags.Namespace | SymbolFlags.Alias;
@@ -218,7 +218,7 @@ export class CheckerDeclarationEmitResolver extends DeclarationEmitResolver {
     while (exportSymbol !== undefined && !visited.has(exportSymbol)) {
       visited.add(exportSymbol);
       let next: Symbol | undefined = undefined;
-      for (const declaration of exportSymbol.declarations) {
+      for (const declaration of getDeclarations(exportSymbol)) {
         markDeclarationVisible(c, declaration);
         if (
           declaration instanceof ImportEqualsDeclaration &&
@@ -265,7 +265,7 @@ export class CheckerDeclarationEmitResolver extends DeclarationEmitResolver {
     for (const s of getExportsOfModule(c, file.symbol).values()) {
       const merged = getMergedSymbol(c, s);
       if (merged === s) continue;
-      for (const d of merged.declarations) if (getSourceFileOfNode(d) === importTarget) return true;
+      for (const d of getDeclarations(merged)) if (getSourceFileOfNode(d) === importTarget) return true;
     }
     return false;
   }
@@ -621,8 +621,8 @@ export function getTypeReferenceSerializationKind(
   let isTypeOnly = false;
   if (typeName.kind === SyntaxKind.QualifiedName) {
     const root = resolveEntityName(c, getFirstIdentifier(typeName), SymbolFlags.Value, true, true, location);
-    if (root !== undefined && root.declarations.length > 0)
-      isTypeOnly = root.declarations.every(isTypeOnlyImportOrExportDeclaration);
+    if (root !== undefined && declarationCount(root) > 0)
+      isTypeOnly = getDeclarations(root).every(isTypeOnlyImportOrExportDeclaration);
   }
   const valueSymbol = resolveEntityName(c, typeName, SymbolFlags.Value, true, true, location);
   let resolvedValue = valueSymbol;

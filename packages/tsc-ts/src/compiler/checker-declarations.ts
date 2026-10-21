@@ -62,7 +62,6 @@ import {
   isClassLike,
 } from './binder-utilities.js';
 import { Diagnostic, type DiagnosticMessage, Diagnostics } from './diagnostics.js';
-import { InternalSymbolName, type Symbol, SymbolFlags, getSymbolId } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
 import { type Checker, createDiagnosticForNode } from './checker.js';
 import { IntrinsicTypeKind, getLiteralTypeFromPropertyName, intrinsicTypeKind } from './checker-type-operators.js';
@@ -142,6 +141,14 @@ import { checkFunctionOrMethodSymbols } from './checker-overloads.js';
 import { checkJSDocFullSignature } from './checker-jsdoc.js';
 import { checkAliasSymbol } from './checker-modules.js';
 import { checkDecorators } from './checker-decorators.js';
+import {
+  declarationCount,
+  getDeclarations,
+  getSymbolId,
+  InternalSymbolName,
+  type Symbol,
+  SymbolFlags,
+} from './symbol.js';
 
 // ---- Variables and parameters
 
@@ -250,8 +257,8 @@ export function checkVariableLikeDeclaration(c: Checker, node: Node): void {
       checkTypeAssignableToAndOptionallyElaborate(c, initType, t, node, initializer);
       checkUsingDeclarationInitializer(c, node, initializer, initType);
     }
-    if (name !== undefined && symbol.declarations.length > 1) {
-      for (const d of symbol.declarations) {
+    if (name !== undefined && declarationCount(symbol) > 1) {
+      for (const d of getDeclarations(symbol)) {
         if (d !== node && isVariableLike(d) && !areDeclarationFlagsIdentical(d, node)) {
           reportNonIdenticalModifiers(c, name);
           break;
@@ -786,15 +793,15 @@ export function checkEnumDeclaration(c: Checker, node: Node): void {
   const links = c.symbolLinks(symbol);
   if (links.enumChecked) return;
   links.enumChecked = true;
-  if (symbol.declarations.length > 1) {
+  if (declarationCount(symbol) > 1) {
     const enumIsConst = isEnumConst(node);
-    for (const d of symbol.declarations)
+    for (const d of getDeclarations(symbol))
       if (d.kind === SyntaxKind.EnumDeclaration && isEnumConst(d) !== enumIsConst)
         c.error(getNameOfDeclaration(d), Diagnostics.Enum_declarations_must_all_be_const_or_non_const);
   }
   // Only one declaration of a merged enum may continue automatic numbering from zero.
   let seenEnumMissingInitialInitializer = false;
-  for (const d of symbol.declarations) {
+  for (const d of getDeclarations(symbol)) {
     if (d.kind !== SyntaxKind.EnumDeclaration) continue;
     const members = (d as EnumDeclaration).members.nodes;
     if (members.length === 0 || getInitializer(members[0]!) !== undefined) continue;
@@ -851,7 +858,7 @@ export function checkModuleDeclaration(c: Checker, node: Node): void {
         Diagnostics.Namespaces_are_not_allowed_in_global_script_files_when_0_is_enabled_If_this_file_is_not_intended_to_be_a_global_script_set_moduleDetection_to_force_or_add_an_empty_export_statement,
         c.compilerOptions.verbatimModuleSyntax === true ? 'verbatimModuleSyntax' : 'isolatedModules',
       );
-    if (symbol.declarations.length > 1) {
+    if (declarationCount(symbol) > 1) {
       const classOrFunction = getFirstNonAmbientClassOrFunctionDeclaration(symbol);
       if (classOrFunction !== undefined) {
         if (getSourceFileOfNode(node) !== getSourceFileOfNode(classOrFunction))
@@ -907,7 +914,7 @@ export function isInstantiatedModule(node: Node, preserveConstEnums: boolean): b
 }
 
 function getFirstNonAmbientClassOrFunctionDeclaration(symbol: Symbol): Node | undefined {
-  for (const d of symbol.declarations)
+  for (const d of getDeclarations(symbol))
     if (
       (d.kind === SyntaxKind.ClassDeclaration ||
         (d.kind === SyntaxKind.FunctionDeclaration && nodeIsPresent(getBody(d)))) &&
@@ -995,16 +1002,16 @@ export function checkExternalModuleExports(c: Checker, node: Node): void {
     if (id === InternalSymbolName.ExportStar || (symbol.flags & (SymbolFlags.Namespace | SymbolFlags.Enum)) !== 0)
       continue;
     let count = 0;
-    for (const d of symbol.declarations)
+    for (const d of getDeclarations(symbol))
       if (isNotOverload(d) && !isAccessorDeclaration(d) && d.kind !== SyntaxKind.InterfaceDeclaration) count++;
     // A type alias may merge with one value.
     if ((symbol.flags & SymbolFlags.TypeAlias) !== 0 && count <= 2) continue;
     if (count <= 1) continue;
     let allExportsProperties = true;
-    for (const d of symbol.declarations)
+    for (const d of getDeclarations(symbol))
       if (getAssignmentDeclarationKind(d) !== JSDeclarationKind.ExportsProperty) allExportsProperties = false;
     if (allExportsProperties) continue;
-    for (const d of symbol.declarations)
+    for (const d of getDeclarations(symbol))
       if (isNotOverload(d)) c.error(d, Diagnostics.Cannot_redeclare_exported_variable_0, id);
   }
 }
@@ -1063,7 +1070,7 @@ export function checkExportsOnMergedDeclarations(c: Checker, node: Node): void {
   let exported = DeclarationSpaces.None;
   let nonExported = DeclarationSpaces.None;
   let defaultExported = DeclarationSpaces.None;
-  for (const d of symbol.declarations) {
+  for (const d of getDeclarations(symbol)) {
     const spaces = getDeclarationSpaces(c, d);
     const flags = getEffectiveDeclarationFlags(d, ModifierFlags.Export | ModifierFlags.Default);
     if ((flags & ModifierFlags.Export) !== 0) {
@@ -1075,7 +1082,7 @@ export function checkExportsOnMergedDeclarations(c: Checker, node: Node): void {
   const commonForExportsAndLocals = exported & nonExported;
   const commonForDefaultAndNonDefault = defaultExported & nonDefaultExported;
   if (commonForExportsAndLocals === 0 && commonForDefaultAndNonDefault === 0) return;
-  for (const d of symbol.declarations) {
+  for (const d of getDeclarations(symbol)) {
     const spaces = getDeclarationSpaces(c, d);
     const name = getNameOfDeclaration(d);
     const text = declarationNameToString(getSourceFileOfNode(d), name);
@@ -1136,7 +1143,7 @@ function getAliasDeclarationSpaces(c: Checker, node: Node): DeclarationSpaces {
   const symbol = getSymbolOfDeclaration(c, node);
   if (symbol === undefined) return DeclarationSpaces.None;
   let result = DeclarationSpaces.None;
-  for (const d of resolveAlias(c, symbol).declarations) result |= getDeclarationSpaces(c, d);
+  for (const d of getDeclarations(resolveAlias(c, symbol))) result |= getDeclarationSpaces(c, d);
   return result;
 }
 

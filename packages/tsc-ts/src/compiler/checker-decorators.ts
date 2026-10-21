@@ -37,7 +37,6 @@ import {
   isAutoAccessorPropertyDeclaration,
 } from './binder-utilities.js';
 import { type DiagnosticMessage, Diagnostics } from './diagnostics.js';
-import { type Symbol, SymbolFlags, getSymbolId } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
 import { type Checker, createDiagnosticForNode } from './checker.js';
 import { ModuleKind, getEmitModuleKind, ScriptTarget, getUseDefineForClassFields } from './options.js';
@@ -89,6 +88,7 @@ import {
   getGlobalClassSetterDecoratorContextType,
   getGlobalTypedPropertyDescriptorType,
 } from './checker-globals.js';
+import { getDeclarations, getSymbolId, type Symbol, SymbolFlags } from './symbol.js';
 
 // ---- Checks
 
@@ -230,12 +230,12 @@ function checkMetadataTypeImport(c: Checker, typeNode: Node | undefined): void {
     (typeName.kind === SyntaxKind.Identifier ? SymbolFlags.Type : SymbolFlags.Namespace) | SymbolFlags.Alias;
   const rootSymbol = resolveName(c, rootName, getText(rootName), meaning, undefined, true, false);
   if (rootSymbol === undefined || (rootSymbol.flags & SymbolFlags.Alias) === 0 || symbolIsValue(c, rootSymbol)) return;
-  if (rootSymbol.declarations.some(isTypeOnlyImportOrExportDeclaration)) return;
+  if (getDeclarations(rootSymbol).some(isTypeOnlyImportOrExportDeclaration)) return;
   const diagnostic = c.error(
     typeName,
     Diagnostics.A_type_referenced_in_a_decorated_signature_must_be_imported_with_import_type_or_a_namespace_import_when_isolatedModules_and_emitDecoratorMetadata_are_enabled,
   );
-  const aliasDeclaration = rootSymbol.declarations.find(isAliasSymbolDeclaration);
+  const aliasDeclaration = getDeclarations(rootSymbol).find(isAliasSymbolDeclaration);
   if (aliasDeclaration !== undefined)
     diagnostic.addRelatedInfo(
       createDiagnosticForNode(aliasDeclaration, Diagnostics.X_0_was_imported_here, [getText(rootName)]),

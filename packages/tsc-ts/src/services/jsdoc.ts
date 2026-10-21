@@ -50,8 +50,8 @@ import { getSymbolAtLocation, getTypeAtLocation } from '../compiler/checker-serv
 import { resolveAlias } from '../compiler/checker-symbols.js';
 import { InterfaceType } from '../compiler/checker-types.js';
 import { getJSDoc } from '../compiler/parser.js';
-import { type Symbol, SymbolFlags } from '../compiler/symbol.js';
 import { SyntaxKind } from '../compiler/syntax-kind.js';
+import { declarationCount, getDeclarations, type Symbol, SymbolFlags } from '../compiler/symbol.js';
 
 export interface JSDocTagInfo {
   name: string;
@@ -65,7 +65,7 @@ export interface JSDocTagInfo {
 export function getSymbolDocumentationComment(c: Checker, symbol: Symbol): string {
   const parts: string[] = [];
   const seen = new Set<Node>();
-  for (const declaration of symbol.declarations) {
+  for (const declaration of getDeclarations(symbol)) {
     if (seen.has(declaration)) continue;
     seen.add(declaration);
     const doc = getDocumentationFromDeclaration(c, declaration);
@@ -78,7 +78,7 @@ export function getSymbolDocumentationComment(c: Checker, symbol: Symbol): strin
 export function getSymbolJSDocTags(symbol: Symbol): JSDocTagInfo[] {
   const infos: JSDocTagInfo[] = [];
   const seen = new Set<Node>();
-  for (const declaration of symbol.declarations) {
+  for (const declaration of getDeclarations(symbol)) {
     if (seen.has(declaration)) continue;
     seen.add(declaration);
     const tags = declarationJSDocTags(declaration);
@@ -237,7 +237,7 @@ function getJSDocOrTag(c: Checker, node: Node): Node | undefined {
         if (name instanceof Identifier) {
           const prop = getPropertyOfType(c, getTypeAtLocation(c, parent!), name.text);
           if (prop !== undefined)
-            for (const declaration of prop.declarations) {
+            for (const declaration of getDeclarations(prop)) {
               const doc = getLastJSDoc(declaration);
               if (doc !== undefined) return doc;
             }
@@ -262,7 +262,7 @@ function getJSDocOrTag(c: Checker, node: Node): Node | undefined {
     case SyntaxKind.MethodSignature:
     case SyntaxKind.Constructor:
     case SyntaxKind.ConstructSignature: {
-      const first = symbol.declarations.find((d) => isFunctionLike(d));
+      const first = getDeclarations(symbol).find((d) => isFunctionLike(d));
       if (first !== undefined && first !== node) {
         const doc = getJSDocOrTag(c, first);
         if (doc !== undefined) return doc;
@@ -376,7 +376,7 @@ function hasDeclarations(c: Checker, name: Node): boolean {
   let symbol = getSymbolAtLocation(c, name);
   if (symbol === undefined) return false;
   if ((symbol.flags & SymbolFlags.Alias) !== 0) symbol = resolveAlias(c, symbol);
-  return symbol.declarations.length > 0;
+  return declarationCount(symbol) > 0;
 }
 
 function firstIndexOfSpaceOrBar(text: string): number {

@@ -60,14 +60,6 @@ import { isExternalModuleAugmentation } from './transformers/declarations-syntac
 import { EmitFlags } from './printer/emit-flags.js';
 import { isIdentifierText } from './scanner.js';
 import {
-  CheckFlags,
-  InternalSymbolName,
-  type Symbol,
-  SymbolFlags,
-  escapeInternalSymbolName,
-  getSymbolId,
-} from './symbol.js';
-import {
   getAccessibleSymbolChain,
   getAliasForSymbolInContainer,
   getContainersOfSymbol,
@@ -81,6 +73,16 @@ import { SyntaxKind } from './syntax-kind.js';
 import { NodeBuilderFlags, NodeBuilderInternalFlags } from './transformers/declarations-resolver.js';
 import { TokenFlags } from './types.js';
 import { type NodeBuilder, classifyPropertyName, isNumericLiteralName } from './node-builder.js';
+import {
+  CheckFlags,
+  declarationCount,
+  escapeInternalSymbolName,
+  getDeclarations,
+  getSymbolId,
+  InternalSymbolName,
+  type Symbol,
+  SymbolFlags,
+} from './symbol.js';
 
 // ---- Symbol chains
 
@@ -325,7 +327,7 @@ function createAccessFromSymbolChain(
   }
   if (symbolName.length === 0) {
     let name: Node | undefined = undefined;
-    for (const d of symbol.declarations) {
+    for (const d of getDeclarations(symbol)) {
       name = getNameOfDeclaration(d);
       if (name !== undefined) break;
     }
@@ -658,14 +660,14 @@ export function getNameOfSymbolAsWritten(b: NodeBuilder, symbol: Symbol): string
     (b.flags & NodeBuilderFlags.UseAliasDefinedOutsideCurrentScope) === 0 &&
     // Not the first part of an entity name, synthesized, or from another binding context.
     ((b.flags & NodeBuilderFlags.InInitialEntityName) === 0 ||
-      symbol.declarations.length === 0 ||
+      declarationCount(symbol) === 0 ||
       (b.enclosingDeclaration !== undefined &&
-        findDefaultBindingContext(symbol.declarations[0]!) !== findDefaultBindingContext(b.enclosingDeclaration)))
+        findDefaultBindingContext(symbol.declaration!) !== findDefaultBindingContext(b.enclosingDeclaration)))
   )
     return 'default';
-  if (symbol.declarations.length > 0) {
+  if (declarationCount(symbol) > 0) {
     let name: Node | undefined = undefined;
-    for (const d of symbol.declarations) {
+    for (const d of getDeclarations(symbol)) {
       name = getNameOfDeclaration(d);
       if (name !== undefined) break;
     }
@@ -679,7 +681,7 @@ export function getNameOfSymbolAsWritten(b: NodeBuilder, symbol: Symbol): string
       }
       return declarationNameToString(getSourceFileOfNode(name), name);
     }
-    const declaration = symbol.declarations[0]!;
+    const declaration = symbol.declaration!;
     const parent = declaration.parent;
     if (parent !== undefined && parent.kind === SyntaxKind.VariableDeclaration) {
       const parentName = getName(parent)!;
@@ -725,7 +727,7 @@ export function getPropertyNameNodeForSymbol(b: NodeBuilder, symbol: Symbol): No
     if (declarationName !== undefined && declarationName.kind === SyntaxKind.PrivateIdentifier)
       return b.cloneSynthesized(declarationName);
   }
-  const declarations = symbol.declarations;
+  const declarations = getDeclarations(symbol);
   let stringNamed = declarations.length !== 0;
   for (const d of declarations)
     if (!isStringNamed(b, d)) {
@@ -810,7 +812,7 @@ export function getSpecifierForModuleSymbol(b: NodeBuilder, symbol: Symbol, over
   const c = b.c;
   let file = asSourceFile(getDeclarationOfKind(symbol, SyntaxKind.SourceFile));
   if (file === undefined)
-    for (const d of symbol.declarations) {
+    for (const d of getDeclarations(symbol)) {
       const equivalent = getFileSymbolIfFileSymbolExportEqualsContainer(c, d, symbol);
       if (equivalent !== undefined) {
         file = asSourceFile(getDeclarationOfKind(equivalent, SyntaxKind.SourceFile));
@@ -890,14 +892,14 @@ function getModuleSpecifierHost(c: Checker): ModuleSpecifierHost {
 
 /** The name of an ambient module declaring `moduleSymbol`, or of the one whose `export =` it is, else `''`. */
 function tryGetModuleNameFromAmbientModule(c: Checker, moduleSymbol: Symbol): string {
-  for (const d of moduleSymbol.declarations) {
+  for (const d of getDeclarations(moduleSymbol)) {
     const name = isModuleWithStringLiteralName(d) ? getName(d)! : undefined;
     if (name !== undefined && (!isModuleAugmentationExternal(d) || !isExternalModuleNameRelative(getText(name))))
       return getText(name);
   }
   // A namespace exported with `export =` from an ambient module: `import { c } from "m"` names
   // `ns.c` for `declare module "m" { namespace ns { class c {} } export = ns; }`.
-  for (const d of moduleSymbol.declarations) {
+  for (const d of getDeclarations(moduleSymbol)) {
     if (d.kind !== SyntaxKind.ModuleDeclaration) continue;
     let container: Node | undefined = d;
     while (container !== undefined && !isModuleWithStringLiteralName(container)) container = container.parent;
@@ -1060,7 +1062,7 @@ function asSourceFile(node: Node | undefined): SourceFile | undefined {
 function getSourceFileOfModule(symbol: Symbol): SourceFile | undefined {
   let d = symbol.valueDeclaration;
   if (d === undefined)
-    for (const declaration of symbol.declarations)
+    for (const declaration of getDeclarations(symbol))
       if (!isExternalModuleAugmentation(declaration) && !isGlobalScopeAugmentation(declaration)) {
         d = declaration;
         break;

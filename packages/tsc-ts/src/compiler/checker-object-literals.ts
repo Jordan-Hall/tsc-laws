@@ -16,7 +16,6 @@ import {
 import { isAssignmentTarget } from './binder-utilities.js';
 import { createDiagnosticForNode, type Checker } from './checker.js';
 import { Diagnostics } from './diagnostics.js';
-import { CheckFlags, type Symbol, SymbolFlags, internalSymbolNamePrefix, getSymbolId } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
 import {
   CheckMode,
@@ -76,6 +75,17 @@ import {
 import { addIntraExpressionInferenceSite } from './checker-inference.js';
 import { isEmptyObjectType } from './checker-type-factory.js';
 import { getTypeOfExpandoObjectLiteral, isJSObjectLiteral } from './checker-javascript.js';
+import {
+  CheckFlags,
+  copyDeclarations,
+  declarationCount,
+  getDeclarations,
+  getSymbolId,
+  internalSymbolNamePrefix,
+  setDeclarations,
+  type Symbol,
+  SymbolFlags,
+} from './symbol.js';
 
 /** Builds the type of the members collected since the last spread. */
 class ObjectLiteralBuilder {
@@ -229,7 +239,7 @@ export function checkObjectLiteral(c: Checker, node: Node, checkMode: CheckMode)
             typeToString(c, contextualType!),
           );
       }
-      prop.declarations = member.declarations;
+      copyDeclarations(prop, member);
       prop.parent = member.parent;
       prop.valueDeclaration = member.valueDeclaration;
       c.symbolTypes.set(id, t);
@@ -317,7 +327,7 @@ function getObjectLiteralIndexInfo(c: Checker, isReadonly: boolean, properties: 
       (keyType === c.esSymbolType && isSymbolWithSymbolName(c, prop))
     ) {
       propTypes.push(getTypeOfSymbol(c, prop));
-      if (isSymbolWithComputedName(prop)) components.push(prop.declarations[0]!);
+      if (isSymbolWithComputedName(prop)) components.push(prop.declaration!);
     }
   }
   const unionType =
@@ -328,7 +338,7 @@ function getObjectLiteralIndexInfo(c: Checker, isReadonly: boolean, properties: 
 }
 
 function getFirstDeclarationName(symbol: Symbol): Node | undefined {
-  return symbol.declarations.length !== 0 ? getName(symbol.declarations[0]!) : undefined;
+  return declarationCount(symbol) !== 0 ? getName(symbol.declaration!) : undefined;
 }
 
 function isSymbolWithSymbolName(c: Checker, symbol: Symbol): boolean {
@@ -470,7 +480,7 @@ export function getSpreadType(
     );
     c.symbolLeftSpreads.set(id, leftProp);
     c.symbolRightSpreads.set(id, rightProp);
-    result.declarations = leftProp.declarations.concat(rightProp.declarations);
+    setDeclarations(result, getDeclarations(leftProp).concat(getDeclarations(rightProp)));
     c.symbolNameTypes.set(id, c.symbolNameTypes.get(getSymbolId(leftProp)));
     members.set(leftProp.name, result);
   }
@@ -564,7 +574,7 @@ function tryMergeUnionOfObjectTypeAndEmptyObject(c: Checker, t: Type, readonly: 
       id,
       isSetonlyAccessor ? c.undefinedType : addOptionality(c, getTypeOfSymbol(c, prop), true, true),
     );
-    result.declarations = prop.declarations;
+    copyDeclarations(result, prop);
     c.symbolNameTypes.set(id, c.symbolNameTypes.get(getSymbolId(prop)));
     c.symbolSyntheticOrigins.set(id, prop);
     members.set(prop.name, result);

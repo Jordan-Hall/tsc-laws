@@ -31,7 +31,6 @@ import {
 } from './binder-utilities.js';
 import { type Diagnostic, type DiagnosticMessage, Diagnostics, chainDiagnostic } from './diagnostics.js';
 import { getUseDefineForClassFields } from './options.js';
-import { CheckFlags, InternalSymbolName, type Symbol, SymbolFlags } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
 import { type Checker, createDiagnosticForNode } from './checker.js';
 import {
@@ -115,6 +114,14 @@ import { Ternary } from './checker-types.js';
 import { symbolToString, typeToString } from './type-printer.js';
 import { checkFunctionOrConstructorSymbol } from './checker-overloads.js';
 import { isPropertyInitializedInConstructor } from './checker-classes.js';
+import {
+  CheckFlags,
+  declarationCount,
+  getDeclarations,
+  InternalSymbolName,
+  type Symbol,
+  SymbolFlags,
+} from './symbol.js';
 
 // ---- Classes
 
@@ -519,7 +526,7 @@ function checkPropertyOverwritesBase(
   derivedDeclarationFlags: ModifierFlags,
 ): void {
   let uninitialized: Node | undefined;
-  for (const d of derived.declarations) {
+  for (const d of getDeclarations(derived)) {
     if (d.kind === SyntaxKind.PropertyDeclaration && getInitializer(d) === undefined) {
       uninitialized = d;
       break;
@@ -532,7 +539,7 @@ function checkPropertyOverwritesBase(
     (derivedDeclarationFlags & ModifierFlags.Abstract) !== 0
   )
     return;
-  for (const d of derived.declarations) if ((d.flags & NodeFlags.Ambient) !== 0) return;
+  for (const d of getDeclarations(derived)) if ((d.flags & NodeFlags.Ambient) !== 0) return;
   const constructor = findConstructorDeclaration(getClassLikeDeclarationOfSymbol(t.symbol!)!);
   const propName = getName(uninitialized)!;
   const postfix = getPostfixToken(uninitialized);
@@ -618,10 +625,10 @@ function reportMissingAbstractMembers(c: Checker, node: Node | undefined, missin
 function arePropertiesAbstractOrInterface(base: Symbol, baseDeclarationFlags: ModifierFlags): boolean {
   // Synthetic (intersection) properties need any declaration to qualify; others need all.
   if ((base.checkFlags & CheckFlags.Synthetic) !== 0) {
-    for (const d of base.declarations) if (isPropertyAbstractOrInterface(d, baseDeclarationFlags)) return true;
+    for (const d of getDeclarations(base)) if (isPropertyAbstractOrInterface(d, baseDeclarationFlags)) return true;
     return false;
   }
-  for (const d of base.declarations) if (!isPropertyAbstractOrInterface(d, baseDeclarationFlags)) return false;
+  for (const d of getDeclarations(base)) if (!isPropertyAbstractOrInterface(d, baseDeclarationFlags)) return false;
   return true;
 }
 
@@ -733,14 +740,14 @@ function checkMemberForOverrideModifier(
   }
   if (
     baseProp === undefined ||
-    baseProp.declarations.length === 0 ||
+    declarationCount(baseProp) === 0 ||
     memberHasOverrideModifier ||
     c.compilerOptions.noImplicitOverride !== true ||
     (node.flags & NodeFlags.Ambient) !== 0
   )
     return;
   let baseHasAbstract = false;
-  for (const d of baseProp.declarations) {
+  for (const d of getDeclarations(baseProp)) {
     if (hasSyntacticModifier(d, ModifierFlags.Abstract)) {
       baseHasAbstract = true;
       break;
@@ -869,12 +876,12 @@ function checkInheritedPropertiesAreIdentical(c: Checker, t: InterfaceType, type
 
 /** Reports class and interface declarations of one symbol whose type parameters differ. */
 export function checkTypeParameterListsIdentical(c: Checker, symbol: Symbol): void {
-  if (symbol.declarations.length === 1) return;
+  if (declarationCount(symbol) === 1) return;
   const links = c.symbolLinks(symbol);
   if (links.typeParametersChecked) return;
   links.typeParametersChecked = true;
   const declarations: Node[] = [];
-  for (const d of symbol.declarations)
+  for (const d of getDeclarations(symbol))
     if (d.kind === SyntaxKind.ClassDeclaration || d.kind === SyntaxKind.InterfaceDeclaration) declarations.push(d);
   if (declarations.length <= 1) return;
   const t = getDeclaredTypeOfSymbol(c, symbol) as InterfaceType;
@@ -892,13 +899,13 @@ export function checkTypeParameterListsIdentical(c: Checker, symbol: Symbol): vo
 
 /** Reports the declarations of an `infer` type parameter declared more than once with different constraints. */
 export function checkInferTypeParameterDeclarations(c: Checker, symbol: Symbol): void {
-  if (symbol.declarations.length <= 1) return;
+  if (declarationCount(symbol) <= 1) return;
   const links = c.symbolLinks(symbol);
   if (links.typeParametersChecked) return;
   links.typeParametersChecked = true;
   const declarations: Node[] = [];
   const typeParameterLists: Node[][] = [];
-  for (const d of symbol.declarations) {
+  for (const d of getDeclarations(symbol)) {
     if (d.kind === SyntaxKind.TypeParameter) {
       declarations.push(d);
       typeParameterLists.push([d]);
@@ -1020,7 +1027,7 @@ function checkPropertyOrAccessor(
   kind: MemberKind,
   isStaticMember: boolean,
 ): void {
-  if (symbol.declarations.length <= 1) return;
+  if (declarationCount(symbol) <= 1) return;
   const state = names.get(symbol.name) ?? MemberKind.None;
   if (state === MemberKind.None) names.set(symbol.name, kind);
   // A second property, or a property combined with an accessor.
@@ -1203,11 +1210,11 @@ function checkTypeForDuplicateIndexSignatures(c: Checker, node: Node): void {
   const symbol = getSymbolOfDeclaration(c, node);
   if (symbol === undefined) return;
   const indexSymbol = getIndexSymbol(c, symbol);
-  if (indexSymbol === undefined || indexSymbol.declarations.length <= 1) return;
+  if (indexSymbol === undefined || declarationCount(indexSymbol) <= 1) return;
   // Late-bound index signatures may duplicate each other and explicit ones.
   const keyTypes: Type[] = [];
   const declarationsByKey: Node[][] = [];
-  for (const declaration of indexSymbol.declarations) {
+  for (const declaration of getDeclarations(indexSymbol)) {
     if (declaration.kind !== SyntaxKind.IndexSignature) continue;
     const parameters = getParameters(declaration)!.nodes;
     if (parameters.length !== 1) continue;

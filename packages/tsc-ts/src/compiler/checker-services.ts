@@ -126,7 +126,7 @@ import {
 } from './checker-type-nodes.js';
 import { CheckMode, type Signature, type Type } from './checker-types.js';
 import { getNodeAtPosition } from './parser.js';
-import { CheckFlags, InternalSymbolName, type Symbol, SymbolFlags, getSymbolId } from './symbol.js';
+import { CheckFlags, getSymbolId, InternalSymbolName, setDeclarations, type Symbol, SymbolFlags } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
 
 // ---- Symbols at locations
@@ -397,7 +397,7 @@ function getApplicableIndexSymbol(c: Checker, t: Type, keyType: Type): Symbol | 
           declarations.push(other.declaration);
     if (declarations.length !== 0) {
       const symbol = c.newSymbolWithCheckFlags(SymbolFlags.Property, InternalSymbolName.Index, CheckFlags.IndexSymbol);
-      symbol.declarations = declarations;
+      setDeclarations(symbol, declarations);
       symbol.valueDeclaration = declarations[0]!;
       symbol.parent = t.symbol;
       c.symbolTypes.set(getSymbolId(symbol), info.valueType);

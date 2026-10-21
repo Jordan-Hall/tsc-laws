@@ -41,7 +41,6 @@ import {
 } from './binder-utilities.js';
 import { identifierToKeywordKind } from './scanner.js';
 import { type DiagnosticMessage, Diagnostics } from './diagnostics.js';
-import { CheckFlags, type Symbol, SymbolFlags, getSymbolId } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
 import { type Checker, createDiagnosticForNode } from './checker.js';
 import {
@@ -128,6 +127,7 @@ import { getTypeForBindingElement, getTypeFromBindingPattern } from './checker-d
 import { checkRightHandSideOfForOf } from './checker-statements.js';
 import { getTypeWithFacts, TypeFacts, hasTypeFacts, getNonNullableType } from './checker-flow.js';
 import { getTypeOfModuleExportsSymbol, getWidenedTypeForAssignmentDeclaration } from './checker-javascript.js';
+import { CheckFlags, copyDeclarations, getDeclarations, getSymbolId, type Symbol, SymbolFlags } from './symbol.js';
 
 export function getTypeOfSymbol(c: Checker, symbol: Symbol): Type {
   const checkFlags = symbol.checkFlags;
@@ -402,7 +402,8 @@ export function getTypeForVariableLikeDeclaration(
     // A set accessor parameter takes the getter's type.
     if (fn.kind === SyntaxKind.SetAccessor) {
       const fnSymbol = getSymbolOfDeclaration(c, fn);
-      const getter = fnSymbol?.declarations.find((d) => d.kind === SyntaxKind.GetAccessor);
+      const getter =
+        fnSymbol !== undefined ? getDeclarations(fnSymbol).find((d) => d.kind === SyntaxKind.GetAccessor) : undefined;
       if (getter !== undefined) {
         const getterSignature = getSignatureFromDeclaration(c, getter);
         // An unannotated `this` of a setter takes the getter's `this` type.
@@ -571,7 +572,7 @@ function reportWideningErrorsInType(c: Checker, t: Type): boolean {
       if (errorReported) continue;
       // Property types can come from object literal normalization in unions.
       let valueDeclaration: Node | undefined;
-      for (const d of p.declarations) {
+      for (const d of getDeclarations(p)) {
         const v = getSymbol(d)?.valueDeclaration;
         if (v !== undefined && v.parent === t.symbol?.valueDeclaration) {
           valueDeclaration = d;
@@ -816,7 +817,7 @@ function getWidenedProperty(c: Checker, prop: Symbol, context: WideningContext |
 
 function createSymbolWithWidenedType(c: Checker, prop: Symbol, t: Type): Symbol {
   const result = c.newSymbolWithCheckFlags(prop.flags, prop.name, prop.checkFlags & CheckFlags.Readonly);
-  result.declarations = prop.declarations;
+  copyDeclarations(result, prop);
   result.parent = prop.parent;
   result.valueDeclaration = prop.valueDeclaration;
   const id = getSymbolId(result);
@@ -928,11 +929,11 @@ export function isReadonlySymbol(c: Checker, symbol: Symbol): boolean {
       (getDeclarationNodeFlagsFromSymbol(symbol) & NodeFlags.Constant) !== 0) ||
     ((symbol.flags & SymbolFlags.Accessor) !== 0 && (symbol.flags & SymbolFlags.SetAccessor) === 0) ||
     (symbol.flags & SymbolFlags.EnumMember) !== 0 ||
-    someReadonlyAssignmentDeclaration(c, symbol.declarations)
+    someReadonlyAssignmentDeclaration(c, getDeclarations(symbol))
   );
 }
 
-function someReadonlyAssignmentDeclaration(c: Checker, declarations: Node[]): boolean {
+function someReadonlyAssignmentDeclaration(c: Checker, declarations: readonly Node[]): boolean {
   for (const d of declarations) if (isReadonlyAssignmentDeclaration(c, d)) return true;
   return false;
 }
@@ -996,7 +997,7 @@ function getAnnotatedAccessorType(c: Checker, accessor: Node | undefined): Type 
 
 /** The `accessor` property declaration of `symbol`, if any. */
 function getAutoAccessorDeclaration(symbol: Symbol): Node | undefined {
-  for (const d of symbol.declarations)
+  for (const d of getDeclarations(symbol))
     if (d.kind === SyntaxKind.PropertyDeclaration && (getCombinedModifierFlags(d) & ModifierFlags.Accessor) !== 0)
       return d;
   return undefined;
@@ -1007,8 +1008,8 @@ function getTypeOfAccessors(c: Checker, symbol: Symbol): Type {
   const type = c.symbolTypes.get(id);
   if (type !== undefined) return type;
   if (!pushTypeResolution(c, symbol, TypeSystemPropertyName.Type)) return c.errorType;
-  const getter = symbol.declarations.find((d) => d.kind === SyntaxKind.GetAccessor);
-  const setter = symbol.declarations.find((d) => d.kind === SyntaxKind.SetAccessor);
+  const getter = getDeclarations(symbol).find((d) => d.kind === SyntaxKind.GetAccessor);
+  const setter = getDeclarations(symbol).find((d) => d.kind === SyntaxKind.SetAccessor);
   const accessor = getAutoAccessorDeclaration(symbol);
   // Getter annotation, setter annotation, accessor annotation, then getter body.
   let t =
@@ -1070,7 +1071,7 @@ export function getWriteTypeOfAccessors(c: Checker, symbol: Symbol): Type {
   if (links.writeType !== undefined) return links.writeType;
   if (!pushTypeResolution(c, symbol, TypeSystemPropertyName.WriteType)) return c.errorType;
   const setter =
-    symbol.declarations.find((d) => d.kind === SyntaxKind.SetAccessor) ?? getAutoAccessorDeclaration(symbol);
+    getDeclarations(symbol).find((d) => d.kind === SyntaxKind.SetAccessor) ?? getAutoAccessorDeclaration(symbol);
   let writeType = getAnnotatedAccessorType(c, setter);
   if (!popTypeResolution(c)) {
     if (getAnnotatedAccessorTypeNode(setter) !== undefined)

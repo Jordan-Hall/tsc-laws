@@ -23,7 +23,6 @@ import {
 } from './binder-utilities.js';
 import { nodeIsMissing, nodeIsPresent } from './ast-utilities.js';
 import { type DiagnosticMessage, Diagnostics } from './diagnostics.js';
-import { type Symbol, SymbolFlags } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
 import { type Checker, createDiagnosticForNode } from './checker.js';
 import type { Signature } from './checker-types.js';
@@ -39,6 +38,7 @@ import { checkComputedPropertyName } from './checker-expressions.js';
 import { hasDynamicName, hasLateBindableName } from './checker-utilities.js';
 import { isSignatureAssignableTo, isTypeIdenticalTo, isTypeRelatedTo } from './relations.js';
 import { getEffectiveDeclarationFlags } from './checker-declarations.js';
+import { getDeclarations, type Symbol, SymbolFlags } from './symbol.js';
 
 /** Checks the overloads of a function or method declaration's local and export symbols. */
 export function checkFunctionOrMethodSymbols(c: Checker, node: Node): void {
@@ -84,7 +84,7 @@ class OverloadChecker {
 
   check(): void {
     const c = this.c;
-    const declarations = this.symbol.declarations;
+    const declarations = getDeclarations(this.symbol);
     let someNodeFlags = ModifierFlags.None;
     let allNodeFlags = flagsToCheck();
     let someHaveQuestionToken = false;
@@ -184,8 +184,8 @@ class OverloadChecker {
   reportClassMergedWithFunction(): void {
     const c = this.c;
     const classes: Node[] = [];
-    for (const d of this.symbol.declarations) if (d.kind === SyntaxKind.ClassDeclaration) classes.push(d);
-    for (const d of this.symbol.declarations) {
+    for (const d of getDeclarations(this.symbol)) if (d.kind === SyntaxKind.ClassDeclaration) classes.push(d);
+    for (const d of getDeclarations(this.symbol)) {
       let message: DiagnosticMessage;
       if (d.kind === SyntaxKind.ClassDeclaration)
         message = Diagnostics.Class_declaration_cannot_implement_overload_list_for_0;
@@ -201,7 +201,7 @@ class OverloadChecker {
   }
 
   checkFlagAgreement(
-    overloads: Node[],
+    overloads: readonly Node[],
     implementation: Node | undefined,
     someOverloadFlags: ModifierFlags,
     allOverloadFlags: ModifierFlags,
@@ -290,7 +290,7 @@ class OverloadChecker {
  * The declaration whose flags overloads must agree with: the implementation when it shares the first
  * overload's container (so overloads from other files aren't reported), else the first overload.
  */
-function getCanonicalOverload(overloads: Node[], implementation: Node | undefined): Node {
+function getCanonicalOverload(overloads: readonly Node[], implementation: Node | undefined): Node {
   return implementation !== undefined && implementation.parent === overloads[0]!.parent
     ? implementation
     : overloads[0]!;

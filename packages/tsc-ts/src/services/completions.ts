@@ -129,7 +129,6 @@ import {
 } from '../compiler/scanner.js';
 import { getAccessibleSymbolChain } from '../compiler/symbol-accessibility.js';
 import { ModifierFlags } from '../compiler/ast.js';
-import { type Symbol, SymbolFlags, getSymbolId } from '../compiler/symbol.js';
 import { SyntaxKind } from '../compiler/syntax-kind.js';
 import { symbolToString } from '../compiler/type-printer.js';
 import { LanguageVariant } from '../compiler/types.js';
@@ -191,6 +190,7 @@ import {
 import { CompletionItemKind, getCompletionsSymbolKind, getSymbolKind, ScriptElementKind } from './symbol-kinds.js';
 import { getStringLiteralCompletions } from './string-completions.js';
 import { getJSDocSnippetCompletion } from './jsdoc-snippet.js';
+import { declarationCount, getDeclarations, getSymbolId, type Symbol, SymbolFlags } from '../compiler/symbol.js';
 
 /** Thrown where tsgo needs its auto-import registry. */
 /** A completion request tsgo can't answer. */
@@ -994,7 +994,7 @@ class SymbolSearch {
     const data = this.data;
     // For a computed property like `[Symbol.iterator]`, complete `Symbol` instead.
     let computedPropertyName: Node | undefined;
-    for (const declaration of symbol.declarations) {
+    for (const declaration of getDeclarations(symbol)) {
       const name = getNameOfDeclarationForCompletions(declaration);
       if (name !== undefined && name.kind === SyntaxKind.ComputedPropertyName) {
         computedPropertyName = name;
@@ -1084,7 +1084,7 @@ class SymbolSearch {
               // At `namespace N.M/**/`, `M` isn't offered if this is its only declaration.
               isValidAccess =
                 (exportedSymbol.flags & SymbolFlags.Namespace) !== 0 &&
-                !exportedSymbol.declarations.every((d) => d.parent === node.parent);
+                !getDeclarations(exportedSymbol).every((d) => d.parent === node.parent);
             else if (isRhsOfImportDeclaration)
               isValidAccess =
                 symbolCanBeReferencedAtTypeLocation(c, exportedSymbol, new Set()) ||
@@ -1098,7 +1098,7 @@ class SymbolSearch {
           if (
             !isTypeLocation &&
             !data.insideJSDocTagTypeExpression &&
-            symbol.declarations.some(
+            getDeclarations(symbol).some(
               (d) =>
                 d.kind !== SyntaxKind.SourceFile &&
                 d.kind !== SyntaxKind.ModuleDeclaration &&
@@ -1510,7 +1510,7 @@ function getFirstSymbolInChain(c: Checker, symbol: Symbol, enclosingDeclaration:
 }
 
 function isModuleSymbol(symbol: Symbol): boolean {
-  return symbol.declarations.some((d) => d.kind === SyntaxKind.SourceFile);
+  return getDeclarations(symbol).some((d) => d.kind === SyntaxKind.SourceFile);
 }
 
 function isLiteralImportTypeNode(node: Node): boolean {
@@ -1787,7 +1787,7 @@ export function getPropertiesForObjectExpression(
   if ((t.objectFlags & ObjectFlags.Class) !== 0 && containsNonPublicProperties(c, properties)) return [];
   // Members declared only by the object literal itself aren't completions.
   if (hasCompletionsType)
-    return properties.filter((m) => m.declarations.length === 0 || m.declarations.some((d) => d.parent !== obj));
+    return properties.filter((m) => declarationCount(m) === 0 || getDeclarations(m).some((d) => d.parent !== obj));
   return properties;
 }
 
@@ -2002,7 +2002,7 @@ function filterClassMembersList(
   return baseSymbols.filter(
     (p) =>
       !existingMemberNames.has(symbolName(p)) &&
-      p.declarations.length > 0 &&
+      declarationCount(p) > 0 &&
       (getDeclarationModifierFlagsFromSymbol(c, p, false) & ModifierFlags.Private) === 0 &&
       !(p.valueDeclaration !== undefined && isPrivateIdentifierClassElementDeclaration(p.valueDeclaration)),
   );
@@ -2912,7 +2912,7 @@ export function getCompletionEntriesFromSymbols(
     // Locals shadow globals, module exports from other files and `this.` completions.
     const shouldShadowLaterSymbols =
       (origin === undefined || (origin.kind & SymbolOriginInfoKind.TypeOnlyAlias) !== 0) &&
-      !(symbol.parent === undefined && !symbol.declarations.some((d) => getSourceFileOfNode(d) === file));
+      !(symbol.parent === undefined && !getDeclarations(symbol).some((d) => getSourceFileOfNode(d) === file));
     uniques.set(name, shouldShadowLaterSymbols);
     if (includeSymbols) entry.symbol = symbol;
     entries.push(entry);
@@ -2924,12 +2924,12 @@ function symbolAppearsToBeTypeOnly(c: Checker, symbol: Symbol): boolean {
   const flags = skipAlias(c, symbol).combinedLocalAndExportSymbolFlags();
   return (
     (flags & SymbolFlags.Value) === 0 &&
-    (symbol.declarations.length === 0 || !isInJSFile(symbol.declarations[0]) || (flags & SymbolFlags.Type) !== 0)
+    (declarationCount(symbol) === 0 || !isInJSFile(symbol.declaration) || (flags & SymbolFlags.Type) !== 0)
   );
 }
 
 function isDeprecated(c: Checker, symbol: Symbol): boolean {
-  const declarations = skipAlias(c, symbol).declarations;
+  const declarations = getDeclarations(skipAlias(c, symbol));
   return declarations.length > 0 && declarations.every((d) => isDeprecatedDeclaration(d));
 }
 

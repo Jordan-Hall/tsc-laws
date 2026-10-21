@@ -43,7 +43,6 @@ import {
 } from '../compiler/checker-services.js';
 import { getFirstIdentifier, getMergedSymbol } from '../compiler/checker-symbols.js';
 import { type Program } from '../compiler/program.js';
-import { InternalSymbolName, type Symbol, SymbolFlags } from '../compiler/symbol.js';
 import { SyntaxKind } from '../compiler/syntax-kind.js';
 import { isExternalModuleSymbol } from './checker-queries.js';
 import {
@@ -56,6 +55,7 @@ import {
   walkUpBindingElementsAndPatterns,
 } from './utilities.js';
 import { getDirectoryPath, resolvePath } from '../compiler/path.js';
+import { getDeclarations, InternalSymbolName, type Symbol, SymbolFlags } from '../compiler/symbol.js';
 
 export const enum ImpExpKind {
   Unknown,
@@ -250,7 +250,7 @@ export class ImportTracker {
       // With `export as namespace`, anything could use it.
       if (isAvailableThroughGlobal) return this.sourceFiles.slice();
       // Module augmentations may use the module's exports without importing it.
-      for (const declaration of exportInfo.exportingModuleSymbol.declarations)
+      for (const declaration of getDeclarations(exportInfo.exportingModuleSymbol))
         if (
           isExternalModuleAugmentation(declaration) &&
           this.sourceFileNames.has(getSourceFileOfNode(declaration).fileName)
@@ -525,7 +525,7 @@ export function getImportOrExportSymbol(
     if (symbol.exportSymbol !== undefined) {
       if (parent instanceof PropertyAccessExpression) {
         // A use of a JS module export is flagged as an export too; only its declaration exports it.
-        if (grandparent instanceof BinaryExpression && symbol.declarations.includes(parent))
+        if (grandparent instanceof BinaryExpression && getDeclarations(symbol).includes(parent))
           return specialPropertyExport(grandparent, false);
         return undefined;
       }
@@ -632,7 +632,7 @@ function isVariableDeclarationInitializedToBareOrAccessedRequire(node: Node): bo
 /** At an export specifier, the symbol it exports. */
 function skipExportSpecifierSymbol(c: Checker, symbol: Symbol): Symbol | undefined {
   // `export { foo } from "./bar"` creates no alias, but `export { foo }` does.
-  for (const declaration of symbol.declarations) {
+  for (const declaration of getDeclarations(symbol)) {
     if (
       declaration.kind === SyntaxKind.ExportSpecifier &&
       getPropertyName(declaration) === undefined &&
@@ -667,7 +667,7 @@ function getExportEqualsLocalSymbol(c: Checker, importedSymbol: Symbol): Symbol 
 
 export function symbolNameNoDefault(symbol: Symbol): string {
   if (symbol.name !== InternalSymbolName.Default) return symbol.name;
-  for (const declaration of symbol.declarations) {
+  for (const declaration of getDeclarations(symbol)) {
     const name = getNameOfDeclaration(declaration);
     if (name !== undefined && name.kind === SyntaxKind.Identifier) return textOf(name);
   }

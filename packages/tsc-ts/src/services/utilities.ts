@@ -80,11 +80,11 @@ import {
   isPartOfTypeNode,
   isRightSideOfQualifiedNameOrPropertyAccess,
 } from '../compiler/checker-services.js';
-import { type Symbol, SymbolFlags } from '../compiler/symbol.js';
 import { SyntaxKind } from '../compiler/syntax-kind.js';
 import { type Type } from '../compiler/checker-types.js';
 import { getJSDoc } from '../compiler/parser.js';
 import { findChildTokenOfKind } from './tokens.js';
+import { declarationCount, getDeclarations, type Symbol, SymbolFlags } from '../compiler/symbol.js';
 
 export const enum SemanticMeaning {
   None = 0,
@@ -511,9 +511,9 @@ export function isExternalModuleAugmentation(node: Node): boolean {
 }
 
 export function getNonModuleSymbolOfMergedModuleSymbol(symbol: Symbol): Symbol | undefined {
-  if (symbol.declarations.length === 0 || (symbol.flags & (SymbolFlags.Module | SymbolFlags.Transient)) === 0)
+  if (declarationCount(symbol) === 0 || (symbol.flags & (SymbolFlags.Module | SymbolFlags.Transient)) === 0)
     return undefined;
-  const declaration = symbol.declarations.find(
+  const declaration = getDeclarations(symbol).find(
     (d) => d.kind !== SyntaxKind.SourceFile && d.kind !== SyntaxKind.ModuleDeclaration,
   );
   return declaration === undefined ? undefined : getSymbol(declaration);
@@ -559,7 +559,7 @@ export function getTextOfPropertyName(name: Node): string | undefined {
 }
 
 export function getDeclarationOfKind(symbol: Symbol, kind: SyntaxKind): Node | undefined {
-  return symbol.declarations.find((d) => d.kind === kind);
+  return getDeclarations(symbol).find((d) => d.kind === kind);
 }
 
 export function walkUpBindingElementsAndPatterns(node: Node): Node {
@@ -883,7 +883,7 @@ export function getIntersectingMeaningFromDeclarations(
 ): SemanticMeaning {
   if (node === undefined) return defaultMeaning;
   let meaning = getMeaningFromLocation(node);
-  const declarations = symbol.declarations;
+  const declarations = getDeclarations(symbol);
   if (declarations.length === 0) return meaning;
   // Repeat until stable: a namespace meaning can reach a class through an instantiated module.
   for (;;) {

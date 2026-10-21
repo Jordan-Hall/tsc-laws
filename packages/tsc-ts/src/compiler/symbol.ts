@@ -150,13 +150,19 @@ export class SymbolRareFields implements ProgramLifetime {
   members: SymbolTable | undefined = undefined;
   exports: SymbolTable | undefined = undefined;
   exportSymbol: Symbol | undefined = undefined;
+  /** All declarations of a symbol that has more than one (`getDeclarations`). */
+  declarations: Node[] | undefined = undefined;
 }
 
 export class Symbol implements ProgramLifetime {
   flags: SymbolFlags;
   checkFlags: CheckFlags;
   readonly name: string;
-  declarations: Node[];
+  /**
+   * The first declaration. A symbol with more keeps all of them in its rare fields; read them with
+   * `declarationCount`, `declarationAt` and `getDeclarations`.
+   */
+  declaration: Node | undefined;
   valueDeclaration: Node | undefined;
   parent: Symbol | undefined;
   private rareFields: SymbolRareFields | undefined;
@@ -167,7 +173,7 @@ export class Symbol implements ProgramLifetime {
     this.flags = flags;
     this.checkFlags = CheckFlags.None;
     this.name = name;
-    this.declarations = noDeclarations;
+    this.declaration = undefined;
     this.valueDeclaration = undefined;
     this.parent = undefined;
     this.rareFields = undefined;
@@ -181,6 +187,25 @@ export class Symbol implements ProgramLifetime {
       this.rareFields = group;
     }
     return group;
+  }
+
+  /**
+   * The declarations, for tsc-ts/api's `Symbol.declarations`. The compiler reads `declaration`,
+   * `declarationCount` and `declarationAt`: for a single declaration this builds a list on each read.
+   */
+  get declarations(): readonly Node[] {
+    return getDeclarations(this);
+  }
+
+  /** All declarations where there are more than one, else undefined. */
+  get moreDeclarations(): Node[] | undefined {
+    const group = this.rareFields;
+    return group === undefined ? undefined : group.declarations;
+  }
+
+  set moreDeclarations(value: Node[] | undefined) {
+    if (value === undefined && this.rareFields === undefined) return;
+    this.rareFieldsOrNew().declarations = value;
   }
 
   get members(): SymbolTable | undefined {
@@ -326,9 +351,58 @@ const noDeclarations: Node[] = [];
 
 /** Appends `node` to the declarations of `symbol`. */
 export function addDeclaration(symbol: Symbol, node: Node): void {
-  const declarations = symbol.declarations;
-  if (declarations.length === 0) symbol.declarations = [node];
-  else declarations.push(node);
+  const first = symbol.declaration;
+  if (first === undefined) {
+    symbol.declaration = node;
+    return;
+  }
+  const more = symbol.moreDeclarations;
+  if (more !== undefined) more.push(node);
+  else symbol.moreDeclarations = [first, node];
+}
+
+/** The number of declarations of `symbol`. */
+export function declarationCount(symbol: Symbol): number {
+  if (symbol.declaration === undefined) return 0;
+  const more = symbol.moreDeclarations;
+  return more !== undefined ? more.length : 1;
+}
+
+/** The declaration of `symbol` at `index`, which is below `declarationCount(symbol)`. */
+export function declarationAt(symbol: Symbol, index: number): Node {
+  return index === 0 ? symbol.declaration! : symbol.moreDeclarations![index]!;
+}
+
+/**
+ * The declarations of `symbol`, in order. A symbol with one declaration gets a new list each call;
+ * hot paths read `declaration`, `declarationCount` and `declarationAt` instead.
+ */
+export function getDeclarations(symbol: Symbol): readonly Node[] {
+  const first = symbol.declaration;
+  if (first === undefined) return noDeclarations;
+  const more = symbol.moreDeclarations;
+  return more !== undefined ? more : [first];
+}
+
+/** Whether `node` is a declaration of `symbol`. */
+export function hasDeclaration(symbol: Symbol, node: Node): boolean {
+  const first = symbol.declaration;
+  if (first === undefined) return false;
+  if (first === node) return true;
+  const more = symbol.moreDeclarations;
+  return more !== undefined && more.indexOf(node) >= 0;
+}
+
+/** Gives `target` the declarations of `source`; a list of several is shared, as the list was before. */
+export function copyDeclarations(target: Symbol, source: Symbol): void {
+  target.declaration = source.declaration;
+  target.moreDeclarations = source.moreDeclarations;
+}
+
+/** Replaces the declarations of `symbol` with `declarations`, which it keeps when they are more than one. */
+export function setDeclarations(symbol: Symbol, declarations: readonly Node[]): void {
+  symbol.declaration = declarations.length !== 0 ? declarations[0] : undefined;
+  symbol.moreDeclarations = declarations.length > 1 ? (declarations as Node[]) : undefined;
 }
 
 /**

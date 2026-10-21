@@ -46,15 +46,6 @@ import {
 } from './binder-utilities.js';
 import { type Diagnostic, type DiagnosticMessage, Diagnostics, compareDiagnostics } from './diagnostics.js';
 import { NameResolver } from './name-resolver.js';
-import {
-  CheckFlags,
-  InternalSymbolName,
-  Symbol,
-  SymbolFlags,
-  type SymbolTable,
-  addDeclaration,
-  getSymbolId,
-} from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
 import { type Checker, createDiagnosticForNode } from './checker.js';
 import {
@@ -92,6 +83,19 @@ import {
 import { isJSAliasDeclaration } from './checker-javascript.js';
 import { getFeatureMap } from './checker-features.js';
 import { NodeBuilderInternalFlags } from './transformers/declarations-resolver.js';
+import {
+  addDeclaration,
+  CheckFlags,
+  declarationAt,
+  declarationCount,
+  getDeclarations,
+  getSymbolId,
+  InternalSymbolName,
+  setDeclarations,
+  Symbol,
+  SymbolFlags,
+  type SymbolTable,
+} from './symbol.js';
 
 // ---- Name resolution
 
@@ -200,8 +204,8 @@ export class CheckerNameResolver extends NameResolver {
     ) {
       const merged = getMergedSymbol(c, result);
       if (
-        merged.declarations.length !== 0 &&
-        merged.declarations.every(
+        declarationCount(merged) !== 0 &&
+        getDeclarations(merged).every(
           (d) =>
             d.kind === SyntaxKind.NamespaceExportDeclaration ||
             (d.kind === SyntaxKind.SourceFile && (d as SourceFile).globalExports !== undefined),
@@ -259,7 +263,7 @@ export class CheckerNameResolver extends NameResolver {
       const locals = isGlobal ? getLocals(lastLocation!) : undefined;
       const nonValueSymbol = locals !== undefined ? getSymbolOfMeaning(c, locals, name, ~SymbolFlags.Value) : undefined;
       if (nonValueSymbol !== undefined) {
-        const importDeclaration = nonValueSymbol.declarations.find(
+        const importDeclaration = getDeclarations(nonValueSymbol).find(
           (d) =>
             d.kind === SyntaxKind.ImportSpecifier ||
             d.kind === SyntaxKind.ImportClause ||
@@ -728,7 +732,7 @@ function mergeFileGlobals(c: Checker, file: SourceFile): void {
     if (locals !== undefined) {
       const fileGlobalThis = locals.get('globalThis');
       if (fileGlobalThis !== undefined)
-        for (const d of fileGlobalThis.declarations)
+        for (const d of getDeclarations(fileGlobalThis))
           c.addDiagnostic(
             createDiagnosticForNode(d, Diagnostics.Declaration_name_conflicts_with_built_in_global_identifier_0, [
               'globalThis',
@@ -992,7 +996,7 @@ export function initializeGlobals(c: Checker): void {
   // addUndefinedToGlobalsOrErrorOnRedeclaration
   const target = globals.get('undefined');
   if (target !== undefined) {
-    for (const declaration of target.declarations)
+    for (const declaration of getDeclarations(target))
       if (!isTypeDeclaration(declaration))
         c.addDiagnostic(
           createDiagnosticForNode(
@@ -1052,7 +1056,7 @@ function mergeModuleAugmentation(c: Checker, moduleName: Node): void {
   const moduleNode = moduleName.parent as ModuleDeclaration;
   const augmentationSymbol = moduleNode.symbol!;
   // Several augmentations in one file share a symbol; merge it once.
-  if (augmentationSymbol.declarations[0]! !== moduleNode) return;
+  if (augmentationSymbol.declaration! !== moduleNode) return;
   if (isGlobalScopeAugmentation(moduleNode)) {
     if (augmentationSymbol.exports !== undefined)
       mergeSymbolTable(c, c.globals, augmentationSymbol.exports, false, undefined);
@@ -1148,7 +1152,7 @@ export function mergeSymbol(c: Checker, target: Symbol, source: Symbol, unidirec
     if ((target.flags & SymbolFlags.ConstEnumOnlyModule) === 0) sourceFlags &= ~SymbolFlags.ConstEnumOnlyModule;
     target.flags |= sourceFlags;
     if (source.valueDeclaration !== undefined) setValueDeclaration(target, source.valueDeclaration);
-    for (const d of source.declarations) addDeclaration(target, d);
+    for (const d of getDeclarations(source)) addDeclaration(target, d);
     if (source.members !== undefined) {
       if (target.members === undefined) target.members = new Map<string, Symbol>();
       mergeSymbolTable(c, target.members, source.members, unidirectional, undefined);
@@ -1162,7 +1166,7 @@ export function mergeSymbol(c: Checker, target: Symbol, source: Symbol, unidirec
     // `var globalThis` already reports a conflict with the built-in.
     if (target !== c.globalThisSymbol)
       c.error(
-        getNameOfDeclaration(source.declarations[0]!),
+        getNameOfDeclaration(source.declaration!),
         Diagnostics.Cannot_augment_module_0_with_value_exports_because_it_resolves_to_a_non_module_entity,
         symbolToString(c, target),
       );
@@ -1184,8 +1188,8 @@ function reportMergeSymbolError(c: Checker, target: Symbol, source: Symbol): voi
 }
 
 function isPlainJSFile(symbol: Symbol): boolean {
-  if (symbol.declarations.length === 0) return false;
-  const file = getSourceFileOfNode(symbol.declarations[0]!);
+  if (declarationCount(symbol) === 0) return false;
+  const file = getSourceFileOfNode(symbol.declaration!);
   return file.isJS() && file.checkJsDirective === undefined;
 }
 
@@ -1196,7 +1200,8 @@ function addDuplicateDeclarationErrors(
   name: string,
   source: Symbol,
 ): void {
-  for (const node of target.declarations) addDuplicateDeclarationError(c, node, message, name, source.declarations);
+  for (const node of getDeclarations(target))
+    addDuplicateDeclarationError(c, node, message, name, getDeclarations(source));
 }
 
 export function addDuplicateDeclarationError(
@@ -1204,7 +1209,7 @@ export function addDuplicateDeclarationError(
   node: Node,
   message: DiagnosticMessage,
   name: string,
-  relatedNodes: Node[],
+  relatedNodes: readonly Node[],
 ): void {
   const errorNode = getNameOfDeclaration(node) ?? node;
   const error = lookupOrIssueError(c, errorNode, message, [name]);
@@ -1256,7 +1261,7 @@ export function getExcludedSymbolFlags(flags: SymbolFlags): SymbolFlags {
 
 export function cloneSymbol(c: Checker, symbol: Symbol): Symbol {
   const result = c.newSymbol(symbol.flags, symbol.name);
-  result.declarations = symbol.declarations.slice();
+  setDeclarations(result, getDeclarations(symbol).slice());
   result.parent = symbol.parent;
   result.valueDeclaration = symbol.valueDeclaration;
   if (symbol.members !== undefined) result.members = new Map(symbol.members);
@@ -1271,7 +1276,7 @@ export function cloneSymbol(c: Checker, symbol: Symbol): Symbol {
  */
 function copySharedSymbol(c: Checker, shared: Symbol): Symbol {
   const result = c.newSymbol(shared.flags, shared.name);
-  result.declarations = shared.declarations.slice();
+  setDeclarations(result, getDeclarations(shared).slice());
   result.parent = shared.parent;
   result.valueDeclaration = shared.valueDeclaration;
   if (shared.members !== undefined) result.members = new Map(shared.members);
@@ -1315,7 +1320,7 @@ export function getSymbolOfDeclaration(c: Checker, node: Node): Symbol | undefin
 }
 
 function hasStaticDeclaration(symbol: Symbol): boolean {
-  for (const d of symbol.declarations) if (hasStaticModifier(d)) return true;
+  for (const d of getDeclarations(symbol)) if (hasStaticModifier(d)) return true;
   return false;
 }
 
@@ -1331,7 +1336,7 @@ export function getLateBoundSymbol(c: Checker, symbol: Symbol): Symbol {
     } else {
       // An `F[name] = …` assignment in a script has no parent. Checking its target late-binds it
       // with the members of the function it's assigned to.
-      for (const declaration of symbol.declarations)
+      for (const declaration of getDeclarations(symbol))
         if (declaration instanceof BinaryExpression) checkExpressionCached(c, declaration.left);
     }
   }
@@ -1340,7 +1345,7 @@ export function getLateBoundSymbol(c: Checker, symbol: Symbol): Symbol {
 }
 
 function hasLateBindableDeclaration(c: Checker, symbol: Symbol): boolean {
-  for (const declaration of symbol.declarations) if (hasLateBindableName(c, declaration)) return true;
+  for (const declaration of getDeclarations(symbol)) if (hasLateBindableName(c, declaration)) return true;
   return false;
 }
 
@@ -1357,7 +1362,7 @@ export function getGlobalSymbol(
 }
 
 function getGlobalTypeDeclaration(symbol: Symbol): Node | undefined {
-  for (const d of symbol.declarations) {
+  for (const d of getDeclarations(symbol)) {
     switch (d.kind) {
       case SyntaxKind.ClassDeclaration:
       case SyntaxKind.InterfaceDeclaration:
@@ -1490,8 +1495,8 @@ export function resolveSymbolEx(c: Checker, symbol: Symbol, dontResolveAlias: bo
 }
 
 export function getDeclarationOfAliasSymbol(symbol: Symbol): Node | undefined {
-  for (let i = symbol.declarations.length - 1; i >= 0; i--) {
-    const d = symbol.declarations[i]!;
+  for (let i = declarationCount(symbol) - 1; i >= 0; i--) {
+    const d = declarationAt(symbol, i);
     if (isAliasSymbolDeclaration(d)) return d;
   }
   return undefined;
@@ -1622,7 +1627,7 @@ function getResolvedMembersOrExports(c: Checker, symbol: Symbol, isStatic: boole
   if (isStatic) links.resolvedExports = early;
   else links.resolvedMembers = early;
   let late: SymbolTable | undefined;
-  for (const decl of symbol.declarations) {
+  for (const decl of getDeclarations(symbol)) {
     const members = getMembersOfDeclaration(decl);
     if (members === undefined) continue;
     for (const member of members) {
@@ -1639,7 +1644,7 @@ function getResolvedMembersOrExports(c: Checker, symbol: Symbol, isStatic: boole
   // JavaScript `F[name] = …` assignments with late-bindable names.
   const assignments = isStatic ? symbol.exports?.get(InternalSymbolName.AssignmentDeclaration) : undefined;
   if (assignments !== undefined)
-    for (const member of assignments.declarations)
+    for (const member of getDeclarations(assignments))
       if (hasLateBindableName(c, member)) {
         if (late === undefined) late = new Map<string, Symbol>();
         lateBindMember(c, symbol, early, late, member);
@@ -1694,7 +1699,9 @@ function lateBindMember(c: Checker, parent: Symbol, early: SymbolTable, late: Sy
     const earlySymbol = early.get(memberName);
     if ((lateSymbol.flags & getExcludedSymbolFlags(symbolFlags)) !== 0) {
       const declarations =
-        earlySymbol !== undefined ? earlySymbol.declarations.concat(lateSymbol.declarations) : lateSymbol.declarations;
+        earlySymbol !== undefined
+          ? getDeclarations(earlySymbol).concat(getDeclarations(lateSymbol))
+          : getDeclarations(lateSymbol);
       const name =
         (type.flags & 16384) !== 0 ? declarationNameToString(getSourceFileOfNode(declName), declName) : memberName;
       for (const d of declarations) c.error(getNameOfDeclaration(d) ?? d, Diagnostics.Duplicate_identifier_0, name);
@@ -1723,14 +1730,14 @@ function lateBindIndexSignature(c: Checker, early: SymbolTable, late: SymbolTabl
     late.set(InternalSymbolName.Index, indexSymbol);
   }
   // Unlike late-bound members, `decl` gets no late symbol: the index symbol isn't one property.
-  if (indexSymbol.declarations.length === 0 || (getSymbol(decl)!.flags & SymbolFlags.ReplaceableByMethod) === 0)
+  if (declarationCount(indexSymbol) === 0 || (getSymbol(decl)!.flags & SymbolFlags.ReplaceableByMethod) === 0)
     addDeclaration(indexSymbol, decl);
 }
 
 function addDeclarationToLateBoundSymbol(c: Checker, symbol: Symbol, member: Node, symbolFlags: SymbolFlags): void {
   const memberSymbol = getSymbol(member)!;
   c.symbolLinks(memberSymbol).lateSymbol = symbol;
-  if (symbol.declarations.length === 0 || (memberSymbol.flags & SymbolFlags.ReplaceableByMethod) === 0) {
+  if (declarationCount(symbol) === 0 || (memberSymbol.flags & SymbolFlags.ReplaceableByMethod) === 0) {
     symbol.flags |= symbolFlags;
     addDeclaration(symbol, member);
   }
@@ -1754,7 +1761,7 @@ export function symbolIsValue(c: Checker, symbol: Symbol): boolean {
 function isDeclarationContainedBy(symbol: Symbol, container: Symbol): boolean {
   const declaration = symbol.valueDeclaration;
   if (declaration !== undefined)
-    for (const d of container.declarations) if (declaration.pos >= d.pos && declaration.end <= d.end) return true;
+    for (const d of getDeclarations(container)) if (declaration.pos >= d.pos && declaration.end <= d.end) return true;
   return false;
 }
 

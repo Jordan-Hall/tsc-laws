@@ -214,7 +214,6 @@ import { TextWriter } from './printer/text-writer.js';
 import type { NodeFactory } from './printer/factory.js';
 import { isTypeIdenticalTo } from './relations.js';
 import { isIdentifierText } from './scanner.js';
-import { CheckFlags, type Symbol, SymbolFlags, type SymbolTable, getSymbolId } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
 import {
   NodeBuilderFlags,
@@ -263,6 +262,15 @@ import {
   couldAlreadyReferToUndefined,
   undefinedType as pseudoUndefinedType,
 } from './transformers/declarations-pseudo.js';
+import {
+  CheckFlags,
+  declarationCount,
+  getDeclarations,
+  getSymbolId,
+  type Symbol,
+  SymbolFlags,
+  type SymbolTable,
+} from './symbol.js';
 
 const defaultMaximumTruncationLength = 160;
 const noTruncationMaximumTruncationLength = 1_000_000;
@@ -693,7 +701,7 @@ export class NodeBuilder {
 
   /** Adds the names bound by a destructured parameter; false if `param` isn't one. */
   private addBindingPatternParameters(param: Symbol, table: SymbolTable): boolean {
-    for (const d of param.declarations) {
+    for (const d of getDeclarations(param)) {
       if (d.kind !== SyntaxKind.Parameter) continue;
       const name = asBindingPattern(getName(d));
       if (name !== undefined) {
@@ -1431,14 +1439,14 @@ export class NodeBuilder {
     const c = this.c;
     let isStaticMethodSymbol = false;
     if ((symbol.flags & SymbolFlags.Method) !== 0)
-      for (const d of symbol.declarations)
+      for (const d of getDeclarations(symbol))
         if (isStatic(d) && !hasLateBindableIndexSignature(c, d)) isStaticMethodSymbol = true;
     let isNonLocalFunctionSymbol = false;
     let isFunctionExpressionSymbol = false;
     if ((symbol.flags & SymbolFlags.Function) !== 0) {
       if (symbol.parent !== undefined) isNonLocalFunctionSymbol = true;
       else
-        for (const d of symbol.declarations) {
+        for (const d of getDeclarations(symbol)) {
           const parent = d.parent!;
           if (parent.kind === SyntaxKind.SourceFile || parent.kind === SyntaxKind.ModuleBlock) {
             isNonLocalFunctionSymbol = true;
@@ -1740,8 +1748,8 @@ export class NodeBuilder {
     const saveEnclosingDeclaration = this.enclosingDeclaration;
     this.enclosingDeclaration = undefined;
     if (isLateBoundName(propertySymbol.name)) {
-      if (propertySymbol.declarations.length > 0) {
-        const decl = propertySymbol.declarations[0]!;
+      if (declarationCount(propertySymbol) > 0) {
+        const decl = propertySymbol.declaration!;
         if (hasLateBindableName(c, decl)) {
           if (decl instanceof BinaryExpression) {
             const name = getNameOfDeclaration(decl);
@@ -1756,7 +1764,7 @@ export class NodeBuilder {
     }
     this.enclosingDeclaration =
       propertySymbol.valueDeclaration ??
-      (propertySymbol.declarations.length > 0 ? propertySymbol.declarations[0]! : saveEnclosingDeclaration);
+      (declarationCount(propertySymbol) > 0 ? propertySymbol.declaration! : saveEnclosingDeclaration);
     const propertyName = getPropertyNameNodeForSymbol(this, propertySymbol);
     this.enclosingDeclaration = saveEnclosingDeclaration;
     this.approximateLength += symbolName(propertySymbol).length + 1;
@@ -1883,7 +1891,7 @@ export class NodeBuilder {
   }
 
   private isDeclaredInEnclosingFile(symbol: Symbol): boolean {
-    for (const d of symbol.declarations) if (getSourceFileOfNode(d) === this.enclosingFile) return true;
+    for (const d of getDeclarations(symbol)) if (getSourceFileOfNode(d) === this.enclosingFile) return true;
     return false;
   }
 
@@ -2119,8 +2127,8 @@ export class NodeBuilder {
     let result = symbolToName(this, typeParameter.symbol!, SymbolFlags.Type, true);
     if (!(result instanceof Identifier)) return this.identifier('(Missing type parameter)');
     const symbol = typeParameter.symbol;
-    if (symbol !== undefined && symbol.declarations.length > 0) {
-      const decl = symbol.declarations[0]!;
+    if (symbol !== undefined && declarationCount(symbol) > 0) {
+      const decl = symbol.declaration!;
       if (decl.kind === SyntaxKind.TypeParameter) result = this.setTextRange(result, getName(decl)) as Identifier;
     }
     if (generateNames) {
@@ -2484,7 +2492,7 @@ export class NodeBuilder {
   ): Node {
     const c = this.c;
     if (declaration === undefined && symbol !== undefined)
-      declaration = symbol.valueDeclaration ?? (symbol.declarations.length > 0 ? symbol.declarations[0]! : undefined);
+      declaration = symbol.valueDeclaration ?? (declarationCount(symbol) > 0 ? symbol.declaration! : undefined);
     if (symbol === undefined && declaration !== undefined) symbol = getSymbolOfDeclaration(c, declaration);
     let t = type;
     if (t === undefined && symbol !== undefined) {
@@ -2567,7 +2575,7 @@ export class NodeBuilder {
         : pseudo.getTypeOfDeclaration(declaration);
       if (pt.kind === PseudoTypeKind.NoResult && declaration.kind === SyntaxKind.BinaryExpression) {
         // The first annotated assignment declares the type for the rest.
-        for (const d of symbol.declarations)
+        for (const d of getDeclarations(symbol))
           if (getType(d) !== undefined) {
             pt = pseudo.getTypeOfDeclaration(d);
             break;
@@ -2814,9 +2822,9 @@ function isClassInstanceSide(c: Checker, t: Type): boolean {
 
 function getTypeAliasForTypeLiteral(c: Checker, t: Type): Symbol | undefined {
   const symbol = t.symbol;
-  if (symbol === undefined || (symbol.flags & SymbolFlags.TypeLiteral) === 0 || symbol.declarations.length === 0)
+  if (symbol === undefined || (symbol.flags & SymbolFlags.TypeLiteral) === 0 || declarationCount(symbol) === 0)
     return undefined;
-  let node = symbol.declarations[0]!.parent;
+  let node = symbol.declaration!.parent;
   while (node !== undefined && node.kind === SyntaxKind.ParenthesizedType) node = node.parent;
   if (node !== undefined && node.kind === SyntaxKind.TypeAliasDeclaration) return getSymbolOfDeclaration(c, node);
   return undefined;
@@ -2865,7 +2873,7 @@ function getEffectiveConstraint(typeParameter: Node): Node | undefined {
 
 function getTypeParameterModifiers(tp: Type): ModifierFlags {
   let flags = ModifierFlags.None;
-  if (tp.symbol !== undefined) for (const d of tp.symbol.declarations) flags |= getCombinedModifierFlags(d);
+  if (tp.symbol !== undefined) for (const d of getDeclarations(tp.symbol)) flags |= getCombinedModifierFlags(d);
   return flags & (ModifierFlags.In | ModifierFlags.Out | ModifierFlags.Const);
 }
 

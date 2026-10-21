@@ -150,18 +150,21 @@ import { Diagnostic, type DiagnosticMessage, Diagnostics } from './diagnostics.j
 import { FlowFlags, FlowNode, FlowReduceLabel, FlowSwitchClause } from './flow.js';
 import { removeFileExtension } from './path.js';
 import { getIdentifierToken, tokenToString } from './scanner.js';
+import { SyntaxKind } from './syntax-kind.js';
 import {
-  InternalSymbolName,
-  Symbol,
-  SymbolFlags,
-  type SymbolTable,
   addDeclaration,
+  copyDeclarations,
+  declarationCount,
+  getDeclarations,
   getExports,
   getMembers,
   getSymbolId,
+  InternalSymbolName,
   internalSymbolNamePrefix,
+  Symbol,
+  SymbolFlags,
+  type SymbolTable,
 } from './symbol.js';
-import { SyntaxKind } from './syntax-kind.js';
 
 /** How a node scopes declarations and control flow. */
 export const enum ContainerFlags {
@@ -518,7 +521,7 @@ class Binder extends NodeVisitor {
       messageNeedsName = false;
     }
     let multipleDefaultExports = false;
-    if (symbol.declarations.length !== 0) {
+    if (declarationCount(symbol) !== 0) {
       // A default export (by modifier, or `export default` assignment) after another one.
       if (isDefaultExport || (node instanceof ExportAssignment && !(node as ExportAssignment).isExportEquals)) {
         message = Diagnostics.A_module_cannot_have_multiple_default_exports;
@@ -545,7 +548,7 @@ class Binder extends NodeVisitor {
         ]),
       );
     }
-    const declarations = symbol.declarations;
+    const declarations = getDeclarations(symbol);
     for (let index = 0; index < declarations.length; index++) {
       const declaration = declarations[index]!;
       const decl = getNameOfDeclaration(declaration) ?? declaration;
@@ -742,7 +745,7 @@ class Binder extends NodeVisitor {
   addDeclarationToSymbol(symbol: Symbol, node: Node, symbolFlags: SymbolFlags): void {
     symbol.flags |= symbolFlags;
     setSymbol(node, symbol);
-    if (symbol.declarations.indexOf(node) < 0) addDeclaration(symbol, node);
+    if (getDeclarations(symbol).indexOf(node) < 0) addDeclaration(symbol, node);
     // A const-enum-only namespace merged with a class, function or regular enum isn't one anymore.
     if (
       (symbol.flags & SymbolFlags.ConstEnumOnlyModule) !== 0 &&
@@ -1153,7 +1156,7 @@ class Binder extends NodeVisitor {
     symbol.valueDeclaration = this.file;
     if (name === 'module') {
       const exportsProperty = this.newSymbol(SymbolFlags.ModuleExports | SymbolFlags.Property, 'exports');
-      exportsProperty.declarations = symbol.declarations;
+      copyDeclarations(exportsProperty, symbol);
       exportsProperty.valueDeclaration = this.file;
       exportsProperty.parent = symbol;
       getMembers(symbol).set('exports', exportsProperty);
@@ -2096,7 +2099,7 @@ class Binder extends NodeVisitor {
     const exports = getExports(symbol);
     const existing = exports.get('prototype');
     if (existing !== undefined)
-      this.errorOnNode(existing.declarations[0]!, Diagnostics.Duplicate_identifier_0, ['prototype']);
+      this.errorOnNode(existing.declaration!, Diagnostics.Duplicate_identifier_0, ['prototype']);
     exports.set('prototype', prototypeSymbol);
     prototypeSymbol.parent = symbol;
   }

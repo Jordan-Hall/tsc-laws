@@ -46,7 +46,6 @@ import { Diagnostic, type DiagnosticMessage, Diagnostics, chainDiagnostic } from
 import { resolveInstanceofExpression } from './checker-operators.js';
 import { skipTrivia } from './scanner.js';
 import { SyntaxKind } from './syntax-kind.js';
-import { InternalSymbolName, type Symbol, SymbolFlags } from './symbol.js';
 import { TokenFlags } from './types.js';
 import { type Checker, createDiagnosticForNode } from './checker.js';
 import { checkSuperExpression } from './checker-super.js';
@@ -206,6 +205,7 @@ import {
   resolveJsxOpeningLikeElement,
 } from './checker-jsx.js';
 import { isCommonJSRequire, resolveExternalModuleTypeByLiteral } from './checker-javascript.js';
+import { declarationCount, getDeclarations, InternalSymbolName, type Symbol, SymbolFlags } from './symbol.js';
 
 /** The type of an optional chain's expression with the chain's `undefined` removed. */
 export function getOptionalExpressionType(c: Checker, exprType: Type, expression: Node): Type {
@@ -1674,9 +1674,9 @@ function addImplementationSuccessElaboration(
   diagnostic: Diagnostic,
 ): void {
   const symbol = failed.declaration !== undefined ? getSymbol(failed.declaration) : undefined;
-  if (symbol === undefined || symbol.declarations.length <= 1) return;
+  if (symbol === undefined || declarationCount(symbol) <= 1) return;
   let implementation: Node | undefined;
-  for (const d of symbol.declarations) {
+  for (const d of getDeclarations(symbol)) {
     if (isFunctionLikeDeclarationKind(d.kind) && nodeIsPresent(getBody(d))) {
       implementation = d;
       break;

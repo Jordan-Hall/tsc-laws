@@ -37,7 +37,6 @@ import {
 import { isFunctionLike, isInJSFile } from './ast-utilities.js';
 import { type Checker, createDiagnosticForNode } from './checker.js';
 import { type Diagnostic, Diagnostics } from './diagnostics.js';
-import { CheckFlags, type Symbol, SymbolFlags, getSymbolId } from './symbol.js';
 import { SyntaxKind } from './syntax-kind.js';
 import {
   CheckMode,
@@ -102,6 +101,7 @@ import {
   getResolvedSymbol,
 } from './checker-expressions.js';
 import { isJSLiteralType, isThisPropertyAccessInConstructor } from './checker-javascript.js';
+import { CheckFlags, getDeclarations, getSymbolId, type Symbol, SymbolFlags } from './symbol.js';
 
 export function checkPropertyAccessExpressionOrQualifiedName(
   c: Checker,
@@ -607,7 +607,7 @@ function checkPropertyAccessibilityAtLocation(
 }
 
 function hasClassInstancePropertyDeclaration(symbol: Symbol): boolean {
-  for (const d of symbol.declarations) if (isClassInstanceProperty(d)) return true;
+  for (const d of getDeclarations(symbol)) if (isClassInstanceProperty(d)) return true;
   return false;
 }
 

@@ -30,6 +30,7 @@ import { isStatement } from '../printer/utilities.js';
 import { SyntaxKind } from '../syntax-kind.js';
 import { isParameterPropertyDeclaration } from './utilities.js';
 import { SymbolAccessibility, type SymbolAccessibilityResult } from './declarations-resolver.js';
+import { getDeclarations } from '../symbol.js';
 
 export function createDiagnosticForNode(node: Node, message: DiagnosticMessage, args: readonly string[]): Diagnostic {
   const file = getSourceFileOfNode(node);
@@ -816,7 +817,7 @@ export function getAllAccessorDeclarations(accessor: Node): AllAccessorDeclarati
   let other: Node | undefined = undefined;
   const symbol = getSymbol(accessor);
   if (symbol !== undefined)
-    for (const declaration of symbol.declarations)
+    for (const declaration of getDeclarations(symbol))
       if (declaration.kind === otherKind) {
         other = declaration;
         break;

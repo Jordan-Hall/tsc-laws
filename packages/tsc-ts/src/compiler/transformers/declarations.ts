@@ -143,7 +143,6 @@ import {
   skipTrivia,
   stringToToken,
 } from '../scanner.js';
-import { SymbolFlags } from '../symbol.js';
 import type { CommentRange } from '../types.js';
 import { getRelativePathToDirectoryOrUrl } from '../sourcemap.js';
 import { SyntaxKind } from '../syntax-kind.js';
@@ -161,6 +160,7 @@ import { type DeclarationEmitResolver, NodeBuilderFlags } from './declarations-r
 import { ConstantKind } from './reference-resolver.js';
 import { DeclarationTracker } from './declarations-tracker.js';
 import { Transformer } from './transformer.js';
+import { declarationCount, getDeclarations, SymbolFlags } from '../symbol.js';
 
 export class DeclarationTransformer extends Transformer {
   readonly host: OutputPathsHost;
@@ -363,8 +363,8 @@ export class DeclarationTransformer extends Transformer {
     const symbol = file.symbol;
     const exportEquals =
       symbol === undefined || symbol.exports === undefined ? undefined : symbol.exports.get('export=');
-    if (exportEquals === undefined || exportEquals.declarations.length <= 1) return false;
-    for (const declaration of exportEquals.declarations)
+    if (exportEquals === undefined || declarationCount(exportEquals) <= 1) return false;
+    for (const declaration of getDeclarations(exportEquals))
       this.tracker.addDiagnostic(
         createDiagnosticForNode(
           declaration,
@@ -1037,7 +1037,7 @@ export class DeclarationTransformer extends Transformer {
   /** A private method is written as a property without a type. */
   private omitPrivateMethodType(input: Node): Node | undefined {
     const symbol = getSymbol(input);
-    if (symbol !== undefined && symbol.declarations.length > 0 && symbol.declarations[0] !== input) return undefined;
+    if (symbol !== undefined && declarationCount(symbol) > 0 && symbol.declaration !== input) return undefined;
     const result = this.factory.created(
       new PropertyDeclaration(this.ensureModifiers(input), getName(input)!, undefined, undefined, undefined),
     );
@@ -3003,7 +3003,7 @@ function getFullSignature(node: Node): Node | undefined {
 function isCommonJSAliasExport(node: Node): boolean {
   if (!(node instanceof BinaryExpression) || !(node.right instanceof Identifier)) return false;
   const symbol = node.symbol;
-  return symbol !== undefined && symbol.declarations.length === 1;
+  return symbol !== undefined && declarationCount(symbol) === 1;
 }
 
 function getLeftmostAccessExpression(node: Node): Node {
@@ -3018,7 +3018,7 @@ function shouldEmitFunctionProperties(fn: FunctionDeclaration): boolean {
   if (fn.body !== undefined) return true;
   const symbol = fn.symbol;
   if (symbol === undefined) return false;
-  for (const declaration of symbol.declarations)
+  for (const declaration of getDeclarations(symbol))
     if (declaration instanceof FunctionDeclaration && declaration.body !== undefined) return true;
   return false;
 }
