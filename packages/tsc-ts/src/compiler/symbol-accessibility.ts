@@ -35,7 +35,7 @@ import {
   isGlobalSourceFile,
   isModuleExportsAccessExpression,
 } from './binder-utilities.js';
-import { type Checker, SymbolAccessibilityCaches } from './checker.js';
+import { type Checker, ExternalModuleContainerIndex, SymbolAccessibilityCaches, fileIndexScale } from './checker.js';
 import { getEffectiveDeclarationFlags } from './checker-declarations.js';
 import { getDeclaredTypeOfSymbol } from './checker-declared-types.js';
 import { checkExpressionCached } from './checker-expressions.js';
@@ -252,11 +252,16 @@ export function getQualifiedLeftMeaning(rightMeaning: SymbolFlags): SymbolFlags 
   return rightMeaning === SymbolFlags.Value ? SymbolFlags.Value : SymbolFlags.Namespace;
 }
 
+/** The merged symbol `symbol` resolves to through aliases. */
+function getResolvedTarget(c: Checker, symbol: Symbol): Symbol | undefined {
+  const resolved = resolveSymbol(c, getMergedSymbol(c, symbol));
+  return resolved !== undefined ? getMergedSymbol(c, resolved) : undefined;
+}
+
 /** `s1` if both symbols resolve to the same symbol, else undefined. */
 export function getSymbolIfSameReference(c: Checker, s1: Symbol, s2: Symbol): Symbol | undefined {
-  const r1 = resolveSymbol(c, getMergedSymbol(c, s1));
-  const r2 = resolveSymbol(c, getMergedSymbol(c, s2));
-  if (r1 !== undefined && r2 !== undefined && getMergedSymbol(c, r1) === getMergedSymbol(c, r2)) return s1;
+  const r1 = getResolvedTarget(c, s1);
+  if (r1 !== undefined && r1 === getResolvedTarget(c, s2)) return s1;
   return undefined;
 }
 
@@ -350,16 +355,98 @@ function getAlternativeContainingModules(c: Checker, symbol: Symbol, enclosingDe
   }
   const cached = cache.containers.get(symbolId);
   if (cached !== undefined) return cached;
-  // Search every module; expensive, but independent of the location.
+  // Search every module; independent of the location.
+  const containers = getExternalModuleContainers(c, symbol);
+  cache.containers.set(symbolId, containers);
+  return containers;
+}
+
+/** The modules that export `symbol`, and its parent module, in program order. */
+function getExternalModuleContainers(c: Checker, symbol: Symbol): Symbol[] {
+  const cache = caches(c);
+  if (cache.externalModuleContainers === undefined) buildExternalModuleContainerIndex(c);
+  const index = cache.externalModuleContainers!;
+  // Re-entered from an alias resolved while building the index, or too many files to index.
+  if (!index.complete) return scanExternalModuleContainers(c, symbol);
+  // The parent module contains the symbol even when the symbol is absent from its exports.
+  const parent = getParentOfSymbol(c, symbol);
+  let parentIndex = externalModuleFileIndex(c, parent);
+  const result: Symbol[] = [];
+  const target = getResolvedTarget(c, symbol);
+  if (target !== undefined) {
+    const keys = index.keys;
+    const first = getSymbolId(target) * fileIndexScale;
+    let low = 0;
+    let high = keys.length;
+    while (low < high) {
+      const mid = (low + high) >>> 1;
+      if (keys[mid]! < first) low = mid + 1;
+      else high = mid;
+    }
+    for (let i = low; i < keys.length && keys[i]! < first + fileIndexScale; i++) {
+      const fileIndex = keys[i]! - first;
+      if (parentIndex >= 0 && parentIndex <= fileIndex) {
+        if (parentIndex < fileIndex) result.push(parent!);
+        parentIndex = -1;
+      }
+      // `as`: scriptc passes an element of a subclass array only as that class.
+      result.push(getSymbolOfDeclaration(c, c.files[fileIndex]! as Node)!);
+    }
+  }
+  if (parentIndex >= 0) result.push(parent!);
+  return result;
+}
+
+/** The position in `Checker.files` of the external module `symbol`, or -1 for any other symbol. */
+function externalModuleFileIndex(c: Checker, symbol: Symbol | undefined): number {
+  if (symbol === undefined || (symbol.flags & SymbolFlags.ValueModule) === 0) return -1;
+  for (const declaration of symbol.declarations) {
+    if (declaration.kind !== SyntaxKind.SourceFile) continue;
+    const file = declaration as SourceFile;
+    if (isExternalModule(file) && getSymbolOfDeclaration(c, declaration) === symbol) return c.fileIndex.get(file) ?? -1;
+  }
+  return -1;
+}
+
+function buildExternalModuleContainerIndex(c: Checker): void {
+  const index = new ExternalModuleContainerIndex();
+  caches(c).externalModuleContainers = index;
+  if (c.files.length > fileIndexScale) return;
+  const keys: number[] = [];
+  for (let fileIndex = 0; fileIndex < c.files.length; fileIndex++) {
+    const file = c.files[fileIndex]!;
+    if (!isExternalModule(file)) continue;
+    // `as`: scriptc passes an element of a subclass array only as that class.
+    const container = getSymbolOfDeclaration(c, file as Node);
+    if (container === undefined) continue;
+    for (const exported of getExportsOfSymbol(c, container).values()) {
+      const target = getResolvedTarget(c, exported);
+      if (target !== undefined) keys.push(getSymbolId(target) * fileIndexScale + fileIndex);
+    }
+    const exportEquals = container.exports?.get(InternalSymbolName.ExportEquals);
+    const target = exportEquals !== undefined ? getResolvedTarget(c, exportEquals) : undefined;
+    if (target !== undefined) keys.push(getSymbolId(target) * fileIndexScale + fileIndex);
+  }
+  keys.sort((a, b) => a - b);
+  // A module that exports a symbol under several names gives it one key.
+  let kept = 0;
+  for (let i = 0; i < keys.length; i++) if (kept === 0 || keys[i] !== keys[kept - 1]) keys[kept++] = keys[i]!;
+  // An exact-size copy: each checker keeps its own index for the rest of the compilation.
+  index.keys = keys.slice(0, kept);
+  index.complete = true;
+}
+
+/** The modules that export `symbol`, found by checking every module. */
+function scanExternalModuleContainers(c: Checker, symbol: Symbol): Symbol[] {
+  const containers: Symbol[] = [];
   for (const file of c.host.getSourceFiles()) {
     if (!isExternalModule(file)) continue;
     // `as`: scriptc passes a for-of element of a subclass array only as that class.
-    const fileSymbol = getSymbolOfDeclaration(c, file as Node);
-    if (fileSymbol === undefined || getAliasForSymbolInContainer(c, fileSymbol, symbol) === undefined) continue;
-    results.push(fileSymbol);
+    const container = getSymbolOfDeclaration(c, file as Node);
+    if (container !== undefined && getAliasForSymbolInContainer(c, container, symbol) !== undefined)
+      containers.push(container);
   }
-  cache.containers.set(symbolId, results);
-  return results;
+  return containers;
 }
 
 /** The variable `var a = { x: 1 }` declares, for the anonymous `__object` symbol of its literal. */

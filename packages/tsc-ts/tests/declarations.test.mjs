@@ -210,6 +210,7 @@ test(
 async function emitBoth(files, name, flags) {
   const dir = tempDir('tsc-ts-declarations-undefined-');
   const sources = Object.entries(files).map(([file, lines]) => {
+    mkdirSync(dirname(join(dir, file)), { recursive: true });
     writeFileSync(join(dir, file), [...lines, ''].join('\n'));
     return join(dir, file);
   });
@@ -595,5 +596,64 @@ test(
       assert.ok(s.matched >= s.compared * 0.97, `${label}: ${s.matched}/${s.compared} match: ${s.failures.join(', ')}`);
       assert.ok(s.errorsMatched >= s.compared * 0.98, `${label}: ${s.errorFailures.join(', ')}`);
     }
+  },
+);
+
+test(
+  'declarations name a type through the modules that re-export it',
+  { skip: !existsSync(tsgo) && 'needs packages/tsgo/dist/tsgo' },
+  async () => {
+    // TypeScript 7.1's declarationEmitAlternativeContainingModules: index.ts imports none of the
+    // modules that export the types, so each is named through the first module in the program that
+    // exports it, or through its own module.
+    const model = ['Named', 'Aliased', 'Assigned', 'Ordered', 'Unlisted'];
+    const { expected, actual } = await emitBoth(
+      {
+        'internal/deep/model.ts': [
+          ...model.map((name) => `export interface ${name} { value: string; }`),
+          ...model.map((name) => `export function make${name}(): ${name} { return { value: "" }; }`),
+        ],
+        'internal/deep/starred.ts': [
+          'export interface Starred { value: string; }',
+          'export function makeStarred(): Starred { return { value: "" }; }',
+        ],
+        'factory.ts': [
+          'export { makeNamed, makeAliased, makeAssigned, makeOrdered, makeUnlisted } from "./internal/deep/model";',
+          'export { makeStarred } from "./internal/deep/starred";',
+        ],
+        'named.ts': ['export { Named } from "./internal/deep/model";'],
+        'aliased.ts': ['export { Aliased as Alias } from "./internal/deep/model";'],
+        'star.ts': ['export * from "./internal/deep/starred";'],
+        'assigned.ts': ['import { Assigned } from "./internal/deep/model";', 'export = Assigned;'],
+        'orderedFirst.ts': ['export { Ordered } from "./internal/deep/model";'],
+        'orderedSecond.ts': ['export { Ordered } from "./internal/deep/model";'],
+        'index.ts': [
+          'import { makeNamed, makeAliased, makeStarred, makeAssigned, makeOrdered, makeUnlisted } from "./factory";',
+          'export const named = makeNamed();',
+          'export const repeated = makeNamed();',
+          'export const aliased = makeAliased();',
+          'export const starred = makeStarred();',
+          'export const assigned = makeAssigned();',
+          'export const ordered = makeOrdered();',
+          'export const unlisted = makeUnlisted();',
+        ],
+      },
+      'index.d.ts',
+      ['--ignoreConfig', '--noLib', '--strict', '--module', 'commonjs', '--target', 'esnext'],
+    );
+    assert.equal(
+      expected,
+      [
+        'export declare const named: import("./named").Named;',
+        'export declare const repeated: import("./named").Named;',
+        'export declare const aliased: import("./aliased").Alias;',
+        'export declare const starred: import("./star").Starred;',
+        'export declare const assigned: import("./assigned");',
+        'export declare const ordered: import("./orderedFirst").Ordered;',
+        'export declare const unlisted: import("./internal/deep/model").Unlisted;',
+        '',
+      ].join('\n'),
+    );
+    assert.equal(actual, expected);
   },
 );

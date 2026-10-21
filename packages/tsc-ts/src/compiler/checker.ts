@@ -263,6 +263,23 @@ function stableSort(list: Diagnostic[]): void {
 /** Maximum depth of nested `typeToString` calls before diagnostics are discarded. */
 export const maxSerializationLevel = 2;
 
+/**
+ * File positions per symbol id in `ExternalModuleContainerIndex.keys`. Symbol ids are int32, so the
+ * keys stay exact.
+ */
+export const fileIndexScale = 2 ** 21;
+
+/** The modules that export each symbol, built once from every module's exports. */
+export class ExternalModuleContainerIndex {
+  complete = false;
+  /**
+   * One key per symbol and module that exports it, ascending: the id of the symbol the export
+   * resolves to times `fileIndexScale`, plus the module's file position in `Checker.files`. The
+   * keys of one symbol are contiguous and in program order.
+   */
+  keys: number[] = [];
+}
+
 /** The checker's caches for symbol accessibility. */
 export class SymbolAccessibilityCaches {
   /** Accessible chains by symbol id, then by `chainCacheKey`. */
@@ -273,6 +290,8 @@ export class SymbolAccessibilityCaches {
   readonly containersByFile = new Map<number, Map<number, Symbol[]>>();
   /** All modules that export a symbol, by symbol id. */
   readonly containers = new Map<number, Symbol[]>();
+  /** The modules each symbol is exported from, built on the first search of all modules. */
+  externalModuleContainers: ExternalModuleContainerIndex | undefined = undefined;
   /** The name tables of named class expressions, by node id. */
   readonly classExpressionNames = new Map<number, SymbolTable>();
   /** Computed declaration visibility by node id (see isDeclarationVisible), 0 if not computed. */
