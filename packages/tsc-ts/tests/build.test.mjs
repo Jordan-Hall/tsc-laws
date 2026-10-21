@@ -120,6 +120,24 @@ const scenarios = {
       { args: ['-b', 'b', '--pretty'] },
     ],
   },
+  // A reference checked on checker threads writes its declarations outside its directory, and the root
+  // project imports them by their own path: a fresh build finds them, and a forced rebuild reads the
+  // declarations the reference just wrote.
+  'references with outputs outside their directory on checker threads': {
+    files: {
+      'a/tsconfig.json':
+        '{"compilerOptions":{"composite":true,"outDir":"../out/a","rootDir":"."},"files":["index.ts"]}',
+      'a/index.ts': 'export const a: number = 1;\n',
+      'b/tsconfig.json':
+        '{"compilerOptions":{"declaration":true,"outDir":"../out/b"},"references":[{"path":"../a"}],"files":["index.ts"]}',
+      'b/index.ts': 'import { a } from "../out/a/index";\nexport const b = a;\n',
+    },
+    steps: [
+      { args: ['-b', 'b', '--checkers', '4'] },
+      { args: ['-b', 'b', '--checkers', '4', '--force'], edit: { 'a/index.ts': 'export const a: string = "s";\n' } },
+      { args: ['-b', 'b', '--checkers', '4', '--force'], edit: { 'a/index.ts': 'export const a: boolean = true;\n' } },
+    ],
+  },
   'signatures of files with several declaration errors': {
     files: {
       'tsconfig.json':
