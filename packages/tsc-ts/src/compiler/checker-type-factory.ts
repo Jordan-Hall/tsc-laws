@@ -940,13 +940,38 @@ export function unionContainsType(c: Checker, union: UnionType, t: Type): boolea
   const types = union.types;
   if (types.length < linearTypeSearchLimit) return indexOfType(types, t, 0) >= 0;
   const side = sideOf(c, union);
-  let set = side.constituentSet;
-  if (set === undefined) {
+  let table = side.constituentIds;
+  if (table === undefined) {
     if (side.membershipTests++ === 0) return binarySearchTypes(c, types, t) >= 0;
-    set = new Set(types);
-    side.constituentSet = set;
+    table = constituentTable(types);
+    side.constituentIds = table;
   }
-  return set.has(t);
+  // Type ids are unique within a checker, so a matching id is `t` itself.
+  const key = t.id + 1;
+  const mask = table.length - 1;
+  for (let slot = Math.imul(key, 0x9e3779b1) & mask; ; slot = (slot + 1) & mask) {
+    const value = table[slot]!;
+    if (value === key) return true;
+    if (value === 0) return false;
+  }
+}
+
+/**
+ * An open-addressing table of the ids of `types` (each plus one; zero marks an empty slot), with at
+ * least twice as many slots as types so that probes stay short.
+ */
+function constituentTable(types: readonly Type[]): Int32Array {
+  let size = 4;
+  while (size < types.length * 2) size *= 2;
+  const table = new Int32Array(size);
+  const mask = size - 1;
+  for (const t of types) {
+    const key = t.id + 1;
+    let slot = Math.imul(key, 0x9e3779b1) & mask;
+    while (table[slot] !== 0) slot = (slot + 1) & mask;
+    table[slot] = key;
+  }
+  return table;
 }
 
 /**

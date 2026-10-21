@@ -559,7 +559,7 @@ export class TypeExtra implements ProgramLifetime {
   origin: Type | undefined;
   keyPropertyName: string;
   constituentMap: Map<Type, Type> | undefined;
-  constituentSet: Set<Type> | undefined;
+  constituentIds: Int32Array | undefined;
   membershipTests: number;
   // IntersectionType
   uniqueLiteralFilledInstantiation: Type | undefined;
@@ -573,7 +573,7 @@ export class TypeExtra implements ProgramLifetime {
     this.origin = undefined;
     this.keyPropertyName = '';
     this.constituentMap = undefined;
-    this.constituentSet = undefined;
+    this.constituentIds = undefined;
     this.membershipTests = 0;
     this.uniqueLiteralFilledInstantiation = undefined;
   }
@@ -1227,14 +1227,18 @@ export class UnionType extends UnionOrIntersectionType {
     if (map !== undefined || this.extra !== undefined) typeExtra(this).constituentMap = map;
   }
 
-  /** The constituents of a large union, for membership tests; created on the second test. */
-  get constituentSet(): Set<Type> | undefined {
+  /**
+   * A hash table of the ids of a large union's constituents, for membership tests; created on the
+   * second test (`constituentTable`). About eight bytes a constituent, where a set of them took
+   * about five times that.
+   */
+  get constituentIds(): Int32Array | undefined {
     const extra = this.extra;
-    return extra !== undefined ? extra.constituentSet : undefined;
+    return extra !== undefined ? extra.constituentIds : undefined;
   }
 
-  set constituentSet(set: Set<Type> | undefined) {
-    if (set !== undefined || this.extra !== undefined) typeExtra(this).constituentSet = set;
+  set constituentIds(ids: Int32Array | undefined) {
+    if (ids !== undefined || this.extra !== undefined) typeExtra(this).constituentIds = ids;
   }
 
   get membershipTests(): number {
