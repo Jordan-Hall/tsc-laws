@@ -33,6 +33,7 @@ import {
   type TypeParameter,
   type TypeReference,
   type UnionOrIntersectionType,
+  unionOrIntersectionMembers,
   type UnionType,
   emptyIndexInfos,
   emptySignatures,
@@ -151,7 +152,7 @@ import {
 } from './checker-type-operators.js';
 import { getGlobalBigIntType, getGlobalESSymbolType } from './checker-globals.js';
 import { isLateBoundName, isNumericLiteralName } from './checker-utilities.js';
-import { lazyObjectFlags, sideOf } from './side-state.js';
+import { lazyObjectFlags, sideOf, sideOfIfAny } from './side-state.js';
 import {
   CheckFlags,
   copyDeclarations,
@@ -184,12 +185,18 @@ export function resolveStructuredTypeMembers(c: Checker, t: Type): StructuredTyp
  * `t` writes them there; `t` keeps its identity and is never written.
  */
 export function membersHolder(c: Checker, t: Type): StructuredType {
-  return sideOf(c, t as StructuredType);
+  const side = sideOf(c, t);
+  if ((side.flags & TypeFlags.UnionOrIntersection) !== 0)
+    return unionOrIntersectionMembers(side as UnionOrIntersectionType);
+  return side as StructuredType;
 }
 
 /** The `objectFlags` of `t` that resolving its members sets (MembersResolved, UnresolvedMembers). */
 export function memberResolutionFlags(c: Checker, t: Type): ObjectFlags {
-  return lazyObjectFlags(c, t);
+  if ((t.flags & TypeFlags.UnionOrIntersection) === 0) return lazyObjectFlags(c, t);
+  const side = sideOfIfAny(c, t) as UnionOrIntersectionType | undefined;
+  const members = side !== undefined ? side.membersOf : undefined;
+  return members !== undefined ? members.objectFlags : ObjectFlags.None;
 }
 
 function resolveMembersOfType(c: Checker, t: Type): void {
@@ -594,14 +601,22 @@ export class PropertyMembers extends PendingMembers {
 /** The most properties of a table that `keepPropertiesOnly` drops: a lookup compares that many names at most. */
 const scannedPropertiesLimit = 8;
 
+/** The most properties of an object literal's table that `keepPropertiesOnly` drops: literals are looked up often. */
+export const scannedLiteralPropertiesLimit = 4;
+
 /**
  * After `setStructuredTypeMembers(c, t, members, ...)`: drops `members` where it holds only the
- * type's properties, at most `scannedPropertiesLimit` of them (`PropertyMembers`).
+ * type's properties, at most `limit` of them (`PropertyMembers`).
  */
-export function keepPropertiesOnly(c: Checker, t: StructuredType, members: SymbolTable): void {
+export function keepPropertiesOnly(
+  c: Checker,
+  t: StructuredType,
+  members: SymbolTable,
+  limit: number = scannedPropertiesLimit,
+): void {
   const resolved = membersHolder(c, t);
   const properties = resolved.propertiesValue;
-  if (members.size === 0 || members.size > scannedPropertiesLimit || properties.length !== members.size) return;
+  if (members.size === 0 || members.size > limit || properties.length !== members.size) return;
   resolved.membersValue = undefined;
   resolved.pendingMembers = new PropertyMembers(properties, undefined);
 }
@@ -1511,8 +1526,9 @@ export function getPropertiesOfObjectType(c: Checker, t: Type): Symbol[] {
 }
 
 export function getPropertiesOfUnionOrIntersectionType(c: Checker, t: UnionOrIntersectionType): Symbol[] {
-  const side = sideOf(c, t);
-  if (side.resolvedProperties === undefined) {
+  const known = sideOf(c, t).membersOf;
+  if (known !== undefined && known.resolvedProperties !== undefined) return known.resolvedProperties;
+  {
     const checked = new Set<string>();
     const props: Symbol[] = [];
     for (const current of t.types) {
@@ -1530,9 +1546,11 @@ export function getPropertiesOfUnionOrIntersectionType(c: Checker, t: UnionOrInt
       // Union properties are in every constituent: the first without index signatures suffices.
       if ((t.flags & TypeFlags.Union) !== 0 && getIndexInfosOfType(c, current).length === 0) break;
     }
+    // Resolving the properties may have created the holder.
+    const side = unionOrIntersectionMembers(sideOf(c, t));
     side.resolvedProperties = props;
+    return props;
   }
-  return side.resolvedProperties;
 }
 
 export function getPropertyOfType(c: Checker, t: Type, name: string): Symbol | undefined {
@@ -1631,16 +1649,24 @@ export function getUnionOrIntersectionProperty(
   name: string,
   skipObjectFunctionPropertyAugment: boolean,
 ): Symbol | undefined {
-  const side = sideOf(c, t);
-  let cache = skipObjectFunctionPropertyAugment ? side.propertyCacheWithoutFunctionPropertyAugment : side.propertyCache;
-  const cached = cache?.get(name);
-  if (cached !== undefined) return cached;
-  if (!skipObjectFunctionPropertyAugment) {
-    const withoutAugment = side.propertyCacheWithoutFunctionPropertyAugment?.get(name);
-    if (withoutAugment !== undefined && (withoutAugment.checkFlags & CheckFlags.Partial) === 0) return withoutAugment;
+  const known = sideOf(c, t).membersOf;
+  if (known !== undefined) {
+    const cached = (
+      skipObjectFunctionPropertyAugment ? known.propertyCacheWithoutFunctionPropertyAugment : known.propertyCache
+    )?.get(name);
+    if (cached !== undefined) return cached;
+    if (!skipObjectFunctionPropertyAugment) {
+      const withoutAugment = known.propertyCacheWithoutFunctionPropertyAugment?.get(name);
+      if (withoutAugment !== undefined && (withoutAugment.checkFlags & CheckFlags.Partial) === 0) return withoutAugment;
+    }
   }
   const prop = createUnionOrIntersectionProperty(c, t, name, skipObjectFunctionPropertyAugment);
   if (prop !== undefined) {
+    // Creating the property may have created the holder and its caches.
+    const side = unionOrIntersectionMembers(sideOf(c, t));
+    let cache = skipObjectFunctionPropertyAugment
+      ? side.propertyCacheWithoutFunctionPropertyAugment
+      : side.propertyCache;
     if (cache === undefined) {
       cache = new Map<string, Symbol>();
       if (skipObjectFunctionPropertyAugment) side.propertyCacheWithoutFunctionPropertyAugment = cache;
@@ -2128,7 +2154,8 @@ export function getReducedType(c: Checker, t: Type): Type {
  * private, are combined, and the costliest constituent's properties are only looked up by name.
  */
 function hasNeverReducedProperty(c: Checker, t: IntersectionType): boolean {
-  const resolved = sideOf(c, t).resolvedProperties;
+  const members = sideOf(c, t).membersOf;
+  const resolved = members !== undefined ? members.resolvedProperties : undefined;
   if (resolved !== undefined) {
     for (const p of resolved) if (isNeverReducedProperty(c, p)) return true;
     return false;

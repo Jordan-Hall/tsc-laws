@@ -101,6 +101,8 @@ import {
   getPropertiesOfType,
   getPropertyOfObjectType,
   isObjectLiteralType,
+  keepPropertiesOnly,
+  scannedLiteralPropertiesLimit,
 } from './checker-members.js';
 import { typeToString, symbolToString } from './type-printer.js';
 import { getTypeOfMappedSymbol, getIndexType } from './checker-type-operators.js';
@@ -796,6 +798,7 @@ function getWidenedTypeOfObjectLiteral(c: Checker, t: Type, context: WideningCon
       ),
   );
   const result = createAnonymousType(c, t.symbol, members, [], [], infos);
+  keepPropertiesOnly(c, result, members, scannedLiteralPropertiesLimit);
   result.objectFlags |= t.objectFlags & (ObjectFlags.JSLiteral | ObjectFlags.NonInferrableType);
   // The root context widens each object literal once; a property's context may widen one literal
   // for several siblings.

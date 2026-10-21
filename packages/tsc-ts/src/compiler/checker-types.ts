@@ -1159,19 +1159,46 @@ export class EvolvingArrayType extends ObjectType {
   }
 }
 
-export class UnionOrIntersectionType extends StructuredType {
+/**
+ * A union or intersection. Few have their members resolved or their properties cached, so those
+ * live in `membersOf` (`UnionOrIntersectionMembers`), which is created when they are first written.
+ */
+export class UnionOrIntersectionType extends Type {
   readonly types: Type[];
-  propertyCache: SymbolTable | undefined;
-  propertyCacheWithoutFunctionPropertyAugment: SymbolTable | undefined;
-  resolvedProperties: Symbol[] | undefined;
+  membersOf: UnionOrIntersectionMembers | undefined;
 
   constructor(flags: TypeFlags, objectFlags: ObjectFlags, id: number, types: Type[]) {
     super(flags, objectFlags, id, undefined);
     this.types = types;
+    this.membersOf = undefined;
+  }
+}
+
+/**
+ * The resolved members of a union or intersection (`membersHolder`) and the caches of its
+ * properties, created on first use.
+ */
+export class UnionOrIntersectionMembers extends StructuredType {
+  propertyCache: SymbolTable | undefined;
+  propertyCacheWithoutFunctionPropertyAugment: SymbolTable | undefined;
+  resolvedProperties: Symbol[] | undefined;
+
+  constructor(flags: TypeFlags, id: number) {
+    super(flags, ObjectFlags.None, id, undefined);
     this.propertyCache = undefined;
     this.propertyCacheWithoutFunctionPropertyAugment = undefined;
     this.resolvedProperties = undefined;
   }
+}
+
+/** The members holder of a union or intersection, created if it has none yet. */
+export function unionOrIntersectionMembers(t: UnionOrIntersectionType): UnionOrIntersectionMembers {
+  let members = t.membersOf;
+  if (members === undefined) {
+    members = new UnionOrIntersectionMembers(t.flags, t.id);
+    t.membersOf = members;
+  }
+  return members;
 }
 
 /** A union; all of its own fields are rarely set and live in `extra`. */

@@ -265,7 +265,7 @@ export function createAnonymousType(
 
 export function setStructuredTypeMembers(
   c: Checker,
-  t: StructuredType,
+  t: Type,
   members: SymbolTable | undefined,
   callSignatures: Signature[],
   constructSignatures: Signature[],

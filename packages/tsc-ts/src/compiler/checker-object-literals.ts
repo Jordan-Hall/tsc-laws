@@ -45,6 +45,8 @@ import {
   getPropertiesOfType,
   getPropertyOfType,
   getReducedType,
+  keepPropertiesOnly,
+  scannedLiteralPropertiesLimit,
 } from './checker-members.js';
 import { symbolToString, typeToString } from './type-printer.js';
 import { getMergedSymbol, getSymbolOfDeclaration } from './checker-symbols.js';
@@ -133,6 +135,8 @@ class ObjectLiteralBuilder {
     if (this.patternWithComputedProperties)
       result.objectFlags |= ObjectFlags.ObjectLiteralPatternWithComputedProperties;
     if (this.inDestructuringPattern) c.patternForType.set(result, this.node);
+    // A literal of a few properties keeps them as a list; a lookup by name compares their names.
+    keepPropertiesOnly(c, result, this.members, scannedLiteralPropertiesLimit);
     return result;
   }
 
@@ -489,6 +493,7 @@ export function getSpreadType(
   const spread = createAnonymousType(c, symbol, members, [], [], spreadIndexInfos);
   spread.objectFlags |=
     ObjectFlags.ObjectLiteral | ObjectFlags.ContainsObjectOrArrayLiteral | ObjectFlags.ContainsSpread | objectFlags;
+  keepPropertiesOnly(c, spread, members, scannedLiteralPropertiesLimit);
   return spread;
 }
 
@@ -581,5 +586,6 @@ function tryMergeUnionOfObjectTypeAndEmptyObject(c: Checker, t: Type, readonly: 
   }
   const spread = createAnonymousType(c, firstType.symbol, members, [], [], getIndexInfosOfType(c, firstType));
   spread.objectFlags |= ObjectFlags.ObjectLiteral | ObjectFlags.ContainsObjectOrArrayLiteral;
+  keepPropertiesOnly(c, spread, members, scannedLiteralPropertiesLimit);
   return spread;
 }
