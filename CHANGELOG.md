@@ -4,6 +4,20 @@
 
 <!-- release:start -->
 
+## 0.0.6
+
+### Highlights
+
+- **Faster checking:** tsc-ts is now built with scriptc 0.4.1 and a committed profile of its own type check, and type instantiation skips repeated work. Compared with 0.0.5 on our project set, checking is 23 to 39% faster with `--checkers 1` and 13 to 21% faster with 16 checkers, `-b` builds are 25 to 26% faster, and incremental rebuilds are 8 to 83% faster. Output is the same, and agreement with TypeScript 7.0.2 is unchanged.
+- **Less memory:** checker tables keep resolved symbols in compact pages, checkers share their type argument lists, symbols store their value declaration in a bit when it's the first declaration, the loader frees its tasks after loading, and only identifiers that can be references keep a flow node. Peak RSS is 10 to 18% lower with 16 checkers.
+- **Loading:** the program's files are loaded as the parse threads return them, files' text lengths come from the parsed source files when planning checks, and the parse threads leave a CPU for the main thread.
+
+### Behavior changes
+
+- With `--checkers 1`, files are now also parsed on threads, so a check uses several cores. Wall time drops; CPU time can be higher than in 0.0.5 on incremental rebuilds.
+
+<!-- release:end -->
+
 ## 0.0.5
 
 ### Highlights
@@ -22,8 +36,6 @@
 
 - `typeToString` of simple types is about 20% faster in native builds: a node builder creates its tables on first use, and the objects of one call no longer form reference cycles.
 - The thread entry moves out of `main.ts`, so a host embedding tsc-ts can start the same parse and checker threads. tsc-ts/api's programs use a file the parse threads prepared only when the host gives the same text for it.
-
-<!-- release:end -->
 
 ## 0.0.4
 
