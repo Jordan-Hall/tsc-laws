@@ -437,7 +437,7 @@ function executeCompile(sys: System, commandLine: ParsedCommandLine): CommandLin
             config.fileNames.length > 0,
           );
         // While the threads load files, the program's first step (a task per root file, which looks
-        // the file up) runs, and the tasks of the files they return are built ahead.
+        // the file up) runs, and the program's loader takes the files they return as they come.
         const host = new SystemCompilerHost(sys, fs, locale);
         const loader = new FileLoader(host, config);
         let rootFilesAdded = false;
@@ -447,7 +447,7 @@ function executeCompile(sys: System, commandLine: ParsedCommandLine): CommandLin
         const resolvesPackageJsons = config.configName !== '' && config.buildInfoFileName() !== '';
         session.onIdle = (batch) => {
           if (!rootFilesAdded) rootFilesAdded = loader.addRootFiles(rootFilesPerChunk);
-          loader.takeAhead(batch.files);
+          loader.walkAhead(batch.files);
           if (resolvesPackageJsons) {
             const lookups = batch.packageJsons;
             for (let k = 0; k < lookups.directories.length; k++)

@@ -29,6 +29,8 @@ const { assignSymbolIdsAtCreation } = await load('compiler/symbol.js');
 const { ConfigParser } = await load('compiler/tsconfig.js');
 const { CachedFileSystem } = await load('compiler/file-system.js');
 const { SystemFileSystem } = await load('compiler/tsc-cli.js');
+const { CompilerHost, FileLoader } = await load('compiler/file-loader.js');
+const { Program } = await load('compiler/program.js');
 
 const Root = 0;
 const Library = 2;
@@ -155,6 +157,71 @@ test('the program takes what parse threads found loading their files and is the 
   assert.match(expected, /include .*a\.ts:\d+-\d+:2688:missing-types/);
   assert.match(expected, /include .*a\.ts:\d+-\d+:6053:/);
 });
+
+// While parse threads load files, the program's FileLoader takes each batch as it comes
+// (`FileLoader.walkAhead`): work that would parse a file not prepared yet waits for the batch with it.
+// One file per chunk here, in the order the queue hands them out, so that files come before the files
+// they import, and libraries before the root files.
+test('a program loaded batch by batch while files are prepared is the same program', () => {
+  const dir = project();
+  const args = ['-p', dir];
+  clearPrepared();
+  const plain = executeCommandLine(createNodeSystem(bundledLibs, ''), args);
+  assert.equal(plain.kind, 'compile');
+  const expected = describe(plain.program);
+
+  assignSymbolIdsAtCreation();
+  useLazyJSDocTable();
+  const sys = createNodeSystem(bundledLibs, '');
+  const fs = new CachedFileSystem(new SystemFileSystem(sys));
+  const errors = [];
+  const config = new ConfigParser(fs, sys.currentDirectory).parseConfigFile(
+    join(dir, 'tsconfig.json'),
+    undefined,
+    undefined,
+    errors,
+  );
+  assert.deepEqual(errors, []);
+  const host = new CompilerHost(fs, sys.currentDirectory, sys.defaultLibraryPath);
+  const loader = new FileLoader(host, config);
+  const thread = parseThreadOfCommandLine(args, join(dir, 'tsconfig.json'), bundledLibs);
+  const queue = new ParseQueue();
+  queue.push(Library, 'lib.es2022.d.ts', 0);
+  queue.push(Library, 'lib.dom.d.ts', 0);
+  queue.push(AutomaticTypes, '', 0);
+  for (const name of config.fileNames) queue.push(Root, name, 0);
+  let rootFilesAdded = false;
+  for (let chunk = queue.next(100); chunk !== undefined; chunk = queue.next(100)) {
+    assert.equal(chunk.names.length, 1);
+    const batch = thread.load(chunk);
+    for (const prepared of batch.files) parallelParse.files.set(prepared.fileName, prepared);
+    for (let k = 0; k < batch.added.names.length; k++)
+      queue.push(batch.added.kinds[k], batch.added.names[k], batch.added.depths[k]);
+    const lookups = batch.packageJsons;
+    for (let k = 0; k < lookups.directories.length; k++)
+      parallelParse.packageJsons.push(
+        new PackageJsonLookup(lookups.directories[k], lookups.exists[k], lookups.directoryExists[k]),
+      );
+    if (!rootFilesAdded) rootFilesAdded = loader.addRootFiles(1);
+    loader.walkAhead(batch.files);
+  }
+  // The loader took prepared files before the program loads.
+  assert.ok(parallelParse.used > 0);
+
+  const program = new Program(config, host, loader);
+  assert.equal(parallelParse.used, program.getSourceFiles().length);
+  assert.equal(describe(program), expected);
+  assert.ok(program.hasAllPackageJsonLookups());
+});
+
+function clearPrepared() {
+  parallelParse.files.clear();
+  parallelParse.used = 0;
+  parallelParse.missed = 0;
+  parallelParse.unprepared = 0;
+  parallelParse.taken.clear();
+  parallelParse.packageJsons.length = 0;
+}
 
 test('a source file of a referenced project loaded ahead queues the file it is redirected to', () => {
   const dir = tempDir('tsc-ts-parallel-load-references-');

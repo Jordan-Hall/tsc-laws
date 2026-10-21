@@ -540,7 +540,7 @@ class Watcher {
     let rootFilesAdded = false;
     session.onIdle = (batch) => {
       if (!rootFilesAdded) rootFilesAdded = loader.addRootFiles(rootFilesPerChunk);
-      loader.takeAhead(batch.files);
+      loader.walkAhead(batch.files);
     };
     session.start(config.fileNames, () => {
       const program = new Program(config, host, loader);
