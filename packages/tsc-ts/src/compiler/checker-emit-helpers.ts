@@ -57,7 +57,8 @@ class PendingHelperCheck {
 export class EmitHelperFileLinks {
   helpersModule: Symbol | undefined = undefined;
   requestedHelpers: number = ExternalEmitHelpers.None;
-  pending: PendingHelperCheck[] = [];
+  /** Created on the first check; most files have none. */
+  pending: PendingHelperCheck[] | undefined = undefined;
 }
 
 function fileLinks(c: Checker, file: SourceFile): EmitHelperFileLinks {
@@ -86,7 +87,7 @@ export function checkExternalEmitHelpers(c: Checker, location: Node, helpers: Ex
     const fileIndex = c.fileIndex.get(file);
     const checkingIndex = c.fileIndex.get(checking);
     if (fileIndex !== undefined && checkingIndex !== undefined && fileIndex < checkingIndex) {
-      fileLinks(c, file).pending.push(new PendingHelperCheck(location, helpers));
+      (fileLinks(c, file).pending ??= []).push(new PendingHelperCheck(location, helpers));
       return;
     }
   }
@@ -141,9 +142,9 @@ export function checkExternalEmitHelpers(c: Checker, location: Node, helpers: Ex
 /** Runs the helper checks for nodes of `file` that were reached while checking later files. */
 export function checkPendingExternalEmitHelpers(c: Checker, file: SourceFile): void {
   const links = c.emitHelperFileLinks.get(file);
-  if (links === undefined || links.pending.length === 0) return;
+  if (links?.pending === undefined) return;
   const pending = links.pending;
-  links.pending = [];
+  links.pending = undefined;
   for (const check of pending) checkExternalEmitHelpers(c, check.location, check.helpers);
 }
 

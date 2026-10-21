@@ -2751,7 +2751,7 @@ const modifierKindsInOrder: SyntaxKind[] = [
   SyntaxKind.OutKeyword,
 ];
 
-function preservedReferences(references: FileReference[]): FileReference[] {
+function preservedReferences(references: readonly FileReference[]): FileReference[] {
   const result: FileReference[] = [];
   for (const reference of references)
     if (reference.preserve)

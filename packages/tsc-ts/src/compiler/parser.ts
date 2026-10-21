@@ -6,6 +6,7 @@
 // for (const statement of file.statements.nodes) console.log(statement.kind);
 // ```
 import {
+  appendToList,
   ArrayLiteralExpression,
   ArrayTypeNode,
   ArrowFunction,
@@ -38,6 +39,11 @@ import {
   DeleteExpression,
   DoStatement,
   ElementAccessExpression,
+  emptyCommentDirectives,
+  emptyDiagnostics,
+  emptyFileReferences,
+  emptyNodes,
+  emptyPragmas,
   EmptyStatement,
   EnumDeclaration,
   EnumMember,
@@ -839,7 +845,8 @@ export class Parser extends ScannerErrorReporter {
   }
 
   finishSourceFile(result: SourceFile, isDeclarationFile: boolean): void {
-    result.commentDirectives = this.scanner.getCommentDirectives();
+    const commentDirectives = this.scanner.getCommentDirectives();
+    result.commentDirectives = commentDirectives.length === 0 ? emptyCommentDirectives : commentDirectives;
     result.pragmas = getCommentPragmas(this.sourceText);
     this.processPragmasIntoFields(result);
     result.diagnostics = attachFileToDiagnostics(this.diagnostics, result);
@@ -857,9 +864,12 @@ export class Parser extends ScannerErrorReporter {
     // The table stays with the parser: when top-level await reparsing produces a second source
     // file, it finishes with the same table, which still holds the JSDoc of retained statements.
     result.jsDocs = this.jsDocTable;
-    const clones = this.reparsedClones.slice();
-    clones.sort(compareNodePositions);
-    result.reparsedClones = clones;
+    if (this.reparsedClones.length === 0) result.reparsedClones = emptyNodes;
+    else {
+      const clones = this.reparsedClones.slice();
+      clones.sort(compareNodePositions);
+      result.reparsedClones = clones;
+    }
     setExternalModuleIndicator(result);
   }
 
@@ -6802,9 +6812,9 @@ export class Parser extends ScannerErrorReporter {
 
   processPragmasIntoFields(file: SourceFile): void {
     file.checkJsDirective = undefined;
-    file.referencedFiles = [];
-    file.typeReferenceDirectives = [];
-    file.libReferenceDirectives = [];
+    file.referencedFiles = emptyFileReferences;
+    file.typeReferenceDirectives = emptyFileReferences;
+    file.libReferenceDirectives = emptyFileReferences;
     for (const pragma of file.pragmas) {
       switch (pragma.name) {
         case 'reference': {
@@ -6823,15 +6833,20 @@ export class Parser extends ScannerErrorReporter {
               resolutionMode !== undefined
                 ? this.parseResolutionMode(resolutionMode.value, resolutionMode.pos, resolutionMode.end)
                 : ModuleKind.None;
-            file.typeReferenceDirectives.push(
+            file.typeReferenceDirectives = appendToList(
+              file.typeReferenceDirectives,
               new FileReference(types.pos, types.end, types.value, parsed, isPreserved),
             );
           } else if (lib !== undefined) {
-            file.libReferenceDirectives.push(
+            file.libReferenceDirectives = appendToList(
+              file.libReferenceDirectives,
               new FileReference(lib.pos, lib.end, lib.value, ModuleKind.None, isPreserved),
             );
           } else if (path !== undefined) {
-            file.referencedFiles.push(new FileReference(path.pos, path.end, path.value, ModuleKind.None, isPreserved));
+            file.referencedFiles = appendToList(
+              file.referencedFiles,
+              new FileReference(path.pos, path.end, path.value, ModuleKind.None, isPreserved),
+            );
           } else {
             this.parseErrorAt(pragma.range.pos, pragma.range.end, Diagnostics.Invalid_reference_directive_syntax);
           }
@@ -7042,8 +7057,8 @@ function typeHasBlockingError(node: TypeNode | undefined): boolean {
   return node !== undefined && typeHasArrowFunctionBlockingParseError(node);
 }
 
-function attachFileToDiagnostics(diagnostics: Diagnostic[], file: SourceFile): Diagnostic[] {
-  if (diagnostics.length === 0) return diagnostics;
+function attachFileToDiagnostics(diagnostics: Diagnostic[], file: SourceFile): readonly Diagnostic[] {
+  if (diagnostics.length === 0) return emptyDiagnostics;
   const diagnosticFile = file.diagnosticFile();
   for (const d of diagnostics) {
     d.file = diagnosticFile;
@@ -7354,12 +7369,12 @@ function nextTokenIsNotColon(p: Parser): boolean {
 
 // Pragmas
 
-function getCommentPragmas(sourceText: string): Pragma[] {
-  const pragmas: Pragma[] = [];
+function getCommentPragmas(sourceText: string): readonly Pragma[] {
   const ranges = getLeadingCommentRanges(sourceText, 0);
-  if (ranges !== undefined)
-    for (const range of ranges) extractPragmas(range, sourceText.substring(range.pos, range.end), pragmas);
-  return pragmas;
+  if (ranges === undefined) return emptyPragmas;
+  const pragmas: Pragma[] = [];
+  for (const range of ranges) extractPragmas(range, sourceText.substring(range.pos, range.end), pragmas);
+  return pragmas.length === 0 ? emptyPragmas : pragmas;
 }
 
 function extractPragmas(range: CommentRange, text: string, pragmas: Pragma[]): void {
@@ -7528,9 +7543,9 @@ function collectModuleReferences(file: SourceFile, node: Statement, inAmbientMod
   ) {
     const nameText = getText((node as ModuleDeclaration).name);
     if (file.externalModuleIndicator !== undefined || (inAmbientModule && !isExternalModuleNameRelative(nameText))) {
-      file.moduleAugmentations.push((node as ModuleDeclaration).name);
+      file.moduleAugmentations = appendToList(file.moduleAugmentations, (node as ModuleDeclaration).name);
     } else if (!inAmbientModule) {
-      file.ambientModuleNames.push(nameText);
+      file.ambientModuleNames = appendToList(file.ambientModuleNames, nameText);
       const body = (node as ModuleDeclaration).body;
       if (body !== undefined) {
         const statements = getStatements(body);

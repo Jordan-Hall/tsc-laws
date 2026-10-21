@@ -334,7 +334,7 @@ test('checkers starting from merged globals report the merge diagnostics and nev
     mkdirSync(dirname(join(dir, name)), { recursive: true });
     writeFileSync(join(dir, name), text);
   }
-  const plain = assertImmutable(['-p', dir, ...emitOptions(join(dir, 'out'))], 1000);
+  const plain = assertImmutable(['-p', dir, ...emitOptions(join(dir, 'out'))], 800);
   const codes = plain.diagnostics.map((d) => d.match(/ TS(\d+):/)[1]);
   // Redeclared `dup`, `undefined` and `globalThis`, and the augmentation of a missing module.
   for (const code of ['2451', '2397', '2664']) assert.ok(codes.includes(code), `no TS${code}`);
