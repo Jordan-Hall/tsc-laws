@@ -259,7 +259,8 @@ export function rechecksOnThreads(files: readonly SourceFile[], threads: number,
   if (files.length < 2 * threads) return false;
   if (checkersGiven) return true;
   let text = 0;
-  for (const file of files) text += file.text.length;
+  // A file's `end` is its text length (reading `text.length` scans a non-ASCII text in scriptc builds).
+  for (const file of files) text += file.end;
   return text >= recheckOnThreadsText;
 }
 

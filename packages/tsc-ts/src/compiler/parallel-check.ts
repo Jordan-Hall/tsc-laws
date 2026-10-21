@@ -440,7 +440,7 @@ function checksLittle(program: Program): boolean {
   let text = 0;
   for (const file of program.getSourceFiles()) {
     if (file.isDeclarationFile && options.skipLibCheck === true) continue;
-    text += file.text.length;
+    text += file.end;
     if (text >= littleText) return false;
   }
   return true;
@@ -572,15 +572,14 @@ let lengthsProgram: Program | undefined = undefined;
 let lengthsOfProgram: number[] = [];
 
 /**
- * The text length of each of `program`'s files, by index, computed once per program. In scriptc
- * builds a thread caches the UTF-16 length of only the few non-ASCII strings it read last, so each
- * read of a non-ASCII file's `text.length` scans its text again, and planning reads a file's length
- * several times (its cost, the load of each group candidate importing it, its position).
+ * The text length of each of `program`'s files, by index, computed once per program: a file's `end`,
+ * the length the parser found. In scriptc builds a thread caches the UTF-16 length of only the few
+ * non-ASCII strings it read last, so reading a non-ASCII file's `text.length` scans its text.
  */
 export function textLengths(program: Program): number[] {
   if (lengthsProgram !== program) {
     const lengths: number[] = [];
-    for (const file of program.getSourceFiles()) lengths.push(file.text.length);
+    for (const file of program.getSourceFiles()) lengths.push(file.end);
     lengthsProgram = program;
     lengthsOfProgram = lengths;
   }
