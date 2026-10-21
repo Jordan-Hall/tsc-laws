@@ -855,10 +855,14 @@ export class Reparser {
     if (parent.kind !== SyntaxKind.ClassDeclaration && parent.kind !== SyntaxKind.ClassExpression) return false;
     const className = tag.className;
     const heritageClauses = getHeritageClauses(parent);
+    // Parsed lists may share their nodes array (empty ones do), so a longer list is a new list.
     if (heritageClauses !== undefined) {
       for (const clause of heritageClauses.nodes)
         if (clause instanceof HeritageClause && (clause as HeritageClause).token === SyntaxKind.ImplementsKeyword) {
-          (clause as HeritageClause).types.nodes.push(this.addDeepCloneReparse(className));
+          const types = (clause as HeritageClause).types;
+          const nodes = types.nodes.slice();
+          nodes.push(this.addDeepCloneReparse(className));
+          (clause as HeritageClause).types = this.p.newNodeList(types.pos, types.end, nodes);
           this.finishMutatedNode(clause);
           return true;
         }
@@ -868,7 +872,11 @@ export class Reparser {
     this.finishReparsedNode(heritageClause, className);
     if (heritageClauses === undefined)
       setHeritageClauses(parent, this.p.newNodeList(className.pos, className.end, [heritageClause]));
-    else heritageClauses.nodes.push(heritageClause);
+    else {
+      const nodes = heritageClauses.nodes.slice();
+      nodes.push(heritageClause);
+      setHeritageClauses(parent, this.p.newNodeList(heritageClauses.pos, heritageClauses.end, nodes));
+    }
     this.finishMutatedNode(parent);
     return true;
   }

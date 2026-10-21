@@ -398,6 +398,11 @@ function appendRange(to: Node[], from: readonly Node[], start: number, end: numb
   for (let i = start; i < end; i += 1) to.push(from[i]!);
 }
 
+// The nodes of every empty parsed list. A list's nodes are pushed into a new `[]`, which natively
+// reserves room for its first elements (112 bytes); a parsed list never changes, so an empty one
+// keeps this shared array instead and its builder is freed.
+const emptyListNodes: Node[] = [];
+
 /** Parses `text` as the file `fileName`. The script kind defaults to the one implied by the extension. */
 export function parseSourceFile(fileName: string, text: string, options?: ParseOptions): SourceFile {
   const path = options === undefined ? fileName : options.path;
@@ -765,11 +770,11 @@ export class Parser extends ScannerErrorReporter {
   // Nodes
 
   newNodeList(pos: number, end: number, nodes: Node[]): NodeList {
-    return new NodeList(pos, end, nodes);
+    return new NodeList(pos, end, nodes.length === 0 ? emptyListNodes : nodes);
   }
 
   newModifierList(pos: number, end: number, nodes: Node[]): ModifierList {
-    return new ModifierList(pos, end, nodes, modifiersToFlags(nodes));
+    return new ModifierList(pos, end, nodes.length === 0 ? emptyListNodes : nodes, modifiersToFlags(nodes));
   }
 
   finishNode(node: Node, pos: number): Node {
