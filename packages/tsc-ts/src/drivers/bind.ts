@@ -8,9 +8,11 @@ import {
   ClassStaticBlockDeclaration,
   ConstructorDeclaration,
   ExternalModuleIndicatorOptions,
+  Identifier,
   type Node,
   NodeVisitor,
   ParseOptions,
+  ReferenceIdentifier,
   ScriptKind,
   SourceFile,
   getEndFlowNode,
@@ -249,8 +251,12 @@ class Printer extends NodeVisitor {
 
   flowGraph(): void {
     const order = this.order;
+    // Identifiers without a flow node, whose flow node tsgo's binder sets but nothing reads; the
+    // test leaves theirs out of tsgo's output.
+    let plain = '';
     for (let i = 0; i < order.length; i++) {
       const n = order[i]!;
+      if (n instanceof Identifier && !(n instanceof ReferenceIdentifier)) plain += ' ' + i;
       const parts: string[] = [];
       const flow = getFlowNode(n);
       if (flow !== undefined) parts.push('flow=' + this.flow(flow));
@@ -280,6 +286,7 @@ class Printer extends NodeVisitor {
         line += ` antes=[${this.flowList(f.antecedents)} ]`;
       out.push(line);
     }
+    if (plain !== '') out.push('plain-identifiers' + plain);
   }
 
   flowList(list: FlowNode[] | undefined): string {

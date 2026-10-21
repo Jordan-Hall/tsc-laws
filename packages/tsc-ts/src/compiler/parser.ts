@@ -133,6 +133,7 @@ import {
   PropertyDeclaration,
   PropertySignatureDeclaration,
   QualifiedName,
+  ReferenceIdentifier,
   RegularExpressionLiteral,
   RestTypeNode,
   ReturnStatement,
@@ -309,6 +310,16 @@ export const enum ParseFlags {
   Type = 1 << 2,
   IgnoreMissingOpenBrace = 1 << 4,
   JSDoc = 1 << 5,
+}
+
+/** How an identifier is used, which decides whether it holds a flow node. */
+export const enum IdentifierUse {
+  /** An expression or another reference: a `ReferenceIdentifier`. */
+  Reference,
+  /** A declaration, property, property access or type name, whose flow node nothing reads: an `Identifier`. */
+  Name,
+  /** An object literal element's name: a name before `:`, `(` or `<`, a reference in a shorthand property. */
+  ElementName,
 }
 
 /** What the scanner saw of the JSDoc comments preceding a token. */
@@ -1788,7 +1799,7 @@ export class Parser extends ScannerErrorReporter {
   }
 
   parseIdentifierUnlessAtSemicolon(): Identifier | undefined {
-    return this.canParseSemicolon() ? undefined : this.parseIdentifier();
+    return this.canParseSemicolon() ? undefined : this.parseIdentifier(IdentifierUse.Name);
   }
 
   parseReturnStatement(): Statement {
@@ -2185,7 +2196,7 @@ export class Parser extends ScannerErrorReporter {
     // named `implements`.
     if (this.isBindingIdentifier() && !this.isImplementsClause()) {
       const saveHasAwaitIdentifier = this.statementHasAwaitIdentifier;
-      const id = this.createIdentifier(this.isBindingIdentifier());
+      const id = this.createIdentifier(this.isBindingIdentifier(), IdentifierUse.Name);
       this.statementHasAwaitIdentifier = saveHasAwaitIdentifier;
       return id;
     }
@@ -2502,7 +2513,7 @@ export class Parser extends ScannerErrorReporter {
 
   parseInterfaceDeclaration(pos: number, jsdoc: JSDocScannerInfo, modifiers: ModifierList | undefined): Statement {
     this.parseExpected(SyntaxKind.InterfaceKeyword);
-    const name = this.parseIdentifier();
+    const name = this.parseIdentifier(IdentifierUse.Name);
     const typeParameters = this.parseTypeParameters();
     const heritageClauses = this.parseHeritageClauses();
     const members = this.parseObjectTypeMembers();
@@ -2518,7 +2529,7 @@ export class Parser extends ScannerErrorReporter {
   parseTypeAliasDeclaration(pos: number, jsdoc: JSDocScannerInfo, modifiers: ModifierList | undefined): Statement {
     this.parseExpected(SyntaxKind.TypeKeyword);
     if (this.hasPrecedingLineBreak()) this.parseErrorAtCurrentToken(Diagnostics.Line_break_not_permitted_here);
-    const name = this.parseIdentifier();
+    const name = this.parseIdentifier(IdentifierUse.Name);
     const typeParameters = this.parseTypeParameters();
     this.parseExpected(SyntaxKind.EqualsToken);
     const type =
@@ -2551,7 +2562,7 @@ export class Parser extends ScannerErrorReporter {
   parseEnumDeclaration(pos: number, jsdoc: JSDocScannerInfo, modifiers: ModifierList | undefined): Statement {
     const saveHasAwaitIdentifier = this.statementHasAwaitIdentifier;
     this.parseExpected(SyntaxKind.EnumKeyword);
-    const name = this.parseIdentifier();
+    const name = this.parseIdentifier(IdentifierUse.Name);
     let members: NodeList;
     if (this.parseExpected(SyntaxKind.OpenBraceToken)) {
       const saveContextFlags = this.contextFlags;
@@ -2593,7 +2604,7 @@ export class Parser extends ScannerErrorReporter {
     const saveHasAwaitIdentifier = this.statementHasAwaitIdentifier;
     if (this.token() === SyntaxKind.GlobalKeyword) {
       // `global` names the global scope augmentation.
-      name = this.parseIdentifier();
+      name = this.parseIdentifier(IdentifierUse.Name);
       keyword = SyntaxKind.GlobalKeyword;
     } else {
       name = this.parseLiteralExpression(true);
@@ -2626,7 +2637,7 @@ export class Parser extends ScannerErrorReporter {
     keyword: SyntaxKind,
   ): Node {
     const saveHasAwaitIdentifier = this.statementHasAwaitIdentifier;
-    const name = nested ? this.parseIdentifierName() : this.parseIdentifier();
+    const name = nested ? this.parseIdentifierName(IdentifierUse.Name) : this.parseIdentifier(IdentifierUse.Name);
     let body: Node;
     if (this.parseOptional(SyntaxKind.DotToken)) {
       const implicitExport = new Token(SyntaxKind.ExportKeyword);
@@ -2659,7 +2670,7 @@ export class Parser extends ScannerErrorReporter {
     const afterImportPos = this.nodePos();
     // The identifier isn't parsed in an await context; the checker reports `await`.
     const saveHasAwaitIdentifier = this.statementHasAwaitIdentifier;
-    let identifier = this.isIdentifier() ? this.parseIdentifier() : undefined;
+    let identifier = this.isIdentifier() ? this.parseIdentifier(IdentifierUse.Name) : undefined;
     let phaseModifier = SyntaxKind.Unknown;
     if (
       identifier !== undefined &&
@@ -2669,7 +2680,7 @@ export class Parser extends ScannerErrorReporter {
       (this.isIdentifier() || this.tokenAfterImportDefinitelyProducesImportDeclaration())
     ) {
       phaseModifier = SyntaxKind.TypeKeyword;
-      identifier = this.isIdentifier() ? this.parseIdentifier() : undefined;
+      identifier = this.isIdentifier() ? this.parseIdentifier(IdentifierUse.Name) : undefined;
     } else if (identifier !== undefined && identifier.text === 'defer') {
       const shouldParseAsDeferModifier =
         this.token() === SyntaxKind.FromKeyword
@@ -2677,7 +2688,7 @@ export class Parser extends ScannerErrorReporter {
           : this.token() !== SyntaxKind.CommaToken && this.token() !== SyntaxKind.EqualsToken;
       if (shouldParseAsDeferModifier) {
         phaseModifier = SyntaxKind.DeferKeyword;
-        identifier = this.isIdentifier() ? this.parseIdentifier() : undefined;
+        identifier = this.isIdentifier() ? this.parseIdentifier(IdentifierUse.Name) : undefined;
       }
     }
     if (
@@ -2808,7 +2819,7 @@ export class Parser extends ScannerErrorReporter {
     const pos = this.nodePos();
     this.parseExpected(SyntaxKind.AsteriskToken);
     this.parseExpected(SyntaxKind.AsKeyword);
-    const name = this.parseIdentifier();
+    const name = this.parseIdentifier(IdentifierUse.Name);
     return this.finishNode(new NamespaceImport(name), pos);
   }
 
@@ -2849,9 +2860,9 @@ export class Parser extends ScannerErrorReporter {
       //   import { type as as } from "mod";    - isTypeOnly: false, name: as, propertyName: type
       //   import { type as as as } from "mod"; - isTypeOnly: true,  name: as, propertyName: as
       if (this.token() === SyntaxKind.AsKeyword) {
-        const firstAs = this.parseIdentifierName();
+        const firstAs = this.parseIdentifierName(IdentifierUse.Name);
         if (this.token() === SyntaxKind.AsKeyword) {
-          const secondAs = this.parseIdentifierName();
+          const secondAs = this.parseIdentifierName(IdentifierUse.Name);
           if (this.canParseModuleExportName()) {
             // { type as as something }
             isTypeOnly = true;
@@ -2920,7 +2931,7 @@ export class Parser extends ScannerErrorReporter {
 
   parseModuleExportName(): Node {
     if (this.token() === SyntaxKind.StringLiteral) return this.parseLiteralExpression(false);
-    return this.parseIdentifierName();
+    return this.parseIdentifierName(IdentifierUse.Name);
   }
 
   tryParseImportAttributes(): ImportAttributes | undefined {
@@ -2965,7 +2976,7 @@ export class Parser extends ScannerErrorReporter {
     this.parseExpected(SyntaxKind.AsKeyword);
     this.parseExpected(SyntaxKind.NamespaceKeyword);
     const saveHasAwaitIdentifier = this.statementHasAwaitIdentifier;
-    const name = this.parseIdentifier();
+    const name = this.parseIdentifier(IdentifierUse.Name);
     this.statementHasAwaitIdentifier = saveHasAwaitIdentifier;
     this.parseSemicolon();
     // Modifiers are kept so the grammar checker can report them.
@@ -3135,7 +3146,7 @@ export class Parser extends ScannerErrorReporter {
 
   parseTypeParameterOfInferType(): TypeParameterDeclaration {
     const pos = this.nodePos();
-    const name = this.parseIdentifier();
+    const name = this.parseIdentifier(IdentifierUse.Name);
     const constraint = this.tryParseConstraintOfInferType();
     const result = new TypeParameterDeclaration(undefined, name, constraint, undefined, undefined);
     this.finishNode(result, pos);
@@ -3341,11 +3352,16 @@ export class Parser extends ScannerErrorReporter {
     return this.parseEntityName(true, Diagnostics.Type_expected);
   }
 
-  parseEntityName(allowReservedWords: boolean, diagnosticMessage: DiagnosticMessage | undefined): EntityName {
+  /** An entity name; `use` is for its first identifier, the qualified names' right sides are names. */
+  parseEntityName(
+    allowReservedWords: boolean,
+    diagnosticMessage: DiagnosticMessage | undefined,
+    use: IdentifierUse = IdentifierUse.Name,
+  ): EntityName {
     const pos = this.nodePos();
     let entity: Node = allowReservedWords
-      ? this.parseIdentifierNameWithDiagnostic(diagnosticMessage)
-      : this.parseIdentifierWithDiagnostic(diagnosticMessage, undefined);
+      ? this.parseIdentifierNameWithDiagnostic(diagnosticMessage, use)
+      : this.parseIdentifierWithDiagnostic(diagnosticMessage, undefined, use);
     while (this.parseOptional(SyntaxKind.DotToken)) {
       // A JSDoc-style generic; the checker reports the gap between the name and the type arguments.
       if (this.token() === SyntaxKind.LessThanToken) break;
@@ -3381,19 +3397,19 @@ export class Parser extends ScannerErrorReporter {
     // after it). Report a missing identifier right after the dot rather than on the next token.
     if (this.isKeywordStartingNextLine()) {
       this.parseErrorAt(this.nodePos(), this.nodePos(), Diagnostics.Identifier_expected);
-      return this.createMissingIdentifier();
+      return this.createMissingIdentifier(IdentifierUse.Name);
     }
     if (this.token() === SyntaxKind.PrivateIdentifier) {
       this.parsePrivateIdentifier();
       this.parseErrorAt(this.nodePos(), this.nodePos(), Diagnostics.Identifier_expected);
-      return this.createMissingIdentifier();
+      return this.createMissingIdentifier(IdentifierUse.Name);
     }
     if (allowIdentifierNames) {
-      if (allowUnicodeEscapeSequenceInIdentifierName) return this.parseIdentifierName();
-      return this.parseIdentifierNameErrorOnUnicodeEscapeSequence();
+      if (allowUnicodeEscapeSequenceInIdentifierName) return this.parseIdentifierName(IdentifierUse.Name);
+      return this.parseIdentifierNameErrorOnUnicodeEscapeSequence(IdentifierUse.Name);
     }
     const saveHasAwaitIdentifier = this.statementHasAwaitIdentifier;
-    const id = this.parseIdentifier();
+    const id = this.parseIdentifier(IdentifierUse.Name);
     this.statementHasAwaitIdentifier = saveHasAwaitIdentifier;
     return id;
   }
@@ -3407,14 +3423,26 @@ export class Parser extends ScannerErrorReporter {
     );
   }
 
-  newIdentifier(text: string): Identifier {
+  /**
+   * A new identifier of the class `use` calls for. Callers create it after the identifier's token, so
+   * for an element name the current token tells a shorthand property from an assignment or a method.
+   */
+  newIdentifier(text: string, use: IdentifierUse = IdentifierUse.Reference): Identifier {
     this.identifierCount++;
     if (text === 'await') this.statementHasAwaitIdentifier = true;
-    return new Identifier(text);
+    if (use === IdentifierUse.Name || (use === IdentifierUse.ElementName && this.isElementNameEnd()))
+      return new Identifier(text);
+    return new ReferenceIdentifier(text);
   }
 
-  createMissingIdentifier(): Identifier {
-    const result = this.newIdentifier('');
+  /** Whether the current token ends an object literal element name that is not a shorthand property. */
+  isElementNameEnd(): boolean {
+    const token = this.token();
+    return token === SyntaxKind.ColonToken || token === SyntaxKind.OpenParenToken || token === SyntaxKind.LessThanToken;
+  }
+
+  createMissingIdentifier(use: IdentifierUse = IdentifierUse.Reference): Identifier {
+    const result = this.newIdentifier('', use);
     this.finishNode(result, this.nodePos());
     return result;
   }
@@ -3515,7 +3543,7 @@ export class Parser extends ScannerErrorReporter {
   parseImportAttribute(): Node {
     const pos = this.nodePos();
     let name: Node | undefined;
-    if (tokenIsIdentifierOrKeyword(this.token())) name = this.parseIdentifierName();
+    if (tokenIsIdentifierOrKeyword(this.token())) name = this.parseIdentifierName(IdentifierUse.Name);
     else if (this.token() === SyntaxKind.StringLiteral) name = this.parseLiteralExpression(false);
     if (name !== undefined) this.parseExpected(SyntaxKind.ColonToken);
     else this.parseErrorAtCurrentToken(Diagnostics.Identifier_or_string_literal_expected);
@@ -3544,7 +3572,7 @@ export class Parser extends ScannerErrorReporter {
   parseTypeQuery(): TypeNode {
     const pos = this.nodePos();
     this.parseExpected(SyntaxKind.TypeOfKeyword);
-    const entityName = this.parseEntityName(true, undefined);
+    const entityName = this.parseEntityName(true, undefined, IdentifierUse.Reference);
     // ASI: don't parse the next line's type arguments as part of an instantiation expression.
     const typeArguments = this.hasPrecedingLineBreak() ? undefined : this.parseTypeArguments();
     return this.finishNode(new TypeQueryNode(entityName, typeArguments), pos);
@@ -3587,7 +3615,7 @@ export class Parser extends ScannerErrorReporter {
 
   parseMappedTypeParameter(): TypeParameterDeclaration {
     const pos = this.nodePos();
-    const name = this.parseIdentifierName();
+    const name = this.parseIdentifierName(IdentifierUse.Name);
     this.parseExpected(SyntaxKind.InKeyword);
     const type = this.parseType();
     const result = new TypeParameterDeclaration(undefined, name, type, undefined, undefined);
@@ -3640,7 +3668,7 @@ export class Parser extends ScannerErrorReporter {
   parseTypeParameter(): Node {
     const pos = this.nodePos();
     const modifiers = this.parseModifiersEx(false, true, false);
-    const name = this.parseIdentifier();
+    const name = this.parseIdentifier(IdentifierUse.Name);
     let constraint: TypeNode | undefined;
     let expression: Expression | undefined;
     if (this.parseOptional(SyntaxKind.ExtendsKeyword)) {
@@ -3699,7 +3727,7 @@ export class Parser extends ScannerErrorReporter {
       const result = new ParameterDeclaration(
         modifiers,
         undefined,
-        this.createIdentifier(true),
+        this.createIdentifier(true, IdentifierUse.Name),
         undefined,
         this.parseTypeAnnotation(),
         undefined,
@@ -3779,7 +3807,7 @@ export class Parser extends ScannerErrorReporter {
     if (this.isIdentifier()) {
       const state = this.beginSpeculation();
       const pos = this.nodePos();
-      const id = this.parseIdentifier();
+      const id = this.parseIdentifier(IdentifierUse.Name);
       if (this.token() === SyntaxKind.IsKeyword && !this.hasPrecedingLineBreak()) {
         this.endSpeculation(state);
         this.nextToken();
@@ -3818,20 +3846,20 @@ export class Parser extends ScannerErrorReporter {
     return result;
   }
 
-  parsePropertyName(): Node {
+  parsePropertyName(use: IdentifierUse = IdentifierUse.Name): Node {
     const saveHasAwaitIdentifier = this.statementHasAwaitIdentifier;
-    const prop = this.parsePropertyNameWorker(true);
+    const prop = this.parsePropertyNameWorker(true, use);
     this.statementHasAwaitIdentifier = saveHasAwaitIdentifier;
     return prop;
   }
 
-  parsePropertyNameWorker(allowComputedPropertyNames: boolean): Node {
+  parsePropertyNameWorker(allowComputedPropertyNames: boolean, use: IdentifierUse = IdentifierUse.Name): Node {
     const token = this.token();
     if (token === SyntaxKind.StringLiteral || token === SyntaxKind.NumericLiteral || token === SyntaxKind.BigIntLiteral)
       return this.parseLiteralExpression(true);
     if (allowComputedPropertyNames && token === SyntaxKind.OpenBracketToken) return this.parseComputedPropertyName();
     if (token === SyntaxKind.PrivateIdentifier) return this.parsePrivateIdentifier();
-    return this.parseIdentifierName();
+    return this.parseIdentifierName(use);
   }
 
   parseComputedPropertyName(): Node {
@@ -3943,7 +3971,7 @@ export class Parser extends ScannerErrorReporter {
       const pos = this.nodePos();
       const jsdoc = this.jsdocScannerInfo();
       const dotDotDotToken = this.parseOptionalToken(SyntaxKind.DotDotDotToken);
-      const name = this.parseIdentifierName();
+      const name = this.parseIdentifierName(IdentifierUse.Name);
       const questionToken = this.parseOptionalToken(SyntaxKind.QuestionToken);
       this.parseExpected(SyntaxKind.ColonToken);
       const type = this.parseTupleElementType();
@@ -3979,7 +4007,7 @@ export class Parser extends ScannerErrorReporter {
     const pos = this.nodePos();
     const assertsModifier = this.parseExpectedToken(SyntaxKind.AssertsKeyword);
     const parameterName: Node =
-      this.token() === SyntaxKind.ThisKeyword ? this.parseThisTypeNode() : this.parseIdentifier();
+      this.token() === SyntaxKind.ThisKeyword ? this.parseThisTypeNode() : this.parseIdentifier(IdentifierUse.Name);
     const type = this.parseOptional(SyntaxKind.IsKeyword) ? this.parseType() : undefined;
     return this.finishNode(new TypePredicateNode(assertsModifier, parameterName, type), pos);
   }
@@ -5091,11 +5119,11 @@ export class Parser extends ScannerErrorReporter {
   parseJsxAttributeName(): Node {
     const pos = this.nodePos();
     this.scanJsxIdentifier();
-    const attrName = this.parseIdentifierNameErrorOnUnicodeEscapeSequence();
+    const attrName = this.parseIdentifierNameErrorOnUnicodeEscapeSequence(IdentifierUse.Name);
     if (this.parseOptional(SyntaxKind.ColonToken)) {
       this.scanJsxIdentifier();
       return this.finishNode(
-        new JsxNamespacedName(attrName, this.parseIdentifierNameErrorOnUnicodeEscapeSequence()),
+        new JsxNamespacedName(attrName, this.parseIdentifierNameErrorOnUnicodeEscapeSequence(IdentifierUse.Name)),
         pos,
       );
     }
@@ -5226,7 +5254,7 @@ export class Parser extends ScannerErrorReporter {
         // An `import.*` meta property, such as `import.meta`.
         this.nextToken();
         this.nextToken();
-        const name = this.parseIdentifierName();
+        const name = this.parseIdentifierName(IdentifierUse.Name);
         expression = this.finishNode(new MetaProperty(SyntaxKind.ImportKeyword, name), pos);
         if (name.text === 'defer') {
           if (this.token() === SyntaxKind.OpenParenToken || this.token() === SyntaxKind.LessThanToken)
@@ -5704,7 +5732,7 @@ export class Parser extends ScannerErrorReporter {
       return this.parseAccessorDeclaration(pos, jsdoc, modifiers, SyntaxKind.SetAccessor, ParseFlags.None);
     const asteriskToken = this.parseOptionalToken(SyntaxKind.AsteriskToken);
     const tokenIsIdentifier = this.isIdentifier();
-    const name = this.parsePropertyName();
+    const name = this.parsePropertyName(IdentifierUse.ElementName);
     // The grammar checker reports optional property assignments, definite assignment assertions,
     // decorators and modifiers.
     let postfixToken = this.parseOptionalToken(SyntaxKind.QuestionToken);
@@ -5787,7 +5815,7 @@ export class Parser extends ScannerErrorReporter {
     const pos = this.nodePos();
     this.parseExpected(SyntaxKind.NewKeyword);
     if (this.parseOptional(SyntaxKind.DotToken)) {
-      const name = this.parseIdentifierName();
+      const name = this.parseIdentifierName(IdentifierUse.Name);
       return this.finishNode(new MetaProperty(SyntaxKind.NewKeyword, name), pos);
     }
     const expressionPos = this.nodePos();
@@ -5846,10 +5874,10 @@ export class Parser extends ScannerErrorReporter {
 
   // Identifiers
 
-  parseIdentifierNameErrorOnUnicodeEscapeSequence(): Identifier {
+  parseIdentifierNameErrorOnUnicodeEscapeSequence(use: IdentifierUse = IdentifierUse.Reference): Identifier {
     if (this.scanner.hasUnicodeEscape() || this.scanner.hasExtendedUnicodeEscape())
       this.parseErrorAtCurrentToken(Diagnostics.Unicode_escape_sequence_cannot_appear_here);
-    return this.createIdentifier(tokenIsIdentifierOrKeyword(this.token()));
+    return this.createIdentifier(tokenIsIdentifierOrKeyword(this.token()), use);
   }
 
   parseBindingIdentifier(): Identifier {
@@ -5862,42 +5890,54 @@ export class Parser extends ScannerErrorReporter {
       this.isBindingIdentifier(),
       undefined,
       privateIdentifierDiagnosticMessage,
+      IdentifierUse.Name,
     );
     this.statementHasAwaitIdentifier = saveHasAwaitIdentifier;
     return id;
   }
 
-  parseIdentifierName(): Identifier {
-    return this.parseIdentifierNameWithDiagnostic(undefined);
+  parseIdentifierName(use: IdentifierUse = IdentifierUse.Reference): Identifier {
+    return this.parseIdentifierNameWithDiagnostic(undefined, use);
   }
 
-  parseIdentifierNameWithDiagnostic(diagnosticMessage: DiagnosticMessage | undefined): Identifier {
-    return this.createIdentifierWithDiagnostic(tokenIsIdentifierOrKeyword(this.token()), diagnosticMessage, undefined);
+  parseIdentifierNameWithDiagnostic(
+    diagnosticMessage: DiagnosticMessage | undefined,
+    use: IdentifierUse = IdentifierUse.Reference,
+  ): Identifier {
+    return this.createIdentifierWithDiagnostic(
+      tokenIsIdentifierOrKeyword(this.token()),
+      diagnosticMessage,
+      undefined,
+      use,
+    );
   }
 
-  parseIdentifier(): Identifier {
-    return this.parseIdentifierWithDiagnostic(undefined, undefined);
+  parseIdentifier(use: IdentifierUse = IdentifierUse.Reference): Identifier {
+    return this.parseIdentifierWithDiagnostic(undefined, undefined, use);
   }
 
   parseIdentifierWithDiagnostic(
     diagnosticMessage: DiagnosticMessage | undefined,
     privateIdentifierDiagnosticMessage: DiagnosticMessage | undefined,
+    use: IdentifierUse = IdentifierUse.Reference,
   ): Identifier {
     return this.createIdentifierWithDiagnostic(
       this.isIdentifier(),
       diagnosticMessage,
       privateIdentifierDiagnosticMessage,
+      use,
     );
   }
 
-  createIdentifier(isIdentifier: boolean): Identifier {
-    return this.createIdentifierWithDiagnostic(isIdentifier, undefined, undefined);
+  createIdentifier(isIdentifier: boolean, use: IdentifierUse = IdentifierUse.Reference): Identifier {
+    return this.createIdentifierWithDiagnostic(isIdentifier, undefined, undefined, use);
   }
 
   createIdentifierWithDiagnostic(
     isIdentifier: boolean,
     diagnosticMessage: DiagnosticMessage | undefined,
     privateIdentifierDiagnosticMessage: DiagnosticMessage | undefined,
+    use: IdentifierUse = IdentifierUse.Reference,
   ): Identifier {
     if (isIdentifier) {
       const pos = this.scanner.hasPrecedingJSDocLeadingAsterisks() ? this.scanner.getTokenStart() : this.nodePos();
@@ -5905,7 +5945,7 @@ export class Parser extends ScannerErrorReporter {
       const record = this.scanner.recordIdentifierValue(text);
       this.nextTokenWithoutCheck();
       if (record) this.identifierTexts.push(text);
-      const result = this.newIdentifier(text);
+      const result = this.newIdentifier(text, use);
       this.finishNode(result, pos);
       return result;
     }
@@ -5915,7 +5955,7 @@ export class Parser extends ScannerErrorReporter {
           ? privateIdentifierDiagnosticMessage
           : Diagnostics.Private_identifiers_are_not_allowed_outside_class_bodies,
       );
-      return this.createIdentifier(true);
+      return this.createIdentifier(true, use);
     }
     // Report at the current position only at the end of the file: elsewhere the error would land
     // incorrectly on embedded script tags.
@@ -5943,7 +5983,7 @@ export class Parser extends ScannerErrorReporter {
     } else {
       this.parseErrorAtCurrentToken(Diagnostics.Identifier_expected);
     }
-    return this.createMissingIdentifier();
+    return this.createMissingIdentifier(use);
   }
 
   internIdentifier(text: string): string {

@@ -450,13 +450,10 @@ export class Token extends Node {
 
 export class Identifier extends Node {
   text: string;
-  // Set by the binder.
-  flowNode: FlowNode | undefined;
 
   constructor(text: string) {
     super(SyntaxKind.Identifier);
     this.text = text;
-    this.flowNode = undefined;
   }
 
   forEachChild(_v: NodeVisitor): boolean {
@@ -471,6 +468,29 @@ export class Identifier extends Node {
 
   copy(): Identifier {
     const node = new Identifier(this.text);
+    node.flags = this.flags;
+    node.pos = this.pos;
+    node.end = this.end;
+    return node;
+  }
+}
+
+/**
+ * An identifier that can be read as a reference, such as an expression or a shorthand property
+ * name, and so holds the binder's flow node. The parser creates a plain `Identifier` for names
+ * whose flow node nothing reads: declaration names, property names and property access names.
+ */
+export class ReferenceIdentifier extends Identifier {
+  // Set by the binder.
+  flowNode: FlowNode | undefined;
+
+  constructor(text: string) {
+    super(text);
+    this.flowNode = undefined;
+  }
+
+  copy(): Identifier {
+    const node = new ReferenceIdentifier(this.text);
     node.flags = this.flags;
     node.pos = this.pos;
     node.end = this.end;
@@ -12141,8 +12161,8 @@ export function setNextContainer(node: Node, value: Node | undefined): void {
 export function getFlowNode(node: Node): FlowNode | undefined {
   switch (node.kind) {
     case SyntaxKind.Identifier:
-      if (node instanceof Identifier) {
-        const holder: Identifier = node;
+      if (node instanceof ReferenceIdentifier) {
+        const holder: ReferenceIdentifier = node;
         return holder.flowNode;
       }
       break;
@@ -12413,8 +12433,8 @@ export function getFlowNode(node: Node): FlowNode | undefined {
 export function setFlowNode(node: Node, value: FlowNode | undefined): void {
   switch (node.kind) {
     case SyntaxKind.Identifier:
-      if (node instanceof Identifier) {
-        const target: Identifier = node;
+      if (node instanceof ReferenceIdentifier) {
+        const target: ReferenceIdentifier = node;
         target.flowNode = value;
       }
       break;

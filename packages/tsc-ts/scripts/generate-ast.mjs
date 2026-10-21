@@ -100,6 +100,28 @@ const binderFieldTypes = {
   FallthroughFlowNode: 'FlowNode',
 };
 
+// Binder fields that only a subclass holds: the parser creates the subclass where a reader can
+// use the field, and the base class everywhere else.
+const binderSubclasses = {
+  Identifier: {
+    name: 'ReferenceIdentifier',
+    fields: ['flowNode'],
+    doc: [
+      '/**',
+      ' * An identifier that can be read as a reference, such as an expression or a shorthand property',
+      " * name, and so holds the binder's flow node. The parser creates a plain `Identifier` for names",
+      ' * whose flow node nothing reads: declaration names, property names and property access names.',
+      ' */',
+    ],
+  },
+};
+
+/** The class holding a binder field of `c`: `c` itself, or the subclass that holds it. */
+function binderFieldHolder(c, field) {
+  const sub = binderSubclasses[c.name];
+  return sub !== undefined && sub.fields.includes(field) ? sub.name : c.name;
+}
+
 function fieldName(name) {
   if (name.startsWith('JSDoc')) return 'jsdoc' + name.slice(5);
   return name.charAt(0).toLowerCase() + name.slice(1);
@@ -223,6 +245,8 @@ function nodeClasses() {
 }
 
 function emitClass(c) {
+  const sub = binderSubclasses[c.name];
+  const binder = sub === undefined ? c.binder : c.binder.filter((f) => !sub.fields.includes(f.name));
   const lines = [];
   const kindLiteral = c.kinds.length === 1 && !c.hasKindParam;
   const fields = c.members.filter((m) => !m.isFlags);
@@ -232,11 +256,11 @@ function emitClass(c) {
   for (const m of c.members) params.push(m.isFlags ? 'flags: NodeFlags' : `${paramName(m.name)}: ${type(m)}`);
   lines.push(`export class ${c.name} extends Node {`);
   for (const m of fields) lines.push(`  ${m.name}: ${type(m)};`);
-  if (c.binder.length > 0) {
+  if (binder.length > 0) {
     lines.push('  // Set by the binder.');
-    for (const f of c.binder) lines.push(`  ${f.name}: ${f.type} | undefined;`);
+    for (const f of binder) lines.push(`  ${f.name}: ${f.type} | undefined;`);
   }
-  if (fields.length > 0 || c.binder.length > 0) lines.push('');
+  if (fields.length > 0 || binder.length > 0) lines.push('');
   lines.push(`  constructor(${params.join(', ')}) {`);
   lines.push(`    super(${kindLiteral ? 'SyntaxKind.' + c.kinds[0] : 'kind'});`);
   for (const m of c.members) {
@@ -250,7 +274,7 @@ function emitClass(c) {
       lines.push(`    this.${m.name} = ${paramName(m.name)} & TokenFlags.${flagMasks[c.name]};`);
     else lines.push(`    this.${m.name} = ${paramName(m.name)};`);
   }
-  for (const f of c.binder) lines.push(`    this.${f.name} = undefined;`);
+  for (const f of binder) lines.push(`    this.${f.name} = undefined;`);
   lines.push('  }');
   lines.push('');
   if (c.noTokenFlags) {
@@ -317,14 +341,33 @@ function emitClass(c) {
   lines.push('    return this.copy();');
   lines.push('  }');
   lines.push('');
-  lines.push(`  copy(): ${c.name} {`);
-  lines.push(`    const node = new ${c.name}(${args.join(', ')});`);
-  lines.push('    node.flags = this.flags;');
-  lines.push('    node.pos = this.pos;');
-  lines.push('    node.end = this.end;');
-  lines.push('    return node;');
-  lines.push('  }');
+  const copy = (cls) => [
+    `  copy(): ${c.name} {`,
+    `    const node = new ${cls}(${args.join(', ')});`,
+    '    node.flags = this.flags;',
+    '    node.pos = this.pos;',
+    '    node.end = this.end;',
+    '    return node;',
+    '  }',
+  ];
+  lines.push(...copy(c.name));
   lines.push('}');
+  if (sub !== undefined) {
+    const own = c.binder.filter((f) => sub.fields.includes(f.name));
+    lines.push('');
+    lines.push(...sub.doc);
+    lines.push(`export class ${sub.name} extends ${c.name} {`);
+    lines.push('  // Set by the binder.');
+    for (const f of own) lines.push(`  ${f.name}: ${f.type} | undefined;`);
+    lines.push('');
+    lines.push(`  constructor(${params.join(', ')}) {`);
+    lines.push(`    super(${params.map((p) => p.slice(0, p.indexOf(':'))).join(', ')});`);
+    for (const f of own) lines.push(`    this.${f.name} = undefined;`);
+    lines.push('  }');
+    lines.push('');
+    lines.push(...copy(sub.name));
+    lines.push('}');
+  }
   return lines.join('\n');
 }
 
@@ -446,16 +489,17 @@ function emitBinderAccessors(classes) {
         setter.push(`    case SyntaxKind.${k}:`);
       }
       // Through typed locals: scriptc reads and writes fields of a narrowed parameter dynamically.
+      const holder = binderFieldHolder(c, field);
       getter.push(
-        `      if (node instanceof ${c.name}) {`,
-        `        const holder: ${c.name} = node;`,
+        `      if (node instanceof ${holder}) {`,
+        `        const holder: ${holder} = node;`,
         `        return holder.${field};`,
         '      }',
         '      break;',
       );
       setter.push(
-        `      if (node instanceof ${c.name}) {`,
-        `        const target: ${c.name} = node;`,
+        `      if (node instanceof ${holder}) {`,
+        `        const target: ${holder} = node;`,
         `        target.${field} = value;`,
         '      }',
         '      break;',
