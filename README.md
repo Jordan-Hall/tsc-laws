@@ -62,7 +62,7 @@ npm run build            # the Node build of tsc-ts (packages/tsc-ts/dist) and t
 npm run build:oracle     # tsgo reference builds in packages/tsgo/dist
 ```
 
-`package.json` pins scriptc `0.4.0`, with its `@scriptc/threads` package. The build fails with any other version.
+`package.json` pins scriptc `0.4.1`, with its `@scriptc/threads` package. The build fails with any other version.
 
 ## Compiler
 
@@ -100,6 +100,8 @@ npm run build:native -w tsc-ts       # packages/tsc-ts/dist/tsc
 npm run build:native:dev -w tsc-ts   # unoptimized, faster to build
 TSC_TS_LIB_DIR=upstream/typescript-go/internal/bundled/libs packages/tsc-ts/dist/tsc -p path/to/project
 ```
+
+`build:native` optimizes with the committed profile `packages/tsc-ts/profiles/tsc-ts.profdata`. `npm run refresh-profile -w tsc-ts -- --project <dir>[:<tsconfig>]` collects it again: it builds an instrumented tsc-ts, checks the tsc-ts sources and each project with it, and merges the results. A profile from older sources still applies to the functions that did not change.
 
 `TSC_TS_BIN=packages/tsc-ts/dist/tsc` runs the tsc-ts tests that take a native build against it.
 
