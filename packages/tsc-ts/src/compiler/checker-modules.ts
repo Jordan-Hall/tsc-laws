@@ -226,7 +226,97 @@ export function resolveExternalModuleNameWorker(
   );
 }
 
+/** A `resolveExternalModule` result that reported nothing, and the arguments it was computed for. */
+export class ModuleResolution {
+  constructor(
+    readonly moduleReference: string,
+    readonly moduleNotFoundError: DiagnosticMessage | undefined,
+    readonly isForAugmentation: boolean,
+    readonly symbol: Symbol | undefined,
+  ) {}
+}
+
+/**
+ * The module symbol `moduleReference` resolves to from `location`, reporting resolution errors at
+ * `errorNode`. Each name an import or export declaration lists resolves its module specifier again,
+ * with the same result and the same diagnostics: a result that reported nothing is kept for the
+ * specifier and returned to later calls from the same declaration (`sharesSpecifierContext`).
+ */
 export function resolveExternalModule(
+  c: Checker,
+  location: Node,
+  moduleReference: string,
+  moduleNotFoundError: DiagnosticMessage | undefined,
+  errorNode: Node | undefined,
+  isForAugmentation: boolean,
+): Symbol | undefined {
+  // An augmentation merged later can give the resolved module a new merged symbol, so results are
+  // kept only once every augmentation is merged.
+  const shared = c.modulesMerged && errorNode !== undefined && sharesSpecifierContext(location, errorNode);
+  if (shared) {
+    const known = c.moduleResolutions.get(errorNode);
+    if (
+      known !== undefined &&
+      known.moduleReference === moduleReference &&
+      known.moduleNotFoundError === moduleNotFoundError &&
+      known.isForAugmentation === isForAugmentation
+    )
+      return known.symbol;
+  }
+  const reports = c.reports;
+  const symbol = resolveExternalModuleWorker(
+    c,
+    location,
+    moduleReference,
+    moduleNotFoundError,
+    errorNode,
+    isForAugmentation,
+  );
+  if (shared && c.reports === reports)
+    c.moduleResolutions.set(
+      errorNode,
+      new ModuleResolution(moduleReference, moduleNotFoundError, isForAugmentation, symbol),
+    );
+  return symbol;
+}
+
+/**
+ * Whether a resolution from `location` with errors at `errorNode` depends on `location` only through
+ * the declaration that `errorNode` is the module specifier of: `location` is that declaration, a
+ * clause or specifier inside it, or the specifier itself. The resolution mode, the emittability of
+ * the import and its resolution-mode attributes then all come from that declaration.
+ */
+function sharesSpecifierContext(location: Node, errorNode: Node): boolean {
+  const declaration = errorNode.parent;
+  if (
+    declaration === undefined ||
+    (declaration.kind !== SyntaxKind.ImportDeclaration &&
+      declaration.kind !== SyntaxKind.JSImportDeclaration &&
+      declaration.kind !== SyntaxKind.ExportDeclaration) ||
+    getModuleSpecifier(declaration) !== errorNode
+  )
+    return false;
+  for (let current: Node | undefined = location; current !== undefined; current = current.parent)
+    switch (current.kind) {
+      case SyntaxKind.ImportDeclaration:
+      case SyntaxKind.JSImportDeclaration:
+      case SyntaxKind.ExportDeclaration:
+        return current === declaration;
+      case SyntaxKind.ImportClause:
+      case SyntaxKind.NamedImports:
+      case SyntaxKind.NamespaceImport:
+      case SyntaxKind.ImportSpecifier:
+      case SyntaxKind.NamedExports:
+      case SyntaxKind.NamespaceExport:
+      case SyntaxKind.ExportSpecifier:
+        break;
+      default:
+        if (current !== errorNode) return false;
+    }
+  return false;
+}
+
+function resolveExternalModuleWorker(
   c: Checker,
   location: Node,
   moduleReference: string,
@@ -789,7 +879,8 @@ function isOnlyImportableAsDefault(c: Checker, usage: Node, resolvedModule: Symb
   const targetFile = moduleSymbol !== undefined ? getSourceFileOfModuleSymbol(moduleSymbol) : undefined;
   return (
     targetFile !== undefined &&
-    (isJsonSourceFile(targetFile) || getDeclarationFileExtension(targetFile.fileName) === '.d.json.ts')
+    (isJsonSourceFile(targetFile) ||
+      (targetFile.fileName.endsWith('.d.json.ts') && getDeclarationFileExtension(targetFile.fileName) === '.d.json.ts'))
   );
 }
 
