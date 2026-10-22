@@ -37,7 +37,7 @@ import { getExportSymbolOfValueSymbolIfExported } from './checker-symbols.js';
 import { getBaseTypes, getDeclaredTypeOfSymbol } from './checker-declared-types.js';
 import { getPropertyOfType } from './checker-members.js';
 import { FunctionFlags, getFunctionFlags } from './checker-utilities.js';
-import { getDeclarations, type Symbol, SymbolFlags } from './symbol.js';
+import { declarationAt, declarationCount, type Symbol, SymbolFlags } from './symbol.js';
 
 /** Reports a block-scoped variable, class or enum resolved at `errorLocation` before its declaration. */
 export function checkResolvedBlockScopedVariable(c: Checker, resolved: Symbol, errorLocation: Node): void {
@@ -50,7 +50,8 @@ export function checkResolvedBlockScopedVariable(c: Checker, resolved: Symbol, e
   )
     return;
   let declaration: Node | undefined;
-  for (const d of getDeclarations(result)) {
+  for (let i = 0; i < declarationCount(result); i++) {
+    const d = declarationAt(result, i);
     if (isBlockOrCatchScoped(d) || isClassLike(d) || d.kind === SyntaxKind.EnumDeclaration) {
       declaration = d;
       break;

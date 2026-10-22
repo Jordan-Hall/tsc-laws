@@ -129,7 +129,16 @@ import { getTypeForBindingElement, getTypeFromBindingPattern } from './checker-d
 import { checkRightHandSideOfForOf } from './checker-statements.js';
 import { getTypeWithFacts, TypeFacts, hasTypeFacts, getNonNullableType } from './checker-flow.js';
 import { getTypeOfModuleExportsSymbol, getWidenedTypeForAssignmentDeclaration } from './checker-javascript.js';
-import { CheckFlags, copyDeclarations, getDeclarations, getSymbolId, type Symbol, SymbolFlags } from './symbol.js';
+import {
+  CheckFlags,
+  copyDeclarations,
+  declarationAt,
+  declarationCount,
+  getDeclarations,
+  getSymbolId,
+  type Symbol,
+  SymbolFlags,
+} from './symbol.js';
 
 export function getTypeOfSymbol(c: Checker, symbol: Symbol): Type {
   const checkFlags = symbol.checkFlags;
@@ -932,12 +941,13 @@ export function isReadonlySymbol(c: Checker, symbol: Symbol): boolean {
       (getDeclarationNodeFlagsFromSymbol(symbol) & NodeFlags.Constant) !== 0) ||
     ((symbol.flags & SymbolFlags.Accessor) !== 0 && (symbol.flags & SymbolFlags.SetAccessor) === 0) ||
     (symbol.flags & SymbolFlags.EnumMember) !== 0 ||
-    someReadonlyAssignmentDeclaration(c, getDeclarations(symbol))
+    someReadonlyAssignmentDeclaration(c, symbol)
   );
 }
 
-function someReadonlyAssignmentDeclaration(c: Checker, declarations: readonly Node[]): boolean {
-  for (const d of declarations) if (isReadonlyAssignmentDeclaration(c, d)) return true;
+function someReadonlyAssignmentDeclaration(c: Checker, symbol: Symbol): boolean {
+  for (let i = 0; i < declarationCount(symbol); i++)
+    if (isReadonlyAssignmentDeclaration(c, declarationAt(symbol, i))) return true;
   return false;
 }
 
