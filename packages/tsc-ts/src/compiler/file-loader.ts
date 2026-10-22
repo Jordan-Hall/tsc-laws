@@ -7,6 +7,7 @@ import {
   ParseOptions,
   ScriptKind,
   StringLiteral,
+  appendToList,
   getText,
   type ExternalModuleIndicatorOptions,
   type FileReference,
@@ -216,7 +217,7 @@ export class LoadedFile {
     readonly references: LoadedReference[],
     readonly resolutionsInFile: ModeAwareCache<ResolvedModule> | undefined,
     readonly typeResolutionsInFile: ModeAwareCache<ResolvedTypeReferenceDirective> | undefined,
-    readonly processingDiagnostics: ProcessingDiagnostic[],
+    readonly processingDiagnostics: readonly ProcessingDiagnostic[],
     readonly importHelpersImportSpecifier: StringLiteral | undefined,
     readonly jsxRuntimeImport: JsxRuntimeImport | undefined,
   ) {}
@@ -230,19 +231,26 @@ class SubTasksAhead {
   ) {}
 }
 
+// The sub-tasks and diagnostics of a task that has none: most files have neither, so their tasks
+// share these. A list that grows replaces an empty one rather than pushing to it (appendToList).
+const noParseTasks: readonly ParseTask[] = [];
+const noProcessingDiagnostics: readonly ProcessingDiagnostic[] = [];
+
 class ParseTask {
   path = '';
   file: SourceFile | undefined = undefined;
   redirectedParseTask: ParseTask | undefined = undefined;
-  subTasks: ParseTask[] = [];
+  subTasks: readonly ParseTask[] = noParseTasks;
   loaded = false;
   startedSubTasks = false;
   metadata: SourceFileMetadata = libFileMetadata;
   resolutionsInFile: ModeAwareCache<ResolvedModule> | undefined = undefined;
-  readonly resolutionsTrace: MessageWithArgs[] = [];
+  /** With `traceResolution`, the traces of resolving the file's imports. */
+  resolutionsTrace: MessageWithArgs[] | undefined = undefined;
   typeResolutionsInFile: ModeAwareCache<ResolvedTypeReferenceDirective> | undefined = undefined;
-  readonly typeResolutionsTrace: MessageWithArgs[] = [];
-  readonly processingDiagnostics: ProcessingDiagnostic[] = [];
+  /** With `traceResolution`, the traces of resolving the file's type reference directives. */
+  typeResolutionsTrace: MessageWithArgs[] | undefined = undefined;
+  processingDiagnostics: readonly ProcessingDiagnostic[] = noProcessingDiagnostics;
   importHelpersImportSpecifier: StringLiteral | undefined = undefined;
   jsxRuntimeImport: JsxRuntimeImport | undefined = undefined;
   /** The task of the same file name that was loaded instead of this one. */
@@ -267,9 +275,14 @@ class ParseTask {
     elideOnDepth: boolean,
     packageId: PackageId | undefined,
   ): void {
-    this.subTasks.push(
+    this.subTasks = appendToList(
+      this.subTasks,
       new ParseTask(normalizePath(fileName), libFile, reason, false, increaseDepth, elideOnDepth, packageId),
     );
+  }
+
+  addProcessingDiagnostic(diagnostic: ProcessingDiagnostic): void {
+    this.processingDiagnostics = appendToList(this.processingDiagnostics, diagnostic);
   }
 }
 
@@ -288,7 +301,7 @@ class ParseTaskData {
 /** Pending processing of `tasks[index]`. */
 class ParseWork {
   constructor(
-    readonly tasks: ParseTask[],
+    readonly tasks: readonly ParseTask[],
     readonly index: number,
     readonly data: ParseTaskData,
     readonly loaded: boolean,
@@ -857,7 +870,7 @@ export class FileLoader {
       return;
     }
     const task = new ParseTask(absolute, undefined, reason, false, false, false, undefined);
-    task.processingDiagnostics.push(
+    task.addProcessingDiagnostic(
       ProcessingDiagnostic.explainingFileInclude('', reason, resolved.message, resolved.args),
     );
     this.rootTasks.push(task);
@@ -982,7 +995,7 @@ export class FileLoader {
 
   // ---- Loading
 
-  private start(tasks: ParseTask[], depth: number): void {
+  private start(tasks: readonly ParseTask[], depth: number): void {
     for (let i = 0; i < tasks.length; i++) {
       const task = tasks[i];
       // Sub-tasks built ahead have their paths.
@@ -1073,7 +1086,7 @@ export class FileLoader {
     if (hasExtension(task.normalizedFilePath) && this.options.allowNonTsExtensions !== true) {
       const canonicalFileName = getCanonicalFileName(task.normalizedFilePath, fs.useCaseSensitiveFileNames);
       if (!this.isSupportedExtension(canonicalFileName)) {
-        task.processingDiagnostics.push(
+        task.addProcessingDiagnostic(
           hasJSFileExtension(canonicalFileName)
             ? ProcessingDiagnostic.explainingFileInclude(
                 '',
@@ -1122,7 +1135,7 @@ export class FileLoader {
         const reason = FileIncludeReason.reference(FileIncludeKind.LibReferenceDirective, task.path, i, undefined);
         const name = getLibFileName(file.libReferenceDirectives[i].fileName);
         if (name === '') {
-          task.processingDiagnostics.push(ProcessingDiagnostic.unknownReference(reason));
+          task.addProcessingDiagnostic(ProcessingDiagnostic.unknownReference(reason));
           continue;
         }
         const libFile = this.pathForLibFile(name);
@@ -1140,7 +1153,7 @@ export class FileLoader {
       this.subTasksAhead.delete(task.normalizedFilePath);
       task.subTasks = ahead.subTasks;
     } else task.subTasks = this.subTasksOf(loaded);
-    for (const diagnostic of loaded.processingDiagnostics) task.processingDiagnostics.push(diagnostic.copy());
+    for (const diagnostic of loaded.processingDiagnostics) task.addProcessingDiagnostic(diagnostic.copy());
     task.resolutionsInFile = loaded.resolutionsInFile;
     task.typeResolutionsInFile = loaded.typeResolutionsInFile;
     task.importHelpersImportSpecifier = loaded.importHelpersImportSpecifier;
@@ -1190,7 +1203,7 @@ export class FileLoader {
       reason,
     );
     if (typeof resolved !== 'string') {
-      task.processingDiagnostics.push(
+      task.addProcessingDiagnostic(
         ProcessingDiagnostic.explainingFileInclude('', reason, resolved.message, resolved.args),
       );
       return;
@@ -1216,7 +1229,7 @@ export class FileLoader {
         containingFile,
         mode,
         redirect?.resolved,
-        task.typeResolutionsTrace,
+        this.options.traceResolution === true ? (task.typeResolutionsTrace ??= []) : undefined,
       );
       resolutions.set(modeAwareKey(reference.fileName, mode), resolved);
       const reason = FileIncludeReason.reference(FileIncludeKind.TypeReferenceDirective, task.path, i, undefined);
@@ -1230,7 +1243,7 @@ export class FileLoader {
           resolved.packageId,
         );
       } else {
-        task.processingDiagnostics.push(ProcessingDiagnostic.unknownReference(reason));
+        task.addProcessingDiagnostic(ProcessingDiagnostic.unknownReference(reason));
       }
     }
     task.typeResolutionsInFile = resolutions;
@@ -1247,7 +1260,7 @@ export class FileLoader {
         task.normalizedFilePath,
         ModuleKind.None,
         undefined,
-        task.typeResolutionsTrace,
+        this.options.traceResolution === true ? (task.typeResolutionsTrace ??= []) : undefined,
       );
       resolutions.set(modeAwareKey(name, ModuleKind.None), resolved);
       if (resolved.resolvedFileName !== '') {
@@ -1260,7 +1273,7 @@ export class FileLoader {
           resolved.packageId,
         );
       } else {
-        task.processingDiagnostics.push(
+        task.addProcessingDiagnostic(
           ProcessingDiagnostic.explainingFileInclude(
             '',
             FileIncludeReason.automaticTypeDirective(name, undefined),
@@ -1308,7 +1321,7 @@ export class FileLoader {
         containingFile,
         mode,
         redirect?.resolved,
-        task.resolutionsTrace,
+        this.options.traceResolution === true ? (task.resolutionsTrace ??= []) : undefined,
       );
       resolutions.set(modeAwareKey(moduleName, mode), resolved);
       const resolvedFileName = resolved.resolvedFileName;
@@ -1412,8 +1425,8 @@ export class FileLoader {
           }
         }
 
-        for (const trace of task.typeResolutionsTrace) host.trace(trace);
-        for (const trace of task.resolutionsTrace) host.trace(trace);
+        if (task.typeResolutionsTrace !== undefined) for (const trace of task.typeResolutionsTrace) host.trace(trace);
+        if (task.resolutionsTrace !== undefined) for (const trace of task.resolutionsTrace) host.trace(trace);
 
         const file = task.file;
         const packageId = data.packageId;
