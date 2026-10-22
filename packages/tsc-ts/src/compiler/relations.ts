@@ -2826,7 +2826,7 @@ export class Relater extends TypeComparer {
       !isTupleType(source);
     const targetProperties = getPropertiesOfType(c, target);
     // Where it is known which target names the source has, nothing else is looked up by name.
-    const found = positionsOfNamesFoundInSource(c, source, targetProperties);
+    const found = positionsOfNamesFoundInSource(c, source, target, targetProperties);
     const unmatchedProperty =
       found !== undefined
         ? firstUnmatchedProperty(c, targetProperties, found, requireOptionalProperties)
