@@ -55,6 +55,9 @@ import {
   getMembers,
   getModifiers,
   getName,
+  callQuestionDotToken,
+  callTypeArguments,
+  newCallExpression,
 } from '../ast.js';
 import { isLeftHandSideExpression } from '../ast-utilities.js';
 import {
@@ -1209,7 +1212,14 @@ export class ClassFieldsTransformer extends Transformer {
     if (node instanceof CallExpression)
       return factory.cloneNode(
         node,
-        new CallExpression(node.expression, node.questionDotToken, node.typeArguments, node.arguments, node.flags),
+        newCallExpression(
+          node.expression,
+          callQuestionDotToken(node),
+          callTypeArguments(node),
+          node.arguments,
+          node.flags,
+          false,
+        ),
       );
     return factory.cloneNode(node, node.deepClone());
   }
@@ -1232,7 +1242,7 @@ export class ClassFieldsTransformer extends Transformer {
       const call = factory.created(
         new PropertyAccessExpression(
           target,
-          optional ? node.questionDotToken : undefined,
+          optional ? callQuestionDotToken(node) : undefined,
           factory.createIdentifier('call'),
           optional ? NodeFlags.OptionalChain : NodeFlags.None,
         ),

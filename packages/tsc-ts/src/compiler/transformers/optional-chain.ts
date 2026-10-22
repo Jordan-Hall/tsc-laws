@@ -9,6 +9,8 @@ import {
   PropertyAccessExpression,
   SyntheticReferenceExpression,
   TaggedTemplateExpression,
+  callQuestionDotToken,
+  newCallExpression,
 } from '../ast.js';
 import { skipParentheses } from '../binder-utilities.js';
 import type { EmitContext } from '../printer/emit-context.js';
@@ -201,12 +203,13 @@ export class OptionalChainTransformer extends Transformer {
           );
         } else
           rightExpression = factory.created(
-            new CallExpression(
+            newCallExpression(
               rightExpression,
               undefined,
               undefined,
               this.visitNodes(segment.arguments)!,
               NodeFlags.None,
+              false,
             ),
           );
       }
@@ -231,7 +234,7 @@ export class OptionalChainTransformer extends Transformer {
 function questionDotTokenOf(node: Node): Node | undefined {
   if (node instanceof PropertyAccessExpression) return node.questionDotToken;
   if (node instanceof ElementAccessExpression) return node.questionDotToken;
-  if (node instanceof CallExpression) return node.questionDotToken;
+  if (node instanceof CallExpression) return callQuestionDotToken(node);
   return undefined;
 }
 

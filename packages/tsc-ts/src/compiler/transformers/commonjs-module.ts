@@ -63,6 +63,7 @@ import {
   ModifierList,
   getElements,
   getName,
+  callQuestionDotToken,
 } from '../ast.js';
 import { getExternalModuleName, isImportCall, isInJSFile, isRequireCall } from '../ast-utilities.js';
 import { isAssignmentExpression, isDestructuringAssignment } from '../binder-utilities.js';
@@ -1248,7 +1249,7 @@ export class CommonJSModuleTransformer extends Transformer {
       const updated = this.factory.updateCallExpression(
         node,
         expression,
-        node.questionDotToken,
+        callQuestionDotToken(node),
         undefined,
         this.visitNodes(node.arguments)!,
         node.flags,
@@ -1340,7 +1341,7 @@ export class CommonJSModuleTransformer extends Transformer {
       if (rewritten !== first || visitedRest !== rest)
         args = new NodeList(args.pos, args.end, [rewritten].concat(visitedRest));
     }
-    return factory.updateCallExpression(node, expression, node.questionDotToken, undefined, args, node.flags);
+    return factory.updateCallExpression(node, expression, callQuestionDotToken(node), undefined, args, node.flags);
   }
 
   private visitTaggedTemplateExpression(node: TaggedTemplateExpression): Node {

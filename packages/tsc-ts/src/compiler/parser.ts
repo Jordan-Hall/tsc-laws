@@ -199,6 +199,8 @@ import {
   type Expression,
   type Statement,
   type TypeNode,
+  newCallExpression,
+  newPropertyAssignment,
 } from './ast.js';
 import {
   OperatorPrecedence,
@@ -5535,12 +5537,13 @@ export class Parser extends ScannerErrorReporter {
         const isOptionalChain = questionDotToken !== undefined || this.tryReparseOptionalChain(expression);
         expression = this.checkJSSyntax(
           this.finishNode(
-            new CallExpression(
+            newCallExpression(
               expression,
               questionDotToken,
               typeArguments,
               argumentList,
               isOptionalChain ? NodeFlags.OptionalChain : NodeFlags.None,
+              (this.contextFlags & NodeFlags.JavaScriptFile) !== 0,
             ),
             pos,
           ),
@@ -5768,7 +5771,14 @@ export class Parser extends ScannerErrorReporter {
     } else {
       this.parseExpected(SyntaxKind.ColonToken);
       const initializer = this.parseAssignmentExpressionOrHigherAllowIn();
-      node = new PropertyAssignment(modifiers, name, postfixToken, undefined, initializer);
+      node = newPropertyAssignment(
+        modifiers,
+        name,
+        postfixToken,
+        undefined,
+        initializer,
+        (this.contextFlags & NodeFlags.JavaScriptFile) !== 0,
+      );
     }
     return this.finishWithJSDoc(node, pos, jsdoc);
   }

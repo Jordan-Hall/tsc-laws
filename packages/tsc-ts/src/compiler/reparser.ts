@@ -84,6 +84,7 @@ import {
   getTypeExpression,
   getTypeParameters,
   type TypeNode,
+  FullPropertyAssignment,
 } from './ast.js';
 import {
   isAssignmentOperator,
@@ -1428,8 +1429,9 @@ function setType(node: Node, value: Node): boolean {
     (node as PropertyDeclaration).type = value;
     return true;
   }
-  if (node instanceof PropertyAssignment) {
-    (node as PropertyAssignment).type = value;
+  // Property assignments in JavaScript files, which are the ones reparsed, are full ones.
+  if (node instanceof FullPropertyAssignment) {
+    (node as FullPropertyAssignment).type = value;
     return true;
   }
   if (node instanceof ShorthandPropertyAssignment) {
