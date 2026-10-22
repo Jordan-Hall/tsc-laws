@@ -360,8 +360,11 @@ export class Checker implements TypeChecking {
   readonly sideHolders = new LinkTable<Type>();
   /** The same for signatures with side state (`signatureSideOf`), by signature id. */
   readonly signatureSideHolders = new LinkTable<Signature>();
-  /** The indexes of long property lists that `propertiesRelatedTo` walks, or null where a list repeats a name. */
-  readonly propertyListIndexes = new Map<Symbol[], PropertyListIndex | null>();
+  /**
+   * The indexes of long property lists that `propertiesRelatedTo` walks; before a list is indexed, its uses
+   * so far; null where a list repeats a name.
+   */
+  readonly propertyListIndexes = new Map<Symbol[], PropertyListIndex | number | null>();
   /** The type of a value symbol. */
   readonly symbolTypes = new LinkTable<Type>();
   /** For instantiated and synthetic symbols, the symbol they come from. */

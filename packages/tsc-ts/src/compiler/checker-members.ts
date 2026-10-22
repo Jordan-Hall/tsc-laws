@@ -1613,37 +1613,70 @@ export function getPropertyOfTypeEx(
 
 /**
  * A long property list that `propertiesRelatedTo` walks: the position of each name, and the positions of
- * the properties `getUnmatchedProperty` can report (not static private), and of the required ones among them.
+ * the static private properties, which `getUnmatchedProperty` never reports, and of the required ones.
  */
 export class PropertyListIndex {
   readonly positions: Map<string, number>;
-  readonly reportable: number[];
+  readonly staticPrivate: number[];
   readonly required: number[];
 
-  constructor(positions: Map<string, number>, reportable: number[], required: number[]) {
+  constructor(positions: Map<string, number>, staticPrivate: number[], required: number[]) {
     this.positions = positions;
-    this.reportable = reportable;
+    this.staticPrivate = staticPrivate;
     this.required = required;
   }
 }
 
-/** The index of `properties`, built once; null where the list repeats a name. */
-function propertyListIndex(c: Checker, properties: Symbol[]): PropertyListIndex | null {
-  let index = c.propertyListIndexes.get(properties);
-  if (index !== undefined) return index;
-  const positions = new Map<string, number>();
-  const reportable: number[] = [];
+/** The uses of a long property list after which `propertyListIndex` indexes it by a table of its own. */
+const propertyListUsesBeforeIndex = 3;
+
+/**
+ * The index of `properties`, the properties of `target`. Where the members of `target` are properties
+ * with shared names (`PropertyMembers` with `MemberNames`), the index reads the positions of those names.
+ * Other lists get a positions table of their own on the use after the first `propertyListUsesBeforeIndex`:
+ * most long lists are related only a few times, and the lists related many times hold most of the lookups
+ * the index saves. Undefined before that, and where the list repeats a name.
+ */
+function propertyListIndex(c: Checker, target: Type, properties: Symbol[]): PropertyListIndex | undefined {
+  const known = c.propertyListIndexes.get(properties);
+  if (known instanceof PropertyListIndex) return known;
+  if (known === null) return undefined;
+  let positions: Map<string, number> | undefined;
+  const pending = (target.flags & TypeFlags.Object) !== 0 ? membersHolder(c, target).pendingMembers : undefined;
+  if (
+    pending instanceof PropertyMembers &&
+    pending.materializedProperties === properties &&
+    pending.names !== undefined
+  ) {
+    // The names are the names of the properties, in order (hasMemberNames).
+    positions = pending.names.positions;
+    if (positions.size !== properties.length) {
+      c.propertyListIndexes.set(properties, null);
+      return undefined;
+    }
+  } else {
+    const uses = known ?? 0;
+    if (uses < propertyListUsesBeforeIndex) {
+      c.propertyListIndexes.set(properties, uses + 1);
+      return undefined;
+    }
+  }
+  const own = positions === undefined ? new Map<string, number>() : undefined;
+  const staticPrivate: number[] = [];
   const required: number[] = [];
-  index = null;
   for (let i = 0; i < properties.length; i++) {
     const p = properties[i]!;
-    if (positions.has(p.name)) break;
-    positions.set(p.name, i);
-    if (isStaticPrivateIdentifierProperty(p)) continue;
-    reportable.push(i);
-    if ((p.flags & SymbolFlags.Optional) === 0 && (p.checkFlags & CheckFlags.Partial) === 0) required.push(i);
+    if (own !== undefined) {
+      if (own.has(p.name)) {
+        c.propertyListIndexes.set(properties, null);
+        return undefined;
+      }
+      own.set(p.name, i);
+    }
+    if (isStaticPrivateIdentifierProperty(p)) staticPrivate.push(i);
+    else if ((p.flags & SymbolFlags.Optional) === 0 && (p.checkFlags & CheckFlags.Partial) === 0) required.push(i);
   }
-  if (positions.size === properties.length) index = new PropertyListIndex(positions, reportable, required);
+  const index = new PropertyListIndex((positions ?? own)!, staticPrivate, required);
   c.propertyListIndexes.set(properties, index);
   return index;
 }
@@ -1651,7 +1684,7 @@ function propertyListIndex(c: Checker, properties: Symbol[]): PropertyListIndex 
 /**
  * `getUnmatchedProperty(c, source, target, requireOptionalProperties, false)` where `targetProperties` are
  * the target's properties and `found` the positions of the names the source has
- * (`positionsOfNamesFoundInSource`): the first reportable property, required unless
+ * (`positionsOfNamesFoundInSource`): the first property that is not static private, and is required unless
  * `requireOptionalProperties`, at a position not in `found`.
  */
 export function firstUnmatchedProperty(
@@ -1660,12 +1693,27 @@ export function firstUnmatchedProperty(
   found: number[],
   requireOptionalProperties: boolean,
 ): Symbol | undefined {
-  const index = c.propertyListIndexes.get(targetProperties)!;
-  const candidates = requireOptionalProperties ? index.reportable : index.required;
+  const index = c.propertyListIndexes.get(targetProperties) as PropertyListIndex;
   let next = 0;
-  for (const position of candidates) {
-    while (next < found.length && found[next]! < position) next++;
-    if (next === found.length || found[next] !== position) return targetProperties[position];
+  if (!requireOptionalProperties) {
+    for (const position of index.required) {
+      while (next < found.length && found[next]! < position) next++;
+      if (next === found.length || found[next] !== position) return targetProperties[position];
+    }
+    return undefined;
+  }
+  const staticPrivate = index.staticPrivate;
+  let nextPrivate = 0;
+  for (let position = 0; position < targetProperties.length; position++) {
+    if (next < found.length && found[next] === position) {
+      next++;
+      continue;
+    }
+    if (nextPrivate < staticPrivate.length && staticPrivate[nextPrivate] === position) {
+      nextPrivate++;
+      continue;
+    }
+    return targetProperties[position];
   }
   return undefined;
 }
@@ -1682,16 +1730,18 @@ function resolvedPropertiesIfAny(c: Checker, t: Type): Symbol[] | undefined {
 }
 
 /**
- * The positions in `targetProperties`, ascending, of the names `getPropertyOfType(c, source, name)`
- * finds: the names of the source's properties and of the Function and Object members its lookups fall
- * back to. `getPropertyOfType` answers undefined for the names at every other position. Undefined where
- * the answer cannot be read from resolved property lists without resolving anything (not an object
- * type, an apparent type, members not resolved or not instantiated yet, a module), and where the target
- * list is too short or the source list too long to save lookups.
+ * The positions in `targetProperties`, the properties of `target`, ascending, of the names
+ * `getPropertyOfType(c, source, name)` finds: the names of the source's properties and of the Function and
+ * Object members its lookups fall back to. `getPropertyOfType` answers undefined for the names at every
+ * other position. Undefined where the answer cannot be read from resolved property lists without resolving
+ * anything (not an object type, an apparent type, members not resolved or not instantiated yet, a module),
+ * where the target list is too short or the source list too long to save lookups, and where the target
+ * list has no index (yet: `propertyListIndex`).
  */
 export function positionsOfNamesFoundInSource(
   c: Checker,
   source: Type,
+  target: Type,
   targetProperties: Symbol[],
 ): number[] | undefined {
   if (targetProperties.length < indexedTargetPropertiesMinimum) return undefined;
@@ -1716,8 +1766,8 @@ export function positionsOfNamesFoundInSource(
   if (objectProperties === undefined) return undefined;
   if ((sourceProperties.length + functionProperties.length + objectProperties.length) * 4 > targetProperties.length)
     return undefined;
-  const index = propertyListIndex(c, targetProperties);
-  if (index === null) return undefined;
+  const index = propertyListIndex(c, target, targetProperties);
+  if (index === undefined) return undefined;
   const positions = index.positions;
   const found: number[] = [];
   for (const list of [sourceProperties, functionProperties, objectProperties])
