@@ -252,6 +252,12 @@ jobs:
         env:
           TSC_TS_BIN: packages/tsc-ts/dist/tsc.exe
         run: node --test tests/api-pipe.test.mjs
+      - name: Check that only the current user can open the pipe
+        working-directory: packages/tsc-ts
+        shell: bash
+        run: |
+          zig cc -target x86_64-windows-gnu native/pipe-win32.test.c native/pipe-win32.c -ladvapi32 -o dist/pipe-win32-test.exe
+          ./dist/pipe-win32-test.exe
 
   docs:
     name: documentation

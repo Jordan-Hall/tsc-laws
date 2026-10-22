@@ -19,7 +19,7 @@ version. The `native test` shards then run the native twins (`native:<unit>`) of
 that take a native build: `TSC_TS_BIN` for api, api-pipe, build, library-checking, parallel-emit, projects, scriptc
 and tsc-project, `TSC_TS_CLI` for program and command-line. With the native lane, the `API server (windows)` job builds
 the native tsc-ts on Windows, with the named pipe server `--api --pipe` serves on (`native/pipe-win32.c`, compiled
-with zig), and runs `api-pipe.test.mjs` with it, over the pipe and over standard input and output. Locally:
+with zig), and runs `api-pipe.test.mjs` with it, over the pipe and over standard input and output, and `native/pipe-win32.test.c`, which checks that the pipe's DACL grants access to the current user only. Locally:
 
 ```sh
 (cd packages/tsc-ts && npm run build:native && npx scriptc build src/drivers/cli.ts --optimization=speed -o dist/cli)
