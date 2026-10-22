@@ -32,6 +32,11 @@ import { CommentDirectiveKind } from './types.js';
 /** What the checker needs, answered by a program. */
 export class ProgramCheckerHost extends CheckerHost {
   private specifierHost: ProgramModuleSpecifierHost | undefined = undefined;
+  /**
+   * `getSourceFileForResolvedModule` by resolved file name (null when there is none): every import of
+   * a module asks again, and the program finds a file by its path, which it computes from the name.
+   */
+  private readonly resolvedSourceFiles = new Map<string, SourceFile | null>();
 
   constructor(readonly program: Program) {
     super();
@@ -54,7 +59,11 @@ export class ProgramCheckerHost extends CheckerHost {
   }
 
   getSourceFileForResolvedModule(fileName: string): SourceFile | undefined {
-    return this.program.getSourceFileForResolvedModule(fileName);
+    const known = this.resolvedSourceFiles.get(fileName);
+    if (known !== undefined) return known ?? undefined;
+    const file = this.program.getSourceFileForResolvedModule(fileName);
+    this.resolvedSourceFiles.set(fileName, file ?? null);
+    return file;
   }
 
   getModeForUsageLocation(file: SourceFile, location: Node): ModuleKind {
