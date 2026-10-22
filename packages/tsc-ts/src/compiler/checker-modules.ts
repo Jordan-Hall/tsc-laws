@@ -250,7 +250,9 @@ export function resolveExternalModule(
   errorNode: Node | undefined,
   isForAugmentation: boolean,
 ): Symbol | undefined {
-  const shared = errorNode !== undefined && sharesSpecifierContext(location, errorNode);
+  // An augmentation merged later can give the resolved module a new merged symbol, so results are
+  // kept only once every augmentation is merged.
+  const shared = c.modulesMerged && errorNode !== undefined && sharesSpecifierContext(location, errorNode);
   if (shared) {
     const known = c.moduleResolutions.get(errorNode);
     if (

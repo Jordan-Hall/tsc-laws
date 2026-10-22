@@ -351,6 +351,11 @@ export class Checker implements TypeChecking {
   reports = 0;
   /** `resolveExternalModule` results that reported nothing, by module specifier (checker-modules.ts). */
   readonly moduleResolutions = new Map<Node, ModuleResolution>();
+  /**
+   * Whether ambient modules and module augmentations are merged. Merging can give a module a new
+   * merged symbol, so `resolveExternalModule` keeps results only from then on.
+   */
+  modulesMerged = false;
   /** Module specifiers of `import("…")` types, by module symbol id, importing file path and resolution mode. */
   readonly moduleSpecifiers = new Map<string, string>();
   /** Specifier generation for hosts without a program. */
@@ -902,6 +907,7 @@ export class Checker implements TypeChecking {
     this.diagnostics.startLog();
     this.suggestionDiagnostics.startLog();
     mergeAmbientModulesAndAugmentations(this);
+    this.modulesMerged = true;
     this.mergeDiagnostics.push(this.diagnostics.takeLog(), this.suggestionDiagnostics.takeLog());
   }
 
