@@ -4,6 +4,16 @@
 
 <!-- release:start -->
 
+## 0.0.7
+
+### Highlights
+
+- **Faster checking:** each import resolves its module specifier once per checker, long target property lists are related through the source's property names, inference contexts are freed by reference counting, and rarely set fields of calls and property assignments live in subclasses. Compared with 0.0.6 on our project set, checking is 0.6 to 6.2% faster with `--checkers 1` and 1.3 to 5.9% faster with 16 checkers, emit is up to 7.7% faster, and `-b` builds are 5.1 to 6.6% faster. Output is the same.
+- **Less memory:** empty lists of source files and parsed lists share one array, and long property lists build their name index only when it pays off. Peak RSS is up to 3.3% lower, and no project uses more.
+- **API:** `getContextualTypes` and `getResolvedSignatures` answer a batch of locations in one request.
+
+<!-- release:end -->
+
 ## 0.0.6
 
 ### Highlights
@@ -15,8 +25,6 @@
 ### Behavior changes
 
 - With `--checkers 1`, files are now also parsed on threads, so a check uses several cores. Wall time drops; CPU time can be higher than in 0.0.5 on incremental rebuilds.
-
-<!-- release:end -->
 
 ## 0.0.5
 
