@@ -13,7 +13,6 @@ import {
   BindingPattern,
   Block,
   BreakStatement,
-  CallExpression,
   CallSignatureDeclaration,
   CaseBlock,
   CaseOrDefaultClause,
@@ -149,7 +148,6 @@ import {
   PrefixUnaryExpression,
   PrivateIdentifier,
   PropertyAccessExpression,
-  PropertyAssignment,
   PropertyDeclaration,
   PropertySignatureDeclaration,
   QualifiedName,
@@ -197,6 +195,8 @@ import {
   WhileStatement,
   WithStatement,
   YieldExpression,
+  newCallExpression,
+  newPropertyAssignment,
 } from './ast.js';
 import { modifiersToFlags } from './ast-utilities.js';
 import { protocolVersion } from './encoder.js';
@@ -883,7 +883,7 @@ class Decoder {
       case SyntaxKind.ElementAccessExpression:
         return new ElementAccessExpression(this.required(0), this.token(1), this.required(2), 0);
       case SyntaxKind.CallExpression:
-        return new CallExpression(this.required(0), this.token(1), this.list(2), this.requiredList(3), 0);
+        return newCallExpression(this.required(0), this.token(1), this.list(2), this.requiredList(3), 0, false);
       case SyntaxKind.NewExpression:
         return new NewExpression(this.required(0), this.list(1), this.list(2));
       case SyntaxKind.MetaProperty:
@@ -910,12 +910,13 @@ class Decoder {
       case SyntaxKind.SpreadAssignment:
         return new SpreadAssignment(this.required(0));
       case SyntaxKind.PropertyAssignment:
-        return new PropertyAssignment(
+        return newPropertyAssignment(
           this.modifiers(0),
           this.required(1),
           this.token(2),
           this.node(3),
           this.required(4),
+          false,
         );
       case SyntaxKind.ShorthandPropertyAssignment:
         return new ShorthandPropertyAssignment(

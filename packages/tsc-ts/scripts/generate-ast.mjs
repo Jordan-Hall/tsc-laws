@@ -100,12 +100,16 @@ const binderFieldTypes = {
   FallthroughFlowNode: 'FlowNode',
 };
 
-// Binder fields that only a subclass holds: the parser creates the subclass where a reader can
-// use the field, and the base class everywhere else.
-const binderSubclasses = {
+// Fields that only a subclass holds: the parser creates the subclass where the fields can be set,
+// and the base class everywhere else. `members` are parser fields, which the subclass's constructor
+// takes; `binder` are binder fields. `create` names a function that takes every member and creates
+// the subclass when one of `members` is set or the node is in a JavaScript file; `readers` name
+// functions that read a member from either class.
+const fieldSubclasses = {
   Identifier: {
     name: 'ReferenceIdentifier',
-    fields: ['flowNode'],
+    members: [],
+    binder: ['flowNode'],
     doc: [
       '/**',
       ' * An identifier that can be read as a reference, such as an expression or a shorthand property',
@@ -114,12 +118,43 @@ const binderSubclasses = {
       ' */',
     ],
   },
+  CallExpression: {
+    name: 'FullCallExpression',
+    members: ['questionDotToken', 'typeArguments'],
+    binder: ['symbol'],
+    create: 'newCallExpression',
+    readers: { questionDotToken: 'callQuestionDotToken', typeArguments: 'callTypeArguments' },
+    doc: [
+      '/**',
+      ' * A call with `?.` or type arguments, or in a JavaScript file, where the binder can declare a symbol',
+      ' * for it (`Object.defineProperty`). Other calls are a plain `CallExpression`, without these fields.',
+      ' */',
+    ],
+  },
+  PropertyAssignment: {
+    name: 'FullPropertyAssignment',
+    members: ['modifiers', 'postfixToken', 'type'],
+    binder: [],
+    create: 'newPropertyAssignment',
+    readers: {
+      modifiers: 'propertyAssignmentModifiers',
+      postfixToken: 'propertyAssignmentPostfixToken',
+      type: 'propertyAssignmentType',
+    },
+    doc: [
+      '/**',
+      ' * A property assignment with modifiers, a `?` or `!`, or a type annotation (which the grammar checker',
+      ' * reports), or in a JavaScript file, where JSDoc can give it a type or modifiers. Other property',
+      ' * assignments are a plain `PropertyAssignment`, without these fields.',
+      ' */',
+    ],
+  },
 };
 
-/** The class holding a binder field of `c`: `c` itself, or the subclass that holds it. */
-function binderFieldHolder(c, field) {
-  const sub = binderSubclasses[c.name];
-  return sub !== undefined && sub.fields.includes(field) ? sub.name : c.name;
+/** The class holding field `field` of `c`: `c` itself, or the subclass that holds it. */
+function fieldHolder(c, field) {
+  const sub = fieldSubclasses[c.name];
+  return sub !== undefined && (sub.members.includes(field) || sub.binder.includes(field)) ? sub.name : c.name;
 }
 
 function fieldName(name) {
@@ -245,15 +280,101 @@ function nodeClasses() {
 }
 
 function emitClass(c) {
-  const sub = binderSubclasses[c.name];
-  const binder = sub === undefined ? c.binder : c.binder.filter((f) => !sub.fields.includes(f.name));
-  const lines = [];
+  const sub = fieldSubclasses[c.name];
+  const isOwn = (name) => sub !== undefined && sub.members.includes(name);
+  const baseMembers = c.members.filter((m) => !isOwn(m.name));
+  const binder = sub === undefined ? c.binder : c.binder.filter((f) => !sub.binder.includes(f.name));
   const kindLiteral = c.kinds.length === 1 && !c.hasKindParam;
-  const fields = c.members.filter((m) => !m.isFlags);
   const type = (m) => `${m.type}${m.optional ? ' | undefined' : ''}`;
-  const params = [];
-  if (!kindLiteral) params.push('kind: SyntaxKind');
-  for (const m of c.members) params.push(m.isFlags ? 'flags: NodeFlags' : `${paramName(m.name)}: ${type(m)}`);
+  const paramsOf = (members) => [
+    ...(kindLiteral ? [] : ['kind: SyntaxKind']),
+    ...members.map((m) => (m.isFlags ? 'flags: NodeFlags' : `${paramName(m.name)}: ${type(m)}`)),
+  ];
+  const assignment = (m) => {
+    if (m.isFlags)
+      return c.name === 'VariableDeclarationList'
+        ? '    this.flags = flags;'
+        : '    this.flags |= flags & NodeFlags.OptionalChain;';
+    if (m.type === 'TokenFlags' && flagMasks[c.name] !== undefined)
+      return `    this.${m.name} = ${paramName(m.name)} & TokenFlags.${flagMasks[c.name]};`;
+    return `    this.${m.name} = ${paramName(m.name)};`;
+  };
+
+  // forEachChild and setParentOfChildren over `members`, in their order.
+  const childMethods = (members) => {
+    const lines = [];
+    const children = members.filter((m) => !m.isFlags && m.child !== undefined);
+    lines.push(`  forEachChild(${children.length > 0 ? 'v' : '_v'}: NodeVisitor): boolean {`);
+    children.forEach((m, i) => {
+      const last = i === children.length - 1;
+      const f = `this.${m.name}`;
+      if (m.child === 'raw') {
+        lines.push(
+          m.optional
+            ? `    if (${f} !== undefined) for (const node of ${f}) if (v.visitNode(node)) return true;`
+            : `    for (const node of ${f}) if (v.visitNode(node)) return true;`,
+        );
+        if (last) lines.push('    return false;');
+        return;
+      }
+      const call =
+        m.child === 'node' ? `v.visitNode(${f})` : m.child === 'list' ? `v.visitList(${f})` : `v.visitModifiers(${f})`;
+      if (last) lines.push(m.optional ? `    return ${f} !== undefined && ${call};` : `    return ${call};`);
+      else
+        lines.push(
+          m.optional ? `    if (${f} !== undefined && ${call}) return true;` : `    if (${call}) return true;`,
+        );
+    });
+    if (children.length === 0) lines.push('    return false;');
+    lines.push('  }');
+    lines.push('');
+    lines.push('  setParentOfChildren(): void {');
+    for (const m of children) {
+      const f = `this.${m.name}`;
+      const set =
+        m.child === 'node'
+          ? `${f}.parent = this;`
+          : m.child === 'raw'
+            ? `setParents(${f}, this);`
+            : `setParents(${f}.nodes, this);`;
+      lines.push(m.optional || m.child === 'modifiers' ? `    if (${f} !== undefined) ${set}` : `    ${set}`);
+    }
+    lines.push('  }');
+    return lines;
+  };
+
+  // copy: `copy` keeps the class type for class-typed members (scriptc can't override with a
+  // narrower return type).
+  const copyMethod = (cls, members) => {
+    const args = [];
+    if (!kindLiteral) args.push('this.kind');
+    for (const m of members) {
+      if (m.isFlags) {
+        args.push('this.flags');
+        continue;
+      }
+      const f = `this.${m.name}`;
+      const orUndefined = (expr) => (m.optional ? `${f} === undefined ? undefined : ${expr}` : expr);
+      if (m.child === 'node')
+        args.push(orUndefined(`${f}.${m.type === 'Token' || classTypes.has(m.type) ? 'copy' : 'deepClone'}()`));
+      else if (m.child === 'list') args.push(orUndefined(`cloneList(${f})`));
+      else if (m.child === 'modifiers') args.push(`${f} === undefined ? undefined : cloneModifiers(${f})`);
+      else if (m.child === 'raw') args.push(orUndefined(`cloneNodes(${f})`));
+      else args.push(f);
+    }
+    return [
+      `  copy(): ${c.name} {`,
+      `    const node = new ${cls}(${args.join(', ')});`,
+      '    node.flags = this.flags;',
+      '    node.pos = this.pos;',
+      '    node.end = this.end;',
+      '    return node;',
+      '  }',
+    ];
+  };
+
+  const lines = [];
+  const fields = baseMembers.filter((m) => !m.isFlags);
   lines.push(`export class ${c.name} extends Node {`);
   for (const m of fields) lines.push(`  ${m.name}: ${type(m)};`);
   if (binder.length > 0) {
@@ -261,19 +382,9 @@ function emitClass(c) {
     for (const f of binder) lines.push(`  ${f.name}: ${f.type} | undefined;`);
   }
   if (fields.length > 0 || binder.length > 0) lines.push('');
-  lines.push(`  constructor(${params.join(', ')}) {`);
+  lines.push(`  constructor(${paramsOf(baseMembers).join(', ')}) {`);
   lines.push(`    super(${kindLiteral ? 'SyntaxKind.' + c.kinds[0] : 'kind'});`);
-  for (const m of c.members) {
-    if (m.isFlags)
-      lines.push(
-        c.name === 'VariableDeclarationList'
-          ? '    this.flags = flags;'
-          : '    this.flags |= flags & NodeFlags.OptionalChain;',
-      );
-    else if (m.type === 'TokenFlags' && flagMasks[c.name] !== undefined)
-      lines.push(`    this.${m.name} = ${paramName(m.name)} & TokenFlags.${flagMasks[c.name]};`);
-    else lines.push(`    this.${m.name} = ${paramName(m.name)};`);
-  }
+  for (const m of baseMembers) lines.push(assignment(m));
   for (const f of binder) lines.push(`    this.${f.name} = undefined;`);
   lines.push('  }');
   lines.push('');
@@ -283,90 +394,58 @@ function emitClass(c) {
     lines.push('  }');
     lines.push('');
   }
-  const children = fields.filter((m) => m.child !== undefined);
-  lines.push(`  forEachChild(${children.length > 0 ? 'v' : '_v'}: NodeVisitor): boolean {`);
-  children.forEach((m, i) => {
-    const last = i === children.length - 1;
-    const f = `this.${m.name}`;
-    if (m.child === 'raw') {
-      lines.push(
-        m.optional
-          ? `    if (${f} !== undefined) for (const node of ${f}) if (v.visitNode(node)) return true;`
-          : `    for (const node of ${f}) if (v.visitNode(node)) return true;`,
-      );
-      if (last) lines.push('    return false;');
-      return;
-    }
-    const call =
-      m.child === 'node' ? `v.visitNode(${f})` : m.child === 'list' ? `v.visitList(${f})` : `v.visitModifiers(${f})`;
-    if (last) lines.push(m.optional ? `    return ${f} !== undefined && ${call};` : `    return ${call};`);
-    else
-      lines.push(m.optional ? `    if (${f} !== undefined && ${call}) return true;` : `    if (${call}) return true;`);
-  });
-  if (children.length === 0) lines.push('    return false;');
-  lines.push('  }');
+  lines.push(...childMethods(baseMembers));
   lines.push('');
-  lines.push('  setParentOfChildren(): void {');
-  for (const m of children) {
-    const f = `this.${m.name}`;
-    const set =
-      m.child === 'node'
-        ? `${f}.parent = this;`
-        : m.child === 'raw'
-          ? `setParents(${f}, this);`
-          : `setParents(${f}.nodes, this);`;
-    lines.push(m.optional || m.child === 'modifiers' ? `    if (${f} !== undefined) ${set}` : `    ${set}`);
-  }
-  lines.push('  }');
-  lines.push('');
-  // deepClone/copy: `copy` keeps the class type for class-typed members (scriptc can't override
-  // with a narrower return type).
-  const args = [];
-  if (!kindLiteral) args.push('this.kind');
-  for (const m of c.members) {
-    if (m.isFlags) {
-      args.push('this.flags');
-      continue;
-    }
-    const f = `this.${m.name}`;
-    const orUndefined = (expr) => (m.optional ? `${f} === undefined ? undefined : ${expr}` : expr);
-    if (m.child === 'node')
-      args.push(orUndefined(`${f}.${m.type === 'Token' || classTypes.has(m.type) ? 'copy' : 'deepClone'}()`));
-    else if (m.child === 'list') args.push(orUndefined(`cloneList(${f})`));
-    else if (m.child === 'modifiers') args.push(`${f} === undefined ? undefined : cloneModifiers(${f})`);
-    else if (m.child === 'raw') args.push(orUndefined(`cloneNodes(${f})`));
-    else args.push(f);
-  }
   lines.push('  deepClone(): Node {');
   lines.push('    return this.copy();');
   lines.push('  }');
   lines.push('');
-  const copy = (cls) => [
-    `  copy(): ${c.name} {`,
-    `    const node = new ${cls}(${args.join(', ')});`,
-    '    node.flags = this.flags;',
-    '    node.pos = this.pos;',
-    '    node.end = this.end;',
-    '    return node;',
-    '  }',
-  ];
-  lines.push(...copy(c.name));
+  lines.push(...copyMethod(c.name, baseMembers));
   lines.push('}');
   if (sub !== undefined) {
-    const own = c.binder.filter((f) => sub.fields.includes(f.name));
+    const ownMembers = c.members.filter((m) => isOwn(m.name));
+    const ownBinder = c.binder.filter((f) => sub.binder.includes(f.name));
+    const paramNames = (members) => paramsOf(members).map((p) => p.slice(0, p.indexOf(':')));
     lines.push('');
     lines.push(...sub.doc);
     lines.push(`export class ${sub.name} extends ${c.name} {`);
-    lines.push('  // Set by the binder.');
-    for (const f of own) lines.push(`  ${f.name}: ${f.type} | undefined;`);
+    for (const m of ownMembers) lines.push(`  ${m.name}: ${type(m)};`);
+    if (ownBinder.length > 0) {
+      lines.push('  // Set by the binder.');
+      for (const f of ownBinder) lines.push(`  ${f.name}: ${f.type} | undefined;`);
+    }
     lines.push('');
-    lines.push(`  constructor(${params.join(', ')}) {`);
-    lines.push(`    super(${params.map((p) => p.slice(0, p.indexOf(':'))).join(', ')});`);
-    for (const f of own) lines.push(`    this.${f.name} = undefined;`);
+    lines.push(`  constructor(${paramsOf(c.members).join(', ')}) {`);
+    lines.push(`    super(${paramNames(baseMembers).join(', ')});`);
+    for (const m of ownMembers) lines.push(assignment(m));
+    for (const f of ownBinder) lines.push(`    this.${f.name} = undefined;`);
     lines.push('  }');
     lines.push('');
-    lines.push(...copy(sub.name));
+    if (ownMembers.length > 0) {
+      lines.push(...childMethods(c.members));
+      lines.push('');
+    }
+    lines.push(...copyMethod(sub.name, c.members));
     lines.push('}');
+    if (sub.create !== undefined) {
+      const own = ownMembers.map((m) => `${paramName(m.name)} !== undefined`);
+      lines.push('');
+      lines.push(`/** A \`${sub.name}\` when one of its fields is set or \`inJavaScript\`, else a \`${c.name}\`. */`);
+      lines.push(
+        `export function ${sub.create}(${[...paramsOf(c.members), 'inJavaScript: boolean'].join(', ')}): ${c.name} {`,
+      );
+      lines.push(`  if (inJavaScript || ${own.join(' || ')})`);
+      lines.push(`    return new ${sub.name}(${paramNames(c.members).join(', ')});`);
+      lines.push(`  return new ${c.name}(${paramNames(baseMembers).join(', ')});`);
+      lines.push('}');
+    }
+    for (const [field, reader] of Object.entries(sub.readers ?? {})) {
+      const m = ownMembers.find((x) => x.name === field);
+      lines.push('');
+      lines.push(`export function ${reader}(node: ${c.name}): ${type(m)} {`);
+      lines.push(`  return node instanceof ${sub.name} ? node.${field} : undefined;`);
+      lines.push('}');
+    }
   }
   return lines.join('\n');
 }
@@ -430,9 +509,10 @@ function emitAccessors(classes) {
     const lines = [`export function ${fn}(node: Node): ${ret} {`, '  switch (node.kind) {'];
     for (const c of holders) {
       for (const k of c.kinds) lines.push(`    case SyntaxKind.${k}:`);
+      const holder = fieldHolder(c, field);
       lines.push(
-        `      if (node instanceof ${c.name}) {`,
-        `        const holder: ${c.name} = node;`,
+        `      if (node instanceof ${holder}) {`,
+        `        const holder: ${holder} = node;`,
         `        return holder.${field};`,
         '      }',
       );
@@ -489,7 +569,7 @@ function emitBinderAccessors(classes) {
         setter.push(`    case SyntaxKind.${k}:`);
       }
       // Through typed locals: scriptc reads and writes fields of a narrowed parameter dynamically.
-      const holder = binderFieldHolder(c, field);
+      const holder = fieldHolder(c, field);
       getter.push(
         `      if (node instanceof ${holder}) {`,
         `        const holder: ${holder} = node;`,

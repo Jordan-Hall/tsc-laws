@@ -157,6 +157,8 @@ import {
   getProperties,
   getStatements,
   getModifiers,
+  callQuestionDotToken,
+  callTypeArguments,
 } from '../ast.js';
 import { OperatorPrecedence } from '../ast-utilities.js';
 import {
@@ -2248,8 +2250,8 @@ export class Printer extends NameGeneratorHost {
   private emitCallExpression(node: CallExpression): boolean {
     const state = this.enterNode(node);
     this.emitCallee(node.expression, node);
-    this.emitOptionalToken(node.questionDotToken);
-    this.emitTypeArguments(node, node.typeArguments);
+    this.emitOptionalToken(callQuestionDotToken(node));
+    this.emitTypeArguments(node, callTypeArguments(node));
     this.emitList(ListItem.Argument, node, node.arguments, ListFormat.CallExpressionArguments);
     this.exitNode(node, state);
     return true;
@@ -2653,8 +2655,8 @@ export class Printer extends NameGeneratorHost {
       return factory.updateCallExpression(
         node,
         this.parenthesizeExpressionForNoAsi(node.expression),
-        node.questionDotToken,
-        node.typeArguments,
+        callQuestionDotToken(node),
+        callTypeArguments(node),
         node.arguments,
         node.flags,
       );
@@ -2921,8 +2923,8 @@ export class Printer extends NameGeneratorHost {
         this.write1('(');
         this.emitExpression(call.expression, OperatorPrecedence.Lowest);
         this.write1(')');
-        this.emitOptionalToken(call.questionDotToken);
-        this.emitTypeArguments(call, call.typeArguments);
+        this.emitOptionalToken(callQuestionDotToken(call));
+        this.emitTypeArguments(call, callTypeArguments(call));
         this.emitList(ListItem.Argument, call, call.arguments, ListFormat.CallExpressionArguments);
         this.exitNode(call, callState);
       }

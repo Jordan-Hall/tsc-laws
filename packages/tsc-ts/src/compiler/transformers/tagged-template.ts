@@ -2,7 +2,6 @@
 // calls with a `__makeTemplateObject` template object.
 import {
   ArrayLiteralExpression,
-  CallExpression,
   type Node,
   NodeFlags,
   NoSubstitutionTemplateLiteral,
@@ -13,6 +12,7 @@ import {
   TemplateMiddle,
   TemplateSpan,
   TemplateTail,
+  newCallExpression,
 } from '../ast.js';
 import type { EmitContext } from '../printer/emit-context.js';
 import { getSourceTextOfNode } from '../printer/utilities.js';
@@ -106,7 +106,7 @@ export class TaggedTemplateTransformer extends Transformer {
       templateObject = factory.createLogicalOr(name, factory.createAssignment(name, helperCall));
     }
     args.unshift(templateObject);
-    const call = factory.created(new CallExpression(tag, undefined, undefined, factory.createNodeList(args), 0));
+    const call = factory.created(newCallExpression(tag, undefined, undefined, factory.createNodeList(args), 0, false));
     call.pos = node.pos;
     call.end = node.end;
     return call;

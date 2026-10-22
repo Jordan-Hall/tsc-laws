@@ -73,6 +73,8 @@ import {
   setNextContainer,
   setReturnFlowNode,
   setSymbol,
+  callQuestionDotToken,
+  callTypeArguments,
 } from './ast.js';
 import {
   isAmbientModule,
@@ -1886,8 +1888,8 @@ class Binder extends NodeVisitor {
       this.bindOptional((node as ElementAccessExpression).questionDotToken);
       this.bind((node as ElementAccessExpression).argumentExpression);
     } else if (node instanceof CallExpression) {
-      this.bindOptional((node as CallExpression).questionDotToken);
-      this.bindNodes((node as CallExpression).typeArguments);
+      this.bindOptional(callQuestionDotToken(node as CallExpression));
+      this.bindNodes(callTypeArguments(node as CallExpression));
       this.bindNodes((node as CallExpression).arguments);
     }
   }
@@ -1898,7 +1900,7 @@ class Binder extends NodeVisitor {
       // An IIFE's flow node includes the evaluation of its arguments.
       const callee = skipParentheses(node.expression);
       if (callee.kind === SyntaxKind.FunctionExpression || callee.kind === SyntaxKind.ArrowFunction) {
-        this.bindNodes(node.typeArguments);
+        this.bindNodes(callTypeArguments(node));
         this.bindNodes(node.arguments);
         this.bind(node.expression);
       } else {

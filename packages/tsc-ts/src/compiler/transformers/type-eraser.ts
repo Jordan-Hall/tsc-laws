@@ -38,6 +38,7 @@ import {
   VariableDeclaration,
   ArrowFunction,
   getExpression,
+  callQuestionDotToken,
 } from '../ast.js';
 import { nodeIsMissing } from '../ast-utilities.js';
 import type { CompilerOptions } from '../options.js';
@@ -317,7 +318,7 @@ export class TypeEraser extends Transformer {
           return factory.updateCallExpression(
             node,
             this.required(node.expression),
-            node.questionDotToken,
+            callQuestionDotToken(node),
             undefined,
             this.visitNodes(node.arguments)!,
             node.flags,

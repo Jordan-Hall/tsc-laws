@@ -26,6 +26,7 @@ import {
   StringLiteral,
   NoSubstitutionTemplateLiteral,
   Identifier,
+  callQuestionDotToken,
 } from '../ast.js';
 import { isAnyImportOrReExport, isImportCall, isInJSFile, isRequireCall } from '../ast-utilities.js';
 import { type CompilerOptions, JsxEmit, ModuleKind, getEmitModuleKind, getIsolatedModules } from '../options.js';
@@ -392,7 +393,7 @@ export class ESModuleTransformer extends Transformer {
     return factory.updateCallExpression(
       node,
       this.visitNode(node.expression)!,
-      node.questionDotToken,
+      callQuestionDotToken(node),
       undefined,
       new NodeList(node.arguments.pos, node.arguments.end, [argument].concat(rest)),
       node.flags,

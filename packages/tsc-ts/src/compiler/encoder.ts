@@ -186,6 +186,11 @@ import {
   YieldExpression,
   BigIntLiteral,
   Identifier,
+  propertyAssignmentPostfixToken,
+  propertyAssignmentType,
+  callQuestionDotToken,
+  propertyAssignmentModifiers,
+  callTypeArguments,
 } from './ast.js';
 import { getJSDoc } from './parser.js';
 import { SyntaxKind } from './syntax-kind.js';
@@ -883,8 +888,8 @@ function childrenPropertyMask(node: Node): number {
     case SyntaxKind.CallExpression:
       return node instanceof CallExpression
         ? ((node as CallExpression).expression !== undefined ? 1 : 0) |
-            ((node as CallExpression).questionDotToken !== undefined ? 2 : 0) |
-            ((node as CallExpression).typeArguments !== undefined ? 4 : 0) |
+            (callQuestionDotToken(node as CallExpression) !== undefined ? 2 : 0) |
+            (callTypeArguments(node as CallExpression) !== undefined ? 4 : 0) |
             ((node as CallExpression).arguments !== undefined ? 8 : 0)
         : 0;
     case SyntaxKind.NewExpression:
@@ -938,10 +943,10 @@ function childrenPropertyMask(node: Node): number {
       return node instanceof SpreadAssignment ? ((node as SpreadAssignment).expression !== undefined ? 1 : 0) : 0;
     case SyntaxKind.PropertyAssignment:
       return node instanceof PropertyAssignment
-        ? (hasModifiers((node as PropertyAssignment).modifiers) ? 1 : 0) |
+        ? (hasModifiers(propertyAssignmentModifiers(node as PropertyAssignment)) ? 1 : 0) |
             ((node as PropertyAssignment).name !== undefined ? 2 : 0) |
-            ((node as PropertyAssignment).postfixToken !== undefined ? 4 : 0) |
-            ((node as PropertyAssignment).type !== undefined ? 8 : 0) |
+            (propertyAssignmentPostfixToken(node as PropertyAssignment) !== undefined ? 4 : 0) |
+            (propertyAssignmentType(node as PropertyAssignment) !== undefined ? 8 : 0) |
             ((node as PropertyAssignment).initializer !== undefined ? 16 : 0)
         : 0;
     case SyntaxKind.ShorthandPropertyAssignment:
