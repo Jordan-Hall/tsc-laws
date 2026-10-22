@@ -258,6 +258,10 @@ export class Session {
         return JSON.stringify(this.signaturesOfType(JSON.parse(params) as proto.SignaturesOfTypeParams));
       case 'getResolvedSignature':
         return JSON.stringify(this.resolvedSignature(JSON.parse(params) as proto.LocationParams));
+      case 'getResolvedSignatures':
+        return JSON.stringify(this.resolvedSignatures(JSON.parse(params) as proto.LocationsParams));
+      case 'getContextualTypes':
+        return JSON.stringify(this.contextualTypes(JSON.parse(params) as proto.LocationsParams));
       case 'getTypeAtLocation':
         return JSON.stringify(this.typeAtLocation(JSON.parse(params) as proto.LocationParams));
       case 'getTypeAtLocations':
@@ -680,6 +684,16 @@ export class Session {
   private resolvedSignature(params: proto.LocationParams): proto.SignatureResponse | null {
     const q = this.query(params);
     return q.signatureResponse(q.project.resolvedSignature(q.node(params.location)));
+  }
+
+  private resolvedSignatures(params: proto.LocationsParams): (proto.SignatureResponse | null)[] {
+    const q = this.query(params);
+    return (params.locations ?? []).map((handle) => q.signatureResponse(q.project.resolvedSignature(q.node(handle))));
+  }
+
+  private contextualTypes(params: proto.LocationsParams): (proto.TypeResponse | null)[] {
+    const q = this.query(params);
+    return (params.locations ?? []).map((handle) => q.typeResponse(q.project.contextualType(q.node(handle))));
   }
 
   private typeAtLocation(params: proto.LocationParams): proto.TypeResponse | null {
