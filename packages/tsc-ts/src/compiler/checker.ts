@@ -112,6 +112,7 @@ import { SourceFileMetadata, getEmitModuleFormatOfFile } from './program-utiliti
 import type { GrammarChecker } from './checker-grammar.js';
 import type { ResolvedModule } from './module-resolution-types.js';
 import type { ModuleSpecifierHost } from './module-specifiers.js';
+import type { PropertyListIndex } from './checker-members.js';
 
 /** What the checker needs from a program. */
 export abstract class CheckerHost {
@@ -359,6 +360,8 @@ export class Checker implements TypeChecking {
   readonly sideHolders = new LinkTable<Type>();
   /** The same for signatures with side state (`signatureSideOf`), by signature id. */
   readonly signatureSideHolders = new LinkTable<Signature>();
+  /** The indexes of long property lists that `propertiesRelatedTo` walks, or null where a list repeats a name. */
+  readonly propertyListIndexes = new Map<Symbol[], PropertyListIndex | null>();
   /** The type of a value symbol. */
   readonly symbolTypes = new LinkTable<Type>();
   /** For instantiated and synthetic symbols, the symbol they come from. */
