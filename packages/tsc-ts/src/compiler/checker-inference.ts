@@ -293,15 +293,21 @@ export class IntraExpressionInferenceSite {
   }
 }
 
-export class InferenceContext {
+/**
+ * The inferences for a set of type parameters. The context is its own fixing mapper (`mapper`), and
+ * each read of `nonFixingMapper` returns a new mapper that reads the context: no mapper the context
+ * holds refers back to it, so a context whose inference is done is freed by reference counting
+ * rather than by the cycle collector.
+ */
+export class InferenceContext extends TypeMapper {
+  readonly c: Checker;
   inferences: InferenceInfo[];
   /** The generic signature inferences are made for, if any. */
   readonly signature: Signature | undefined;
   flags: InferenceFlags;
   readonly compareTypes: TypeComparer;
-  /** Fixes inferences. */
-  mapper: TypeMapper;
-  nonFixingMapper: TypeMapper;
+  /** Combined after the non-fixing mapper (conditional types' `infer` constraints), if any. */
+  nonFixingOuter: TypeMapper | undefined = undefined;
   /** Maps to inferences from the return type, if any. */
   returnMapper: TypeMapper | undefined = undefined;
   outerReturnMapper: TypeMapper | undefined = undefined;
@@ -316,41 +322,57 @@ export class InferenceContext {
     flags: InferenceFlags,
     compareTypes: TypeComparer,
   ) {
+    super();
+    this.c = c;
     this.inferences = inferences;
     this.signature = signature;
     this.flags = flags;
     this.compareTypes = compareTypes;
-    this.mapper = new InferenceTypeMapper(c, this, true);
-    this.nonFixingMapper = new InferenceTypeMapper(c, this, false);
   }
-}
 
-/** Maps a context's type parameters to their inferred types, optionally fixing them. */
-export class InferenceTypeMapper extends TypeMapper {
-  readonly c: Checker;
-  readonly context: InferenceContext;
-  readonly fixing: boolean;
+  /** Fixes inferences. */
+  get mapper(): TypeMapper {
+    return this;
+  }
 
-  constructor(c: Checker, context: InferenceContext, fixing: boolean) {
-    super();
-    this.c = c;
-    this.context = context;
-    this.fixing = fixing;
+  /** Maps to the current inferences without fixing them. */
+  get nonFixingMapper(): TypeMapper {
+    const mapper = new NonFixingInferenceMapper(this);
+    const outer = this.nonFixingOuter;
+    return outer !== undefined ? combineTypeMappers(this.c, mapper, outer) : mapper;
   }
 
   map(type: Type): Type {
-    const inferences = this.context.inferences;
+    const inferences = this.inferences;
     for (let i = 0; i < inferences.length; i++) {
       const inference = inferences[i]!;
       if (type !== inference.typeParameter) continue;
-      if (this.fixing && !inference.isFixed) {
+      if (!inference.isFixed) {
         // Infer from intra-expression sites before committing to an inference.
-        inferFromIntraExpressionSites(this.c, this.context);
+        inferFromIntraExpressionSites(this.c, this);
         clearCachedInferences(inferences);
         inference.isFixed = true;
       }
-      return getInferredType(this.c, this.context, i);
+      return getInferredType(this.c, this, i);
     }
+    return type;
+  }
+}
+
+/** Maps a context's type parameters to their inferred types without fixing them. */
+export class NonFixingInferenceMapper extends TypeMapper {
+  readonly context: InferenceContext;
+
+  constructor(context: InferenceContext) {
+    super();
+    this.context = context;
+  }
+
+  map(type: Type): Type {
+    const context = this.context;
+    const inferences = context.inferences;
+    for (let i = 0; i < inferences.length; i++)
+      if (type === inferences[i]!.typeParameter) return getInferredType(context.c, context, i);
     return type;
   }
 }
@@ -2404,7 +2426,7 @@ export function inferTypesForConditional(
   // The constraints of `infer` type parameters may refer to other roots or to what `mapper` maps,
   // so the non-fixing mapper combines with `mapper`.
   const context = createInferenceContext(c, root.inferTypeParameters, undefined, InferenceFlags.None, undefined);
-  if (mapper !== undefined) context.nonFixingMapper = combineTypeMappers(c, context.nonFixingMapper, mapper);
+  if (mapper !== undefined) context.nonFixingOuter = mapper;
   // Inferences from constraints could eagerly resolve what should defer; contravariance is always strict.
   if (!checkTypeDeferred)
     inferTypes(
