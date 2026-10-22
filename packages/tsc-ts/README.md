@@ -31,7 +31,7 @@ npx tsc-ts -p tsconfig.json
 npx tsc-ts --noEmit src/index.ts
 ```
 
-`tsc-ts --api` serves the TypeScript API over stdin and stdout, like `tsc --api`.
+`tsc-ts --api` serves the TypeScript API over stdin and stdout, like `tsc --api`. On Windows, `--api --pipe \\.\pipe\<name>` serves it over a named pipe it creates, as `tsc --api --pipe` does, for clients that connect to the pipe (such as scriptc under Node.js); only the native executable supports `--pipe`.
 
 `--checkers N` checks the program on N threads. Unless `--checkers` or `--singleThreaded` is given, the native executable uses one checker per CPU it may run on (up to 16), and at least tsgo's four; it uses fewer than the CPUs, but never fewer than four, when the estimated peak memory of more checkers would not fit 85% of the machine's memory (`TSC_TS_CHECKERS=fixed` keeps tsgo's four), and checkers beyond the fourth stop taking files, one at a time, when the process's memory reaches that share; it shares one program between its threads and also parses and binds the program's files on them. Unless `--singleThreaded` is given, the program's files are parsed and bound on threads also with `--checkers 1`, as tsgo does. Files that share costly declarations, such as a large generated schema and the few files importing it, are checked together on one checker. Under Node.js, where every thread builds its own copy of the program, tsc-ts checks on one thread unless `--checkers` is given. `--incremental`, `--watch` and `--build` always check on one thread. The diagnostics are the same as with one checker.
 

@@ -226,6 +226,33 @@ jobs:
           path: ${{ runner.temp }}/report.json
           retention-days: 30
 
+  # The API server on Windows, over standard input and output (as the native scriptc compiler starts it) and over the
+  # named pipe it creates (as scriptc's Node host does): the native tsc-ts, linked with its Windows pipe server.
+  windows-api:
+    name: API server (windows)
+    needs: plan
+    if: needs.plan.outputs.native == 'true'
+    runs-on: windows-2025
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: vercel-labs/setup-zig@v1
+        with:
+          version: 0.16.0
+      - run: npm ci
+      - name: Build natively
+        working-directory: packages/tsc-ts
+        run: npm run build:native
+      - name: Run the API server tests
+        working-directory: packages/tsc-ts
+        env:
+          TSC_TS_BIN: packages/tsc-ts/dist/tsc.exe
+        run: node --test tests/api-pipe.test.mjs
+
   docs:
     name: documentation
     needs: plan
@@ -268,7 +295,7 @@ jobs:
   # The one check branch protection needs: it fails when any job above failed or was cancelled.
   result:
     name: CI result
-    needs: [plan, checks, build, test, native-build, native-test, docs, package]
+    needs: [plan, checks, build, test, native-build, native-test, windows-api, docs, package]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
