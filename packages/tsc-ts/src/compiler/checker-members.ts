@@ -1705,15 +1705,12 @@ export function firstUnmatchedProperty(
   const staticPrivate = index.staticPrivate;
   let nextPrivate = 0;
   for (let position = 0; position < targetProperties.length; position++) {
-    if (next < found.length && found[next] === position) {
-      next++;
-      continue;
-    }
-    if (nextPrivate < staticPrivate.length && staticPrivate[nextPrivate] === position) {
-      nextPrivate++;
-      continue;
-    }
-    return targetProperties[position];
+    // A position can be both found and static private: both lists move past it.
+    const isFound = next < found.length && found[next] === position;
+    if (isFound) next++;
+    const isStaticPrivate = nextPrivate < staticPrivate.length && staticPrivate[nextPrivate] === position;
+    if (isStaticPrivate) nextPrivate++;
+    if (!isFound && !isStaticPrivate) return targetProperties[position];
   }
   return undefined;
 }
