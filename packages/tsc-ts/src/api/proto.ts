@@ -100,6 +100,10 @@ export interface TypeParams extends ProjectParams {
   type?: number;
 }
 
+export interface TypesParams extends ProjectParams {
+  types?: number[];
+}
+
 // Parameters of the get*Of* property methods, which name the object `objectId`.
 export interface ObjectParams extends ProjectParams {
   objectId?: number;
@@ -107,6 +111,10 @@ export interface ObjectParams extends ProjectParams {
 
 export interface SignatureParams extends ProjectParams {
   signature?: number;
+}
+
+export interface SignaturesParams extends ProjectParams {
+  signatures?: number[];
 }
 
 export interface SymbolAtLocationParams extends ProjectParams {
@@ -123,6 +131,10 @@ export interface NamedSymbolParams extends SymbolParams {
 }
 
 export interface SignaturesOfTypeParams extends TypeParams {
+  kind?: number;
+}
+
+export interface SignaturesOfTypesParams extends TypesParams {
   kind?: number;
 }
 
