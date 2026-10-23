@@ -254,6 +254,8 @@ export class Session {
         return JSON.stringify(this.typesOfSymbols(JSON.parse(params) as proto.SymbolsParams));
       case 'resolveName':
         return JSON.stringify(this.resolveName(JSON.parse(params) as proto.ResolveNameParams));
+      case 'getSignaturesOfTypes':
+        return JSON.stringify(this.signaturesOfTypes(JSON.parse(params) as proto.SignaturesOfTypesParams));
       case 'getSignaturesOfType':
         return JSON.stringify(this.signaturesOfType(JSON.parse(params) as proto.SignaturesOfTypeParams));
       case 'getResolvedSignature':
@@ -305,6 +307,8 @@ export class Session {
         return JSON.stringify(this.targetOfSignature(JSON.parse(params) as proto.ObjectParams));
       case 'getContextualType':
         return JSON.stringify(this.contextualType(JSON.parse(params) as proto.LocationParams));
+      case 'getBaseTypesOfLiteralTypes':
+        return JSON.stringify(this.baseTypesOfLiteralTypes(JSON.parse(params) as proto.TypesParams));
       case 'getBaseTypeOfLiteralType':
       case 'getNonNullableType':
       case 'getWidenedType':
@@ -320,6 +324,9 @@ export class Session {
       case 'isArrayType':
       case 'isTupleType':
         return JSON.stringify(this.typePredicate(method, JSON.parse(params) as proto.TypeParams));
+      case 'isArrayTypes':
+      case 'isTupleTypes':
+        return JSON.stringify(this.typePredicates(method, JSON.parse(params) as proto.TypesParams));
       case 'isTypeAssignableTo':
         return JSON.stringify(this.isTypeAssignableTo(JSON.parse(params) as proto.AssignabilityParams));
       case 'getShorthandAssignmentValueSymbol':
@@ -339,6 +346,8 @@ export class Session {
       case 'getReturnTypeOfSignature':
       case 'getRestTypeOfSignature':
         return JSON.stringify(this.typeOfSignature(method, JSON.parse(params) as proto.SignatureParams));
+      case 'getReturnTypesOfSignatures':
+        return JSON.stringify(this.returnTypesOfSignatures(JSON.parse(params) as proto.SignaturesParams));
       case 'getTypePredicateOfSignature':
         return JSON.stringify(this.typePredicateOfSignature(JSON.parse(params) as proto.SignatureParams));
       case 'getBaseTypes':
@@ -346,6 +355,8 @@ export class Session {
         return JSON.stringify(this.checkerTypesOfType(method, JSON.parse(params) as proto.TypeParams));
       case 'getPropertiesOfType':
         return JSON.stringify(this.propertiesOfType(JSON.parse(params) as proto.TypeParams));
+      case 'getPropertiesOfTypes':
+        return JSON.stringify(this.propertiesOfTypes(JSON.parse(params) as proto.TypesParams));
       case 'getPropertyOfType':
         return JSON.stringify(this.propertyOfType(JSON.parse(params) as proto.NamedTypeParams));
       case 'getIndexInfosOfType':
@@ -355,13 +366,19 @@ export class Session {
         return JSON.stringify(this.branchOfConditionalType(method, JSON.parse(params) as proto.ObjectParams));
       case 'getConstantValue':
         return JSON.stringify(this.constantValue(JSON.parse(params) as proto.LocationParams));
+      case 'getConstantValues':
+        return JSON.stringify(this.constantValues(JSON.parse(params) as proto.LocationsParams));
       case 'getSignatureFromDeclaration':
         return JSON.stringify(this.signatureFromDeclaration(JSON.parse(params) as proto.LocationParams));
+      case 'getSignaturesFromDeclarations':
+        return JSON.stringify(this.signaturesFromDeclarations(JSON.parse(params) as proto.LocationsParams));
       case 'getExportSpecifierLocalTargetSymbol':
         return JSON.stringify(this.exportSpecifierLocalTargetSymbol(JSON.parse(params) as proto.LocationParams));
       case 'getAliasedSymbol':
       case 'getImmediateAliasedSymbol':
         return JSON.stringify(this.aliasedSymbol(method, JSON.parse(params) as proto.SymbolParams));
+      case 'getAliasedSymbols':
+        return JSON.stringify(this.aliasedSymbols(JSON.parse(params) as proto.SymbolsParams));
       case 'getExportsOfModule':
         return JSON.stringify(this.exportsOfModule(JSON.parse(params) as proto.SymbolParams));
       case 'getMemberInModuleExports':
@@ -681,6 +698,14 @@ export class Session {
     return q.project.signaturesOfType(q.type(params.type), kind).map((s) => q.signatureResponse(s));
   }
 
+  private signaturesOfTypes(params: proto.SignaturesOfTypesParams): (proto.SignatureResponse | null)[][] {
+    const q = this.query(params);
+    const kind = params.kind === 1 ? backend.SignatureKind.Construct : backend.SignatureKind.Call;
+    return (params.types ?? []).map((id) =>
+      q.project.signaturesOfType(q.type(id), kind).map((s) => q.signatureResponse(s)),
+    );
+  }
+
   private resolvedSignature(params: proto.LocationParams): proto.SignatureResponse | null {
     const q = this.query(params);
     return q.signatureResponse(q.project.resolvedSignature(q.node(params.location)));
@@ -848,6 +873,11 @@ export class Session {
     return q.typeResponse(project.baseConstraintOfType(type));
   }
 
+  private baseTypesOfLiteralTypes(params: proto.TypesParams): (proto.TypeResponse | null)[] {
+    const q = this.query(params);
+    return (params.types ?? []).map((id) => q.typeResponse(q.project.baseTypeOfLiteralType(q.type(id))));
+  }
+
   private typeFromTypeNode(params: proto.LocationParams): proto.TypeResponse | null {
     const q = this.query(params);
     return q.typeResponse(q.project.typeFromTypeNode(q.node(params.location)));
@@ -867,6 +897,14 @@ export class Session {
     if (method === 'isArrayLikeType') return q.project.isArrayLikeType(type);
     if (method === 'isArrayType') return q.project.isArrayType(type);
     return backend.isTupleType(type);
+  }
+
+  private typePredicates(method: string, params: proto.TypesParams): boolean[] {
+    const q = this.query(params);
+    return (params.types ?? []).map((id) => {
+      const type = q.type(id);
+      return method === 'isArrayTypes' ? q.project.isArrayType(type) : backend.isTupleType(type);
+    });
   }
 
   private isTypeAssignableTo(params: proto.AssignabilityParams): boolean {
@@ -940,6 +978,11 @@ export class Session {
     );
   }
 
+  private returnTypesOfSignatures(params: proto.SignaturesParams): (proto.TypeResponse | null)[] {
+    const q = this.query(params);
+    return (params.signatures ?? []).map((id) => q.typeResponse(q.project.returnTypeOfSignature(q.signature(id))));
+  }
+
   private typePredicateOfSignature(params: proto.SignatureParams): proto.TypePredicateResponse | null {
     const q = this.query(params);
     const predicate = q.project.typePredicateOfSignature(q.signature(params.signature));
@@ -961,6 +1004,11 @@ export class Session {
   private propertiesOfType(params: proto.TypeParams): proto.SymbolResponse[] {
     const q = this.query(params);
     return q.symbolResponses(q.project.propertiesOfType(q.type(params.type)));
+  }
+
+  private propertiesOfTypes(params: proto.TypesParams): proto.SymbolResponse[][] {
+    const q = this.query(params);
+    return (params.types ?? []).map((id) => q.symbolResponses(q.project.propertiesOfType(q.type(id))));
   }
 
   private propertyOfType(params: proto.NamedTypeParams): proto.SymbolResponse | null {
@@ -993,9 +1041,21 @@ export class Session {
     return literalValueResponse(q.project.constantValue(q.node(params.location)));
   }
 
+  private constantValues(params: proto.LocationsParams): proto.LiteralValueResponse[] {
+    const q = this.query(params);
+    return (params.locations ?? []).map((handle) => literalValueResponse(q.project.constantValue(q.node(handle))));
+  }
+
   private signatureFromDeclaration(params: proto.LocationParams): proto.SignatureResponse | null {
     const q = this.query(params);
     return q.signatureResponse(q.project.signatureFromDeclaration(q.node(params.location)));
+  }
+
+  private signaturesFromDeclarations(params: proto.LocationsParams): (proto.SignatureResponse | null)[] {
+    const q = this.query(params);
+    return (params.locations ?? []).map((handle) =>
+      q.signatureResponse(q.project.signatureFromDeclaration(q.node(handle))),
+    );
   }
 
   private exportSpecifierLocalTargetSymbol(params: proto.LocationParams): proto.SymbolResponse | null {
@@ -1009,6 +1069,11 @@ export class Session {
     return q.symbolResponse(
       method === 'getAliasedSymbol' ? q.project.aliasedSymbol(symbol) : q.project.immediateAliasedSymbol(symbol),
     );
+  }
+
+  private aliasedSymbols(params: proto.SymbolsParams): (proto.SymbolResponse | null)[] {
+    const q = this.query(params);
+    return (params.symbols ?? []).map((id) => q.symbolResponse(q.project.aliasedSymbol(q.symbol(id))));
   }
 
   private exportsOfModule(params: proto.SymbolParams): proto.SymbolResponse[] {
