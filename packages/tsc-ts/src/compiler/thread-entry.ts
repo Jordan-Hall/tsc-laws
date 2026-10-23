@@ -54,6 +54,7 @@ export interface CheckerThreadData {
   readonly emits: boolean;
   readonly emitKinds: number[] | undefined;
   readonly checking: boolean;
+  readonly units: number[];
 }
 
 export interface ParseThreadData {
@@ -75,7 +76,19 @@ export interface ReferenceThreadData {
  */
 export function startThreads(spawn: ThreadSpawn, drivers: ThreadDrivers, args: readonly string[]): void {
   parallelCheck.writer = drivers.outputWriter();
-  parallelCheck.spawn = (program, index, counter, order, nodeIds, symbolIds, reserved, emits, emitKinds, checking) =>
+  parallelCheck.spawn = (
+    program,
+    index,
+    counter,
+    order,
+    nodeIds,
+    symbolIds,
+    reserved,
+    emits,
+    emitKinds,
+    checking,
+    units,
+  ) =>
     spawn({
       kind: 'check',
       program,
@@ -89,6 +102,7 @@ export function startThreads(spawn: ThreadSpawn, drivers: ThreadDrivers, args: r
       emits,
       emitKinds,
       checking,
+      units,
     });
   if (sharesPublishedGraphs) {
     parallelParse.spawn = (configFileName, counter, index) =>
@@ -161,6 +175,7 @@ function runCheckerThread(job: CheckerThreadData, drivers: ThreadDrivers): void 
           job.emits,
           job.emitKinds,
           job.checking,
+          job.units,
         );
   // Packed results are copied: nothing this thread allocated stays reachable after it ends.
   if (packsResults) parentPort!.postMessage(packResult(result, program!));

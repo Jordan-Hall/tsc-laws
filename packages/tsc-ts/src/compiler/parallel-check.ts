@@ -65,7 +65,8 @@ export function residentMB(): number[] {
  * (`CheckerResult.reserved`). With `emits` false the thread doesn't emit the files it checks, where
  * the main thread emits the program (`checkersEmit`). `emitKinds`, by file index, is what the emit of
  * each file includes (an `EmitOnly`, or -1 for none) where not every output of every file is emitted
- * (an incremental program's rebuild); `undefined` for all of them.
+ * (an incremental program's rebuild); `undefined` for all of them. `units` are the statement ranges of
+ * declaration files the order has positions for (`CheckPlan.units`).
  */
 export type CheckerSpawn = (
   program: Program | undefined,
@@ -78,6 +79,7 @@ export type CheckerSpawn = (
   emits: boolean,
   emitKinds: number[] | undefined,
   checking: boolean,
+  units: number[],
 ) => Worker;
 
 export class ParallelCheck {
@@ -113,6 +115,10 @@ export class CheckerResult {
     /** The positions of a group the thread took and had not checked when it stopped at its file limit. */
     readonly reserved: number[] = [],
     readonly emits: EmitResult[] = [],
+    /** The statement ranges of declaration files it checked (`rangeUnits`). */
+    readonly units: number[] = [],
+    /** Those of `units` after which its checker had diagnostics in their file (`checkSourceFileRange`). */
+    readonly reportingUnits: number[] = [],
   ) {}
 }
 
@@ -152,6 +158,8 @@ export type PackedResult = {
   readonly stats: number[];
   readonly more: boolean;
   readonly reserved: number[];
+  readonly units: Int32Array;
+  readonly reportingUnits: Int32Array;
 };
 
 class ResultPacker {
@@ -234,6 +242,8 @@ export function packResult(result: CheckerResult, program: Program): PackedResul
     stats: result.stats,
     more: result.more,
     reserved: result.reserved,
+    units: Int32Array.from(result.units),
+    reportingUnits: Int32Array.from(result.reportingUnits),
   };
 }
 
@@ -348,6 +358,8 @@ export function unpackResult(
     packed.more,
     packed.reserved,
     emits,
+    Array.from(packed.units),
+    Array.from(packed.reportingUnits),
   );
 }
 
@@ -1161,6 +1173,12 @@ export class CheckPlan {
     readonly references: number,
     /** For each position, the number of files of the group starting there (0 elsewhere). */
     readonly groups: number[] = [],
+    /**
+     * The statement ranges of declaration files that several checkers check (`rangeUnits`): for each,
+     * the file's index and its first and end statement. Position `k` of `order` is range `u` where
+     * `order[k]` is `-1 - u`.
+     */
+    readonly units: number[] = [],
   ) {}
 }
 
@@ -1311,15 +1329,99 @@ export function checkGroups(
 }
 
 /**
+ * How many ranges a declaration file checked in statement ranges (`rangeUnits`) has per checker's share
+ * of the program's estimated cost, and at most per checker.
+ */
+const rangesPerShare = 2;
+const rangesPerChecker = 2;
+
+/**
+ * The statement ranges that `count` checkers check declaration files in, as `CheckPlan.units`: those of
+ * the files of `costs` whose estimated cost is more than a checker's share, which one checker would
+ * finish long after the others. lib.dom.d.ts (2.4 MB) is such a file in a small program: one checker
+ * took 150 ms on it while 15 waited. Each range is about half a share, of about equal text, and the
+ * last one ends the file (`checkSourceFileRange`). `grouped` files (`checkGroups`) are checked whole.
+ * TSC_TS_RANGES=0 checks every file whole; TSC_TS_RANGES=all checks every checked declaration file in
+ * ranges, `count` of them.
+ */
+export function rangeUnits(
+  checked: CheckedProgram,
+  count: number,
+  costs: CheckCosts,
+  grouped: ReadonlySet<number> = new Set<number>(),
+): number[] {
+  const units: number[] = [];
+  const mode = process.env.TSC_TS_RANGES;
+  if (count < 2 || mode === '0') return units;
+  const files = checked.program.getSourceFiles();
+  const cost = costs.cost;
+  let all = 0;
+  for (const i of costs.order) all += cost[i]!;
+  const share = all / count;
+  for (const i of costs.order) {
+    const file = files[i]!;
+    if (!file.isDeclarationFile || grouped.has(i) || (mode !== 'all' && cost[i]! <= share)) continue;
+    const statements = file.statements.nodes;
+    const n = Math.min(
+      statements.length,
+      mode === 'all' ? count : Math.min(rangesPerChecker * count, Math.ceil((rangesPerShare * cost[i]!) / share)),
+    );
+    if (n < 2) continue;
+    const text = file.text.length;
+    let start = 0;
+    for (let r = 1; r <= n && start < statements.length; r++) {
+      let end = statements.length;
+      if (r < n) {
+        const target = (text * r) / n;
+        end = start + 1;
+        while (end < statements.length && statements[end - 1]!.end < target) end++;
+      }
+      units.push(i, start, end);
+      start = end;
+    }
+  }
+  return units;
+}
+
+/** The estimated cost of range `u` of `units`, its file's share by text. */
+function unitCost(checked: CheckedProgram, costs: CheckCosts, units: readonly number[], u: number): number {
+  const file = checked.program.getSourceFiles()[units[3 * u]!]!;
+  return (costs.cost[units[3 * u]!]! * unitLength(file, units, u)) / Math.max(1, file.text.length);
+}
+
+/** The text length of the statements of range `u` of `units` of `file`. */
+function unitLength(file: SourceFile, units: readonly number[], u: number): number {
+  const statements = file.statements.nodes;
+  return statements[units[3 * u + 2]! - 1]!.end - statements[units[3 * u + 1]!]!.pos;
+}
+
+/**
  * Plans checking with `count` checkers: the order to check files in, the costliest files and the
  * groups (`checkGroups`; at least `count` entries, and every file costing more than a 32nd of a
  * checker's share), costliest first, from the shared queue; then the others split, in program
- * order, into one range of about equal cost per checker, each costliest first.
+ * order, into one range of about equal cost per checker, each costliest first. With `inRanges`, the
+ * statement ranges of large declaration files (`rangeUnits`) replace them in the shared queue.
  */
-export function planSchedule(checked: CheckedProgram, count: number, costs = costOrder(checked)): CheckPlan {
+export function planSchedule(
+  checked: CheckedProgram,
+  count: number,
+  costs = costOrder(checked),
+  inRanges = false,
+): CheckPlan {
   const order = costs.order;
   const cost = costs.cost;
-  if (order.length <= count) return new CheckPlan(order, -1, [], [], [], [], 0);
+  if (order.length <= count) {
+    const units = inRanges ? rangeUnits(checked, count, costs) : [];
+    if (units.length === 0) return new CheckPlan(order, -1, [], [], [], [], 0);
+    // The ranges take the place of their files, all in one shared queue, costliest first.
+    const split = new Set<number>();
+    for (let u = 0; u < units.length; u += 3) split.add(units[u]!);
+    const entries: number[] = order.filter((i) => !split.has(i));
+    for (let u = 0; u < units.length / 3; u++) entries.push(-1 - u);
+    const costOf = (k: number): number => (k < 0 ? unitCost(checked, costs, units, -1 - k) : cost[k]!);
+    entries.sort((a, b) => costOf(b) - costOf(a));
+    return new CheckPlan(entries, -1, [], [], [], [], 0, [], units);
+  }
   let all = 0;
   for (const i of order) all += cost[i]!;
   // Files that cost more than a 32nd of a checker's share go first, costliest first: at the end of
@@ -1330,11 +1432,15 @@ export function planSchedule(checked: CheckedProgram, count: number, costs = cos
   const groups = checkGroups(checked, count, groupLoad, costs);
   const grouped = new Set<number>();
   for (const group of groups) for (const i of group) grouped.add(i);
+  const units = inRanges ? rangeUnits(checked, count, costs, grouped) : [];
+  const split = new Set<number>();
+  for (let u = 0; u < units.length; u += 3) split.add(units[u]!);
   const entries: number[][] = groups.slice();
-  for (const i of order.slice(0, heavyCount)) if (!grouped.has(i)) entries.push([i]);
+  for (const i of order.slice(0, heavyCount)) if (!grouped.has(i) && !split.has(i)) entries.push([i]);
+  for (let u = 0; u < units.length / 3; u++) entries.push([-1 - u]);
   const entryCost = (entry: number[]): number => {
     let sum = 0;
-    for (const i of entry) sum += cost[i]!;
+    for (const i of entry) sum += i < 0 ? unitCost(checked, costs, units, -1 - i) : cost[i]!;
     return sum;
   };
   entries.sort((a, b) => entryCost(b) - entryCost(a) || a[0]! - b[0]!);
@@ -1347,7 +1453,7 @@ export function planSchedule(checked: CheckedProgram, count: number, costs = cos
     }
   const rest = order
     .slice(heavyCount)
-    .filter((i) => !grouped.has(i))
+    .filter((i) => !grouped.has(i) && !split.has(i))
     .sort((a, b) => a - b);
   heavyCount = heavy.length;
   let total = 0;
@@ -1378,9 +1484,9 @@ export function planSchedule(checked: CheckedProgram, count: number, costs = cos
   const libraries: number[][] = [];
   let references = 0;
   for (const i of planned) {
-    lengths.push(textLength[i]!);
+    lengths.push(i < 0 ? unitLength(files[units[-3 * i - 3]!]!, units, -1 - i) : textLength[i]!);
     const ids: number[] = [];
-    for (const k of costs.libraries[i]!) {
+    for (const k of costs.libraries[i < 0 ? units[-3 * i - 3]! : i]!) {
       let id = libraryIds.get(k);
       if (id === undefined) {
         id = libraryCosts.length;
@@ -1398,7 +1504,7 @@ export function planSchedule(checked: CheckedProgram, count: number, costs = cos
       process.stderr.write(
         `checkers: group of ${group.length}: ${group.map((i) => files[i]!.fileName.split('/').slice(-2).join('/')).join(' ')}\n`,
       );
-  return new CheckPlan(planned, heavyCount, ranges, lengths, libraries, libraryCosts, references, groupAt);
+  return new CheckPlan(planned, heavyCount, ranges, lengths, libraries, libraryCosts, references, groupAt, units);
 }
 
 /** With TSC_TS_CHECKERS_TRACE: the single-threaded checker's statistics, like a checker thread's. */
@@ -1422,7 +1528,8 @@ export function traceSingleChecker(checked: CheckedProgram): void {
  * A checker thread (`onMainThread` false) also sends back its global diagnostics. At `limit` files
  * it stops; `reserved` are the positions of a group its predecessor on `index` had not checked then.
  * With `emit` false it doesn't emit the files it checks (`checkersEmit`). With `checking` false it
- * only emits them (`startParallelCheck`).
+ * only emits them (`startParallelCheck`). A position of the order below 0 is a statement range of a
+ * declaration file, `-1 - u` for the range at `3 * u` in `units` (`CheckPlan.units`).
  */
 export function checkFromQueue(
   checked: CheckedProgram,
@@ -1436,6 +1543,7 @@ export function checkFromQueue(
   emit: boolean = true,
   emitKinds: readonly number[] | undefined = undefined,
   checking: boolean = true,
+  units: readonly number[] = [],
 ): CheckerResult {
   const start = performance.now();
   const readyAt = Date.now();
@@ -1446,6 +1554,8 @@ export function checkFromQueue(
   const diagnostics: Diagnostic[][] = [];
   const declarations: Diagnostic[][] = [];
   const emits: EmitResult[] = [];
+  const unitsDone: number[] = [];
+  const reportingUnits: number[] = [];
   // Emit (or declaration emit) of a file right after checking it, with this checker.
   const emitting = checkersEmit(checked, emit);
   // Outputs are held for the main thread under `noEmitOnError`, where emit waits for every file's diagnostics,
@@ -1487,6 +1597,26 @@ export function checkFromQueue(
     const k = takePosition(counter, order.length, index, plan);
     if (k < 0) break;
     const i = order[k]!;
+    if (i < 0) {
+      // A statement range of a declaration file, which has nothing to emit.
+      const u = -1 - i;
+      const file = files[units[3 * u]!]!;
+      const rangeStart = verbose || timeline ? performance.now() : 0;
+      const reports = checking && checked.checkRange(file, units[3 * u + 1]!, units[3 * u + 2]!);
+      unitsDone.push(u);
+      if (reports) reportingUnits.push(u);
+      if (blocksOnErrors && (reports || file.bindDiagnostics.length > 0)) blockEmit(counter);
+      if (timeline)
+        markAt(
+          rangeStart,
+          `range ${(performance.now() - rangeStart).toFixed(1)} pos ${k} statements ${units[3 * u + 1]}-${units[3 * u + 2]} ${file.fileName}`,
+        );
+      if (verbose)
+        process.stderr.write(
+          `checkers: range ${index} ${(performance.now() - rangeStart).toFixed(1)}ms statements ${units[3 * u + 1]}-${units[3 * u + 2]} ${file.fileName}\n`,
+        );
+      continue;
+    }
     done.push(i);
     const fileStart = verbose || timeline ? performance.now() : 0;
     // Without `checking` the file is only emitted: declaration emit checks what it needs.
@@ -1525,7 +1655,7 @@ export function checkFromQueue(
       if (timeline) markAt(emitStart, `emit ${(performance.now() - emitStart).toFixed(1)} ${files[i]!.fileName}`);
     } else if (emitter !== undefined) declarations.push(declarationDiagnosticsOfFile(emitter, files[i]!));
   }
-  mark(`checked ${done.length} files`);
+  mark(`checked ${done.length} files, ${unitsDone.length} ranges`);
   // The main thread reports its own global diagnostics (CheckedProgram.getGlobalDiagnostics).
   const globals = onMainThread ? [] : checked.getGlobalDiagnostics().slice();
   let stats: number[] = [];
@@ -1564,6 +1694,8 @@ export function checkFromQueue(
     more,
     left,
     emits,
+    unitsDone,
+    reportingUnits,
   );
 }
 
@@ -1721,23 +1853,29 @@ export function startParallelCheck(
   }
   const orderStart = performance.now();
   const costs = costOrder(checked);
-  let plan = planSchedule(checked, count, costs);
+  let plan = planSchedule(checked, count, costs, checking);
   const fewer = libraryBoundCheckers(checked, plan, costs, count);
   if (fewer < count) {
     count = fewer;
-    plan = planSchedule(checked, count, costs);
+    plan = planSchedule(checked, count, costs, checking);
   }
   const order = plan.order;
+  const units = plan.units;
   const counter = scheduleOf(plan, count);
   if (trace) {
     let top = '';
-    for (let k = 0; k < Math.min(5, order.length); k++) top += ' ' + files[order[k]!]!.fileName;
+    for (let k = 0; k < Math.min(5, order.length); k++)
+      top +=
+        ' ' +
+        (order[k]! < 0 ? `range ${-1 - order[k]!} of ` : '') +
+        files[order[k]! < 0 ? units[-3 * order[k]! - 3]! : order[k]!]!.fileName;
     process.stderr.write(
-      `checkers: ordered ${order.length} files in ${(performance.now() - orderStart).toFixed(1)}ms, first:${top}\n`,
+      `checkers: ordered ${order.length} positions (${units.length / 3} statement ranges) in ${(performance.now() - orderStart).toFixed(1)}ms, first:${top}\n`,
     );
   }
   if (shared) {
     publish(order);
+    publish(units);
     if (emitKinds !== undefined) publish(emitKinds);
   }
   mark(`planned ${order.length} files, ${plan.heavy} heavy`);
@@ -1749,6 +1887,10 @@ export function startParallelCheck(
     perFileDeclarations.push(undefined);
     perFileEmits.push(undefined);
   }
+  // For each statement range (`CheckPlan.units`): 0 until checked, 1 once checked, 2 if its checker then had
+  // diagnostics in the file.
+  const perUnit: number[] = [];
+  for (let u = 0; u < units.length / 3; u++) perUnit.push(0);
   const revival = shared ? undefined : new Revival(program);
   const mainChecks = mainThreadChecks(shared);
   const firstThread = mainChecks ? 1 : 0;
@@ -1756,8 +1898,10 @@ export function startParallelCheck(
   let ownDone = false;
   const finish = (): void => {
     if (checking) {
+      joinRanges(checked, units, perUnit, perFile);
       // A thread that failed may have taken files it never checked: check them here.
-      for (const i of order) if (perFile[i] === undefined) perFile[i] = checked.unfilteredDiagnosticsOfFile(files[i]!);
+      for (const i of order)
+        if (i >= 0 && perFile[i] === undefined) perFile[i] = checked.unfilteredDiagnosticsOfFile(files[i]!);
       checked.checkedInParallel = perFile;
     }
     mark('all checked');
@@ -1787,12 +1931,14 @@ export function startParallelCheck(
     for (let k = 0; k < result.declarations.length; k++)
       perFileDeclarations[result.files[k]!] = result.declarations[k]!;
     for (let k = 0; k < result.emits.length; k++) perFileEmits[result.files[k]!] = result.emits[k]!;
+    for (const u of result.units) perUnit[u] = 1;
+    for (const u of result.reportingUnits) perUnit[u] = 2;
     for (const d of result.globals) checked.parallelGlobalDiagnostics.push(d);
     if (trace) {
       const st = result.stats;
       const rel = (t: number | undefined): string => (t === undefined ? '?' : String(t - epoch));
       process.stderr.write(
-        `checkers: thread ${result.index} checked ${result.files.length} files in ${result.checkTime.toFixed(1)}ms, done at ${(performance.now() - start).toFixed(1)}ms` +
+        `checkers: thread ${result.index} checked ${result.files.length} files and ${result.units.length} ranges in ${result.checkTime.toFixed(1)}ms, done at ${(performance.now() - start).toFixed(1)}ms` +
           ` [start ${rel(st[0])} ready ${rel(st[1])} end ${rel(st[2])} types ${st[3]} inst ${st[4]} user ${Math.round(st[5] ?? 0)} sys ${Math.round(st[6] ?? 0)} rss ${st[7]}MB symlinks ${st[8]} nodelinks ${st[9]} sigs ${st[10]} rel ${st[11]}]\n`,
       );
     }
@@ -1814,6 +1960,7 @@ export function startParallelCheck(
       emits,
       emitKinds,
       checking,
+      units,
     );
     worker.on('message', (message: unknown) => {
       mark(`result from c${i}`);
@@ -1843,9 +1990,37 @@ export function startParallelCheck(
   const emittedHere =
     !mainChecks && emitKinds === undefined ? emitUncheckedFiles(checked, order, emits) : new Map<number, EmitResult>();
   if (mainChecks)
-    record(checkFromQueue(checked, 0, new Int32Array(counter), order, epoch, true, 0, [], emits, emitKinds, checking));
+    record(
+      checkFromQueue(checked, 0, new Int32Array(counter), order, epoch, true, 0, [], emits, emitKinds, checking, units),
+    );
   ownDone = true;
   if (remaining === 0) finish();
+}
+
+/**
+ * Sets the diagnostics in `perFile` of each file checked in statement ranges (`units`): none from its
+ * checkers where every range was checked and found no diagnostics in it (`perUnit`, by range:
+ * `checkSourceFileRange`); otherwise a new checker on this thread checks it whole.
+ */
+function joinRanges(
+  checked: CheckedProgram,
+  units: readonly number[],
+  perUnit: readonly number[],
+  perFile: (Diagnostic[] | undefined)[],
+): void {
+  const files = checked.program.getSourceFiles();
+  const trace = process.env.TSC_TS_CHECKERS_TRACE !== undefined;
+  // A file's ranges are consecutive.
+  for (let u = 0; u < perUnit.length;) {
+    const i = units[3 * u]!;
+    let clean = true;
+    for (; u < perUnit.length && units[3 * u] === i; u++) if (perUnit[u] !== 1) clean = false;
+    if (clean) perFile[i] = checked.unfilteredDiagnosticsOfCleanRanges(files[i]!);
+    else {
+      if (trace) process.stderr.write(`checkers: checking ${files[i]!.fileName} whole: its ranges have diagnostics\n`);
+      perFile[i] = checked.unfilteredDiagnosticsOfFileOnNewChecker(files[i]!);
+    }
+  }
 }
 
 /**
@@ -1867,7 +2042,7 @@ function emitUncheckedFiles(
   const files = program.getSourceFiles();
   const inOrder: boolean[] = [];
   for (let i = 0; i < files.length; i++) inOrder.push(false);
-  for (const i of order) inOrder[i] = true;
+  for (const i of order) if (i >= 0) inOrder[i] = true;
   let emitter: ProgramEmitter | undefined = undefined;
   let holding: HoldingWriter | undefined = undefined;
   for (let i = 0; i < files.length; i++) {
@@ -1909,6 +2084,8 @@ class Revival {
       copy.more,
       copy.reserved,
       copy.emits.map((emit) => this.emit(emit)),
+      copy.units,
+      copy.reportingUnits,
     );
   }
 

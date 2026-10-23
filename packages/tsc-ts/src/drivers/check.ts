@@ -5,7 +5,10 @@
 // and that sets @checkJs is checked as `/input.js` with allowJs and checkJs. TSC_TS_CHECK_OPTIONS lists
 // options for every input, separated by commas, as in the check oracle: names of boolean options to turn
 // on, module, moduleResolution and target as name=value, and the strict family, allowUnreachableCode and
-// allowUnusedLabels as name=true or name=false.
+// allowUnusedLabels as name=true or name=false. With TSC_TS_CHECK_DECLARATION=1, a .ts test case is checked
+// as the declaration file `/input.d.ts`; with TSC_TS_CHECK_RANGES=N, a declaration file is checked in N
+// statement ranges, each by a checker of its own, as checker threads check a large declaration file, and
+// whole if a range finds diagnostics in it.
 // Usage: check FILE LIBDIR [--batch|--bench]
 //   --batch  FILE lists input files, one per line; each is printed after `== <path>`
 //   --bench  times parsing, binding and checking FILE
@@ -20,7 +23,8 @@ import {
 } from '../compiler/ast.js';
 import { bindSourceFile } from '../compiler/binder.js';
 import { Checker, CheckerHost, disposeChecker } from '../compiler/checker.js';
-import { type Diagnostic, Locale } from '../compiler/diagnostics.js';
+import { checkSourceFileRange } from '../compiler/checker-source-file.js';
+import { compareDiagnostics, type Diagnostic, Locale } from '../compiler/diagnostics.js';
 import {
   type CompilerOptions,
   JsxEmit,
@@ -358,7 +362,36 @@ function createJSOptions(): CompilerOptions {
 
 function inputName(path: string, text: string): string {
   if (path.endsWith('.tsx')) return '/input.tsx';
-  return isCheckedJS(text) ? '/input.js' : '/input.ts';
+  if (isCheckedJS(text)) return '/input.js';
+  return process.env.TSC_TS_CHECK_DECLARATION === '1' ? '/input.d.ts' : '/input.ts';
+}
+
+const ranges = Number(process.env.TSC_TS_CHECK_RANGES ?? '1') | 0;
+
+/**
+ * Checks the declaration file `file` in `ranges` statement ranges, each with a new checker for `host`, as
+ * checker threads check a large declaration file, and returns the global diagnostics of the checkers
+ * (once each) if no range found diagnostics in the file (`checkSourceFileRange`), else `undefined`: then
+ * the file is checked whole.
+ */
+function checkInRanges(host: CheckHost, file: SourceFile): Diagnostic[] | undefined {
+  const statements = file.statements.nodes.length;
+  const n = Math.min(ranges, statements);
+  const global: Diagnostic[] = [];
+  let reports = false;
+  for (let r = 0; r < n && !reports; r++) {
+    const checker = new Checker(host);
+    const start = Math.floor((statements * r) / n);
+    const end = r === n - 1 ? statements : Math.floor((statements * (r + 1)) / n);
+    reports = checkSourceFileRange(checker, file, start, end);
+    for (const d of checker.getGlobalDiagnostics()) global.push(d);
+    disposeChecker(checker);
+  }
+  if (reports) return undefined;
+  global.sort(compareDiagnostics);
+  const once: Diagnostic[] = [];
+  for (const d of global) if (once.length === 0 || compareDiagnostics(once[once.length - 1]!, d) !== 0) once.push(d);
+  return once;
 }
 
 /**
@@ -373,7 +406,19 @@ function check(name: string, text: string, loader: LibLoader, defaults: Compiler
   bindSourceFile(file);
   const files = loader.files.slice();
   files.push(file);
-  const checker = new Checker(new CheckHost(options, files, loader.libs));
+  const host = new CheckHost(options, files, loader.libs);
+  const global =
+    ranges > 1 && file.isDeclarationFile && file.statements.nodes.length > 1 ? checkInRanges(host, file) : undefined;
+  if (global !== undefined) {
+    const result: Diagnostic[] = [];
+    for (const d of file.diagnostics) result.push(d);
+    for (const d of file.jsDiagnostics) result.push(d);
+    for (const d of file.bindDiagnostics) result.push(d);
+    for (const d of file.jsDocDiagnostics) result.push(d);
+    for (const d of global) result.push(d);
+    return result;
+  }
+  const checker = new Checker(host);
   const result: Diagnostic[] = [];
   for (const d of file.diagnostics) result.push(d);
   for (const d of file.jsDiagnostics) result.push(d);
