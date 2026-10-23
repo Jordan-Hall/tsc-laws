@@ -1642,20 +1642,26 @@ export function checkFromQueue(
     } else if (writer !== undefined) {
       const emitStart = timeline ? performance.now() : 0;
       const kind = (emitKinds === undefined ? EmitOnly.All : emitKinds[i]!) as EmitOnly;
+      // Global diagnostics found while emitting are not reported: the program collects them
+      // before it emits.
+      const checker = checked.checker;
       if (kind < 0) emits.push(new EmitResult());
       else if (signatures !== undefined) {
         signatures.file = files[i]!;
-        const result = emitter!.emit([files[i]!], kind, signatures);
+        const result = checker.withoutGlobalDiagnostics(() => emitter!.emit([files[i]!], kind, signatures));
         for (const s of signatures.take()) result.declarationSignatures.push(s);
         if (holding !== undefined) for (const o of holding.take()) result.heldOutputs.push(o);
         emits.push(result);
       } else {
-        const result = emitter!.emit([files[i]!], kind, writer);
+        const result = checker.withoutGlobalDiagnostics(() => emitter!.emit([files[i]!], kind, writer));
         if (holding !== undefined) for (const o of holding.take()) result.heldOutputs.push(o);
         emits.push(result);
       }
       if (timeline) markAt(emitStart, `emit ${(performance.now() - emitStart).toFixed(1)} ${files[i]!.fileName}`);
-    } else if (emitter !== undefined) declarations.push(declarationDiagnosticsOfFile(emitter, files[i]!));
+    } else if (emitter !== undefined)
+      declarations.push(
+        checked.checker.withoutGlobalDiagnostics(() => declarationDiagnosticsOfFile(emitter, files[i]!)),
+      );
   }
   mark(`checked ${done.length} files, ${unitsDone.length} ranges`);
   // The main thread reports its own global diagnostics (CheckedProgram.getGlobalDiagnostics).
