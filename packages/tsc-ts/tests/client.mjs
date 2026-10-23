@@ -1,6 +1,7 @@
 // A minimal synchronous-protocol API client for tests. It answers the
 // server's file system callbacks from the disk.
 import { spawn } from 'node:child_process';
+import { connect } from 'node:net';
 import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
 
 const Request = 1;
@@ -12,20 +13,29 @@ const Call = 6;
 export const callbacks = ['readFile', 'fileExists', 'directoryExists', 'realpath', 'getAccessibleEntries'];
 
 export class Client {
-  // command: [executable, ...args] that starts `tsc --api`.
-  constructor(command, cwd, env = {}) {
-    this.child = spawn(command[0], [...command.slice(1), '--api', '--cwd', cwd, `--callbacks=${callbacks.join(',')}`], {
-      stdio: ['pipe', 'pipe', 'pipe'],
+  // command: [executable, ...args] that starts `tsc --api`. With `pipe` (Windows), the server serves on the named
+  // pipe it creates, as scriptc's Node host starts it, and the client connects to it once it exists.
+  constructor(command, cwd, env = {}, { pipe } = {}) {
+    const args = [...command.slice(1), '--api', '--cwd', cwd, `--callbacks=${callbacks.join(',')}`];
+    this.child = spawn(command[0], pipe === undefined ? args : [...args, '--pipe', pipe], {
+      stdio: pipe === undefined ? ['pipe', 'pipe', 'pipe'] : ['ignore', 'ignore', 'pipe'],
       env: { ...process.env, ...env },
     });
     this.buffer = Buffer.alloc(0);
     this.waiters = [];
     this.stderr = '';
     this.calls = [];
-    this.child.stdout.on('data', (chunk) => {
+    const receive = (chunk) => {
       this.buffer = Buffer.concat([this.buffer, chunk]);
       this.drain();
-    });
+    };
+    if (pipe === undefined) {
+      this.output = this.child.stdin;
+      this.child.stdout.on('data', receive);
+    } else {
+      this.pending = [];
+      this.connectPipe(pipe, receive, Date.now() + 30_000);
+    }
     this.child.stderr.on('data', (chunk) => (this.stderr += chunk));
     this.exited = new Promise((resolve) => this.child.on('exit', (code) => resolve(code)));
     this.child.on('exit', () => {
@@ -53,13 +63,32 @@ export class Client {
   }
 
   async close() {
-    this.child.stdin.end();
+    if (this.output !== undefined) this.output.end();
+    else this.closing = true;
     return this.exited;
   }
 
   write(type, method, payload) {
     const name = Buffer.from(method);
-    this.child.stdin.write(Buffer.concat([Buffer.from([0x93, type]), bin(name), bin(payload)]));
+    const frame = Buffer.concat([Buffer.from([0x93, type]), bin(name), bin(payload)]);
+    if (this.output !== undefined) this.output.write(frame);
+    else this.pending.push(frame);
+  }
+
+  // Connects to the server's pipe, retrying until the server has created it, then sends what was written meanwhile.
+  connectPipe(pipe, receive, deadline) {
+    const socket = connect(pipe);
+    socket.once('error', (error) => {
+      if (this.output === undefined && Date.now() < deadline && this.child.exitCode === null)
+        setTimeout(() => this.connectPipe(pipe, receive, deadline), 20);
+      else for (const w of this.waiters.splice(0)) w.reject(error);
+    });
+    socket.once('connect', () => {
+      socket.on('data', receive);
+      this.output = socket;
+      for (const frame of this.pending.splice(0)) socket.write(frame);
+      if (this.closing) socket.end();
+    });
   }
 
   drain() {

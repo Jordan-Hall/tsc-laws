@@ -45,6 +45,8 @@ import {
   VariableDeclarationList,
   VariableStatement,
   VoidExpression,
+  newCallExpression,
+  newPropertyAssignment,
 } from '../ast.js';
 import { modifierToFlag } from '../ast-utilities.js';
 import { getNameOfDeclaration, getNonAssignedNameOfDeclaration, hasSyntacticModifier } from '../binder-utilities.js';
@@ -166,7 +168,7 @@ export abstract class NodeFactory extends NodeFactoryBase {
 
   createCallExpression(expression: Node, args: Node[]): CallExpression {
     return this.created(
-      new CallExpression(expression, undefined, undefined, this.createNodeList(args), NodeFlags.None),
+      newCallExpression(expression, undefined, undefined, this.createNodeList(args), NodeFlags.None, false),
     );
   }
 
@@ -265,7 +267,7 @@ export abstract class NodeFactory extends NodeFactoryBase {
   }
 
   createPropertyAssignment(name: Node, initializer: Node): PropertyAssignment {
-    return this.created(new PropertyAssignment(undefined, name, undefined, undefined, initializer));
+    return this.created(newPropertyAssignment(undefined, name, undefined, undefined, initializer, false));
   }
 
   createParameter(name: Node): ParameterDeclaration {
@@ -546,7 +548,7 @@ export abstract class NodeFactory extends NodeFactoryBase {
   createMethodCall(object: Node, method: string, args: Node[]): CallExpression {
     const callee = this.createPropertyAccessExpression(object, this.createIdentifier(method));
     const flags = object instanceof CallExpression ? object.flags & NodeFlags.OptionalChain : NodeFlags.None;
-    return this.created(new CallExpression(callee, undefined, undefined, this.createNodeList(args), flags));
+    return this.created(newCallExpression(callee, undefined, undefined, this.createNodeList(args), flags, false));
   }
 
   /** `Global.method(...args)`, such as `Math.pow(a, b)`. */

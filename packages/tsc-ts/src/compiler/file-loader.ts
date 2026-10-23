@@ -7,7 +7,6 @@ import {
   ParseOptions,
   ScriptKind,
   StringLiteral,
-  appendToList,
   getText,
   type ExternalModuleIndicatorOptions,
   type FileReference,
@@ -231,26 +230,28 @@ class SubTasksAhead {
   ) {}
 }
 
-// The sub-tasks and diagnostics of a task that has none: most files have neither, so their tasks
-// share these. A list that grows replaces an empty one rather than pushing to it (appendToList).
+/** Read in place of a task's lists it has not created. */
 const noParseTasks: readonly ParseTask[] = [];
+const noTraces: readonly MessageWithArgs[] = [];
 const noProcessingDiagnostics: readonly ProcessingDiagnostic[] = [];
 
+/**
+ * A file to load. Its lists are created on first use: most tasks never get sub-tasks, traces or processing
+ * diagnostics, and large programs create hundreds of thousands of tasks.
+ */
 class ParseTask {
   path = '';
   file: SourceFile | undefined = undefined;
   redirectedParseTask: ParseTask | undefined = undefined;
-  subTasks: readonly ParseTask[] = noParseTasks;
+  subTasks: ParseTask[] | undefined = undefined;
   loaded = false;
   startedSubTasks = false;
   metadata: SourceFileMetadata = libFileMetadata;
   resolutionsInFile: ModeAwareCache<ResolvedModule> | undefined = undefined;
-  /** With `traceResolution`, the traces of resolving the file's imports. */
   resolutionsTrace: MessageWithArgs[] | undefined = undefined;
   typeResolutionsInFile: ModeAwareCache<ResolvedTypeReferenceDirective> | undefined = undefined;
-  /** With `traceResolution`, the traces of resolving the file's type reference directives. */
   typeResolutionsTrace: MessageWithArgs[] | undefined = undefined;
-  processingDiagnostics: readonly ProcessingDiagnostic[] = noProcessingDiagnostics;
+  processingDiagnostics: ProcessingDiagnostic[] | undefined = undefined;
   importHelpersImportSpecifier: StringLiteral | undefined = undefined;
   jsxRuntimeImport: JsxRuntimeImport | undefined = undefined;
   /** The task of the same file name that was loaded instead of this one. */
@@ -275,14 +276,23 @@ class ParseTask {
     elideOnDepth: boolean,
     packageId: PackageId | undefined,
   ): void {
-    this.subTasks = appendToList(
-      this.subTasks,
+    (this.subTasks ??= []).push(
       new ParseTask(normalizePath(fileName), libFile, reason, false, increaseDepth, elideOnDepth, packageId),
     );
   }
 
   addProcessingDiagnostic(diagnostic: ProcessingDiagnostic): void {
-    this.processingDiagnostics = appendToList(this.processingDiagnostics, diagnostic);
+    (this.processingDiagnostics ??= []).push(diagnostic);
+  }
+
+  /** Where module resolution traces go under `--traceResolution`; undefined without it. */
+  moduleTraces(trace: boolean): MessageWithArgs[] | undefined {
+    return trace ? (this.resolutionsTrace ??= []) : undefined;
+  }
+
+  /** Where type reference resolution traces go under `--traceResolution`; undefined without it. */
+  typeTraces(trace: boolean): MessageWithArgs[] | undefined {
+    return trace ? (this.typeResolutionsTrace ??= []) : undefined;
   }
 }
 
@@ -301,7 +311,7 @@ class ParseTaskData {
 /** Pending processing of `tasks[index]`. */
 class ParseWork {
   constructor(
-    readonly tasks: readonly ParseTask[],
+    readonly tasks: ParseTask[],
     readonly index: number,
     readonly data: ParseTaskData,
     readonly loaded: boolean,
@@ -755,7 +765,7 @@ export class FileLoader {
       return undefined;
     }
     const references: LoadedReference[] = [];
-    for (const sub of task.subTasks) {
+    for (const sub of task.subTasks ?? noParseTasks) {
       references.push(
         new LoadedReference(
           sub.normalizedFilePath,
@@ -782,7 +792,7 @@ export class FileLoader {
       references,
       task.resolutionsInFile,
       task.typeResolutionsInFile,
-      task.processingDiagnostics,
+      task.processingDiagnostics ?? noProcessingDiagnostics,
       task.importHelpersImportSpecifier,
       task.jsxRuntimeImport,
     );
@@ -995,7 +1005,7 @@ export class FileLoader {
 
   // ---- Loading
 
-  private start(tasks: readonly ParseTask[], depth: number): void {
+  private start(tasks: ParseTask[], depth: number): void {
     for (let i = 0; i < tasks.length; i++) {
       const task = tasks[i];
       // Sub-tasks built ahead have their paths.
@@ -1044,7 +1054,7 @@ export class FileLoader {
       }
       if (!taskByFileName.startedSubTasks && loadSubTasks) {
         taskByFileName.startedSubTasks = true;
-        this.start(taskByFileName.subTasks, data.lowestDepth);
+        if (taskByFileName.subTasks !== undefined) this.start(taskByFileName.subTasks, data.lowestDepth);
       }
     }
   }
@@ -1229,7 +1239,7 @@ export class FileLoader {
         containingFile,
         mode,
         redirect?.resolved,
-        this.options.traceResolution === true ? (task.typeResolutionsTrace ??= []) : undefined,
+        task.typeTraces(this.options.traceResolution === true),
       );
       resolutions.set(modeAwareKey(reference.fileName, mode), resolved);
       const reason = FileIncludeReason.reference(FileIncludeKind.TypeReferenceDirective, task.path, i, undefined);
@@ -1260,7 +1270,7 @@ export class FileLoader {
         task.normalizedFilePath,
         ModuleKind.None,
         undefined,
-        this.options.traceResolution === true ? (task.typeResolutionsTrace ??= []) : undefined,
+        task.typeTraces(this.options.traceResolution === true),
       );
       resolutions.set(modeAwareKey(name, ModuleKind.None), resolved);
       if (resolved.resolvedFileName !== '') {
@@ -1321,7 +1331,7 @@ export class FileLoader {
         containingFile,
         mode,
         redirect?.resolved,
-        this.options.traceResolution === true ? (task.resolutionsTrace ??= []) : undefined,
+        task.moduleTraces(this.options.traceResolution === true),
       );
       resolutions.set(modeAwareKey(moduleName, mode), resolved);
       const resolvedFileName = resolved.resolvedFileName;
@@ -1425,8 +1435,8 @@ export class FileLoader {
           }
         }
 
-        if (task.typeResolutionsTrace !== undefined) for (const trace of task.typeResolutionsTrace) host.trace(trace);
-        if (task.resolutionsTrace !== undefined) for (const trace of task.resolutionsTrace) host.trace(trace);
+        for (const trace of task.typeResolutionsTrace ?? noTraces) host.trace(trace);
+        for (const trace of task.resolutionsTrace ?? noTraces) host.trace(trace);
 
         const file = task.file;
         const packageId = data.packageId;
@@ -1453,7 +1463,7 @@ export class FileLoader {
           if (file !== undefined) packageIdToSourceFile.set(key, file);
         }
 
-        if (task.subTasks.length > 0) collectFiles(task.subTasks);
+        if (task.subTasks !== undefined && task.subTasks.length > 0) collectFiles(task.subTasks);
 
         const redirected = task.redirectedParseTask;
         if (redirected !== undefined) {
@@ -1462,11 +1472,13 @@ export class FileLoader {
         }
         if (task.isForAutomaticTypeDirective) {
           typeResolutionsInFile.set(task.path, task.typeResolutionsInFile);
-          for (const diagnostic of task.processingDiagnostics) includeProcessor.addProcessingDiagnostic(diagnostic);
+          for (const diagnostic of task.processingDiagnostics ?? noProcessingDiagnostics)
+            includeProcessor.addProcessingDiagnostic(diagnostic);
           continue;
         }
         const path = task.path;
-        for (const diagnostic of task.processingDiagnostics) includeProcessor.addProcessingDiagnostic(diagnostic);
+        for (const diagnostic of task.processingDiagnostics ?? noProcessingDiagnostics)
+          includeProcessor.addProcessingDiagnostic(diagnostic);
         if (file === undefined) {
           missingFiles.push(task.normalizedFilePath);
           continue;

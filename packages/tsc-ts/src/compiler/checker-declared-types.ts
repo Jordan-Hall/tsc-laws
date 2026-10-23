@@ -87,7 +87,7 @@ import { getIndexedAccessType, isGenericMappedType } from './checker-type-operat
 import { getSignatureInstantiation } from './checker-signatures.js';
 import { evaluateEnumMember, EvaluatedFlags, EvaluatedKind } from './checker-evaluator.js';
 import { checkTypeAssignableTo, isTypeIdenticalTo } from './relations.js';
-import { getDeclarations, type Symbol, SymbolFlags } from './symbol.js';
+import { declarationAt, declarationCount, getDeclarations, type Symbol, SymbolFlags } from './symbol.js';
 
 export { getParentOfSymbol };
 
@@ -877,9 +877,12 @@ export function getMinTypeArgumentCount(c: Checker, typeParameters: readonly Typ
 
 /** Whether a type parameter is declared with a default, without resolving it. */
 function hasTypeParameterDefault(t: Type): boolean {
-  if (t.symbol === undefined) return false;
-  for (const d of getDeclarations(t.symbol))
+  const symbol = t.symbol;
+  if (symbol === undefined) return false;
+  for (let i = 0; i < declarationCount(symbol); i++) {
+    const d = declarationAt(symbol, i);
     if (d.kind === SyntaxKind.TypeParameter && (d as TypeParameterDeclaration).defaultType !== undefined) return true;
+  }
   return false;
 }
 

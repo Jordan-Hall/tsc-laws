@@ -170,6 +170,11 @@ import {
   WithStatement,
   YieldExpression,
   type Node,
+  propertyAssignmentPostfixToken,
+  propertyAssignmentType,
+  callQuestionDotToken,
+  propertyAssignmentModifiers,
+  callTypeArguments,
 } from '../ast.js';
 import { SyntaxKind } from '../syntax-kind.js';
 import { VisitorHooks } from './visitor-hooks.js';
@@ -381,8 +386,8 @@ export abstract class VisitorBase extends VisitorHooks {
           return this.factory.updateCallExpression(
             node,
             required(this.visitNode(node.expression), node.expression),
-            asOptionalToken(this.visitNode(node.questionDotToken)),
-            this.visitNodes(node.typeArguments),
+            asOptionalToken(this.visitNode(callQuestionDotToken(node))),
+            this.visitNodes(callTypeArguments(node)),
             this.visitNodes(node.arguments)!,
             node.flags,
           );
@@ -1301,10 +1306,10 @@ export abstract class VisitorBase extends VisitorHooks {
         if (node instanceof PropertyAssignment)
           return this.factory.updatePropertyAssignment(
             node,
-            this.visitModifiers(node.modifiers),
+            this.visitModifiers(propertyAssignmentModifiers(node)),
             required(this.visitNode(node.name), node.name),
-            asOptionalToken(this.visitNode(node.postfixToken)),
-            this.visitNode(node.type),
+            asOptionalToken(this.visitNode(propertyAssignmentPostfixToken(node))),
+            this.visitNode(propertyAssignmentType(node)),
             required(this.visitNode(node.initializer), node.initializer),
           );
         break;

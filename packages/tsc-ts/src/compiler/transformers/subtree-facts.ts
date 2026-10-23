@@ -32,6 +32,7 @@ import {
   JsxSelfClosingElement,
   HeritageClause,
   getModifiers,
+  callTypeArguments,
 } from '../ast.js';
 import { ClusteredIntLinkTable } from '../link-tables.js';
 import { isTypeNodeKind } from '../printer/utilities.js';
@@ -233,7 +234,7 @@ function ownFacts(node: Node): Facts {
         ? Facts.TypeScript
         : Facts.None;
     case SyntaxKind.CallExpression:
-      return node instanceof CallExpression && node.typeArguments !== undefined ? Facts.TypeScript : Facts.None;
+      return node instanceof CallExpression && callTypeArguments(node) !== undefined ? Facts.TypeScript : Facts.None;
     case SyntaxKind.NewExpression:
       return node instanceof NewExpression && node.typeArguments !== undefined ? Facts.TypeScript : Facts.None;
     case SyntaxKind.TaggedTemplateExpression:

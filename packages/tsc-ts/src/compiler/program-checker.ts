@@ -26,12 +26,18 @@ import {
   type SourceFileMetadata,
 } from './program-utilities.js';
 import { bindSourceFile } from './binder.js';
+import { checkSourceFileRange } from './checker-source-file.js';
 import { computeLineOfPosition } from './scanner.js';
 import { CommentDirectiveKind } from './types.js';
 
 /** What the checker needs, answered by a program. */
 export class ProgramCheckerHost extends CheckerHost {
   private specifierHost: ProgramModuleSpecifierHost | undefined = undefined;
+  /**
+   * `getSourceFileForResolvedModule` by resolved file name (null when there is none): every import of
+   * a module asks again, and the program finds a file by its path, which it computes from the name.
+   */
+  private readonly resolvedSourceFiles = new Map<string, SourceFile | null>();
 
   constructor(readonly program: Program) {
     super();
@@ -54,7 +60,11 @@ export class ProgramCheckerHost extends CheckerHost {
   }
 
   getSourceFileForResolvedModule(fileName: string): SourceFile | undefined {
-    return this.program.getSourceFileForResolvedModule(fileName);
+    const known = this.resolvedSourceFiles.get(fileName);
+    if (known !== undefined) return known ?? undefined;
+    const file = this.program.getSourceFileForResolvedModule(fileName);
+    this.resolvedSourceFiles.set(fileName, file ?? null);
+    return file;
   }
 
   getModeForUsageLocation(file: SourceFile, location: Node): ModuleKind {
@@ -305,6 +315,38 @@ export class CheckedProgram {
   }
 
   /**
+   * Checks the statements `start` to `end` of the declaration file `file` with this checker, one of the
+   * ranges that several checkers check it in (`checkSourceFileRange`, parallel-check.ts), and returns
+   * whether the checker then has diagnostics in the file.
+   */
+  checkRange(file: SourceFile, start: number, end: number): boolean {
+    return checkSourceFileRange(this.checker, file, start, end);
+  }
+
+  /**
+   * The diagnostics of `file`, as `unfilteredDiagnosticsOfFile` gives them, where checkers checked it in
+   * ranges and found no diagnostics in it (`checkRange`).
+   */
+  unfilteredDiagnosticsOfCleanRanges(file: SourceFile): Diagnostic[] {
+    const result = this.getBindAndCheckDiagnostics(file, []);
+    for (const d of this.getIncludeProcessorDiagnostics(file)) result.push(d);
+    return result;
+  }
+
+  /**
+   * The diagnostics of `file`, as `unfilteredDiagnosticsOfFile` gives them, from a new checker that checks it
+   * whole: for a file checked in ranges that found diagnostics in it (parallel-check.ts), part of which this
+   * thread's checker may have checked.
+   */
+  unfilteredDiagnosticsOfFileOnNewChecker(file: SourceFile): Diagnostic[] {
+    const checker = this.createChecker();
+    const result = this.getBindAndCheckDiagnostics(file, checker.getDiagnostics(file));
+    disposeChecker(checker);
+    for (const d of this.getIncludeProcessorDiagnostics(file)) result.push(d);
+    return result;
+  }
+
+  /**
    * The bind and check diagnostics of `file` before `noEmit` filtering and without include errors.
    * Once checker threads checked the program, they come from the threads' diagnostics of the file,
    * without the include errors added last.
@@ -386,10 +428,11 @@ export class CheckedProgram {
     return sortAndDeduplicateDiagnostics(result);
   }
 
-  private getBindAndCheckDiagnostics(file: SourceFile): Diagnostic[] {
+  /** `checks` are the checker's diagnostics of `file`. */
+  private getBindAndCheckDiagnostics(file: SourceFile, checks?: readonly Diagnostic[]): Diagnostic[] {
     const options = this.program.options;
     const diagnostics = file.bindDiagnostics.slice();
-    for (const d of this.checker.getDiagnostics(file)) diagnostics.push(d);
+    for (const d of checks ?? this.checker.getDiagnostics(file)) diagnostics.push(d);
     if (isPlainJSFile(file, options)) {
       const result: Diagnostic[] = [];
       for (const d of diagnostics) if (plainJSErrors.has(d.code)) result.push(d);

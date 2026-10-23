@@ -199,6 +199,13 @@ import {
   type Node,
   type NodeList,
   type Token,
+  propertyAssignmentPostfixToken,
+  propertyAssignmentType,
+  callQuestionDotToken,
+  propertyAssignmentModifiers,
+  callTypeArguments,
+  newCallExpression,
+  newPropertyAssignment,
 } from '../ast.js';
 import type { SyntaxKind } from '../syntax-kind.js';
 
@@ -359,12 +366,12 @@ export abstract class NodeFactoryBase {
   ): CallExpression {
     if (
       expression !== node.expression ||
-      questionDotToken !== node.questionDotToken ||
-      typeArguments !== node.typeArguments ||
+      questionDotToken !== callQuestionDotToken(node) ||
+      typeArguments !== callTypeArguments(node) ||
       args !== node.arguments ||
       flags !== node.flags
     ) {
-      const updated = new CallExpression(expression, questionDotToken, typeArguments, args, flags);
+      const updated = newCallExpression(expression, questionDotToken, typeArguments, args, flags, false);
       this.finishUpdate(updated, node);
       return updated;
     }
@@ -2057,13 +2064,13 @@ export abstract class NodeFactoryBase {
     initializer: Expression,
   ): PropertyAssignment {
     if (
-      modifiers !== node.modifiers ||
+      modifiers !== propertyAssignmentModifiers(node) ||
       name !== node.name ||
-      postfixToken !== node.postfixToken ||
-      typeNode !== node.type ||
+      postfixToken !== propertyAssignmentPostfixToken(node) ||
+      typeNode !== propertyAssignmentType(node) ||
       initializer !== node.initializer
     ) {
-      const updated = new PropertyAssignment(modifiers, name, postfixToken, typeNode, initializer);
+      const updated = newPropertyAssignment(modifiers, name, postfixToken, typeNode, initializer, false);
       this.finishUpdate(updated, node);
       return updated;
     }

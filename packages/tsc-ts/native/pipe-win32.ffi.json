@@ -1,0 +1,6 @@
+{
+  "ffi_format": 1,
+  "functions": [{ "name": "tscTsOpenPipe", "symbol": "tsc_ts_open_pipe", "params": ["string"], "returns": "i32" }],
+  "libraries": ["../dist/pipe-win32.o"],
+  "system_libraries": ["advapi32"]
+}

@@ -923,8 +923,12 @@ export function resolveDeclaredMembers(c: Checker, t: InterfaceType): InterfaceT
     const members = getMembersOfSymbol(c, t.symbol!);
     declared.declaredMembersResolved = true;
     declared.declaredMembers = members;
-    declared.declaredCallSignatures = getSignaturesOfSymbol(c, members.get(InternalSymbolName.Call));
-    declared.declaredConstructSignatures = getSignaturesOfSymbol(c, members.get(InternalSymbolName.New));
+    // Most interfaces declare neither, and share one empty list.
+    const call = members.get(InternalSymbolName.Call);
+    const construct = members.get(InternalSymbolName.New);
+    declared.declaredCallSignatures = call !== undefined ? getSignaturesOfSymbol(c, call) : emptySignatures;
+    declared.declaredConstructSignatures =
+      construct !== undefined ? getSignaturesOfSymbol(c, construct) : emptySignatures;
     declared.declaredIndexInfos = getIndexInfosOfSymbol(c, t.symbol!);
   }
   return declared;
@@ -1609,6 +1613,170 @@ export function getPropertyOfTypeEx(
       skipObjectFunctionPropertyAugment,
     );
   return undefined;
+}
+
+/**
+ * A long property list that `propertiesRelatedTo` walks: the position of each name, and the positions of
+ * the static private properties, which `getUnmatchedProperty` never reports, and of the required ones.
+ */
+export class PropertyListIndex {
+  readonly positions: Map<string, number>;
+  readonly staticPrivate: number[];
+  readonly required: number[];
+
+  constructor(positions: Map<string, number>, staticPrivate: number[], required: number[]) {
+    this.positions = positions;
+    this.staticPrivate = staticPrivate;
+    this.required = required;
+  }
+}
+
+/** The uses of a long property list after which `propertyListIndex` indexes it by a table of its own. */
+const propertyListUsesBeforeIndex = 3;
+
+/**
+ * The index of `properties`, the properties of `target`. Where the members of `target` are properties
+ * with shared names (`PropertyMembers` with `MemberNames`), the index reads the positions of those names.
+ * Other lists get a positions table of their own on the use after the first `propertyListUsesBeforeIndex`:
+ * most long lists are related only a few times, and the lists related many times hold most of the lookups
+ * the index saves. Undefined before that, and where the list repeats a name.
+ */
+function propertyListIndex(c: Checker, target: Type, properties: Symbol[]): PropertyListIndex | undefined {
+  const known = c.propertyListIndexes.get(properties);
+  if (known instanceof PropertyListIndex) return known;
+  if (known === null) return undefined;
+  let positions: Map<string, number> | undefined;
+  const pending = (target.flags & TypeFlags.Object) !== 0 ? membersHolder(c, target).pendingMembers : undefined;
+  if (
+    pending instanceof PropertyMembers &&
+    pending.materializedProperties === properties &&
+    pending.names !== undefined
+  ) {
+    // The names are the names of the properties, in order (hasMemberNames).
+    positions = pending.names.positions;
+    if (positions.size !== properties.length) {
+      c.propertyListIndexes.set(properties, null);
+      return undefined;
+    }
+  } else {
+    const uses = known ?? 0;
+    if (uses < propertyListUsesBeforeIndex) {
+      c.propertyListIndexes.set(properties, uses + 1);
+      return undefined;
+    }
+  }
+  const own = positions === undefined ? new Map<string, number>() : undefined;
+  const staticPrivate: number[] = [];
+  const required: number[] = [];
+  for (let i = 0; i < properties.length; i++) {
+    const p = properties[i]!;
+    if (own !== undefined) {
+      if (own.has(p.name)) {
+        c.propertyListIndexes.set(properties, null);
+        return undefined;
+      }
+      own.set(p.name, i);
+    }
+    if (isStaticPrivateIdentifierProperty(p)) staticPrivate.push(i);
+    else if ((p.flags & SymbolFlags.Optional) === 0 && (p.checkFlags & CheckFlags.Partial) === 0) required.push(i);
+  }
+  const index = new PropertyListIndex((positions ?? own)!, staticPrivate, required);
+  c.propertyListIndexes.set(properties, index);
+  return index;
+}
+
+/**
+ * `getUnmatchedProperty(c, source, target, requireOptionalProperties, false)` where `targetProperties` are
+ * the target's properties and `found` the positions of the names the source has
+ * (`positionsOfNamesFoundInSource`): the first property that is not static private, and is required unless
+ * `requireOptionalProperties`, at a position not in `found`.
+ */
+export function firstUnmatchedProperty(
+  c: Checker,
+  targetProperties: Symbol[],
+  found: number[],
+  requireOptionalProperties: boolean,
+): Symbol | undefined {
+  const index = c.propertyListIndexes.get(targetProperties) as PropertyListIndex;
+  let next = 0;
+  if (!requireOptionalProperties) {
+    for (const position of index.required) {
+      while (next < found.length && found[next]! < position) next++;
+      if (next === found.length || found[next] !== position) return targetProperties[position];
+    }
+    return undefined;
+  }
+  const staticPrivate = index.staticPrivate;
+  let nextPrivate = 0;
+  for (let position = 0; position < targetProperties.length; position++) {
+    // A position can be both found and static private: both lists move past it.
+    const isFound = next < found.length && found[next] === position;
+    if (isFound) next++;
+    const isStaticPrivate = nextPrivate < staticPrivate.length && staticPrivate[nextPrivate] === position;
+    if (isStaticPrivate) nextPrivate++;
+    if (!isFound && !isStaticPrivate) return targetProperties[position];
+  }
+  return undefined;
+}
+
+/** The shortest target property list that `positionsOfNamesFoundInSource` indexes. */
+const indexedTargetPropertiesMinimum = 32;
+
+/** The properties of `t` where its members are resolved and instantiated, else undefined. */
+function resolvedPropertiesIfAny(c: Checker, t: Type): Symbol[] | undefined {
+  const holder = (t.objectFlags & ObjectFlags.MembersResolved) !== 0 ? (t as StructuredType) : membersHolder(c, t);
+  if ((holder.objectFlags & ObjectFlags.MembersResolved) === 0) return undefined;
+  const pending = holder.pendingMembers;
+  return pending === undefined || pending.materializedProperties !== undefined ? holder.properties : undefined;
+}
+
+/**
+ * The positions in `targetProperties`, the properties of `target`, ascending, of the names
+ * `getPropertyOfType(c, source, name)` finds: the names of the source's properties and of the Function and
+ * Object members its lookups fall back to. `getPropertyOfType` answers undefined for the names at every
+ * other position. Undefined where the answer cannot be read from resolved property lists without resolving
+ * anything (not an object type, an apparent type, members not resolved or not instantiated yet, a module),
+ * where the target list is too short or the source list too long to save lookups, and where the target
+ * list has no index (yet: `propertyListIndex`).
+ */
+export function positionsOfNamesFoundInSource(
+  c: Checker,
+  source: Type,
+  target: Type,
+  targetProperties: Symbol[],
+): number[] | undefined {
+  if (targetProperties.length < indexedTargetPropertiesMinimum) return undefined;
+  if ((source.flags & TypeFlags.Object) === 0 || !isOwnReducedApparentType(source)) return undefined;
+  // A module's member that only an `export type *` declaration exports is not found.
+  if (source.symbol !== undefined && (source.symbol.flags & SymbolFlags.ValueModule) !== 0) return undefined;
+  const sourceProperties = resolvedPropertiesIfAny(c, source);
+  if (sourceProperties === undefined) return undefined;
+  const resolved = membersHolder(c, source);
+  let functionType: Type | undefined;
+  if (source === c.anyFunctionType) functionType = c.globalFunctionType;
+  else if (resolved.callSignatures.length !== 0) functionType = c.globalCallableFunctionType;
+  else if (resolved.constructSignatures.length !== 0) functionType = c.globalNewableFunctionType;
+  let functionProperties = emptySymbols;
+  if (functionType !== undefined && (functionType.flags & TypeFlags.Object) !== 0) {
+    const properties = resolvedPropertiesIfAny(c, functionType);
+    if (properties === undefined) return undefined;
+    functionProperties = properties;
+  }
+  const objectProperties =
+    (c.globalObjectType.flags & TypeFlags.Object) !== 0 ? resolvedPropertiesIfAny(c, c.globalObjectType) : emptySymbols;
+  if (objectProperties === undefined) return undefined;
+  if ((sourceProperties.length + functionProperties.length + objectProperties.length) * 4 > targetProperties.length)
+    return undefined;
+  const index = propertyListIndex(c, target, targetProperties);
+  if (index === undefined) return undefined;
+  const positions = index.positions;
+  const found: number[] = [];
+  for (const list of [sourceProperties, functionProperties, objectProperties])
+    for (const p of list) {
+      const position = positions.get(p.name);
+      if (position !== undefined && !found.includes(position)) found.push(position);
+    }
+  return found.sort((a, b) => a - b);
 }
 
 export function getPropertyOfObjectType(c: Checker, t: Type, name: string): Symbol | undefined {

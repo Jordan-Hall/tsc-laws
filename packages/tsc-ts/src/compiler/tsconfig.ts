@@ -22,6 +22,7 @@ import {
   StringLiteral,
   type Node,
   type SourceFile,
+  propertyAssignmentPostfixToken,
 } from './ast.js';
 import { enumNamesList } from './command-line.js';
 import {
@@ -868,7 +869,7 @@ class ConfigFileConverter {
         this.errors.push(diagnosticAtRange(this.file, element, Diagnostics.Property_assignment_expected));
         continue;
       }
-      const postfix = element.postfixToken;
+      const postfix = propertyAssignmentPostfixToken(element);
       if (postfix !== undefined && postfix.kind === SyntaxKind.QuestionToken) {
         this.errors.push(
           diagnosticAtRange(this.file, postfix, Diagnostics.The_0_modifier_can_only_be_used_in_TypeScript_files, '?'),

@@ -47,6 +47,7 @@ import {
   getTagName,
   getText,
   getType,
+  callQuestionDotToken,
 } from './ast.js';
 import { getJSDoc } from './parser.js';
 import { isAssignmentOperator, isLeftHandSideExpression, isStringLiteralLike, nodeIsMissing } from './ast-utilities.js';
@@ -343,7 +344,7 @@ export function skipParentheses(node: Node): Node {
 function getQuestionDotToken(node: Node): Node | undefined {
   if (node instanceof PropertyAccessExpression) return (node as PropertyAccessExpression).questionDotToken;
   if (node instanceof ElementAccessExpression) return (node as ElementAccessExpression).questionDotToken;
-  if (node instanceof CallExpression) return (node as CallExpression).questionDotToken;
+  if (node instanceof CallExpression) return callQuestionDotToken(node as CallExpression);
   if (node instanceof TaggedTemplateExpression) return (node as TaggedTemplateExpression).questionDotToken;
   return undefined;
 }

@@ -129,6 +129,8 @@ import {
   getResolvedMember,
   hasResolvedProperties,
   resolvedPropertiesAreOptional,
+  positionsOfNamesFoundInSource,
+  firstUnmatchedProperty,
 } from './checker-members.js';
 import {
   getParentOfSymbol,
@@ -2822,7 +2824,13 @@ export class Relater extends TypeComparer {
       !isObjectLiteralType(source) &&
       !isEmptyArrayLiteralType(c, source) &&
       !isTupleType(source);
-    const unmatchedProperty = getUnmatchedProperty(c, source, target, requireOptionalProperties, false);
+    const targetProperties = getPropertiesOfType(c, target);
+    // Where it is known which target names the source has, nothing else is looked up by name.
+    const found = positionsOfNamesFoundInSource(c, source, target, targetProperties);
+    const unmatchedProperty =
+      found !== undefined
+        ? firstUnmatchedProperty(c, targetProperties, found, requireOptionalProperties)
+        : getUnmatchedProperty(c, source, target, requireOptionalProperties, false);
     if (unmatchedProperty !== undefined) {
       if (reportErrors && shouldReportUnmatchedPropertyError(c, source, target))
         this.reportUnmatchedProperty(source, target, unmatchedProperty, requireOptionalProperties);
@@ -2842,7 +2850,7 @@ export class Relater extends TypeComparer {
       }
     }
     const numericNamesOnly = isTupleType(source) && isTupleType(target);
-    for (const targetProp of getPropertiesOfType(c, target)) {
+    for (const targetProp of found !== undefined ? found.map((i) => targetProperties[i]!) : targetProperties) {
       if (excludedProperties !== undefined && excludedProperties.has(targetProp.name)) continue;
       const name = targetProp.name;
       if (

@@ -72,6 +72,7 @@ import {
   type TypeChecking,
 } from './checker-types.js';
 import { getBaseTypes } from './checker-declared-types.js';
+import type { ModuleResolution } from './checker-modules.js';
 import { getFalseTypeFromConditionalType, getTrueTypeFromConditionalType } from './checker-type-operators.js';
 import {
   createArrayType,
@@ -112,6 +113,7 @@ import { SourceFileMetadata, getEmitModuleFormatOfFile } from './program-utiliti
 import type { GrammarChecker } from './checker-grammar.js';
 import type { ResolvedModule } from './module-resolution-types.js';
 import type { ModuleSpecifierHost } from './module-specifiers.js';
+import type { PropertyListIndex } from './checker-members.js';
 
 /** What the checker needs from a program. */
 export abstract class CheckerHost {
@@ -345,6 +347,15 @@ export class Checker implements TypeChecking {
 
   readonly diagnostics = new DiagnosticCollection();
   readonly suggestionDiagnostics = new DiagnosticCollection();
+  /** Diagnostics and suggestions reported so far, whether kept or not (`resolveExternalModule`'s cache). */
+  reports = 0;
+  /** `resolveExternalModule` results that reported nothing, by module specifier (checker-modules.ts). */
+  readonly moduleResolutions = new Map<Node, ModuleResolution>();
+  /**
+   * Whether ambient modules and module augmentations are merged. Merging can give a module a new
+   * merged symbol, so `resolveExternalModule` keeps results only from then on.
+   */
+  modulesMerged = false;
   /** Module specifiers of `import("…")` types, by module symbol id, importing file path and resolution mode. */
   readonly moduleSpecifiers = new Map<string, string>();
   /** Specifier generation for hosts without a program. */
@@ -359,6 +370,11 @@ export class Checker implements TypeChecking {
   readonly sideHolders = new LinkTable<Type>();
   /** The same for signatures with side state (`signatureSideOf`), by signature id. */
   readonly signatureSideHolders = new LinkTable<Signature>();
+  /**
+   * The indexes of long property lists that `propertiesRelatedTo` walks; before a list is indexed, its uses
+   * so far; null where a list repeats a name.
+   */
+  readonly propertyListIndexes = new Map<Symbol[], PropertyListIndex | number | null>();
   /** The type of a value symbol. */
   readonly symbolTypes = new LinkTable<Type>();
   /** For instantiated and synthetic symbols, the symbol they come from. */
@@ -894,6 +910,7 @@ export class Checker implements TypeChecking {
     this.diagnostics.startLog();
     this.suggestionDiagnostics.startLog();
     mergeAmbientModulesAndAugmentations(this);
+    this.modulesMerged = true;
     this.mergeDiagnostics.push(this.diagnostics.takeLog(), this.suggestionDiagnostics.takeLog());
   }
 
@@ -1026,11 +1043,13 @@ export class Checker implements TypeChecking {
   }
 
   addDiagnostic(diagnostic: Diagnostic): void {
+    this.reports++;
     // Discard diagnostics created while at the maximum number of nested typeToString calls.
     if (this.serializationLevel < maxSerializationLevel) this.diagnostics.add(diagnostic);
   }
 
   addSuggestion(diagnostic: Diagnostic): void {
+    this.reports++;
     this.suggestionDiagnostics.add(diagnostic);
   }
 

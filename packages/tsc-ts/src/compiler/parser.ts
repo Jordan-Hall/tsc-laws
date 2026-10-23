@@ -199,6 +199,8 @@ import {
   type Expression,
   type Statement,
   type TypeNode,
+  newCallExpression,
+  newPropertyAssignment,
 } from './ast.js';
 import {
   OperatorPrecedence,
@@ -501,6 +503,10 @@ export class Parser extends ScannerErrorReporter {
   // receives reparsed nodes, and a fresh array per parsed list would be one more allocation each.
   private readonly reparseLists: Node[][];
   private reparseDepth: number;
+  // One scratch array per nesting depth of the lists being parsed. A list collects its elements in
+  // its depth's array and is copied out at its exact length, so the tree keeps no spare capacity.
+  private readonly listScratch: Node[][];
+  private listDepth: number;
   reparsedClones: Node[];
   /** Nodes with eagerly parsed JSDoc, for rewinding. */
   jsDocInfos: Node[];
@@ -560,6 +566,8 @@ export class Parser extends ScannerErrorReporter {
     this.reparseList = [];
     this.reparseLists = [this.reparseList];
     this.reparseDepth = 0;
+    this.listScratch = [];
+    this.listDepth = -1;
     this.reparsedClones = [];
     this.jsDocInfos = [];
     this.jsDocTable = undefined;
@@ -1022,7 +1030,7 @@ export class Parser extends ScannerErrorReporter {
     if (depth === this.reparseLists.length) this.reparseLists.push([]);
     const reparseList = this.reparseLists[depth]!;
     this.reparseList = reparseList;
-    const list: Node[] = [];
+    const list = this.openList();
     while (!this.isListTerminator(kind)) {
       if (this.isListElement(kind, false)) {
         const elt = this.parseListElement(element, list.length);
@@ -1047,7 +1055,7 @@ export class Parser extends ScannerErrorReporter {
     this.reparseDepth = depth - 1;
     this.reparseList = outerReparseList;
     this.parsingContexts = saveParsingContexts;
-    return list;
+    return this.closeList(list);
   }
 
   parseList(kind: ParsingContext, element: ListElement): NodeList {
@@ -1061,12 +1069,13 @@ export class Parser extends ScannerErrorReporter {
     const pos = this.nodePos();
     const saveParsingContexts = this.parsingContexts;
     this.parsingContexts |= 1 << kind;
-    const list: Node[] = [];
+    const list = this.openList();
     for (;;) {
       if (this.isListElement(kind, false)) {
         const startPos = this.nodePos();
         const result = this.parseListElement(element, list.length);
         if (result === this.noElement) {
+          this.closeList(list);
           this.parsingContexts = saveParsingContexts;
           return undefined;
         }
@@ -1092,7 +1101,24 @@ export class Parser extends ScannerErrorReporter {
       if (this.abortParsingListOrMoveToNextToken(kind)) break;
     }
     this.parsingContexts = saveParsingContexts;
-    return this.newNodeList(pos, this.nodePos(), list);
+    return this.newNodeList(pos, this.nodePos(), this.closeList(list));
+  }
+
+  /** The scratch array for a list at the next nesting depth, empty. */
+  private openList(): Node[] {
+    const depth = ++this.listDepth;
+    if (depth === this.listScratch.length) this.listScratch.push([]);
+    return this.listScratch[depth]!;
+  }
+
+  /** The elements collected in `list` (the scratch array from `openList`) as an array of their exact
+   * length, or the shared empty array; empties the scratch array for the next list at its depth. */
+  private closeList(list: Node[]): Node[] {
+    this.listDepth--;
+    if (list.length === 0) return emptyListNodes;
+    const nodes = list.slice();
+    list.length = 0;
+    return nodes;
   }
 
   /** The list; a missing list if `opening` is absent; undefined if an element parser returned undefined. */
@@ -3121,9 +3147,10 @@ export class Parser extends ScannerErrorReporter {
       ? this.parseFunctionOrConstructorTypeToError(isUnionType)
       : this.parseConstituentType(isUnionType);
     if (this.token() === operator || hasLeadingOperator) {
-      const types: Node[] = [type];
+      const types = this.openList();
+      types.push(type);
       while (this.parseOptional(operator)) types.push(this.parseFunctionOrConstructorTypeToError(isUnionType));
-      const list = this.newNodeList(pos, this.nodePos(), types);
+      const list = this.newNodeList(pos, this.nodePos(), this.closeList(types));
       type = isUnionType ? new UnionTypeNode(list) : new IntersectionTypeNode(list);
       this.finishNode(type, pos);
     }
@@ -4052,13 +4079,13 @@ export class Parser extends ScannerErrorReporter {
 
   parseTemplateTypeSpans(): NodeList {
     const pos = this.nodePos();
-    const list: Node[] = [];
+    const list = this.openList();
     for (;;) {
       const span = this.parseTemplateTypeSpan();
       list.push(span);
       if (span.literal.kind !== SyntaxKind.TemplateMiddle) break;
     }
-    return this.newNodeList(pos, this.nodePos(), list);
+    return this.newNodeList(pos, this.nodePos(), this.closeList(list));
   }
 
   parseTemplateTypeSpan(): TemplateLiteralTypeSpan {
@@ -4182,24 +4209,23 @@ export class Parser extends ScannerErrorReporter {
     let hasTrailingModifier = false;
     let hasStaticModifier = false;
     const pos = this.nodePos();
-    let list: Node[] | undefined;
+    const list = this.openList();
     for (;;) {
       if (allowDecorators && this.token() === SyntaxKind.AtToken && !hasTrailingModifier) {
         const decorator = this.parseDecorator();
-        if (list === undefined) list = [];
         list.push(decorator);
         if (hasLeadingModifier) hasTrailingDecorator = true;
       } else {
         const modifier = this.tryParseModifier(hasStaticModifier, permitConstAsModifier, stopOnStartOfClassStaticBlock);
         if (modifier === undefined) break;
         if (modifier.kind === SyntaxKind.StaticKeyword) hasStaticModifier = true;
-        if (list === undefined) list = [];
         list.push(modifier);
         if (hasTrailingDecorator) hasTrailingModifier = true;
         else hasLeadingModifier = true;
       }
     }
-    return list === undefined ? undefined : this.newModifierList(pos, this.nodePos(), list);
+    const nodes = this.closeList(list);
+    return nodes.length === 0 ? undefined : this.newModifierList(pos, this.nodePos(), nodes);
   }
 
   parseDecorator(): Node {
@@ -4931,7 +4957,7 @@ export class Parser extends ScannerErrorReporter {
     const pos = this.nodePos();
     const saveParsingContexts = this.parsingContexts;
     this.parsingContexts |= 1 << ParsingContext.JsxChildren;
-    const list: Node[] = [];
+    const list = this.openList();
     for (;;) {
       // Like tsgo, this leaves the parser's current token unchanged.
       const currentToken = this.scanner.reScanJsxToken(true);
@@ -4951,7 +4977,7 @@ export class Parser extends ScannerErrorReporter {
         break;
     }
     this.parsingContexts = saveParsingContexts;
-    return this.newNodeList(pos, this.nodePos(), list);
+    return this.newNodeList(pos, this.nodePos(), this.closeList(list));
   }
 
   parseJsxChild(openingTag: Node, token: SyntaxKind): Expression | undefined {
@@ -5530,12 +5556,13 @@ export class Parser extends ScannerErrorReporter {
         const isOptionalChain = questionDotToken !== undefined || this.tryReparseOptionalChain(expression);
         expression = this.checkJSSyntax(
           this.finishNode(
-            new CallExpression(
+            newCallExpression(
               expression,
               questionDotToken,
               typeArguments,
               argumentList,
               isOptionalChain ? NodeFlags.OptionalChain : NodeFlags.None,
+              (this.contextFlags & NodeFlags.JavaScriptFile) !== 0,
             ),
             pos,
           ),
@@ -5625,13 +5652,13 @@ export class Parser extends ScannerErrorReporter {
 
   parseTemplateSpans(isTaggedTemplate: boolean): NodeList {
     const pos = this.nodePos();
-    const list: Node[] = [];
+    const list = this.openList();
     for (;;) {
       const span = this.parseTemplateSpan(isTaggedTemplate);
       list.push(span);
       if (span.literal.kind !== SyntaxKind.TemplateMiddle) break;
     }
-    return this.newNodeList(pos, this.nodePos(), list);
+    return this.newNodeList(pos, this.nodePos(), this.closeList(list));
   }
 
   parseTemplateSpan(isTaggedTemplate: boolean): TemplateSpan {
@@ -5763,7 +5790,14 @@ export class Parser extends ScannerErrorReporter {
     } else {
       this.parseExpected(SyntaxKind.ColonToken);
       const initializer = this.parseAssignmentExpressionOrHigherAllowIn();
-      node = new PropertyAssignment(modifiers, name, postfixToken, undefined, initializer);
+      node = newPropertyAssignment(
+        modifiers,
+        name,
+        postfixToken,
+        undefined,
+        initializer,
+        (this.contextFlags & NodeFlags.JavaScriptFile) !== 0,
+      );
     }
     return this.finishWithJSDoc(node, pos, jsdoc);
   }

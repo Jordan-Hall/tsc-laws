@@ -51,7 +51,7 @@ npm run build:web
 
 - Node.js 24+ and npm
 - Go 1.26
-- A scriptc host: macOS, Linux, or Windows, with `clang` available for linking
+- A scriptc host: macOS, Linux, or Windows, with `clang` available for linking (on Windows, [zig](https://ziglang.org), which scriptc links with there and which compiles the `--api --pipe` server, `packages/tsc-ts/native/pipe-win32.c`)
 
 ## Build
 
@@ -62,7 +62,7 @@ npm run build            # the Node build of tsc-ts (packages/tsc-ts/dist) and t
 npm run build:oracle     # tsgo reference builds in packages/tsgo/dist
 ```
 
-`package.json` pins scriptc `0.4.1`, with its `@scriptc/threads` package. The build fails with any other version.
+`package.json` pins scriptc `0.4.2`, with its `@scriptc/threads` package. The build fails with any other version.
 
 ## Compiler
 
@@ -86,7 +86,7 @@ The corpus scripts are in `packages/tsc-ts/scripts` (`*-corpus.mjs`).
 
 ## API server
 
-`tsc-ts --api` serves the same API as TypeScript 7.0.2's `tsc --api`, over stdin and stdout, so tools that drive `tsc --api` (such as scriptc) can run `tsc-ts` instead.
+`tsc-ts --api` serves the same API as TypeScript 7.0.2's `tsc --api`, over stdin and stdout, so tools that drive `tsc --api` (such as scriptc) can run `tsc-ts` instead. On Windows the native executable also serves it over a named pipe it creates (`--pipe \\.\pipe\<name>`), as `tsc --api --pipe` does.
 
 ```sh
 npm run build -w tsc-ts

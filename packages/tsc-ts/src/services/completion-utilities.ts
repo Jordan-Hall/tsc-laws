@@ -26,6 +26,7 @@ import {
   TaggedTemplateExpression,
   TemplateExpression,
   TemplateSpan,
+  callTypeArguments,
 } from '../compiler/ast.js';
 import {
   findChildOfKind,
@@ -627,7 +628,7 @@ function templateArgumentCount(tag: Node): number {
 }
 
 function getCallTypeArgumentList(node: Node): NodeList | undefined {
-  if (node instanceof CallExpression) return node.typeArguments;
+  if (node instanceof CallExpression) return callTypeArguments(node);
   if (node instanceof NewExpression) return node.typeArguments;
   return undefined;
 }

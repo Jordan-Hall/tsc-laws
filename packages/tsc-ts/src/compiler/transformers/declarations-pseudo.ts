@@ -33,6 +33,7 @@ import {
   getSymbol,
   getType,
   getTypeParameters,
+  propertyAssignmentPostfixToken,
 } from '../ast.js';
 import { isFunctionLike, nodeIsMissing } from '../ast-utilities.js';
 import { getCombinedNodeFlags, hasSyntacticModifier, isIdentifierNamed } from '../binder-utilities.js';
@@ -544,7 +545,7 @@ export class PseudoChecker {
         }
         case SyntaxKind.PropertyAssignment: {
           const assignment = property as PropertyAssignment;
-          const postfix = assignment.postfixToken;
+          const postfix = propertyAssignmentPostfixToken(assignment);
           members.push(
             new PseudoMember(
               PseudoMemberKind.Property,

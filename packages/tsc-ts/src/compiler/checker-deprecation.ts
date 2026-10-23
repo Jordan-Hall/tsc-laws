@@ -32,7 +32,7 @@ import { entityNameToString } from './checker-expressions.js';
 import { isErrorType } from './checker-type-factory.js';
 import { getPropertyOfType } from './checker-members.js';
 import { signatureToString } from './type-printer.js';
-import { declarationCount, getDeclarations, type Symbol, SymbolFlags } from './symbol.js';
+import { declarationAt, declarationCount, getDeclarations, type Symbol, SymbolFlags } from './symbol.js';
 
 /** Whether `declaration`, or the statement it belongs to, has a `@deprecated` JSDoc tag. */
 export function isDeprecatedDeclaration(declaration: Node): boolean {
@@ -56,25 +56,26 @@ function getJSDocDeprecatedTag(node: Node): Node | undefined {
  * members when all are.
  */
 export function isDeprecatedSymbol(c: Checker, symbol: Symbol): boolean {
-  const declarations = getDeclarations(symbol);
+  const count = declarationCount(symbol);
   const parentSymbol = getParentOfSymbol(c, symbol);
-  if (parentSymbol !== undefined && declarations.length > 1)
+  if (parentSymbol !== undefined && count > 1)
     return (parentSymbol.flags & SymbolFlags.Interface) !== 0
-      ? someDeprecatedDeclaration(declarations)
-      : everyDeprecatedDeclaration(declarations);
+      ? someDeprecatedDeclaration(symbol)
+      : everyDeprecatedDeclaration(symbol);
   return (
     (symbol.valueDeclaration !== undefined && isDeprecatedDeclaration(symbol.valueDeclaration)) ||
-    (declarations.length !== 0 && everyDeprecatedDeclaration(declarations))
+    (count !== 0 && everyDeprecatedDeclaration(symbol))
   );
 }
 
-function someDeprecatedDeclaration(declarations: readonly Node[]): boolean {
-  for (const d of declarations) if (isDeprecatedDeclaration(d)) return true;
+function someDeprecatedDeclaration(symbol: Symbol): boolean {
+  for (let i = 0; i < declarationCount(symbol); i++) if (isDeprecatedDeclaration(declarationAt(symbol, i))) return true;
   return false;
 }
 
-function everyDeprecatedDeclaration(declarations: readonly Node[]): boolean {
-  for (const d of declarations) if (!isDeprecatedDeclaration(d)) return false;
+function everyDeprecatedDeclaration(symbol: Symbol): boolean {
+  for (let i = 0; i < declarationCount(symbol); i++)
+    if (!isDeprecatedDeclaration(declarationAt(symbol, i))) return false;
   return true;
 }
 
@@ -330,7 +331,8 @@ export function checkDeprecatedTypeReference(c: Checker, node: Node, type: Type)
   if (isErrorType(c, type)) return;
   const symbol = c.resolvedSymbols.get(node.id);
   if (symbol === undefined) return;
-  for (const d of getDeclarations(symbol)) {
+  for (let i = 0; i < declarationCount(symbol); i++) {
+    const d = declarationAt(symbol, i);
     if (isTypeDeclaration(d) && isDeprecatedDeclaration(d)) {
       addDeprecatedSuggestion(c, getDeprecatedSuggestionNode(node), getDeclarations(symbol), symbol.name);
       return;

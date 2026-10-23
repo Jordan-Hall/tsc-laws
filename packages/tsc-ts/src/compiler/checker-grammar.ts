@@ -80,6 +80,8 @@ import {
   getTypeArguments,
   getTypeParameters,
   isDeclarationNode,
+  callQuestionDotToken,
+  callTypeArguments,
 } from './ast.js';
 import {
   canHaveDecorators,
@@ -1297,7 +1299,7 @@ function checkGrammarDecorator(g: GrammarChecker, decorator: Decorator): boolean
       const call = node as CallExpression;
       if (!canHaveCallExpression) errorNode = node;
       // A `?.` token comes first, so it wins over an earlier error node.
-      if (call.questionDotToken !== undefined) errorNode = call.questionDotToken;
+      if (callQuestionDotToken(call) !== undefined) errorNode = callQuestionDotToken(call);
       node = call.expression;
       canHaveCallExpression = false;
       continue;
@@ -3305,7 +3307,7 @@ function checkGrammarCallExpression(g: GrammarChecker, node: CallExpression): vo
       (callee as MetaProperty).keywordToken === SyntaxKind.ImportKeyword &&
       (callee as MetaProperty).name.text === 'defer');
   if (isImportCall) checkGrammarImportCallExpression(g, node);
-  else checkGrammarTypeArguments(g, node.typeArguments);
+  else checkGrammarTypeArguments(g, callTypeArguments(node));
 }
 
 function checkGrammarImportCallExpression(g: GrammarChecker, node: CallExpression): boolean {
@@ -3331,7 +3333,7 @@ function checkGrammarImportCallExpression(g: GrammarChecker, node: CallExpressio
       node,
       Diagnostics.Dynamic_imports_are_only_supported_when_the_module_flag_is_set_to_es2020_es2022_esnext_commonjs_amd_system_umd_node16_node18_node20_or_nodenext,
     );
-  if (node.typeArguments !== undefined)
+  if (callTypeArguments(node) !== undefined)
     return grammarErrorOnNode(
       g,
       node,

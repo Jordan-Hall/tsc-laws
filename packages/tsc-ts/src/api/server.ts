@@ -1,6 +1,6 @@
-// `tsc --api`: serves the API over stdin and stdout.
+// `tsc --api`: serves the API over stdin and stdout, or on Windows over a named pipe it creates.
 //
-//   tsc --api [--cwd DIR] [--callbacks=readFile,fileExists,...] [--timing]
+//   tsc --api [--cwd DIR] [--callbacks=readFile,fileExists,...] [--timing] [--pipe \\.\pipe\NAME]
 import { existsSync } from 'node:fs';
 import { Connection } from './connection.js';
 import { ClientFileSystem, isCallback } from './fs.js';
@@ -11,12 +11,25 @@ interface ServerOptions {
   cwd: string;
   callbacks: Set<Callback>;
   timing: boolean;
+  pipe: string | undefined;
 }
 
-// Runs the server until the client closes stdin; returns the exit status.
+// The descriptor of a client connected to the named pipe `name`, which it creates, or -1 after an error message
+// (native/pipe-win32.c, linked into the Windows build).
+declare function tscTsOpenPipe(name: string): number;
+
+// Runs the server until the client closes its end; returns the exit status.
 export function runServer(args: string[], defaultLibraryPath: string): number {
   const options = parseArgs(args);
   if (options === undefined) return 2;
+  let input = 0;
+  let output = 1;
+  if (options.pipe !== undefined && process.platform === 'win32') {
+    const fd = tscTsOpenPipe(options.pipe);
+    if (fd < 0) return 1;
+    input = fd;
+    output = fd;
+  }
   const fs = new ClientFileSystem(options.callbacks);
   const session = new Session(
     {
@@ -27,7 +40,7 @@ export function runServer(args: string[], defaultLibraryPath: string): number {
     },
     options.timing,
   );
-  const connection = new Connection(0, 1);
+  const connection = new Connection(input, output);
   fs.connect(connection);
   connection.run(session);
   return 0;
@@ -35,7 +48,7 @@ export function runServer(args: string[], defaultLibraryPath: string): number {
 
 // Parses Go-style flags: -name, --name, -name=value or -name value.
 function parseArgs(args: string[]): ServerOptions | undefined {
-  const options: ServerOptions = { cwd: process.cwd(), callbacks: new Set(), timing: false };
+  const options: ServerOptions = { cwd: process.cwd(), callbacks: new Set(), timing: false, pipe: undefined };
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     if (!arg.startsWith('-')) break;
@@ -61,8 +74,15 @@ function parseArgs(args: string[]): ServerOptions | undefined {
       case 'timing':
         options.timing = eq < 0 || arg.slice(eq + 1) === 'true';
         break;
+      case 'pipe': {
+        // Only the native Windows build links the pipe server.
+        if (process.platform !== 'win32' || isNode()) return usage('-pipe is supported only by tsc-ts on Windows');
+        const pipe = value();
+        if (pipe === undefined || pipe === '') return usage('flag needs an argument: -pipe');
+        options.pipe = pipe;
+        break;
+      }
       case 'async':
-      case 'pipe':
         return usage(`-${name} is not supported`);
       default:
         return usage(`flag provided but not defined: -${name}`);
@@ -72,8 +92,12 @@ function parseArgs(args: string[]): ServerOptions | undefined {
 }
 
 function usage(message: string): undefined {
-  process.stderr.write(`${message}\nUsage of api:\n  -callbacks string\n  -cwd string\n  -timing\n`);
+  process.stderr.write(`${message}\nUsage of api:\n  -callbacks string\n  -cwd string\n  -pipe string\n  -timing\n`);
   return undefined;
+}
+
+function isNode(): boolean {
+  return /(^|[/\\])node(\.exe)?$/.test(process.execPath);
 }
 
 // The file system is case-insensitive if the executable exists under a

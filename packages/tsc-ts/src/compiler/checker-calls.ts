@@ -25,6 +25,8 @@ import {
   getNodeId,
   getBody,
   getSymbol,
+  callQuestionDotToken,
+  callTypeArguments,
 } from './ast.js';
 import {
   canHaveDecorators,
@@ -238,7 +240,7 @@ export function checkCallExpression(c: Checker, node: Node, checkMode: CheckMode
     return getESSymbolLikeTypeForNode(c, walkUpParenthesizedExpressions(node.parent!));
   // An assertion call must name its target through explicitly typed declarations.
   if (
-    call.questionDotToken === undefined &&
+    callQuestionDotToken(call) === undefined &&
     node.parent!.kind === SyntaxKind.ExpressionStatement &&
     (returnType.flags & TypeFlags.Void) !== 0 &&
     getTypePredicateOfSignature(c, signature) !== undefined
@@ -368,7 +370,7 @@ function resolveCallExpression(c: Checker, node: CallExpression, checkMode: Chec
   const callSignatures = getSignaturesOfType(c, apparentType, SignatureKind.Call);
   const numConstructSignatures = getSignaturesOfType(c, apparentType, SignatureKind.Construct).length;
   if (isUntypedFunctionCall(c, funcType, apparentType, callSignatures.length, numConstructSignatures)) {
-    if (!isErrorType(c, funcType) && node.typeArguments !== undefined)
+    if (!isErrorType(c, funcType) && callTypeArguments(node) !== undefined)
       c.error(node, Diagnostics.Untyped_function_calls_may_not_accept_type_arguments);
     return resolveUntypedCall(c, node);
   }
@@ -382,7 +384,7 @@ function resolveCallExpression(c: Checker, node: CallExpression, checkMode: Chec
   // inferences can flow through function composition.
   if (
     (checkMode & CheckMode.SkipGenericFunctions) !== 0 &&
-    node.typeArguments === undefined &&
+    callTypeArguments(node) === undefined &&
     someGenericFunctionReturningFunction(c, callSignatures)
   ) {
     skippedGenericFunction(c, node, checkMode);

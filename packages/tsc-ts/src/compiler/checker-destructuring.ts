@@ -115,7 +115,15 @@ import { TypeFacts, getNonNullableType, getTypeWithFacts, hasTypeFacts } from '.
 import { sliceTupleType } from './checker-signatures.js';
 import { getPropertyNameFromType, isTypeUsableAsPropertyName, maybeTypeOfKind } from './checker-utilities.js';
 import { checkPropertyAccessibility } from './checker-property-access.js';
-import { CheckFlags, copyDeclarations, getDeclarations, getSymbolId, type Symbol, SymbolFlags } from './symbol.js';
+import {
+  CheckFlags,
+  copyDeclarations,
+  declarationAt,
+  declarationCount,
+  getSymbolId,
+  type Symbol,
+  SymbolFlags,
+} from './symbol.js';
 
 function isBindingPatternNode(node: Node | undefined): boolean {
   return (
@@ -766,7 +774,8 @@ export function isSpreadableProperty(prop: Symbol): boolean {
     (prop.flags & (SymbolFlags.Method | SymbolFlags.GetAccessor | SymbolFlags.SetAccessor)) === 0;
   let hasPrivateName = false;
   let inClass = false;
-  for (const d of getDeclarations(prop)) {
+  for (let i = 0; i < declarationCount(prop); i++) {
+    const d = declarationAt(prop, i);
     if (isPrivateIdentifierClassElementDeclaration(d)) hasPrivateName = true;
     if (d.parent !== undefined && isClassLike(d.parent)) inClass = true;
   }

@@ -4075,9 +4075,45 @@ export class ElementAccessExpression extends Node {
 
 export class CallExpression extends Node {
   expression: Expression;
+  arguments: NodeList;
+
+  constructor(expression: Expression, args: NodeList, flags: NodeFlags) {
+    super(SyntaxKind.CallExpression);
+    this.expression = expression;
+    this.arguments = args;
+    this.flags |= flags & NodeFlags.OptionalChain;
+  }
+
+  forEachChild(v: NodeVisitor): boolean {
+    if (v.visitNode(this.expression)) return true;
+    return v.visitList(this.arguments);
+  }
+
+  setParentOfChildren(): void {
+    this.expression.parent = this;
+    setParents(this.arguments.nodes, this);
+  }
+
+  deepClone(): Node {
+    return this.copy();
+  }
+
+  copy(): CallExpression {
+    const node = new CallExpression(this.expression.deepClone(), cloneList(this.arguments), this.flags);
+    node.flags = this.flags;
+    node.pos = this.pos;
+    node.end = this.end;
+    return node;
+  }
+}
+
+/**
+ * A call with `?.` or type arguments, or in a JavaScript file, where the binder can declare a symbol
+ * for it (`Object.defineProperty`). Other calls are a plain `CallExpression`, without these fields.
+ */
+export class FullCallExpression extends CallExpression {
   questionDotToken: Token | undefined;
   typeArguments: NodeList | undefined;
-  arguments: NodeList;
   // Set by the binder.
   symbol: Symbol | undefined;
 
@@ -4088,12 +4124,9 @@ export class CallExpression extends Node {
     args: NodeList,
     flags: NodeFlags,
   ) {
-    super(SyntaxKind.CallExpression);
-    this.expression = expression;
+    super(expression, args, flags);
     this.questionDotToken = questionDotToken;
     this.typeArguments = typeArguments;
-    this.arguments = args;
-    this.flags |= flags & NodeFlags.OptionalChain;
     this.symbol = undefined;
   }
 
@@ -4111,12 +4144,8 @@ export class CallExpression extends Node {
     setParents(this.arguments.nodes, this);
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
   copy(): CallExpression {
-    const node = new CallExpression(
+    const node = new FullCallExpression(
       this.expression.deepClone(),
       this.questionDotToken === undefined ? undefined : this.questionDotToken.copy(),
       this.typeArguments === undefined ? undefined : cloneList(this.typeArguments),
@@ -4128,6 +4157,28 @@ export class CallExpression extends Node {
     node.end = this.end;
     return node;
   }
+}
+
+/** A `FullCallExpression` when one of its fields is set or `inJavaScript`, else a `CallExpression`. */
+export function newCallExpression(
+  expression: Expression,
+  questionDotToken: Token | undefined,
+  typeArguments: NodeList | undefined,
+  args: NodeList,
+  flags: NodeFlags,
+  inJavaScript: boolean,
+): CallExpression {
+  if (inJavaScript || questionDotToken !== undefined || typeArguments !== undefined)
+    return new FullCallExpression(expression, questionDotToken, typeArguments, args, flags);
+  return new CallExpression(expression, args, flags);
+}
+
+export function callQuestionDotToken(node: CallExpression): Token | undefined {
+  return node instanceof FullCallExpression ? node.questionDotToken : undefined;
+}
+
+export function callTypeArguments(node: CallExpression): NodeList | undefined {
+  return node instanceof FullCallExpression ? node.typeArguments : undefined;
 }
 
 export class NewExpression extends Node {
@@ -4511,13 +4562,50 @@ export class SpreadAssignment extends Node {
 }
 
 export class PropertyAssignment extends Node {
-  modifiers: ModifierList | undefined;
   name: PropertyName;
-  postfixToken: Token | undefined;
-  type: TypeNode | undefined;
   initializer: Expression;
   // Set by the binder.
   symbol: Symbol | undefined;
+
+  constructor(name: PropertyName, initializer: Expression) {
+    super(SyntaxKind.PropertyAssignment);
+    this.name = name;
+    this.initializer = initializer;
+    this.symbol = undefined;
+  }
+
+  forEachChild(v: NodeVisitor): boolean {
+    if (v.visitNode(this.name)) return true;
+    return v.visitNode(this.initializer);
+  }
+
+  setParentOfChildren(): void {
+    this.name.parent = this;
+    this.initializer.parent = this;
+  }
+
+  deepClone(): Node {
+    return this.copy();
+  }
+
+  copy(): PropertyAssignment {
+    const node = new PropertyAssignment(this.name.deepClone(), this.initializer.deepClone());
+    node.flags = this.flags;
+    node.pos = this.pos;
+    node.end = this.end;
+    return node;
+  }
+}
+
+/**
+ * A property assignment with modifiers, a `?` or `!`, or a type annotation (which the grammar checker
+ * reports), or in a JavaScript file, where JSDoc can give it a type or modifiers. Other property
+ * assignments are a plain `PropertyAssignment`, without these fields.
+ */
+export class FullPropertyAssignment extends PropertyAssignment {
+  modifiers: ModifierList | undefined;
+  postfixToken: Token | undefined;
+  type: TypeNode | undefined;
 
   constructor(
     modifiers: ModifierList | undefined,
@@ -4526,13 +4614,10 @@ export class PropertyAssignment extends Node {
     type: TypeNode | undefined,
     initializer: Expression,
   ) {
-    super(SyntaxKind.PropertyAssignment);
+    super(name, initializer);
     this.modifiers = modifiers;
-    this.name = name;
     this.postfixToken = postfixToken;
     this.type = type;
-    this.initializer = initializer;
-    this.symbol = undefined;
   }
 
   forEachChild(v: NodeVisitor): boolean {
@@ -4551,12 +4636,8 @@ export class PropertyAssignment extends Node {
     this.initializer.parent = this;
   }
 
-  deepClone(): Node {
-    return this.copy();
-  }
-
   copy(): PropertyAssignment {
-    const node = new PropertyAssignment(
+    const node = new FullPropertyAssignment(
       this.modifiers === undefined ? undefined : cloneModifiers(this.modifiers),
       this.name.deepClone(),
       this.postfixToken === undefined ? undefined : this.postfixToken.copy(),
@@ -4568,6 +4649,32 @@ export class PropertyAssignment extends Node {
     node.end = this.end;
     return node;
   }
+}
+
+/** A `FullPropertyAssignment` when one of its fields is set or `inJavaScript`, else a `PropertyAssignment`. */
+export function newPropertyAssignment(
+  modifiers: ModifierList | undefined,
+  name: PropertyName,
+  postfixToken: Token | undefined,
+  type: TypeNode | undefined,
+  initializer: Expression,
+  inJavaScript: boolean,
+): PropertyAssignment {
+  if (inJavaScript || modifiers !== undefined || postfixToken !== undefined || type !== undefined)
+    return new FullPropertyAssignment(modifiers, name, postfixToken, type, initializer);
+  return new PropertyAssignment(name, initializer);
+}
+
+export function propertyAssignmentModifiers(node: PropertyAssignment): ModifierList | undefined {
+  return node instanceof FullPropertyAssignment ? node.modifiers : undefined;
+}
+
+export function propertyAssignmentPostfixToken(node: PropertyAssignment): Token | undefined {
+  return node instanceof FullPropertyAssignment ? node.postfixToken : undefined;
+}
+
+export function propertyAssignmentType(node: PropertyAssignment): TypeNode | undefined {
+  return node instanceof FullPropertyAssignment ? node.type : undefined;
 }
 
 export class ShorthandPropertyAssignment extends Node {
@@ -8721,8 +8828,8 @@ export function getModifiers(node: Node): ModifierList | undefined {
       }
       break;
     case SyntaxKind.PropertyAssignment:
-      if (node instanceof PropertyAssignment) {
-        const holder: PropertyAssignment = node;
+      if (node instanceof FullPropertyAssignment) {
+        const holder: FullPropertyAssignment = node;
         return holder.modifiers;
       }
       break;
@@ -9095,8 +9202,8 @@ export function getType(node: Node): Node | undefined {
       }
       break;
     case SyntaxKind.PropertyAssignment:
-      if (node instanceof PropertyAssignment) {
-        const holder: PropertyAssignment = node;
+      if (node instanceof FullPropertyAssignment) {
+        const holder: FullPropertyAssignment = node;
         return holder.type;
       }
       break;
@@ -9584,8 +9691,8 @@ export function getPostfixToken(node: Node): Node | undefined {
       }
       break;
     case SyntaxKind.PropertyAssignment:
-      if (node instanceof PropertyAssignment) {
-        const holder: PropertyAssignment = node;
+      if (node instanceof FullPropertyAssignment) {
+        const holder: FullPropertyAssignment = node;
         return holder.postfixToken;
       }
       break;
@@ -9602,8 +9709,8 @@ export function getPostfixToken(node: Node): Node | undefined {
 export function getTypeArguments(node: Node): NodeList | undefined {
   switch (node.kind) {
     case SyntaxKind.CallExpression:
-      if (node instanceof CallExpression) {
-        const holder: CallExpression = node;
+      if (node instanceof FullCallExpression) {
+        const holder: FullCallExpression = node;
         return holder.typeArguments;
       }
       break;
@@ -10857,8 +10964,8 @@ export function getSymbol(node: Node): Symbol | undefined {
       }
       break;
     case SyntaxKind.CallExpression:
-      if (node instanceof CallExpression) {
-        const holder: CallExpression = node;
+      if (node instanceof FullCallExpression) {
+        const holder: FullCallExpression = node;
         return holder.symbol;
       }
       break;
@@ -11189,8 +11296,8 @@ export function setSymbol(node: Node, value: Symbol | undefined): void {
       }
       break;
     case SyntaxKind.CallExpression:
-      if (node instanceof CallExpression) {
-        const target: CallExpression = node;
+      if (node instanceof FullCallExpression) {
+        const target: FullCallExpression = node;
         target.symbol = value;
       }
       break;
