@@ -4,6 +4,17 @@
 
 <!-- release:start -->
 
+## 0.0.9
+
+### Highlights
+
+- **Faster small checks with library checking:** a declaration file that costs more than a checker's share, such as `lib.dom.d.ts` in a small program, is checked in statement ranges by all checkers. Checking one file with library checking goes from 182 to 112 ms, and peak RSS from 80 to 116 MB. Diagnostics are the same, and projects that plan no ranges are unchanged.
+- **Less memory:** speculative parses check tokens instead of building nodes they discard, and parse and loader tasks create their lists on first use. Peak RSS on VS Code is about 120 MB lower with `--checkers 1`, with wall time unchanged.
+- **Faster symbol lookups:** the checker probes its merged-symbol map only for symbols that were merged, about 1% faster on VS Code with `--checkers 1`.
+- **API:** nine methods answer a batch of locations, signatures, types or symbols in one request, and `getDiagnosticsOfCheckedFiles` checks only the listed files and answers their diagnostics and the global ones.
+
+<!-- release:end -->
+
 ## 0.0.8
 
 ### Highlights
@@ -11,8 +22,6 @@
 - **Faster checking:** tsc-ts is now built with scriptc 0.4.2 and a profile collected with it, and the checker reads the declarations of single-declaration symbols by index in its hot callers. Compared with 0.0.7 on our project set, checking is 9.2 to 11.1% faster with `--checkers 1` and 6.8 to 15.3% faster with 16 checkers. Output is the same.
 - **Less memory:** with scriptc 0.4.2, and with parsed lists collected in scratch arrays and kept at their exact length, peak RSS is 18 to 22% lower with `--checkers 1` and 15 to 22% lower with 16 checkers.
 - **Windows:** `tsc-ts --api --pipe \\.\pipe\<name>` serves the API over a named pipe it creates, as `tsc --api --pipe` does, so scriptc under Node.js can check with tsc-ts on Windows. Only the user the server runs as can open the pipe.
-
-<!-- release:end -->
 
 ## 0.0.7
 
