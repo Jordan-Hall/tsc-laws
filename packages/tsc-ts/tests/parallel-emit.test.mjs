@@ -244,6 +244,25 @@ test('global diagnostics found emitting declarations are not reported', { skip: 
       assert.deepEqual(actual.outputs, expected.outputs, `outputs with --checkers ${checkers} ${extra.join(' ')}`);
     }
   }
+  // Emitting `index.ts`, scheduled first (the larger file), expands the type first and finds the error
+  // with no location; a checker that forgot what emitting found checks no more files, so checking
+  // `other.ts` still reports the error there.
+  writeFileSync(
+    join(cwd, 'src/index.ts'),
+    project['src/index.ts'] + 'export const padding = [' + '1, '.repeat(200) + '];\n',
+  );
+  writeFileSync(
+    join(cwd, 'src/other.ts'),
+    'import { object } from "./library";\nexport const p: number = object.property;\n',
+  );
+  const located = run(cwd, ['--singleThreaded']);
+  assert.match(located.stdout, /^src\/other\.ts\(2,26\): error TS2589: /);
+  for (const checkers of ['2', '4']) {
+    const actual = run(cwd, ['--checkers', checkers]);
+    assert.equal(actual.stdout, located.stdout, `stdout with --checkers ${checkers}, the type expanded emitting first`);
+    assert.equal(actual.status, located.status, `status with --checkers ${checkers}, the type expanded emitting first`);
+  }
+  writeFileSync(join(cwd, 'src/index.ts'), project['src/index.ts']);
   writeFileSync(join(cwd, 'src/other.ts'), 'export function* other() { yield 1; }\n');
   const missing = run(cwd, ['--singleThreaded', '--lib', 'es5']);
   assert.match(missing.stdout, /error TS2318: Cannot find global type 'IterableIterator'/);

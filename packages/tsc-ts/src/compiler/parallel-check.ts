@@ -1662,6 +1662,14 @@ export function checkFromQueue(
       declarations.push(
         checked.checker.withoutGlobalDiagnostics(() => declarationDiagnosticsOfFile(emitter, files[i]!)),
       );
+    // What emitting found and forgot can stay cached in this checker (a missing global type, an
+    // instantiation too deep), where checking a later file would report it: a new checker continues
+    // the schedule, as at the file limit.
+    if (checked.checker.forgottenGlobalDiagnostics() > 0) {
+      more = true;
+      left = reservedBy(index).splice(0);
+      break;
+    }
   }
   mark(`checked ${done.length} files, ${unitsDone.length} ranges`);
   // The main thread reports its own global diagnostics (CheckedProgram.getGlobalDiagnostics).
@@ -1997,10 +2005,28 @@ export function startParallelCheck(
   mark('reporting checker created');
   const emittedHere =
     !mainChecks && emitKinds === undefined ? emitUncheckedFiles(checked, order, emits) : new Map<number, EmitResult>();
-  if (mainChecks)
-    record(
-      checkFromQueue(checked, 0, new Int32Array(counter), order, epoch, true, 0, [], emits, emitKinds, checking, units),
+  if (mainChecks) {
+    const own = checkFromQueue(
+      checked,
+      0,
+      new Int32Array(counter),
+      order,
+      epoch,
+      true,
+      0,
+      [],
+      emits,
+      emitKinds,
+      checking,
+      units,
     );
+    record(own);
+    // A thread continues where this checker stopped (`checkFromQueue`).
+    if (own.more) {
+      remaining++;
+      spawn(0, own.reserved);
+    }
+  }
   ownDone = true;
   if (remaining === 0) finish();
 }
