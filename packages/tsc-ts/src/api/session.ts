@@ -417,6 +417,8 @@ export class Session {
         return JSON.stringify(this.fileDiagnostics('suggestion', JSON.parse(params) as proto.OptionalFileParams));
       case 'getDeclarationDiagnostics':
         return JSON.stringify(this.fileDiagnostics('declaration', JSON.parse(params) as proto.OptionalFileParams));
+      case 'getDiagnosticsOfCheckedFiles':
+        return JSON.stringify(this.diagnosticsOfCheckedFiles(JSON.parse(params) as proto.FilesParams));
       case 'getConfigFileParsingDiagnostics':
         return JSON.stringify(this.projectDiagnostics('config', JSON.parse(params) as proto.ProjectParams));
       case 'getProgramDiagnostics':
@@ -1144,6 +1146,15 @@ export class Session {
   private fileDiagnostics(kind: backend.DiagnosticKind, params: proto.OptionalFileParams): proto.DiagnosticResponse[] {
     const q = this.query(params);
     return q.project.diagnostics(kind, q.optionalSourceFile(params.file)).map(diagnosticResponse);
+  }
+
+  private diagnosticsOfCheckedFiles(params: proto.FilesParams): proto.CheckedFileDiagnosticsResponse {
+    const q = this.query(params);
+    const result = q.project.checkedFileDiagnostics((params.files ?? []).map((file) => q.sourceFile(file)));
+    return {
+      files: result.files.map((list) => list.map(diagnosticResponse)),
+      global: result.global.map(diagnosticResponse),
+    };
   }
 
   private projectDiagnostics(kind: backend.DiagnosticKind, params: proto.ProjectParams): proto.DiagnosticResponse[] {
