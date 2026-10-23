@@ -161,6 +161,40 @@ function checkSourceFileWorker(c: Checker, file: SourceFile): void {
   links.deferredNodes = undefined;
 }
 
+/**
+ * Checks the statements `start` to `end` of the declaration file `file`, one of the ranges that several
+ * checkers check it in (parallel-check.ts), and returns whether the checker then has diagnostics in the
+ * file. The range ending the file also runs the checks of the whole file. The file is not marked checked.
+ *
+ * When no range finds a diagnostic in the file, checking it whole would find none either: each statement
+ * is checked by the checker of its range. Otherwise the file is checked whole (`startParallelCheck`): the
+ * diagnostics of the ranges can differ from the file's, where they depend on the order the file's
+ * declarations are resolved in. A union type prints its members in the order the checker created them,
+ * and a check that a symbol's first declaration runs reports on all its declarations.
+ */
+export function checkSourceFileRange(c: Checker, file: SourceFile, start: number, end: number): boolean {
+  const statements = getStatements(file)!.nodes;
+  c.fileBeingChecked = file;
+  c.saveDeferredDiagnostics = true;
+  for (let i = start; i < end; i++) checkSourceElement(c, statements[i]!);
+  checkDeferredNodes(c, file);
+  const whole = end === statements.length;
+  if (whole && isExternalOrCommonJSModule(file)) checkExternalModuleExports(c, file);
+  c.renamedBindingElementsInTypes.length = 0;
+  if (whole) {
+    checkGrammarSourceFile(c, file);
+    checkDeferredNodes(c, file);
+    checkPendingExternalEmitHelpers(c, file);
+  }
+  c.fileBeingChecked = undefined;
+  c.saveDeferredDiagnostics = false;
+  produceDeferredIterationErrors(c);
+  produceDeferredCollisionChecks(c);
+  // Deferred nodes of a later range are queued again (checkNodeDeferred).
+  c.nodeLinks(file).deferredNodes = undefined;
+  return c.diagnostics.forFile(file.fileName).length > 0;
+}
+
 /** Checks a statement, declaration, class member or type node. */
 export function checkSourceElement(c: Checker, node: Node | undefined): void {
   if (node === undefined) return;

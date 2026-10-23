@@ -6,7 +6,9 @@
 // allowJs and checkJs. TSC_TS_CHECK_OPTIONS lists options for every input,
 // separated by commas: names of boolean options to turn on, module,
 // moduleResolution and target as name=value, and the strict family,
-// allowUnreachableCode and allowUnusedLabels as name=true or name=false.
+// allowUnreachableCode and allowUnusedLabels as name=true or name=false. With
+// TSC_TS_CHECK_DECLARATION=1, a .ts test case is checked as the declaration file
+// /input.d.ts.
 package main
 
 import (
@@ -201,6 +203,9 @@ func check(path string, text string, readLib func(name string) (string, bool)) [
 			options.AllowJs = core.TSTrue
 			options.CheckJs = core.TSTrue
 			return checkhost.CheckWithOptions("/input.js", text, options, readLib)
+		}
+		if os.Getenv("TSC_TS_CHECK_DECLARATION") == "1" {
+			return checkhost.CheckWithOptions("/input.d.ts", text, newOptions(), readLib)
 		}
 		return checkhost.CheckWithOptions("/input.ts", text, newOptions(), readLib)
 	}

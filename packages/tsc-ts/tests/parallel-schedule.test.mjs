@@ -1,7 +1,8 @@
 // How --checkers spreads work: the order parse threads load files in (libraries first, so a large
 // one such as lib.dom.d.ts does not finish last), the estimated cost of checking a file (a small file
-// that alone imports a large library is expensive), and the ranges of files checkers take, with
-// idle checkers taking the cheap end of another's range.
+// that alone imports a large library is expensive), the ranges of files checkers take, with
+// idle checkers taking the cheap end of another's range, and the statement ranges of a large
+// declaration file that several checkers check.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -32,6 +33,7 @@ const {
   newSchedule,
   packResult,
   planSchedule,
+  rangeUnits,
   retirementMemory,
   retires,
   scheduleOf,
@@ -466,4 +468,97 @@ test('global errors a checker thread found are reported after the semantic diagn
     reported.map((d) => d.code),
     [2322, 2318],
   );
+});
+
+/** A program whose declaration file `types.d.ts` is most of what it checks; `extra` is appended to it. */
+function declarationHeavy(extra = '') {
+  const dir = tempDir('tsc-ts-parallel-schedule-ranges-');
+  let types = 'interface Base { id: number }\n';
+  for (let i = 0; i < 400; i++) types += `interface T${i} extends Base { value${i}: number }\n`;
+  const files = {
+    'tsconfig.json': JSON.stringify({
+      compilerOptions: { strict: true, noEmit: true, types: [], skipDefaultLibCheck: true },
+      include: ['src'],
+    }),
+    'src/types.d.ts': types + extra,
+    'src/a.ts': 'export const a = 1;\n',
+    'src/b.ts': 'export const b = 2;\n',
+    'src/c.ts': 'export const c = 3;\n',
+    'src/d.ts': 'export const d = 4;\n',
+    'src/e.ts': 'export const e = 5;\n',
+  };
+  for (const [name, text] of Object.entries(files)) {
+    mkdirSync(dirname(join(dir, name)), { recursive: true });
+    writeFileSync(join(dir, name), text);
+  }
+  const work = executeCommandLine(createNodeSystem(bundledLibs, ''), ['-p', dir]);
+  assert.equal(work.kind, 'compile');
+  return new CheckedProgram(work.program);
+}
+
+test("a declaration file costing more than a checker's share is checked in statement ranges", () => {
+  const c = declarationHeavy();
+  const files = c.program.getSourceFiles();
+  const types = files.findIndex((f) => f.fileName.endsWith('types.d.ts'));
+  const statements = files[types].statements.nodes.length;
+  const plan = planSchedule(c, 4, undefined, true);
+  const units = plan.units;
+  assert.ok(units.length / 3 >= 2 && units.length / 3 <= 8, `${units.length / 3} ranges`);
+  // Consecutive ranges of the whole file, the last one ending it.
+  for (let u = 0; u < units.length / 3; u++) {
+    assert.equal(units[3 * u], types);
+    assert.equal(units[3 * u + 1], u === 0 ? 0 : units[3 * u - 1]);
+    assert.ok(units[3 * u + 2] > units[3 * u + 1]);
+  }
+  assert.equal(units[units.length - 1], statements);
+  // The ranges take the place of the file in the order, once each.
+  assert.ok(!plan.order.includes(types));
+  assert.deepEqual(
+    plan.order.filter((k) => k < 0).sort((a, b) => b - a),
+    Array.from({ length: units.length / 3 }, (_, u) => -1 - u),
+  );
+  // Checking whole: with one checker, without ranges, or with TSC_TS_RANGES=0.
+  assert.deepEqual(planSchedule(c, 4).units, []);
+  assert.deepEqual(planSchedule(c, 1, undefined, true).units, []);
+  process.env.TSC_TS_RANGES = '0';
+  try {
+    assert.deepEqual(rangeUnits(c, 4, { order: checkOrder(c), cost: textLengths(c.program) }), []);
+  } finally {
+    delete process.env.TSC_TS_RANGES;
+  }
+});
+
+test('a checker checks the statement ranges it takes, and tells which found diagnostics in their file', () => {
+  for (const [extra, reporting] of [
+    ['', false],
+    ['interface Bad extends Base { id: string }\n', true],
+  ]) {
+    const c = declarationHeavy(extra);
+    const plan = planSchedule(c, 4, undefined, true);
+    const result = checkFromQueue(
+      c,
+      0,
+      new Int32Array(scheduleOf(plan, 4)),
+      plan.order,
+      0,
+      true,
+      0,
+      [],
+      true,
+      undefined,
+      true,
+      plan.units,
+    );
+    assert.deepEqual(
+      [...result.units].sort((a, b) => a - b),
+      Array.from({ length: plan.units.length / 3 }, (_, u) => u),
+    );
+    assert.equal(result.files.length, plan.order.length - plan.units.length / 3);
+    // The range ending the file has the bad declaration; a range checked after it on the same checker reports too.
+    if (reporting) assert.ok(result.reportingUnits.includes(plan.units.length / 3 - 1));
+    else assert.deepEqual(result.reportingUnits, []);
+    // Packed for postMessage and back.
+    const back = unpackResult(structuredClone(packResult(result, c.program)), c.program, new Map());
+    assert.deepEqual([back.units, back.reportingUnits], [result.units, result.reportingUnits]);
+  }
 });
