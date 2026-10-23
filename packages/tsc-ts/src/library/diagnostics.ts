@@ -70,3 +70,26 @@ export function programDiagnostics(
       return [];
   }
 }
+
+/**
+ * What `semantic` answers for each of `files` and what `global` answers, after checking `files` and
+ * no other file. Checking one file can add diagnostics located in another, so every file is checked
+ * before any file's diagnostics are collected. With every file of the program listed, the answers are
+ * those of the full check.
+ */
+export function checkedFileDiagnostics(
+  checked: CheckedProgram,
+  files: readonly SourceFile[],
+): { files: (readonly CompilerDiagnostic[])[]; global: readonly CompilerDiagnostic[] } {
+  for (const file of files) checked.getSemanticDiagnostics(file);
+  const program = checked.program;
+  const global = [
+    ...program.getConfigFileParsingDiagnostics(),
+    ...program.getProgramDiagnostics(),
+    ...checked.getGlobalDiagnostics(),
+  ];
+  return {
+    files: files.map((file) => checked.getSemanticDiagnostics(file)),
+    global: sortAndDeduplicateDiagnostics(global).filter((d) => d.file === undefined),
+  };
+}

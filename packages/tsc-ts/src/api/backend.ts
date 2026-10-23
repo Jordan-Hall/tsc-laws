@@ -98,7 +98,12 @@ import { CheckedProgram } from '../compiler/program-checker.js';
 import { type ApiCompilerOptions as CompilerOptions, compilerOptionsOf } from '../library/options.js';
 import type { Diagnostic } from '../library/types.js';
 export type { ApiCompilerOptions as CompilerOptions } from '../library/options.js';
-import { type DiagnosticKind, diagnosticOf, programDiagnostics } from '../library/diagnostics.js';
+import {
+  checkedFileDiagnostics,
+  type DiagnosticKind,
+  diagnosticOf,
+  programDiagnostics,
+} from '../library/diagnostics.js';
 import { getDeclarations, getSymbolId, type Symbol as CompilerSymbol, type SymbolTable } from '../compiler/symbol.js';
 import type { SyntaxKind } from '../compiler/syntax-kind.js';
 import { ConfigParser, ParsedCommandLine } from '../compiler/tsconfig.js';
@@ -339,6 +344,12 @@ export class Project {
 
   diagnostics(kind: DiagnosticKind, file: SourceFile | undefined): Diagnostic[] {
     return programDiagnostics(this.checked, kind, file).map(diagnosticOf);
+  }
+
+  /** The semantic diagnostics of each of `files` and the global diagnostics, after checking only them. */
+  checkedFileDiagnostics(files: readonly SourceFile[]): { files: Diagnostic[][]; global: Diagnostic[] } {
+    const result = checkedFileDiagnostics(this.checked, files);
+    return { files: result.files.map((list) => list.map(diagnosticOf)), global: result.global.map(diagnosticOf) };
   }
 
   /** Completions at a UTF-16 position; throws `NeedsAutoImports` where tsgo needs its auto-import registry. */

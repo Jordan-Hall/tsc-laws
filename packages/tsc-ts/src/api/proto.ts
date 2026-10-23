@@ -50,6 +50,15 @@ export interface OptionalFileParams extends ProjectParams {
   file?: DocumentIdentifier | null;
 }
 
+export interface FilesParams extends ProjectParams {
+  files?: DocumentIdentifier[];
+}
+
+export interface CheckedFileDiagnosticsResponse {
+  files: DiagnosticResponse[][];
+  global: DiagnosticResponse[];
+}
+
 export interface PositionParams extends ProjectFileParams {
   position?: number;
 }
