@@ -245,6 +245,30 @@ class DiagnosticCollection {
     return this.global.slice();
   }
 
+  /** The global diagnostics `withoutNewGlobals` removed. */
+  removedGlobals = 0;
+
+  /** Runs `run`, then removes the global diagnostics it added. */
+  withoutNewGlobals<T>(run: () => T): T {
+    const outer = this.log;
+    const added: Diagnostic[] = [];
+    this.log = added;
+    try {
+      return run();
+    } finally {
+      this.log = outer;
+      if (outer !== undefined) for (const d of added) outer.push(d);
+      const globals = new Set<Diagnostic>();
+      for (const d of added) if (d.file === undefined) globals.add(d);
+      if (globals.size > 0) {
+        this.removedGlobals += globals.size;
+        let kept = 0;
+        for (const d of this.global) if (!globals.has(d)) this.global[kept++] = d;
+        this.global.length = kept;
+      }
+    }
+  }
+
   /** Records the diagnostics added from now on. */
   startLog(): void {
     this.log = [];
@@ -938,6 +962,19 @@ export class Checker implements TypeChecking {
   /** Diagnostics without a file, such as missing global types. */
   getGlobalDiagnostics(): Diagnostic[] {
     return this.diagnostics.globals();
+  }
+
+  /**
+   * Runs `run` (such as emitting declarations), then forgets the global diagnostics it reported:
+   * the program collects global diagnostics before it emits.
+   */
+  withoutGlobalDiagnostics<T>(run: () => T): T {
+    return this.diagnostics.withoutNewGlobals(run);
+  }
+
+  /** The global diagnostics `withoutGlobalDiagnostics` forgot so far. */
+  forgottenGlobalDiagnostics(): number {
+    return this.diagnostics.removedGlobals;
   }
 
   // ---- Links

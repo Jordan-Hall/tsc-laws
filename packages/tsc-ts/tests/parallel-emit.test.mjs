@@ -202,6 +202,77 @@ test('declaration files are the same with any number of checkers', { skip: tscTs
   }
 });
 
+// A program reports the global diagnostics found checking it, collected before it emits: serializing a
+// declaration type can report one more (TS2589 on a type that only declaration emit expands), which is
+// never reported, with any number of checkers. Those found checking files (TS2318 for a global type a
+// generator needs) are.
+test('global diagnostics found emitting declarations are not reported', { skip: tscTsMissing }, () => {
+  const cwd = tempDir('tsc-ts-parallel-declaration-globals-');
+  const project = {
+    'src/library.d.ts':
+      'type Recursive<T> = T extends { value: unknown } ? Recursive<T> : T;\n' +
+      'export declare const object: { property: Recursive<{ value: 1 }> };\n',
+    'src/index.ts': 'import { object } from "./library";\nexport const result = object;\n',
+    'src/other.ts': 'export const other = 1;\n',
+    'tsconfig.json': JSON.stringify({
+      compilerOptions: {
+        target: 'ES2022',
+        strict: true,
+        types: [],
+        module: 'esnext',
+        moduleResolution: 'bundler',
+        declaration: true,
+        skipLibCheck: true,
+        rootDir: 'src',
+        outDir: 'out',
+      },
+      include: ['src'],
+    }),
+  };
+  for (const [path, content] of Object.entries(project)) {
+    mkdirSync(dirname(join(cwd, path)), { recursive: true });
+    writeFileSync(join(cwd, path), content);
+  }
+  for (const extra of [[], ['--noEmit']]) {
+    const expected = run(cwd, ['--singleThreaded', ...extra]);
+    assert.equal(expected.stdout, '');
+    assert.equal(expected.status, 0);
+    for (const checkers of ['1', '2', '4']) {
+      const actual = run(cwd, ['--checkers', checkers, ...extra]);
+      assert.equal(actual.stdout, expected.stdout, `stdout with --checkers ${checkers} ${extra.join(' ')}`);
+      assert.equal(actual.status, expected.status, `status with --checkers ${checkers} ${extra.join(' ')}`);
+      assert.deepEqual(actual.outputs, expected.outputs, `outputs with --checkers ${checkers} ${extra.join(' ')}`);
+    }
+  }
+  // Emitting `index.ts`, scheduled first (the larger file), expands the type first and finds the error
+  // with no location; a checker that forgot what emitting found checks no more files, so checking
+  // `other.ts` still reports the error there.
+  writeFileSync(
+    join(cwd, 'src/index.ts'),
+    project['src/index.ts'] + 'export const padding = [' + '1, '.repeat(200) + '];\n',
+  );
+  writeFileSync(
+    join(cwd, 'src/other.ts'),
+    'import { object } from "./library";\nexport const p: number = object.property;\n',
+  );
+  const located = run(cwd, ['--singleThreaded']);
+  assert.match(located.stdout, /^src\/other\.ts\(2,26\): error TS2589: /);
+  for (const checkers of ['2', '4']) {
+    const actual = run(cwd, ['--checkers', checkers]);
+    assert.equal(actual.stdout, located.stdout, `stdout with --checkers ${checkers}, the type expanded emitting first`);
+    assert.equal(actual.status, located.status, `status with --checkers ${checkers}, the type expanded emitting first`);
+  }
+  writeFileSync(join(cwd, 'src/index.ts'), project['src/index.ts']);
+  writeFileSync(join(cwd, 'src/other.ts'), 'export function* other() { yield 1; }\n');
+  const missing = run(cwd, ['--singleThreaded', '--lib', 'es5']);
+  assert.match(missing.stdout, /error TS2318: Cannot find global type 'IterableIterator'/);
+  for (const checkers of ['2', '4']) {
+    const actual = run(cwd, ['--checkers', checkers, '--lib', 'es5']);
+    assert.equal(actual.stdout, missing.stdout, `stdout with --checkers ${checkers} --lib es5`);
+    assert.equal(actual.status, missing.status, `status with --checkers ${checkers} --lib es5`);
+  }
+});
+
 // Type text in diagnostics lists a union's constituents in the union's order, as tsgo does; only
 // declaration files reorder the ones the union orders by type id (above). The function expression has
 // a written return type, so its body is checked after the file's statements, and `a` is created after
