@@ -169,6 +169,38 @@ export class ClusteredIntLinkTable {
   }
 }
 
+/** Ids in pages of `IdSetPaging.Ids` ids, one bit each; a page is created by the first id added to it. */
+export class PagedIdSet {
+  readonly pages: (Int32Array | undefined)[] = [];
+
+  has(id: number): boolean {
+    const page = this.pages[id >> IdSetPaging.Bits];
+    return page !== undefined && (page[(id >> 5) & IdSetPaging.WordMask]! & (1 << (id & 31))) !== 0;
+  }
+
+  add(id: number): void {
+    const index = id >> IdSetPaging.Bits;
+    let page = this.pages[index];
+    if (page === undefined) {
+      while (this.pages.length <= index) this.pages.push(undefined);
+      page = new Int32Array(IdSetPaging.Words);
+      this.pages[index] = page;
+    }
+    page[(id >> 5) & IdSetPaging.WordMask] |= 1 << (id & 31);
+  }
+
+  clear(): void {
+    this.pages.length = 0;
+  }
+}
+
+/** `PagedIdSet` pages: 8192 ids in 256 words. */
+const enum IdSetPaging {
+  Bits = 13,
+  Words = 1 << (Bits - 5),
+  WordMask = Words - 1,
+}
+
 /** The number of set bits of a 32-bit value. */
 function bitCount(x: number): number {
   x = x - ((x >>> 1) & 0x55555555);

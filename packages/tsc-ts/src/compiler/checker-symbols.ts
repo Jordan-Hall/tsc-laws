@@ -957,6 +957,7 @@ export function setGlobal(c: Checker, name: string, symbol: Symbol): void {
 function setMergedSymbol(c: Checker, id: number, target: Symbol): void {
   if (c.mergedSymbolChanges !== undefined) c.mergedSymbolChanges.set(c.mergedSymbols, id, target);
   else c.mergedSymbols.set(id, target);
+  c.mergedSymbolIds.add(id);
 }
 
 /** Merges script locals into globals; ambient modules and augmentations wait for global types. */
@@ -1298,7 +1299,7 @@ function recordMergedSymbol(c: Checker, target: Symbol, source: Symbol): void {
 
 export function getMergedSymbol(c: Checker, symbol: Symbol): Symbol {
   const id = symbol.id;
-  if (id !== 0) {
+  if (id !== 0 && c.mergedSymbolIds.has(id)) {
     const merged = c.mergedSymbols.get(id);
     if (merged !== undefined) return merged;
   }
