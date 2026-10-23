@@ -5,7 +5,7 @@ import { pathToFileURL } from 'node:url';
 import { compileSources } from './temp.mjs';
 
 const out = compileSources('tsc-ts-link-tables-', ['compiler/link-tables.ts']);
-const { CompactSymbolLinkTable } = await import(pathToFileURL(join(out, 'compiler/link-tables.js')).href);
+const { CompactSymbolLinkTable, PagedIdSet } = await import(pathToFileURL(join(out, 'compiler/link-tables.js')).href);
 
 /** A pseudo-random sequence that is the same in every run. */
 function random(seed) {
@@ -48,4 +48,24 @@ test('CompactSymbolLinkTable keeps the values of every id of a full page', () =>
   assert.equal(table.size, 128);
   assert.equal(table.get(0), undefined);
   assert.equal(table.get(1 << 20), undefined);
+});
+
+test('PagedIdSet has the ids added to it', () => {
+  const next = random(11);
+  const set = new PagedIdSet();
+  const expected = new Set();
+  // Ids in a few pages, at page and word edges, and scattered up to 2^28.
+  const ids = [0, 31, 32, 8191, 8192, 8193, 65535, 65536];
+  for (let i = 0; i < 3000; i++) ids.push(Math.floor(next() * 40000), Math.floor(next() * (1 << 28)));
+  for (const id of ids) {
+    set.add(id);
+    expected.add(id);
+  }
+  for (const id of ids) assert.equal(set.has(id), true, `id ${id}`);
+  for (let i = 0; i < 20000; i++) {
+    const id = Math.floor(next() * (i % 2 === 0 ? 40000 : 1 << 28));
+    assert.equal(set.has(id), expected.has(id), `id ${id}`);
+  }
+  set.clear();
+  for (const id of ids) assert.equal(set.has(id), false, `id ${id} after clear`);
 });

@@ -33,7 +33,7 @@ import type { DeferredCollisionCheck } from './checker-generated-code.js';
 import type { EmitHelperFileLinks } from './checker-emit-helpers.js';
 import { sideOf } from './side-state.js';
 import type { Node, PatternAmbientModule, SourceFile } from './ast.js';
-import { CompactSymbolLinkTable, IntLinkTable, LinkTable, SparseLinkTable } from './link-tables.js';
+import { CompactSymbolLinkTable, IntLinkTable, LinkTable, PagedIdSet, SparseLinkTable } from './link-tables.js';
 import { getErrorRangeForNode, getSourceFileOfNode } from './binder-utilities.js';
 import { Diagnostic, type DiagnosticMessage, Diagnostics, compareDiagnostics } from './diagnostics.js';
 import {
@@ -402,6 +402,11 @@ export class Checker implements TypeChecking {
   readonly resolvedSignatures = new SparseLinkTable<Signature>();
   /** Merged symbols, indexed by the id of the symbol merged into them. */
   readonly mergedSymbols: Map<number, Symbol>;
+  /**
+   * The ids that `mergedSymbols` has, or had: most symbols are merged into none, and `getMergedSymbol`
+   * finds that here without probing the map.
+   */
+  readonly mergedSymbolIds = new PagedIdSet();
   /** Globals merged from the default libraries, shared with other checkers. */
   libGlobals: LibGlobals | undefined;
   /** The program's globals and module augmentations as another checker merged them, shared with it. */
@@ -746,6 +751,7 @@ export class Checker implements TypeChecking {
       this.globals = libs.copyGlobals();
       this.mergedSymbols = libs.copyMergedSymbols();
     }
+    for (const id of this.mergedSymbols.keys()) this.mergedSymbolIds.add(id);
     this.globalThisSymbol = this.newSymbol(SymbolFlags.Module, 'globalThis');
     this.globalThisSymbol.checkFlags = CheckFlags.Readonly;
     this.globalThisSymbol.exports = this.globals;
@@ -1087,6 +1093,7 @@ export function disposeChecker(c: Checker): void {
     c.mergedSymbols.clear();
     c.globals.clear();
   }
+  c.mergedSymbolIds.clear();
   c.sharedSymbolCopies.clear();
   c.memberPositionsInLists.clear();
   c.memberNamesOfLists.clear();
