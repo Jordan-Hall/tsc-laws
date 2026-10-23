@@ -3846,17 +3846,12 @@ export class Parser extends ScannerErrorReporter {
   }
 
   parseTypeOrTypePredicate(): TypeNode {
-    if (this.isIdentifier()) {
-      const state = this.beginSpeculation();
+    // `x is T`: the identifier is parsed only once `is` is known to follow it.
+    if (this.isIdentifier() && this.lookAhead(nextTokenIsIsKeywordOnSameLine)) {
       const pos = this.nodePos();
       const id = this.parseIdentifier(IdentifierUse.Name);
-      if (this.token() === SyntaxKind.IsKeyword && !this.hasPrecedingLineBreak()) {
-        this.endSpeculation(state);
-        this.nextToken();
-        return this.finishNode(new TypePredicateNode(undefined, id, this.parseType()), pos);
-      }
-      this.rewind(state);
-      this.endSpeculation(state);
+      this.nextToken();
+      return this.finishNode(new TypePredicateNode(undefined, id, this.parseType()), pos);
     }
     return this.parseType();
   }
@@ -7307,6 +7302,10 @@ function nextTokenIsClassKeywordOnSameLine(p: Parser): boolean {
   return p.nextToken() === SyntaxKind.ClassKeyword && !p.hasPrecedingLineBreak();
 }
 
+function nextTokenIsIsKeywordOnSameLine(p: Parser): boolean {
+  return p.nextToken() === SyntaxKind.IsKeyword && !p.hasPrecedingLineBreak();
+}
+
 function nextTokenIsFunctionKeywordOnSameLine(p: Parser): boolean {
   return p.nextToken() === SyntaxKind.FunctionKeyword && !p.hasPrecedingLineBreak();
 }
@@ -7371,13 +7370,13 @@ function nextIsUnParenthesizedAsyncArrowFunction(p: Parser): boolean {
     p.nextToken();
     // `async =>` is a simple arrow function with a parameter named `async`.
     if (p.hasPrecedingLineBreak() || p.token() === SyntaxKind.EqualsGreaterThanToken) return false;
-    const expr = p.parseBinaryExpressionOrHigher(OperatorPrecedence.Lowest);
-    if (
-      !p.hasPrecedingLineBreak() &&
-      expr.kind === SyntaxKind.Identifier &&
-      p.token() === SyntaxKind.EqualsGreaterThanToken
-    )
-      return true;
+    // The binary expression after `async` is a lone identifier followed by `=>` only when an identifier
+    // token is followed by `=>`. Any other first token starts another kind of expression or none, and any
+    // other token after the identifier continues the expression or ends it before `=>`. Checking the
+    // tokens gives the same answer as parsing the expression, whose nodes would be discarded.
+    if (!p.isIdentifier()) return false;
+    p.nextToken();
+    return !p.hasPrecedingLineBreak() && p.token() === SyntaxKind.EqualsGreaterThanToken;
   }
   return false;
 }
