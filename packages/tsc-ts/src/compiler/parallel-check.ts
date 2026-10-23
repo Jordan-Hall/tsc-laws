@@ -1605,7 +1605,9 @@ export function checkFromQueue(
       const reports = checking && checked.checkRange(file, units[3 * u + 1]!, units[3 * u + 2]!);
       unitsDone.push(u);
       if (reports) reportingUnits.push(u);
-      if (blocksOnErrors && (reports || file.bindDiagnostics.length > 0)) blockEmit(counter);
+      // A range doesn't block emit under `noEmitOnError`: what its checker found may be suppressed
+      // (`// @ts-ignore`) or not the file's, which this thread doesn't know. The main thread decides
+      // from the file's diagnostics, and the outputs are held for it.
       if (timeline)
         markAt(
           rangeStart,
