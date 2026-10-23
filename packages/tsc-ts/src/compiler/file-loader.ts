@@ -216,7 +216,7 @@ export class LoadedFile {
     readonly references: LoadedReference[],
     readonly resolutionsInFile: ModeAwareCache<ResolvedModule> | undefined,
     readonly typeResolutionsInFile: ModeAwareCache<ResolvedTypeReferenceDirective> | undefined,
-    readonly processingDiagnostics: ProcessingDiagnostic[],
+    readonly processingDiagnostics: readonly ProcessingDiagnostic[],
     readonly importHelpersImportSpecifier: StringLiteral | undefined,
     readonly jsxRuntimeImport: JsxRuntimeImport | undefined,
   ) {}
@@ -230,19 +230,28 @@ class SubTasksAhead {
   ) {}
 }
 
+/** Read in place of a task's lists it has not created. */
+const noParseTasks: readonly ParseTask[] = [];
+const noTraces: readonly MessageWithArgs[] = [];
+const noProcessingDiagnostics: readonly ProcessingDiagnostic[] = [];
+
+/**
+ * A file to load. Its lists are created on first use: most tasks never get sub-tasks, traces or processing
+ * diagnostics, and large programs create hundreds of thousands of tasks.
+ */
 class ParseTask {
   path = '';
   file: SourceFile | undefined = undefined;
   redirectedParseTask: ParseTask | undefined = undefined;
-  subTasks: ParseTask[] = [];
+  subTasks: ParseTask[] | undefined = undefined;
   loaded = false;
   startedSubTasks = false;
   metadata: SourceFileMetadata = libFileMetadata;
   resolutionsInFile: ModeAwareCache<ResolvedModule> | undefined = undefined;
-  readonly resolutionsTrace: MessageWithArgs[] = [];
+  resolutionsTrace: MessageWithArgs[] | undefined = undefined;
   typeResolutionsInFile: ModeAwareCache<ResolvedTypeReferenceDirective> | undefined = undefined;
-  readonly typeResolutionsTrace: MessageWithArgs[] = [];
-  readonly processingDiagnostics: ProcessingDiagnostic[] = [];
+  typeResolutionsTrace: MessageWithArgs[] | undefined = undefined;
+  processingDiagnostics: ProcessingDiagnostic[] | undefined = undefined;
   importHelpersImportSpecifier: StringLiteral | undefined = undefined;
   jsxRuntimeImport: JsxRuntimeImport | undefined = undefined;
   /** The task of the same file name that was loaded instead of this one. */
@@ -267,9 +276,23 @@ class ParseTask {
     elideOnDepth: boolean,
     packageId: PackageId | undefined,
   ): void {
-    this.subTasks.push(
+    (this.subTasks ??= []).push(
       new ParseTask(normalizePath(fileName), libFile, reason, false, increaseDepth, elideOnDepth, packageId),
     );
+  }
+
+  addProcessingDiagnostic(diagnostic: ProcessingDiagnostic): void {
+    (this.processingDiagnostics ??= []).push(diagnostic);
+  }
+
+  /** Where module resolution traces go under `--traceResolution`; undefined without it. */
+  moduleTraces(trace: boolean): MessageWithArgs[] | undefined {
+    return trace ? (this.resolutionsTrace ??= []) : undefined;
+  }
+
+  /** Where type reference resolution traces go under `--traceResolution`; undefined without it. */
+  typeTraces(trace: boolean): MessageWithArgs[] | undefined {
+    return trace ? (this.typeResolutionsTrace ??= []) : undefined;
   }
 }
 
@@ -742,7 +765,7 @@ export class FileLoader {
       return undefined;
     }
     const references: LoadedReference[] = [];
-    for (const sub of task.subTasks) {
+    for (const sub of task.subTasks ?? noParseTasks) {
       references.push(
         new LoadedReference(
           sub.normalizedFilePath,
@@ -769,7 +792,7 @@ export class FileLoader {
       references,
       task.resolutionsInFile,
       task.typeResolutionsInFile,
-      task.processingDiagnostics,
+      task.processingDiagnostics ?? noProcessingDiagnostics,
       task.importHelpersImportSpecifier,
       task.jsxRuntimeImport,
     );
@@ -857,7 +880,7 @@ export class FileLoader {
       return;
     }
     const task = new ParseTask(absolute, undefined, reason, false, false, false, undefined);
-    task.processingDiagnostics.push(
+    task.addProcessingDiagnostic(
       ProcessingDiagnostic.explainingFileInclude('', reason, resolved.message, resolved.args),
     );
     this.rootTasks.push(task);
@@ -1031,7 +1054,7 @@ export class FileLoader {
       }
       if (!taskByFileName.startedSubTasks && loadSubTasks) {
         taskByFileName.startedSubTasks = true;
-        this.start(taskByFileName.subTasks, data.lowestDepth);
+        if (taskByFileName.subTasks !== undefined) this.start(taskByFileName.subTasks, data.lowestDepth);
       }
     }
   }
@@ -1073,7 +1096,7 @@ export class FileLoader {
     if (hasExtension(task.normalizedFilePath) && this.options.allowNonTsExtensions !== true) {
       const canonicalFileName = getCanonicalFileName(task.normalizedFilePath, fs.useCaseSensitiveFileNames);
       if (!this.isSupportedExtension(canonicalFileName)) {
-        task.processingDiagnostics.push(
+        task.addProcessingDiagnostic(
           hasJSFileExtension(canonicalFileName)
             ? ProcessingDiagnostic.explainingFileInclude(
                 '',
@@ -1122,7 +1145,7 @@ export class FileLoader {
         const reason = FileIncludeReason.reference(FileIncludeKind.LibReferenceDirective, task.path, i, undefined);
         const name = getLibFileName(file.libReferenceDirectives[i].fileName);
         if (name === '') {
-          task.processingDiagnostics.push(ProcessingDiagnostic.unknownReference(reason));
+          task.addProcessingDiagnostic(ProcessingDiagnostic.unknownReference(reason));
           continue;
         }
         const libFile = this.pathForLibFile(name);
@@ -1140,7 +1163,7 @@ export class FileLoader {
       this.subTasksAhead.delete(task.normalizedFilePath);
       task.subTasks = ahead.subTasks;
     } else task.subTasks = this.subTasksOf(loaded);
-    for (const diagnostic of loaded.processingDiagnostics) task.processingDiagnostics.push(diagnostic.copy());
+    for (const diagnostic of loaded.processingDiagnostics) task.addProcessingDiagnostic(diagnostic.copy());
     task.resolutionsInFile = loaded.resolutionsInFile;
     task.typeResolutionsInFile = loaded.typeResolutionsInFile;
     task.importHelpersImportSpecifier = loaded.importHelpersImportSpecifier;
@@ -1190,7 +1213,7 @@ export class FileLoader {
       reason,
     );
     if (typeof resolved !== 'string') {
-      task.processingDiagnostics.push(
+      task.addProcessingDiagnostic(
         ProcessingDiagnostic.explainingFileInclude('', reason, resolved.message, resolved.args),
       );
       return;
@@ -1216,7 +1239,7 @@ export class FileLoader {
         containingFile,
         mode,
         redirect?.resolved,
-        task.typeResolutionsTrace,
+        task.typeTraces(this.options.traceResolution === true),
       );
       resolutions.set(modeAwareKey(reference.fileName, mode), resolved);
       const reason = FileIncludeReason.reference(FileIncludeKind.TypeReferenceDirective, task.path, i, undefined);
@@ -1230,7 +1253,7 @@ export class FileLoader {
           resolved.packageId,
         );
       } else {
-        task.processingDiagnostics.push(ProcessingDiagnostic.unknownReference(reason));
+        task.addProcessingDiagnostic(ProcessingDiagnostic.unknownReference(reason));
       }
     }
     task.typeResolutionsInFile = resolutions;
@@ -1247,7 +1270,7 @@ export class FileLoader {
         task.normalizedFilePath,
         ModuleKind.None,
         undefined,
-        task.typeResolutionsTrace,
+        task.typeTraces(this.options.traceResolution === true),
       );
       resolutions.set(modeAwareKey(name, ModuleKind.None), resolved);
       if (resolved.resolvedFileName !== '') {
@@ -1260,7 +1283,7 @@ export class FileLoader {
           resolved.packageId,
         );
       } else {
-        task.processingDiagnostics.push(
+        task.addProcessingDiagnostic(
           ProcessingDiagnostic.explainingFileInclude(
             '',
             FileIncludeReason.automaticTypeDirective(name, undefined),
@@ -1308,7 +1331,7 @@ export class FileLoader {
         containingFile,
         mode,
         redirect?.resolved,
-        task.resolutionsTrace,
+        task.moduleTraces(this.options.traceResolution === true),
       );
       resolutions.set(modeAwareKey(moduleName, mode), resolved);
       const resolvedFileName = resolved.resolvedFileName;
@@ -1412,8 +1435,8 @@ export class FileLoader {
           }
         }
 
-        for (const trace of task.typeResolutionsTrace) host.trace(trace);
-        for (const trace of task.resolutionsTrace) host.trace(trace);
+        for (const trace of task.typeResolutionsTrace ?? noTraces) host.trace(trace);
+        for (const trace of task.resolutionsTrace ?? noTraces) host.trace(trace);
 
         const file = task.file;
         const packageId = data.packageId;
@@ -1440,7 +1463,7 @@ export class FileLoader {
           if (file !== undefined) packageIdToSourceFile.set(key, file);
         }
 
-        if (task.subTasks.length > 0) collectFiles(task.subTasks);
+        if (task.subTasks !== undefined && task.subTasks.length > 0) collectFiles(task.subTasks);
 
         const redirected = task.redirectedParseTask;
         if (redirected !== undefined) {
@@ -1449,11 +1472,13 @@ export class FileLoader {
         }
         if (task.isForAutomaticTypeDirective) {
           typeResolutionsInFile.set(task.path, task.typeResolutionsInFile);
-          for (const diagnostic of task.processingDiagnostics) includeProcessor.addProcessingDiagnostic(diagnostic);
+          for (const diagnostic of task.processingDiagnostics ?? noProcessingDiagnostics)
+            includeProcessor.addProcessingDiagnostic(diagnostic);
           continue;
         }
         const path = task.path;
-        for (const diagnostic of task.processingDiagnostics) includeProcessor.addProcessingDiagnostic(diagnostic);
+        for (const diagnostic of task.processingDiagnostics ?? noProcessingDiagnostics)
+          includeProcessor.addProcessingDiagnostic(diagnostic);
         if (file === undefined) {
           missingFiles.push(task.normalizedFilePath);
           continue;

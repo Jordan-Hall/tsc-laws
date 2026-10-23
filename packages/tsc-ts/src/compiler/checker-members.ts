@@ -923,8 +923,12 @@ export function resolveDeclaredMembers(c: Checker, t: InterfaceType): InterfaceT
     const members = getMembersOfSymbol(c, t.symbol!);
     declared.declaredMembersResolved = true;
     declared.declaredMembers = members;
-    declared.declaredCallSignatures = getSignaturesOfSymbol(c, members.get(InternalSymbolName.Call));
-    declared.declaredConstructSignatures = getSignaturesOfSymbol(c, members.get(InternalSymbolName.New));
+    // Most interfaces declare neither, and share one empty list.
+    const call = members.get(InternalSymbolName.Call);
+    const construct = members.get(InternalSymbolName.New);
+    declared.declaredCallSignatures = call !== undefined ? getSignaturesOfSymbol(c, call) : emptySignatures;
+    declared.declaredConstructSignatures =
+      construct !== undefined ? getSignaturesOfSymbol(c, construct) : emptySignatures;
     declared.declaredIndexInfos = getIndexInfosOfSymbol(c, t.symbol!);
   }
   return declared;
