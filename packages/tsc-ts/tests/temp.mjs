@@ -24,7 +24,7 @@ export function tempDir(prefix) {
  */
 export function compiledDir(prefix) {
   const dir = tempDir(prefix);
-  symlinkSync(join(root, 'node_modules'), join(dir, 'node_modules'), 'dir');
+  symlinkSync(join(root, 'node_modules'), join(dir, 'node_modules'), process.platform === 'win32' ? 'junction' : 'dir');
   return dir;
 }
 
@@ -41,8 +41,16 @@ export function compileSources(prefix, entries) {
   }
   const src = join(root, 'packages/tsc-ts/src');
   execFileSync(
-    join(root, 'node_modules/.bin/tsc'),
-    [...compileOptions, '--outDir', dir, '--rootDir', src, ...entries.map((entry) => join(src, entry))],
+    process.execPath,
+    [
+      join(root, 'node_modules/typescript/bin/tsc'),
+      ...compileOptions,
+      '--outDir',
+      dir,
+      '--rootDir',
+      src,
+      ...entries.map((entry) => join(src, entry)),
+    ],
     { stdio: 'inherit', cwd: root },
   );
   return dir;
