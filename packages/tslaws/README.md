@@ -176,6 +176,9 @@ tslaws check [files...] [--json] [--summary] [--watch] [--runs N] [--seed N] [--
 - `check --reporter text|json|junit|github` picks the output: `junit` is JUnit XML for CI test reports, `github` prints workflow
   annotations and appends a table to `GITHUB_STEP_SUMMARY`. See "CI reporters" in `docs/laws.md`.
 
+- Counterexamples are kept in `.tslaws/regressions` (committable) and replayed before the random search, so a fixed bug cannot
+  return unnoticed. `check --no-regressions` skips the corpus; `tslaws regressions [list|clear]` shows or deletes it.
+
 Without files, every `*.laws.ts` under the current directory is used. The compiler is `--compiler`, `TSC_LAWS_BIN`, or
 `tsc-laws` on `PATH`; it finds its lib files through `TSC_TS_LIB_DIR`, or the TypeScript 7 libs scriptc installs in
 `node_modules/@scriptc/*`.

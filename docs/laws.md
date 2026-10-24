@@ -246,6 +246,7 @@ reported as `failed`.
   Invariants live in the implementation, so the agent writes them; the laws stay yours. The loop may change numbers,
   booleans, strings, arrays and records, and may `return`, `break` or `continue`. A changed array keeps the room it had,
   so such a proof is `bounded` by that length. This is partial correctness.
+
 - **Quantifiers:** `forall(xs, (x, i) => cond)` and `exists(xs, (x, i) => cond)` (from `tslaws`) say that every, or some,
   element satisfies a condition. They run as loops in property tests. The prover lowers them over the array's slots:
   `forall` is the conjunction of `k < length => cond(xs[k], k)` and `exists` the disjunction of `k < length && cond(xs[k], k)`.
@@ -281,8 +282,9 @@ under `.tslaws/out/smt`.
 ```
 tslaws init [--force]
 tslaws accept [files...]
+tslaws regressions [list|clear]
 tslaws mutate [files...] [--max N] [--seed N] [--json]
-tslaws check [files...] [--json] [--summary] [--watch] [--runs N] [--seed N] [--no-prove] [--bound N]
+tslaws check [files...] [--json] [--summary] [--watch] [--runs N] [--seed N] [--no-prove] [--no-regressions] [--bound N]
              [--proof-timeout MS] [--proposed] [--compiler PATH]
 ```
 
@@ -293,6 +295,22 @@ results that do not pass, and the totals.
 The compiler is `--compiler`, `TSC_LAWS_BIN`, or `tsc-laws` on `PATH`. It finds its lib files through `TSC_TS_LIB_DIR`, or
 the TypeScript 7 libs scriptc installs in `node_modules/@scriptc/*`. `tsc-ts --laws-manifest <files>` lists the laws of
 files as JSON.
+
+## Regression corpus
+
+Every counterexample that a property test finds (node laws and browser laws) is saved to
+`.tslaws/regressions/<law file, with / written as __>/<law>.json`. Values are stored in a lossless tagged JSON, so `NaN`,
+`-0`, `Infinity`, `undefined`, `bigint` and `Date` come back exactly. A law keeps at most 20 distinct examples, newest first.
+Only a real counterexample is saved: not a law whose `assume` discards nearly every input, not a timeout, not a prover model.
+
+On the next run, every stored example of a law is replayed before the random search. If one still fails, the law fails with
+`regression: a previously found counterexample still fails` and the counterexample, whatever the seed or `--runs`. An example
+that now passes stays in the corpus and keeps guarding the law. A fixed bug therefore cannot return unnoticed, even though the
+random search would rarely find it again.
+
+`tslaws init` ignores `.tslaws/out`, `.tslaws/mutants` and `.tslaws/screenshots` but not `.tslaws/regressions`, so a team may
+commit the corpus. `tslaws check --no-regressions` neither reads nor writes it. `tslaws regressions list` prints each law and
+its example count per file; `tslaws regressions clear` deletes the directory.
 
 ## Mutation testing
 
