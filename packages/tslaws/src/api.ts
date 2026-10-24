@@ -32,6 +32,22 @@ export function invariant(condition: boolean): void {
   if (!condition) throw new Error('loop invariant violated');
 }
 
+/**
+ * True when `predicate(x, i)` holds for every element of `xs`. In a law the prover lowers it over the array's slots, so
+ * a claim that relies on it is `bounded` by `--bound` like any array claim. The predicate must be an arrow function
+ * the prover can lower; otherwise the law stays `tested`.
+ */
+export function forall<T>(xs: readonly T[], predicate: (x: T, i: number) => boolean): boolean {
+  for (let i = 0; i < xs.length; i += 1) if (!predicate(xs[i]!, i)) return false;
+  return true;
+}
+
+/** True when `predicate(x, i)` holds for some element of `xs`; the prover lowers it as `forall` does. */
+export function exists<T>(xs: readonly T[], predicate: (x: T, i: number) => boolean): boolean {
+  for (let i = 0; i < xs.length; i += 1) if (predicate(xs[i]!, i)) return true;
+  return false;
+}
+
 const registryKey = Symbol.for('tslaws.arbitraries');
 
 type Registry = Map<string, fc.Arbitrary<unknown>>;
