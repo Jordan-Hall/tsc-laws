@@ -1,23 +1,30 @@
 import { createInterface } from 'node:readline/promises';
 import { readdirSync, statSync, watch } from 'node:fs';
 import { join, relative, resolve, sep } from 'node:path';
+import { resolveEngine } from './browser.ts';
 import { bundledCompiler } from './bundled.ts';
 import { check, exemptionsOf } from './check.ts';
 import type { CheckReport } from './check.ts';
 import { readManifest } from './compile.ts';
 import { hintFor } from './hints.ts';
 import { init, nextStep } from './init.ts';
+import { serveMcp } from './mcp.ts';
+import { promoteFiles } from './promote.ts';
 import { clearCorpus, listCorpus } from './regressions.ts';
 import { reporterNames, reportAs } from './reporters.ts';
+import { mutate, renderMutation } from './mutate.ts';
 import { serveUi } from './ui.ts';
 import { writeLock } from './lock.ts';
 import type { CheckOptions, LawResult } from './types.ts';
 
 const usage = `tslaws init [--force]       scaffold tslaws.json, .gitignore, AGENTS.md, Claude Code hooks and a starter law (never writes the lock)
-tslaws check [files...] [--reporter text|json|junit|github] [--json] [--summary] [--watch] [--runs N] [--seed N] [--no-prove] [--no-regressions] [--bound N] [--proof-timeout MS] [--property-timeout MS] [--proposed] [--compiler PATH]
+tslaws check [files...] [--reporter text|json|junit|github] [--json] [--summary] [--watch] [--runs N] [--seed N] [--no-prove] [--no-regressions] [--bound N] [--proof-timeout MS] [--property-timeout MS] [--proposed] [--compiler PATH] [--browser chromium|firefox|webkit]
 tslaws ui [files...] [--port N] [--no-open]   open a dashboard of the laws in a browser: tree, filters, search, source, live reruns on save
+tslaws mutate [files...] [--max N] [--seed N] [--json]   mutation-test the laws: mutate covered code, report mutants no law kills
 tslaws regressions [list|clear]   show or delete the stored counterexamples (.tslaws/regressions); check replays them first, --no-regressions skips them
 tslaws accept [files...]     record the current laws in tsc-laws.lock (people only: needs a terminal)
+tslaws promote [file] [--all]   move proposed laws (*.proposed.laws.ts) into the accepted *.laws.ts, asking per law (people only: needs a terminal; run accept afterwards)
+tslaws mcp [--compiler PATH]   serve check, check_proposed, explain and propose as Model Context Protocol tools on stdio (cannot accept or touch the lock)
 
 Without files, every *.laws.ts under the current directory is checked (*.proposed.laws.ts only with --proposed).
 Exit status is 0 only when every law is proved, bounded or tested and nothing is open, failed, uncovered or tampered with.
@@ -48,14 +55,35 @@ function parse(args: string[]): { command: string; flags: Map<string, string | t
   const flags = new Map<string, string | true>();
   const files: string[] = [];
   let command = 'check';
-  const valued = new Set(['runs', 'seed', 'compiler', 'bound', 'proof-timeout', 'property-timeout', 'port', 'reporter']);
+  const valued = new Set([
+    'runs',
+    'seed',
+    'compiler',
+    'bound',
+    'proof-timeout',
+    'property-timeout',
+    'browser',
+    'port',
+    'reporter',
+    'max',
+  ]);
   for (let i = 0; i < args.length; i += 1) {
     const arg = args[i]!;
     if (arg.startsWith('--')) {
       const name = arg.slice(2);
       if (valued.has(name)) flags.set(name, args[(i += 1)] ?? '');
       else flags.set(name, true);
-    } else if (i === 0 && (arg === 'check' || arg === 'accept' || arg === 'init' || arg === 'ui' || arg === 'regressions'))
+    } else if (
+      i === 0 &&
+      (arg === 'check' ||
+        arg === 'accept' ||
+        arg === 'init' ||
+        arg === 'ui' ||
+        arg === 'mutate' ||
+        arg === 'regressions' ||
+        arg === 'mcp' ||
+        arg === 'promote')
+    )
       command = arg;
     else files.push(arg);
   }
@@ -124,6 +152,9 @@ function options(cwd: string, flags: Map<string, string | true>, chosen: string[
     bound: Number(flags.get('bound') ?? 4),
     proofTimeoutMs: Number(flags.get('proof-timeout') ?? 5000),
     propertyTimeoutMs: Number(flags.get('property-timeout') ?? 30000),
+    browser: flags.has('browser')
+      ? (resolveEngine(String(flags.get('browser'))) as CheckOptions['browser'])
+      : undefined,
   };
 }
 
@@ -236,6 +267,71 @@ export async function main(args: string[]): Promise<number> {
     return 0;
   }
 
+  if (command === 'mcp') return serveMcp({ cwd, compiler: options(cwd, flags, []).compiler });
+
+  if (command === 'promote') {
+    if (!process.stdin.isTTY || process.env.TSLAWS_AGENT !== undefined || process.env.CI !== undefined) {
+      process.stderr.write(
+        'promote moves laws into the accepted set and needs a person at a terminal; it will not run here\n',
+      );
+      return 1;
+    }
+    const proposedFiles = files.length > 0 ? lawFiles(cwd, flags, files) : flags.has('all') ? discover(cwd, true) : [];
+    if (proposedFiles.length === 0) {
+      const known = discover(cwd, true).map((f) => `  ${f}`);
+      process.stderr.write(
+        files.length > 0 || flags.has('all')
+          ? 'no proposed laws files found (looking for *.proposed.laws.ts)\n'
+          : `name a proposed file or pass --all:\n${known.join('\n')}\n`,
+      );
+      return 1;
+    }
+    const rl = createInterface({ input: process.stdin, output: process.stdout });
+    try {
+      await promoteFiles(
+        {
+          cwd,
+          ask: (question) => rl.question(question),
+          out: (text) => process.stdout.write(text),
+          checkFile: async (file) => {
+            const report = await check(options(cwd, flags, [file]), false);
+            const brief = (r: LawResult): string =>
+              r.message === undefined ? r.status : `${r.status}: ${r.message.split('\n')[0]}`;
+            return new Map(report.results.map((r) => [r.name, brief(r)]));
+          },
+        },
+        proposedFiles,
+      );
+    } finally {
+      rl.close();
+    }
+    return 0;
+  }
+
+  if (command === 'mutate') {
+    // *.laws.ts arguments choose the laws; other files restrict which covered sources are mutated.
+    const chosen = lawFiles(
+      cwd,
+      flags,
+      files.filter((f) => f.endsWith('.laws.ts')),
+    );
+    if (chosen.length === 0) {
+      process.stderr.write('no laws files found (looking for *.laws.ts)\n');
+      return 1;
+    }
+    const report = await mutate({
+      cwd,
+      lawFiles: chosen,
+      targets: files.filter((f) => !f.endsWith('.laws.ts')).map((f) => relative(cwd, resolve(cwd, f))),
+      compiler: options(cwd, flags, chosen).compiler,
+      max: Number(flags.get('max') ?? 50),
+      seed: flags.has('seed') ? Number(flags.get('seed')) : undefined,
+      onProgress: flags.has('json') ? undefined : (line) => process.stderr.write(`${line}\n`),
+    });
+    process.stdout.write(flags.has('json') ? `${JSON.stringify(report, null, 2)}\n` : renderMutation(report));
+    return report.ok ? 0 : 1;
+  }
+
   if (command === 'regressions') {
     const action = files[0] ?? 'list';
     if (action === 'clear') {
@@ -266,8 +362,11 @@ export async function main(args: string[]): Promise<number> {
       port: Number(flags.get('port') ?? 51205),
       open: !flags.has('no-open'),
       // A watcher sees a browser page only if it stays as the law left it for a moment.
-      run: (only, onEvent) =>
-        check({ ...options(cwd, flags, only ?? chosen), onEvent, browserPauseMs: 120 }, !flags.has('proposed')),
+      run: (only, onEvent, laws) =>
+        check(
+          { ...options(cwd, flags, only ?? chosen), only: laws, onEvent, browserPauseMs: 120 },
+          !flags.has('proposed'),
+        ),
       log: (line) => process.stdout.write(`${line}\n`),
     });
   }

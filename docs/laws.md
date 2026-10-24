@@ -258,6 +258,8 @@ the next step), the law's source with its lines highlighted, and the compiler ou
 
 Laws appear as the run proceeds: waiting, running (pulsing), then their result, with a progress bar and a Running filter. For browser laws the dashboard shows the page itself, live: while a law runs, the first runs linger for a moment (`browserPauseMs`) and the page is photographed a few times a second, so you see the component the law is driving; afterwards the last frame stays on the law's report.
 
+Each law is timed from its start to its result: the duration shows in the law's header and as a tag in the tree, and the overview lists the five slowest laws. The overview also keeps the last 20 runs of the whole project as a row of small squares (green for a run where every law held, red otherwise, newest on the right; hover one for its time, duration and counts). The dashboard remembers each law's last five statuses across those full runs and marks a law `flaky` when they include both a passing (proved, bounded, tested) and a failing (failed, error, open) one; a `Flaky` filter chip counts them. History and flakiness live in the dashboard's memory only. A law's row has a hover button, and its header a Run button, that rerun just that law (`POST /api/run?file=<file>&law=<name>`, with the same protections as other reruns); only that law's entry is replaced, and the rerun adds nothing to the history.
+
 It listens on 127.0.0.1 only, rejects requests whose Host or Origin is not loopback and the page itself, and cannot accept
 laws: `tslaws accept` stays a person's act at a terminal.
 
@@ -283,8 +285,6 @@ the dashboard. Commands: `tslaws.check`, `tslaws.runFile`, `tslaws.openDashboard
 | `uncovered` | Exported code no law reaches.                                                                                     | no      |
 | `tampered`  | A law changed, was added or removed since the lock was accepted, or a coverage exemption is not in the lock.      | no      |
 | `error`     | The law cannot run: not exported, untyped parameter, no generator, load failure.                                  | no      |
-Each law is timed from its start to its result: the duration shows in the law's header and as a tag in the tree, and the overview lists the five slowest laws. The overview also keeps the last 20 runs of the whole project as a row of small squares (green for a run where every law held, red otherwise, newest on the right; hover one for its time, duration and counts). The dashboard remembers each law's last five statuses across those full runs and marks a law `flaky` when they include both a passing (proved, bounded, tested) and a failing (failed, error, open) one; a `Flaky` filter chip counts them. History and flakiness live in the dashboard's memory only. A law's row has a hover button, and its header a Run button, that rerun just that law (`POST /api/run?file=<file>&law=<name>`, with the same protections as other reruns); only that law's entry is replaced, and the rerun adds nothing to the history.
-
 
 ## Inputs
 
