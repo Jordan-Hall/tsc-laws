@@ -132,7 +132,10 @@ export class SpuriousModel extends Unsupported {}
 export class Executor {
   /** `define-fun`s naming the large terms, so merged values share structure instead of being printed twice. */
   readonly defs: string[] = [];
+  /** Constants standing for the values of variables a loop with an invariant may change. */
+  readonly freshDecls: string[] = [];
   private shared = 0;
+  private havocked = 0;
   readonly assumptions: string[] = [];
   readonly obligations: string[] = [];
   readonly bounded: string[] = [];
@@ -417,6 +420,11 @@ export class Executor {
     f: Frame,
     pc: string,
   ): void {
+    const invariants = this.invariantsOf(body);
+    if (invariants !== undefined) {
+      this.invariantLoop(condition, incrementor, invariants.rest, invariants.exprs, f, pc);
+      return;
+    }
     for (let iteration = 0; ; iteration += 1) {
       const c = condition === undefined ? 'true' : this.asBool(this.ev(condition, f, this.guard(f, pc)));
       const go = and(this.active(f), c);
@@ -431,6 +439,128 @@ export class Executor {
       if (incrementor !== undefined) this.ev(incrementor, run, and(pc, c), true);
       this.mergeFrames(go, run, f, f);
     }
+    f.brk = 'false';
+  }
+
+  // ---- loops with invariants: a proof for every number of iterations -------------------------------------------
+
+  /** The `invariant(...)` calls leading a loop body, and the statements after them. */
+  private invariantsOf(body: ts.Statement): { exprs: ts.Expression[]; rest: ts.Statement[] } | undefined {
+    const statements = ts.isBlock(body) ? body.statements : [body];
+    const exprs: ts.Expression[] = [];
+    let i = 0;
+    for (; i < statements.length; i += 1) {
+      const s = statements[i]!;
+      if (!ts.isExpressionStatement(s) || !ts.isCallExpression(s.expression)) break;
+      const callee = this.calleeOf(s.expression);
+      if (callee?.name !== 'invariant' || s.expression.arguments.length !== 1) break;
+      exprs.push(s.expression.arguments[0]!);
+    }
+    return exprs.length === 0 ? undefined : { exprs, rest: statements.slice(i) };
+  }
+
+  private calleeOf(node: ts.CallExpression): { owner: string | undefined; name: string } | undefined {
+    let callee: ts.Expression = node.expression;
+    while (ts.isParenthesizedExpression(callee)) callee = callee.expression;
+    if (ts.isBinaryExpression(callee) && callee.operatorToken.kind === ts.SyntaxKind.CommaToken) callee = callee.right;
+    while (ts.isParenthesizedExpression(callee)) callee = callee.expression;
+    if (ts.isIdentifier(callee)) return { owner: undefined, name: callee.text };
+    if (ts.isPropertyAccessExpression(callee) && ts.isIdentifier(callee.expression))
+      return { owner: callee.expression.text, name: callee.name.text };
+    return undefined;
+  }
+
+  /** The names a piece of code assigns, increments or mutates. */
+  private modifiedNames(nodes: readonly ts.Node[]): Set<string> {
+    const names = new Set<string>();
+    const visit = (n: ts.Node): void => {
+      if (ts.isBinaryExpression(n) && isAssignment(n.operatorToken.kind)) {
+        let target: ts.Expression = n.left;
+        while (ts.isElementAccessExpression(target) || ts.isPropertyAccessExpression(target)) target = target.expression;
+        if (ts.isIdentifier(target)) names.add(target.text);
+      }
+      if ((ts.isPrefixUnaryExpression(n) || ts.isPostfixUnaryExpression(n)) && (n.operator === ts.SyntaxKind.PlusPlusToken || n.operator === ts.SyntaxKind.MinusMinusToken) && ts.isIdentifier(n.operand))
+        names.add(n.operand.text);
+      if (ts.isCallExpression(n) && ts.isPropertyAccessExpression(n.expression) && ts.isIdentifier(n.expression.expression))
+        if (['push', 'pop', 'shift', 'unshift', 'splice', 'sort', 'reverse', 'fill'].includes(n.expression.name.text)) names.add(n.expression.expression.text);
+      if (ts.isReturnStatement(n) || ts.isBreakStatement(n) || ts.isContinueStatement(n))
+        throw new Unsupported('a loop with an invariant cannot return, break or continue inside its body');
+      ts.forEachChild(n, visit);
+    };
+    for (const n of nodes) visit(n);
+    return names;
+  }
+
+  /** A constant standing for an arbitrary value of the same kind as `v`, with the facts every such value has. */
+  private fresh(v: Value): Value {
+    const name = `_h${this.havocked++}`;
+    const decl = (sort: string): void => {
+      this.freshDecls.push(`(declare-const ${name} ${sort})`);
+    };
+    switch (v.k) {
+      case 'int':
+        decl('Int');
+        this.assumptions.push(`(and (<= (- ${maxSafe}) ${name}) (<= ${name} ${maxSafe}))`);
+        return { k: 'int', t: name };
+      case 'big':
+        decl('Int');
+        return { k: 'big', t: name };
+      case 'fp':
+        decl('(_ FloatingPoint 11 53)');
+        return { k: 'fp', t: name };
+      case 'bool':
+        decl('Bool');
+        return { k: 'bool', t: name };
+      case 'str':
+        decl('String');
+        this.assumptions.push(`(and (str.in_re ${name} (re.* (re.range "\\u{0}" "\\u{ffff}"))) (<= (str.len ${name}) 536870888))`);
+        return { k: 'str', t: name };
+    }
+    throw new Unsupported(`a ${v.k} changed in a loop with an invariant is not modelled (arrays and records may only be read)`);
+  }
+
+  private invariantTerm(exprs: readonly ts.Expression[], f: Frame, pc: string): string {
+    return and(...exprs.map((e) => this.asBool(this.ev(e, f, pc))));
+  }
+
+  /**
+   * Hoare-style: the invariant must hold on entry and after any iteration that starts from a state satisfying it; the
+   * code after the loop sees an arbitrary such state where the condition is false. No unrolling, so no bound.
+   */
+  private invariantLoop(
+    condition: ts.Expression | undefined,
+    incrementor: ts.Expression | undefined,
+    rest: readonly ts.Statement[],
+    exprs: readonly ts.Expression[],
+    f: Frame,
+    pc: string,
+  ): void {
+    this.oblige(f, pc, this.invariantTerm(exprs, f, this.guard(f, pc)));
+    const touched = this.modifiedNames([...rest, ...(incrementor === undefined ? [] : [incrementor])]);
+    const kinds = new Map<string, Value['k']>();
+    for (const name of touched) {
+      const old = f.env.get(name);
+      if (old === undefined) continue;
+      kinds.set(name, old.k);
+      f.env.set(name, this.fresh(old));
+    }
+    const holds = this.invariantTerm(exprs, f, this.guard(f, pc));
+    this.assume(f, pc, holds);
+    const c = condition === undefined ? 'true' : this.asBool(this.ev(condition, f, this.guard(f, pc)));
+
+    const run = f.fork();
+    const inside = and(pc, holds, c);
+    this.execList(rest, run, inside);
+    run.cnt = 'false';
+    if (incrementor !== undefined) this.ev(incrementor, run, inside, true);
+    if (run.done !== f.done || run.brk !== f.brk) throw new Unsupported('a loop with an invariant cannot return or break');
+    for (const [name, kind] of kinds) {
+      if (run.env.get(name)?.k !== kind) throw new Unsupported(`${name} changes kind inside a loop with an invariant`);
+    }
+    this.oblige(run, inside, this.invariantTerm(exprs, run, this.guard(run, inside)));
+
+    // After the loop: any state satisfying the invariant in which the condition is false.
+    this.assume(f, pc, not(c));
     f.brk = 'false';
   }
 
@@ -1084,6 +1214,8 @@ export class Executor {
     if (ts.isBinaryExpression(callee) && callee.operatorToken.kind === ts.SyntaxKind.CommaToken) callee = callee.right;
     while (ts.isParenthesizedExpression(callee)) callee = callee.expression;
 
+    if (this.calleeOf(node)?.name === 'invariant')
+      throw new Unsupported('invariant must be the first statements of a loop body');
     if (ts.isPropertyAccessExpression(callee)) {
       const owner = ts.isIdentifier(callee.expression) ? callee.expression.text : undefined;
       const name = callee.name.text;

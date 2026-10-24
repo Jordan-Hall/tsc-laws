@@ -9,6 +9,8 @@
 // Numbers are IEEE doubles; a parameter typed `number` is a finite double (the generators exclude NaN and the
 // infinities too). A parameter typed `int` (from 'tslaws') or `bigint` is an exact integer.
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import { Worker } from 'node:worker_threads';
 import { dirname, join } from 'node:path';
 import ts from 'typescript';
 import { Executor, SpuriousModel, Unsupported, and, type Value } from './symbolic.ts';
@@ -224,17 +226,86 @@ function jsValue(shape: Shape, name: string, model: Map<string, number | bigint 
 
 // ---- Z3 ------------------------------------------------------------------------------------------------------
 
-interface Z3Api {
-  mk_context: (config: unknown) => unknown;
-  mk_config: () => unknown;
-  eval_smtlib2_string: (ctx: unknown, text: string) => Promise<string>;
+// Z3 runs in a worker thread: its WebAssembly build blocks the thread and `:timeout` does not always interrupt it,
+// so a query that runs away is stopped by terminating the worker, and the next query starts a fresh one.
+const workerSource = `
+const { parentPort, workerData } = require('node:worker_threads');
+const { init } = require(workerData.z3);
+const ready = init().then((api) => api.Z3);
+parentPort.on('message', async ({ id, query, values }) => {
+  try {
+    const Z3 = await ready;
+    const config = Z3.mk_config();
+    const ctx = Z3.mk_context(config);
+    let out = '';
+    let vals = '';
+    try {
+      out = (await Z3.eval_smtlib2_string(ctx, query)).trim();
+      vals = out.startsWith('sat') && values ? (await Z3.eval_smtlib2_string(ctx, values)).trim() : '';
+    } finally {
+      Z3.del_context(ctx);
+      Z3.del_config(config);
+    }
+    parentPort.postMessage({ id, out, vals });
+  } catch (error) {
+    parentPort.postMessage({ id, error: String(error && error.message || error) });
+  }
+});
+`;
+
+interface SolverReply {
+  id: number;
+  out?: string;
+  vals?: string;
+  error?: string;
 }
 
-let z3: Promise<Z3Api> | undefined;
+let worker: Worker | undefined;
+let nextId = 0;
 
-async function z3Api(): Promise<Z3Api> {
-  z3 ??= import('z3-solver').then(async (module) => (await module.init()).Z3 as unknown as Z3Api);
-  return z3;
+function startWorker(): Worker {
+  const w = new Worker(workerSource, { eval: true, workerData: { z3: createRequire(import.meta.url).resolve('z3-solver') } });
+  w.unref();
+  return w;
+}
+
+/** Runs `query` (and `values` when it is sat) in Z3, giving up on the whole worker after `timeoutMs` + a grace period. */
+async function solve(query: string, values: string, timeoutMs: number): Promise<{ out: string; vals: string }> {
+  worker ??= startWorker();
+  const current = worker;
+  const id = (nextId += 1);
+  return new Promise((resolve, reject) => {
+    const drop = (): void => {
+      clearTimeout(timer);
+      current.off('message', onMessage);
+      current.off('error', onError);
+    };
+    const kill = (): void => {
+      void current.terminate();
+      if (worker === current) worker = undefined;
+    };
+    const timer = setTimeout(() => {
+      drop();
+      kill();
+      reject(new Unsupported(`the solver did not stop within ${timeoutMs} ms and was terminated`));
+    }, timeoutMs + 3000);
+    const onMessage = (reply: SolverReply): void => {
+      if (reply.id !== id) return;
+      drop();
+      if (reply.error !== undefined) {
+        kill();
+        reject(new Unsupported(`the solver crashed: ${reply.error}`));
+      } else resolve({ out: reply.out ?? '', vals: reply.vals ?? '' });
+    };
+    const onError = (error: Error): void => {
+      drop();
+      kill();
+      reject(new Unsupported(`the solver crashed: ${error.message}`));
+    };
+    current.on('message', onMessage);
+    current.on('error', onError);
+    current.postMessage({ id, query, values });
+  });
 }
 
 function resultOf(value: Value): string {
@@ -296,6 +367,7 @@ async function attempt(input: ProveInput, intLimit: bigint | undefined): Promise
     const query = [
       `(set-option :timeout ${input.timeoutMs})`,
       ...decl.lines,
+      ...executor.freshDecls,
       ...executor.defs,
       ...[...decl.assumptions, ...executor.assumptions].map((a) => `(assert ${a})`),
       `(assert (or (not ${holds}) (not ${safe})))`,
@@ -308,22 +380,15 @@ async function attempt(input: ProveInput, intLimit: bigint | undefined): Promise
       mkdirSync(dir, { recursive: true });
       writeFileSync(join(dir, `${input.law.name}.smt2`), `${query.join('\n')}\n(get-model)\n`);
     }
-    const api = await z3Api();
-    const ctx = api.mk_context(api.mk_config());
-    let check: string;
-    try {
-      check = (await api.eval_smtlib2_string(ctx, query.join('\n'))).trim();
-    } catch (error) {
-      // A crash leaves the WebAssembly instance unusable; the next law starts a fresh one.
-      z3 = undefined;
-      throw new Unsupported(`the solver crashed: ${(error as Error).message}`);
-    }
+    const valueQuery = watch.length === 0 ? '' : `(get-value (${watch.join(' ')}))`;
+    const { out, vals } = await solve(query.join('\n'), valueQuery, input.timeoutMs);
+    const check = out;
     if (check.startsWith('unsat')) {
       return executor.bounded.length === 0 ? { kind: 'proved' } : { kind: 'bounded', limits: executor.bounded };
     }
     if (check.startsWith('unknown')) throw new Unsupported(`solver gave up within ${input.timeoutMs} ms`);
     if (!check.startsWith('sat')) throw new Unsupported(`solver said: ${check.split('\n')[0]}`);
-    const values = watch.length === 0 ? '()' : (await api.eval_smtlib2_string(ctx, `(get-value (${watch.join(' ')}))`)).trim();
+    const values = watch.length === 0 ? '()' : vals;
     const pairs = parseSexp(values) as Sexp[];
     const model = new Map<string, number | bigint | boolean | string>();
     decl.constants.forEach((c, i) => {

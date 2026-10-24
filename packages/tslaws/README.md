@@ -97,7 +97,29 @@ reported as `failed`.
   `substring`, `includes`, `startsWith`, `endsWith`, `indexOf`, comparisons.
 - **Records** of any of these, and `typeof`, `Math.abs/min/max/floor/ceil/trunc`, ternaries, `const`/`let`, `assume`.
 
-Anything else leaves the law `tested`, or a `law proved` `open`, with the reason. `TSLAWS_DEBUG=1` keeps each query as an
+- **Loop invariants give proofs for every number of iterations.** Put `invariant(cond)` first in a loop body (`import {
+  invariant } from 'tslaws'`; it throws at runtime when false, so property tests check it on every iteration). The prover
+  proves the invariant on entry, assumes it at the top of an arbitrary iteration, proves it again at the end, and gives the
+  code after the loop an arbitrary state where the invariant holds and the condition is false. No unrolling, so no bound:
+
+  ```ts
+  export function sumTo(n: int): int {
+    let s = 0, i = 0;
+    while (i < n) {
+      invariant(0 <= i && i <= n);
+      invariant(2 * s === i * (i - 1));
+      s += i; i += 1;
+    }
+    return s as int;
+  }
+  // law proved: 2 * sumTo(n) === n * (n - 1), for every n >= 0
+  ```
+
+  Invariants live in the implementation, so the agent writes them; the laws stay the person's. Restrictions: the loop may
+  change numbers, booleans and strings but only read arrays and records, and may not `return`, `break` or `continue`.
+  This is partial correctness (a loop that never ends is not flagged).
+
+Anything else leaves the law `tested`, or a `law proved` `open`, with the reason. Z3 runs in a worker thread that is terminated if a query outlives its timeout, so a hard query cannot hang the check. `TSLAWS_DEBUG=1` keeps each query as an
 `.smt2` file under `.tslaws/out/smt` to replay in `z3`.
 
 ## Agents cannot move the goalposts

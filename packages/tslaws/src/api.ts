@@ -23,6 +23,15 @@ export function assume(condition: boolean): asserts condition {
   if (!condition) throw new LawDiscard();
 }
 
+/**
+ * Loop invariant: put it first in a loop body. At runtime it throws when false, so property tests check it on every
+ * iteration; the prover assumes it at the top of an arbitrary iteration and proves it again at the end, which makes the
+ * loop's result a proof for every number of iterations instead of a bounded one.
+ */
+export function invariant(condition: boolean): void {
+  if (!condition) throw new Error('loop invariant violated');
+}
+
 const registryKey = Symbol.for('tslaws.arbitraries');
 
 type Registry = Map<string, fc.Arbitrary<unknown>>;
