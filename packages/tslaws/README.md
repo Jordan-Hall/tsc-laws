@@ -143,6 +143,8 @@ Browser laws are `tested`, never `proved`. See [docs/laws.md](../../docs/laws.md
 live progress, a live view of the browser page during browser laws, status filters, search, a report with a copyable reproduce command, the law's source, and live reruns on save.
 See [docs/laws.md](../../docs/laws.md#the-dashboard).
 
+`tslaws mutate [files...] [--max N] [--seed N] [--json]` mutation-tests the laws: it mutates the covered code, re-runs the laws against each mutant, and lists the survivors no law caught. See [docs/laws.md](../../docs/laws.md#mutation-testing).
+
 ## Agents cannot move the goalposts
 
 `tsc-laws.lock` holds a hash of every law declaration and the list of coverage exemptions. A change, an added law, a removed
@@ -169,6 +171,8 @@ tslaws check [files...] [--json] [--summary] [--watch] [--runs N] [--seed N] [--
 - `check` exits 0 only when every law is `proved`, `bounded` or `tested`, nothing is `uncovered`, the files compile and the
   lock matches. `--json` adds a `hint` to each result, the concrete next action for an agent. `--summary` prints only the
   results that do not pass, plus the totals. `--watch` re-runs on every `.ts` change.
+- `check --reporter text|json|junit|github` picks the output: `junit` is JUnit XML for CI test reports, `github` prints workflow
+  annotations and appends a table to `GITHUB_STEP_SUMMARY`. See "CI reporters" in `docs/laws.md`.
 
 Without files, every `*.laws.ts` under the current directory is used. The compiler is `--compiler`, `TSC_LAWS_BIN`, or
 `tsc-laws` on `PATH`; it finds its lib files through `TSC_TS_LIB_DIR`, or the TypeScript 7 libs scriptc installs in

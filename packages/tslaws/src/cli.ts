@@ -7,18 +7,20 @@ import type { CheckReport } from './check.ts';
 import { readManifest } from './compile.ts';
 import { hintFor } from './hints.ts';
 import { init, nextStep } from './init.ts';
+import { reporterNames, reportAs } from './reporters.ts';
 import { serveUi } from './ui.ts';
 import { writeLock } from './lock.ts';
 import type { CheckOptions, LawResult } from './types.ts';
 
 const usage = `tslaws init [--force]       scaffold tslaws.json, .gitignore, AGENTS.md, Claude Code hooks and a starter law (never writes the lock)
-tslaws check [files...] [--json] [--summary] [--watch] [--runs N] [--seed N] [--no-prove] [--bound N] [--proof-timeout MS] [--property-timeout MS] [--proposed] [--compiler PATH]
+tslaws check [files...] [--reporter text|json|junit|github] [--json] [--summary] [--watch] [--runs N] [--seed N] [--no-prove] [--bound N] [--proof-timeout MS] [--property-timeout MS] [--proposed] [--compiler PATH]
 tslaws ui [files...] [--port N] [--no-open]   open a dashboard of the laws in a browser: tree, filters, search, source, live reruns on save
 tslaws accept [files...]     record the current laws in tsc-laws.lock (people only: needs a terminal)
 
 Without files, every *.laws.ts under the current directory is checked (*.proposed.laws.ts only with --proposed).
 Exit status is 0 only when every law is proved, bounded or tested and nothing is open, failed, uncovered or tampered with.
-  --json      machine-readable report; each result carries a hint with the next action
+  --json      machine-readable report; each result carries a hint with the next action (same as --reporter json)
+  --reporter  text (default), json, junit (JUnit XML) or github (workflow annotations; appends a table to $GITHUB_STEP_SUMMARY)
   --summary   one line per non-passing law, then the totals line
   --watch     rerun the check when a .ts file under the current directory changes (Ctrl+C exits)
   --force     init: overwrite tslaws.json and replace the AGENTS.md section`;
@@ -44,7 +46,7 @@ function parse(args: string[]): { command: string; flags: Map<string, string | t
   const flags = new Map<string, string | true>();
   const files: string[] = [];
   let command = 'check';
-  const valued = new Set(['runs', 'seed', 'compiler', 'bound', 'proof-timeout', 'property-timeout', 'port']);
+  const valued = new Set(['runs', 'seed', 'compiler', 'bound', 'proof-timeout', 'property-timeout', 'port', 'reporter']);
   for (let i = 0; i < args.length; i += 1) {
     const arg = args[i]!;
     if (arg.startsWith('--')) {
@@ -87,7 +89,12 @@ function totals(report: CheckReport): string {
 }
 
 function render(report: CheckReport, flags: Map<string, string | true>): string {
-  if (flags.has('json')) {
+  const reporter = String(flags.get('reporter') ?? (flags.has('json') ? 'json' : 'text'));
+  if (!(reporterNames as readonly string[]).includes(reporter)) {
+    throw new Error(`unknown reporter '${reporter}' (expected ${reporterNames.join(', ')})`);
+  }
+  if (reporter === 'junit' || reporter === 'github') return reportAs(reporter, report);
+  if (reporter === 'json') {
     return `${JSON.stringify({ ...report, results: report.results.map((r) => ({ ...r, hint: hintFor(r) })) }, null, 2)}\n`;
   }
   let text = '';

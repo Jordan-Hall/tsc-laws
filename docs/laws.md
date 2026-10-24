@@ -261,6 +261,7 @@ under `.tslaws/out/smt`.
 ```
 tslaws init [--force]
 tslaws accept [files...]
+tslaws mutate [files...] [--max N] [--seed N] [--json]
 tslaws check [files...] [--json] [--summary] [--watch] [--runs N] [--seed N] [--no-prove] [--bound N]
              [--proof-timeout MS] [--proposed] [--compiler PATH]
 ```
@@ -272,6 +273,38 @@ results that do not pass, and the totals.
 The compiler is `--compiler`, `TSC_LAWS_BIN`, or `tsc-laws` on `PATH`. It finds its lib files through `TSC_TS_LIB_DIR`, or
 the TypeScript 7 libs scriptc installs in `node_modules/@scriptc/*`. `tsc-ts --laws-manifest <files>` lists the laws of
 files as JSON.
+
+## Mutation testing
+
+`tslaws mutate [files...] [--max N] [--seed N] [--json]` asks whether the laws are strong enough. It changes the covered
+source in small ways (relational, arithmetic and logical operators, `true`/`false`, numeric literals, negated `if`
+conditions, removed `!`), re-runs the laws against each mutant in a scratch copy under `.tslaws/mutants/`, and reports each
+mutant as killed (a law failed, errored or timed out) or survived (every law still held, so the laws cannot tell the change
+apart). Your files are never written. A `*.laws.ts` argument chooses the laws; other files limit which sources are mutated.
+Without arguments it uses every laws file and every covered module. `--max` (default 50) and `--seed` sample a subset.
+
+It prints each survivor as `file:line  original  ->  mutated` with a hint, and the mutation score. Exit status is 0 only when
+every tried mutant is killed. It first checks the unmutated code and stops if the laws do not pass. Mutants that do not
+compile are skipped and not counted. Some survivors are equivalent mutants (for example `<` to `<=` where both sides are
+equal); strengthen a law only when the survivor is a real behaviour change. Each mutant runs 50 tests with a short proof
+timeout, and the lock is not enforced.
+
+## CI reporters
+
+`tslaws check --reporter <name>` chooses the output. The exit status does not change: 0 only when the check passes.
+
+- `text` (default) is the console report; `json` is the same as `--json`.
+- `junit` writes JUnit XML to stdout: one `<testsuite>` per law file and one `<testcase classname=file name=law>` per law. `failed`,
+  `open`, `tampered`, `error` and `uncovered` results carry a `<failure>` with the message, counterexample and hint.
+- `github` writes GitHub Actions workflow commands: `::error file=...,line=...,title=<law> <status>::...` for each failing
+  result and a `::notice` for `bounded` and `tested` ones. When `GITHUB_STEP_SUMMARY` is set, it also appends a markdown table
+  of the results to that file.
+
+```yaml
+- run: npx tslaws check --reporter github
+```
+
+For a test report, redirect JUnit output: `npx tslaws check --reporter junit > tslaws-junit.xml`.
 
 ## Build
 
