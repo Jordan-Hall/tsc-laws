@@ -34,6 +34,28 @@ difference is that it stays TypeScript, so any human can read, run and fix every
 The honest difference: a Bend proof is checked by the type system for every program it accepts. Here, proof covers the part
 of TypeScript that lowers to SMT (see [The prover](#the-prover)), and the rest is tested. Every result says which it is.
 
+## Laws versus unit tests
+
+A unit test checks examples you chose: `sort([3,1,2])` gives `[1,2,3]`. A law states a property of all inputs: for any
+array, the result is ordered and has the same length. Both are TypeScript the agent must satisfy, but they differ in what
+they can promise and who controls them.
+
+| | Unit test | Law |
+| --- | --- | --- |
+| Says | "for this input, this output" | "for every input of this type, this holds" |
+| Inputs | Written by hand; the agent can pick easy ones | Generated from the declared types, biased to edge cases, shrunk to a minimal counterexample |
+| Strongest verdict | Passed on the cases written | `proved` for all inputs, or `bounded` for all inputs within a stated bound, or `tested` |
+| Who can change it | Anyone, including the agent that is being checked | Only a person: the lock fails the check on any change, addition or removal |
+| Missing code | An untested function is invisible | An exported function no law reaches fails as `uncovered` |
+| Can the agent game it | Yes: edit the test, delete it, assert less, special-case the inputs | Not by editing: the lock catches it. Special-casing is caught by generated inputs and by the proof |
+| Feedback | "expected 3, got 2" | A minimal failing input, the seed, and a next-action hint |
+| Cost to write | Cheap per case, many cases | One statement per behaviour, but you must be able to state the behaviour |
+
+They also fit together: laws say what must always hold, and unit tests still pin down specific examples, regressions and
+integration behaviour. Use laws for the properties you would otherwise review the agent's code for (ordering, bounds,
+round-trips, "never negative", "same length", "idempotent"), and keep example tests for everything that is a case rather
+than a rule.
+
 ## Quick start
 
 ```sh
