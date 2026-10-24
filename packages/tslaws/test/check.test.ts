@@ -5,7 +5,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { after, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { check } from '../dist/check.js';
+import { check, exemptionsOf } from '../dist/check.js';
 import { readManifest } from '../dist/compile.js';
 import { writeLock } from '../dist/lock.js';
 import type { CheckOptions, LawResult } from '../dist/types.js';
@@ -248,6 +248,63 @@ describe('tslaws check', { skip: compiler === undefined ? 'set TSC_LAWS_BIN' : f
 
     writeFileSync(join(cwd, 'src/f.laws.ts'), "import { id } from './f';\n");
     assert.equal(byName((await check(opts, true)).results, 'keeps').status, 'tampered');
+  });
+
+  it('fails exported code no law reaches, counting calls made by what a law calls', async () => {
+    const cwd = project('coverage', {
+      'src/f.ts': [
+        'const twice = (a: number): number => a + a;',
+        'export const double = (a: number): number => twice(a);',
+        'export const unchecked = (a: number): number => a - 1;',
+        'export class Counter { n = 0; }',
+        '',
+      ].join('\n'),
+      'src/f.laws.ts': "import { double } from './f';\nexport law doubles(a: number) => double(a) === a + a;\n",
+    });
+    const opts = options(cwd, ['src/f.laws.ts']);
+    lockNow(opts);
+    const report = await check(opts, true);
+    const uncovered = report.results.filter((r) => r.status === 'uncovered').map((r) => r.name);
+    assert.deepEqual(uncovered, ['Counter', 'unchecked']);
+    assert.equal(report.ok, false);
+  });
+
+  it('covers modules named by tslaws.json even when no law imports them', async () => {
+    const cwd = project('cover-globs', {
+      'tslaws.json': JSON.stringify({ cover: ['src/**/*.ts'] }),
+      'src/a.ts': 'export const a = (x: number): number => x;\n',
+      'src/b.ts': 'export const b = (x: number): number => x;\n',
+      'src/a.laws.ts': "import { a } from './a';\nexport law keeps(x: number) => a(x) === x;\n",
+    });
+    const opts = options(cwd, ['src/a.laws.ts']);
+    lockNow(opts);
+    const report = await check(opts, true);
+    assert.deepEqual(
+      report.results.filter((r) => r.status === 'uncovered').map((r) => `${r.file}:${r.name}`),
+      ['src/b.ts:b'],
+    );
+  });
+
+  it('accepts an exemption only once it is in the lock', async () => {
+    const cwd = project('exempt', {
+      'src/f.ts': [
+        'export const checked = (a: number): number => a;',
+        '/** Glue code. @tslaws-exempt */',
+        'export const glue = (a: number): number => a + 1;',
+        '',
+      ].join('\n'),
+      'src/f.laws.ts': "import { checked } from './f';\nexport law keeps(a: number) => checked(a) === a;\n",
+    });
+    const opts = options(cwd, ['src/f.laws.ts']);
+    lockNow(opts);
+    const first = await check(opts, true);
+    assert.equal(byName(first.results, 'glue').status, 'tampered');
+    assert.equal(first.ok, false);
+
+    writeLock(opts.lockFile, readManifest(opts.compiler, opts.files, opts.cwd), exemptionsOf(opts));
+    const second = await check(opts, true);
+    assert.equal(second.ok, true);
+    assert.equal(second.results.some((r) => r.name === 'glue'), false);
   });
 
   it('checks proposed laws without a lock', async () => {

@@ -1,7 +1,7 @@
 import { createInterface } from 'node:readline/promises';
 import { readdirSync, statSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
-import { check } from './check.ts';
+import { check, exemptionsOf } from './check.ts';
 import { readManifest } from './compile.ts';
 import { writeLock } from './lock.ts';
 import type { CheckOptions, LawResult } from './types.ts';
@@ -89,7 +89,9 @@ export async function main(args: string[]): Promise<number> {
     const answer = await rl.question('Type ACCEPT to write tsc-laws.lock: ');
     rl.close();
     if (answer.trim() !== 'ACCEPT') return 1;
-    writeLock(options.lockFile, laws);
+    const exempt = exemptionsOf(options);
+    if (exempt.length > 0) process.stdout.write(`exempt from coverage:\n${exempt.map((e) => `  ${e}`).join('\n')}\n`);
+    writeLock(options.lockFile, laws, exempt);
     process.stdout.write('tsc-laws.lock written\n');
     return 0;
   }

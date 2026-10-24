@@ -6,6 +6,12 @@ import type { ManifestLaw } from './types.ts';
 
 export type LockEntries = Record<string, string>;
 
+export interface Lock {
+  laws: LockEntries;
+  /** `file::name` of the functions a person exempted from coverage. */
+  exempt: string[];
+}
+
 export function lawKey(file: string, name: string): string {
   return `${file.replaceAll('\\', '/')}::${name}`;
 }
@@ -15,16 +21,17 @@ export function lawHash(law: ManifestLaw): string {
   return createHash('sha256').update(normalized).digest('hex');
 }
 
-export function readLock(path: string): LockEntries | undefined {
+export function readLock(path: string): Lock | undefined {
   if (!existsSync(path)) return undefined;
-  return (JSON.parse(readFileSync(path, 'utf8')) as { laws: LockEntries }).laws;
+  const lock = JSON.parse(readFileSync(path, 'utf8')) as { laws: LockEntries; exempt?: string[] };
+  return { laws: lock.laws, exempt: lock.exempt ?? [] };
 }
 
-export function writeLock(path: string, laws: ManifestLaw[]): void {
+export function writeLock(path: string, laws: ManifestLaw[], exempt: string[] = []): void {
   const entries: LockEntries = {};
   for (const law of [...laws].sort((a, b) => lawKey(a.file, a.name).localeCompare(lawKey(b.file, b.name))))
     entries[lawKey(law.file, law.name)] = lawHash(law);
-  writeFileSync(path, JSON.stringify({ version: 1, laws: entries }, null, 2) + '\n');
+  writeFileSync(path, JSON.stringify({ version: 1, laws: entries, exempt: [...exempt].sort() }, null, 2) + '\n');
 }
 
 export interface LockViolation {

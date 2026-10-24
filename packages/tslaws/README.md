@@ -1,19 +1,24 @@
 # tslaws
 
-Laws for TypeScript, checked the way Bend 2 checks its `LAWS.bend`: a person writes the laws, an agent writes the
-code, and one command says whether every law holds.
+Laws for TypeScript, checked the way Bend 2 checks its `LAWS.bend`: a person writes the laws, an agent writes the code,
+and one command says whether the code satisfies every law and whether any code is left unchecked.
 
 ```ts
 // src/math.laws.ts
+import type { int } from 'tslaws';
 import { assume } from 'tslaws';
-import { add, clamp } from './math';
-
-export law addCommutes(a: number, b: number) => add(a, b) === add(b, a);
+import { clamp, sortNumbers } from './math';
 
 export law proved clampWithinBounds(x: number, lo: number, hi: number) {
   assume(lo <= hi);
   const y = clamp(x, lo, hi);
   return y >= lo && y <= hi;
+}
+
+export law sortOrders(xs: int[]) {
+  const s = sortNumbers(xs);
+  for (let i = 1; i < s.length; i++) if (s[i - 1] > s[i]) return false;
+  return true;
 }
 ```
 
@@ -24,33 +29,48 @@ ordinary identifier.
 
 ```
 $ tslaws check
-PROVED   addCommutes (src/math.laws.ts:4) [smt:real]
-PROVED   clampWithinBounds (src/math.laws.ts:6) [smt:real]
-FAILED   sortKeepsLength (src/math.laws.ts:14) [property]
+PROVED   clampWithinBounds (src/math.laws.ts:5) [smt]
+BOUNDED  sortOrders (src/math.laws.ts:11) [smt]
+         holds within bounds: int values stay within ±2^26; arrays hold at most 4 elements; loops run at most 4 times
+FAILED   sortKeepsLength (src/math.laws.ts:17) [property]
          returned false
          counterexample: [[3,3]]
          reproduce with --seed 1090953994
+UNCOVERED sub (src/math.ts) [coverage]
+         no law reaches this exported function; add a law, or a person can mark it @tslaws-exempt and accept
 ```
+
+## What "checked against the laws" means
+
+Two things, both required for exit status 0:
+
+1. **Every law holds for the code.** The implementation, not a copy of it, is what runs and what is proved.
+2. **No code escapes the laws.** Every exported function or class in the covered modules is reached by a law, directly or
+   through the functions the law calls. Covered modules are the `cover` globs of `tslaws.json`
+   (`{ "cover": ["src/**/*.ts", "!src/**/*.test.ts"] }`), or, without that file, every project module the laws import.
 
 ## Statuses
 
 | Status | Meaning |
 | --- | --- |
-| `proved` | Z3 shows no input makes the law return `false` (see *The prover*). |
-| `tested` | `fast-check` found no counterexample in `--runs` inputs (default 200). Not a proof. |
-| `open` | Declared `law proved ...` but not proved, or `assume` discards nearly every input. Fails the check. |
+| `proved` | Z3 shows no input makes the law return `false`, with no bound involved. |
+| `bounded` | Z3 shows it for every input within stated bounds: array length (`--bound`, default 4), loop iterations, recursion depth, `int` values within ±2^26. |
+| `tested` | `fast-check` found no counterexample in `--runs` inputs (default 200); the code does not lower to the prover. Not a proof. |
+| `open` | Declared `law proved …` but not proved for every input (a bounded proof does not count), or `assume` discards nearly every input. Fails the check. |
 | `failed` | A counterexample, shrunk to a minimal input, with the seed to reproduce it. |
-| `tampered` | The law changed, was added or removed since `tsc-laws.lock` was accepted. |
+| `uncovered` | Exported code no law reaches. Fails the check. |
+| `tampered` | A law changed, was added or removed since `tsc-laws.lock` was accepted, or a coverage exemption is not in it. Fails the check. |
 | `error` | The law cannot run: not exported, a parameter has no type, no generator for a type, load failure. |
 
-`tslaws check` exits 0 only when every law is `proved` or `tested`, the files compile, and the lock matches.
+`tslaws check` exits 0 only when every law is `proved`, `bounded` or `tested`, nothing is `uncovered`, the files compile, and
+the lock matches.
 
 ## Inputs come from types
 
-The compiler emits declarations, and `tslaws` reads each parameter's type from them, so the full type system drives input
+The compiler emits declarations and `tslaws` reads each parameter's type from them, so the full type system drives input
 generation: primitives and literals, unions, enums, template literals, arrays, tuples, interfaces and type literals (optional
-properties included), index signatures, `Date`, and type parameters through their constraints. Register a generator for a type
-the runner cannot derive, by its name:
+properties included), index signatures, `Date`, and type parameters through their constraints. Parameters typed `number` are
+finite doubles (no NaN, no infinities). Register a generator for a type the runner cannot derive, by its name:
 
 ```ts
 import { arbitrary, fc } from 'tslaws';
@@ -59,22 +79,33 @@ arbitrary('UserId', fc.string({ minLength: 8, maxLength: 8 }));
 
 ## The prover
 
-For a law that is also under `law proved`, or whenever it can, `tslaws` lowers the compiled JavaScript of the law and of the
-project functions it calls to SMT-LIB and asks Z3 whether any input returns `false`. What lowers: numbers, booleans and records
-of them as parameters; `+ - * /` (division only by a nonzero literal), comparisons, `&& || !`, `?:`, `Math.abs/min/max/floor`;
-`const` bindings; `if`/`return`; `assume` at the top of the law; calls to other functions made of the same things, including
-arrow functions. Anything else leaves the law `tested`, and `proved` laws `open`, with the reason.
+`tslaws` symbolically executes the compiled JavaScript of a law, inlining the project functions it calls, and asks Z3 for an
+input that returns `false` or breaks an obligation. A model is replayed in JavaScript, and only a reproduced failure is
+reported as `failed`.
 
-**Numbers are exact reals by default**, so a proof ignores rounding, overflow and NaN. Z3's floating-point theory cannot decide
-even `a + b === b + a` within 20 s, so `--numbers fp` exists but mostly times out. A model Z3 finds is replayed in JavaScript;
-only a reproduced failure is reported as `failed`.
+- **Numbers are IEEE doubles** (SMT-LIB floating point), so rounding, overflow and `-0` are real, and `(a + b) + c ===
+  a + (b + c)` is refuted. Z3 cannot decide most double arithmetic, so those laws stay `tested`; commutative `+` and `*` are
+  normalised so `a + b === b + a` is proved.
+- **`int` is exact.** `import type { int } from 'tslaws'` marks a whole number (`number & brand`, an ordinary number at
+  runtime). Integer arithmetic carries the obligation that results stay within ±(2^53 − 1); when the full range fails only on
+  that obligation, the proof is retried with `int` values in ±2^26 and reported `bounded`. `bigint` is exact with no bound.
+- **Arrays, loops, recursion** are unrolled up to `--bound` (default 4), making the result `bounded`. Supported: `length`,
+  indexing, literals and spread, `push`, `map`, `filter`, `every`, `some`, `reduce`, `includes`, `indexOf`, `slice(n)`,
+  `concat`, `reverse`, `sort(comparator)` (a stable sorting network), `[...new Set(xs)]`, `for`, `while`, `for…of`, `break`,
+  `continue`. Mutation is allowed only on arrays no second name can reach.
+- **Strings** are unbounded SMT strings restricted to the BMP: `+`, templates, `length`, `charAt`, indexing, `slice`,
+  `substring`, `includes`, `startsWith`, `endsWith`, `indexOf`, comparisons.
+- **Records** of any of these, and `typeof`, `Math.abs/min/max/floor/ceil/trunc`, ternaries, `const`/`let`, `assume`.
+
+Anything else leaves the law `tested`, or a `law proved` `open`, with the reason. `TSLAWS_DEBUG=1` keeps each query as an
+`.smt2` file under `.tslaws/out/smt` to replay in `z3`.
 
 ## Agents cannot move the goalposts
 
-`tsc-laws.lock` holds a hash of every law declaration. A change, an added law or a removed law fails the check until a
-person runs `tslaws accept`, which refuses to run without a terminal, under `CI`, or with `TSLAWS_AGENT` set. Agents propose laws in
-`*.proposed.laws.ts` and try them with `tslaws check --proposed` (no lock needed); a person moves them into a `*.laws.ts` file
-and accepts.
+`tsc-laws.lock` holds a hash of every law declaration and the list of coverage exemptions. A change, an added law, a removed
+law or a new `@tslaws-exempt` fails the check until a person runs `tslaws accept`, which refuses to run without a terminal,
+under `CI`, or with `TSLAWS_AGENT` set. Agents propose laws in `*.proposed.laws.ts` and try them with `tslaws check
+--proposed` (no lock, no coverage gate); a person moves them into a `*.laws.ts` file and accepts.
 
 `hooks/claude-hook.mjs` is a Claude Code hook that blocks `git commit` and sends an agent back to work when the check fails;
 `hooks/claude-settings.example.json` wires it up and `hooks/AGENTS.snippet.md` tells the agent the rules.
@@ -82,7 +113,7 @@ and accepts.
 ## Commands
 
 ```
-tslaws check [files...] [--json] [--runs N] [--seed N] [--no-prove] [--numbers real|fp]
+tslaws check [files...] [--json] [--runs N] [--seed N] [--no-prove] [--bound N]
              [--proof-timeout MS] [--proposed] [--compiler PATH]
 tslaws accept [files...]
 ```

@@ -1,11 +1,12 @@
 import { createRequire } from 'node:module';
-import { existsSync } from 'node:fs';
+import { readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import * as fc from 'fast-check';
 import ts from 'typescript';
 import { build, readManifest } from './compile.ts';
 import { GeneratorFactory, UnsupportedType } from './generators.ts';
-import { compareLock, lawKey, readLock } from './lock.ts';
+import { analyzeCoverage, coverFiles, readConfig } from './coverage.ts';
+import { compareLock, lawKey, readLock, type Lock } from './lock.ts';
 import { proveLaw, type Shape } from './smt.ts';
 import type { CheckOptions, LawResult, ManifestLaw } from './types.ts';
 
@@ -21,6 +22,21 @@ export interface CheckReport {
 interface LawTypes {
   generators: fc.Arbitrary<unknown>[];
   shapes: Shape[];
+}
+
+/** Every declaration file the compiler emitted: the laws' own do not import the code they are about. */
+function declarationFiles(outDir: string): string[] {
+  const found: string[] = [];
+  const walk = (dir: string): void => {
+    for (const entry of readdirSync(dir)) {
+      const full = join(dir, entry);
+      if (statSync(full).isDirectory()) {
+        if (entry !== 'smt') walk(full);
+      } else if (entry.endsWith('.d.ts')) found.push(full);
+    }
+  };
+  walk(outDir);
+  return found;
 }
 
 function dtsPath(outDir: string, file: string): string {
@@ -107,6 +123,18 @@ function runLaw(
   }) as fc.RunDetails<unknown[]>;
 }
 
+/** The `@tslaws-exempt` functions of the project, for `tslaws accept` to record. */
+export function exemptionsOf(options: CheckOptions): string[] {
+  const covered = coverFiles(options.cwd, readConfig(options.cwd).cover ?? []);
+  const compiled = [...new Set([...options.files, ...covered])];
+  const built = build(options.compiler, compiled, options.cwd);
+  const program = ts.createProgram(
+    declarationFiles(built.outDir),
+    { skipLibCheck: true, strict: true, target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, moduleResolution: ts.ModuleResolutionKind.Bundler, types: [] },
+  );
+  return analyzeCoverage({ cwd: options.cwd, outDir: built.outDir, lawFiles: options.files, coverFiles: covered, program }).exempt;
+}
+
 export async function check(options: CheckOptions, enforceLock: boolean): Promise<CheckReport> {
   const laws = readManifest(options.compiler, options.files, options.cwd);
   const results: LawResult[] = [];
@@ -117,11 +145,12 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
   };
 
   let lockMissing = false;
+  let lock: Lock | undefined;
   if (enforceLock) {
-    const lock = readLock(options.lockFile);
+    lock = readLock(options.lockFile);
     lockMissing = lock === undefined;
     const byKey = new Map(laws.map((l) => [lawKey(l.file, l.name), l]));
-    for (const violation of compareLock(lock, laws)) {
+    for (const violation of compareLock(lock?.laws, laws)) {
       const law = byKey.get(violation.key);
       if (law === undefined) {
         const [file, name] = violation.key.split('::') as [string, string];
@@ -149,9 +178,11 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
       add(law, 'error', 'manifest', { message: law.problems.join('; ') });
   }
 
-  const built = build(options.compiler, options.files, options.cwd);
+  const covered = coverFiles(options.cwd, readConfig(options.cwd).cover ?? []);
+  const compiled = [...new Set([...options.files, ...covered])];
+  const built = build(options.compiler, compiled, options.cwd);
   const program = ts.createProgram(
-    options.files.map((f) => dtsPath(built.outDir, f)).filter((p) => existsSync(p)),
+    declarationFiles(built.outDir),
     {
       skipLibCheck: true,
       strict: true,
@@ -240,6 +271,32 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
         message: `marked proved but not proved: ${proof.reason}`,
       });
     else add(law, 'tested', 'property', { runs: details.numRuns, seed: details.seed, message: proof.reason });
+  }
+
+  if (enforceLock) {
+    const coverage = analyzeCoverage({ cwd: options.cwd, outDir: built.outDir, lawFiles: options.files, coverFiles: covered, program });
+    for (const { file, name } of coverage.uncovered) {
+      results.push({
+        file,
+        name,
+        line: 0,
+        status: 'uncovered',
+        method: 'coverage',
+        message: 'no law reaches this exported function; add a law, or a person can mark it @tslaws-exempt and accept',
+      });
+    }
+    for (const key of coverage.exempt) {
+      if (lock?.exempt.includes(key) === true) continue;
+      const [file, name] = key.split('::') as [string, string];
+      results.push({
+        file,
+        name,
+        line: 0,
+        status: 'tampered',
+        method: 'lock',
+        message: 'exempted from coverage but not in the lock; a person must run `tslaws accept`',
+      });
+    }
   }
 
   const ok = built.ok && !lockMissing && results.every((r) => r.status === 'proved' || r.status === 'bounded' || r.status === 'tested');
