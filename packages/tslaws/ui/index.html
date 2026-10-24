@@ -257,6 +257,42 @@
         border-radius: 8px;
         background: #fff;
       }
+      .s-pending {
+        color: var(--muted);
+      }
+      .s-running {
+        color: var(--tested);
+        animation: pulse 1s ease-in-out infinite;
+      }
+      @keyframes pulse {
+        50% {
+          opacity: 0.35;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .s-running {
+          animation: none;
+        }
+      }
+      .live {
+        width: 100%;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fff;
+      }
+      .bar {
+        height: 6px;
+        border-radius: 3px;
+        background: var(--line);
+        overflow: hidden;
+        margin: 10px 0 4px;
+      }
+      .bar > i {
+        display: block;
+        height: 100%;
+        background: var(--tested);
+        transition: width 0.2s;
+      }
       .caret {
         width: 12px;
         color: var(--muted);
@@ -434,7 +470,18 @@
     <script>
       (function () {
         'use strict';
-        var STATUSES = ['proved', 'bounded', 'tested', 'open', 'failed', 'uncovered', 'tampered', 'error'];
+        var STATUSES = [
+          'running',
+          'pending',
+          'proved',
+          'bounded',
+          'tested',
+          'open',
+          'failed',
+          'uncovered',
+          'tampered',
+          'error',
+        ];
         var ICON = {
           proved: '✓',
           bounded: '✓',
@@ -444,7 +491,10 @@
           uncovered: '○',
           tampered: '⚠',
           error: '✗',
+          pending: '·',
+          running: '◔',
         };
+        var LIVE = { pending: 1, running: 1 };
         var PASSING = { proved: 1, bounded: 1, tested: 1 };
         var state = null,
           selected = null,
@@ -493,11 +543,12 @@
         }
 
         function counts() {
-          var c = { all: 0, passed: 0, failed: 0, open: 0 };
+          var c = { all: 0, passed: 0, failed: 0, open: 0, live: 0 };
           results().forEach(function (r) {
             c.all++;
             if (PASSING[r.status]) c.passed++;
             else if (r.status === 'open') c.open++;
+            else if (LIVE[r.status]) c.live++;
             else c.failed++;
           });
           return c;
@@ -505,7 +556,8 @@
 
         function matches(r) {
           if (filter === 'passed' && !PASSING[r.status]) return false;
-          if (filter === 'failed' && (PASSING[r.status] || r.status === 'open')) return false;
+          if (filter === 'failed' && (PASSING[r.status] || LIVE[r.status] || r.status === 'open')) return false;
+          if (filter === 'running' && !LIVE[r.status]) return false;
           if (filter === 'open' && r.status !== 'open') return false;
           if (query && (r.name + ' ' + r.file).toLowerCase().indexOf(query) < 0) return false;
           return true;
@@ -549,6 +601,7 @@
           box.textContent = '';
           [
             ['all', 'All', c.all],
+            ['running', 'Running', c.live],
             ['failed', 'Failed', c.failed],
             ['open', 'Open', c.open],
             ['passed', 'Passed', c.passed],
@@ -582,7 +635,7 @@
               return a.line - b.line;
             });
             var worst = rs.some(function (r) {
-              return !PASSING[r.status] && r.status !== 'open';
+              return !PASSING[r.status] && !LIVE[r.status] && r.status !== 'open';
             })
               ? 'failed'
               : rs.some(function (r) {
@@ -666,6 +719,22 @@
             d.appendChild(el('div', 'empty', 'Running the laws…'));
             return;
           }
+          var total = results().length;
+          var done = results().filter(function (r) {
+            return !LIVE[r.status];
+          }).length;
+          if (state.running && total) {
+            d.appendChild(el('div', 'meta', 'Running ' + done + ' of ' + total));
+            var bar = el('div', 'bar');
+            var fill = el('i');
+            fill.style.width = Math.round((100 * done) / total) + '%';
+            bar.appendChild(fill);
+            d.appendChild(bar);
+            var now = results().filter(function (r) {
+              return r.status === 'running' && isBrowserLaw(r);
+            })[0];
+            if (now) liveFrame(d, now, 'Browser (live): ' + now.name);
+          }
           var by = {};
           results().forEach(function (r) {
             by[r.status] = (by[r.status] || 0) + 1;
@@ -681,7 +750,7 @@
             if (by[s])
               cards.appendChild(
                 card(by[s], s, s, function () {
-                  filter = PASSING[s] ? 'passed' : s === 'open' ? 'open' : 'failed';
+                  filter = PASSING[s] ? 'passed' : s === 'open' ? 'open' : LIVE[s] ? 'running' : 'failed';
                   renderSide();
                 }),
               );
@@ -698,7 +767,7 @@
             d.appendChild(el('pre', 'err', state.report.compileDiagnostics));
           }
           var bad = results().filter(function (r) {
-            return !PASSING[r.status];
+            return !PASSING[r.status] && !LIVE[r.status];
           });
           if (bad.length) {
             d.appendChild(el('h3', '', 'Needs attention'));
@@ -731,7 +800,24 @@
           return b;
         }
 
+        function isBrowserLaw(r) {
+          return /\.browser\.laws\.[cm]?ts$/.test(r.file);
+        }
+
+        function liveFrame(d, r, title) {
+          var n = state.frames && state.frames[key(r)];
+          if (!n) return;
+          d.appendChild(el('h3', '', title));
+          var img = el('img', 'live');
+          img.alt = 'The browser page while ' + r.name + ' runs';
+          img.src = '/api/frame?file=' + encodeURIComponent(r.file) + '&name=' + encodeURIComponent(r.name) + '&t=' + n;
+          d.appendChild(img);
+        }
+
         function renderReport(d, r) {
+          if (r.status === 'running') d.appendChild(el('div', 'empty', 'Running…'));
+          if (r.status === 'pending') d.appendChild(el('div', 'empty', 'Waiting to run.'));
+          if (isBrowserLaw(r)) liveFrame(d, r, r.status === 'running' ? 'Browser (live)' : 'Browser (last frame)');
           if (r.message) {
             d.appendChild(el('h3', '', 'Message'));
             d.appendChild(el('pre', r.status === 'failed' || r.status === 'error' ? 'err' : '', r.message));

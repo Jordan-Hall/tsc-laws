@@ -46,9 +46,12 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
   const results: LawResult[] = [];
   const blocked = new Set<string>();
   const add = (law: ManifestLaw, status: LawResult['status'], method: string, extra: Partial<LawResult> = {}): void => {
-    results.push({ file: law.file, name: law.name, line: law.line, status, method, ...extra });
+    const result: LawResult = { file: law.file, name: law.name, line: law.line, status, method, ...extra };
+    results.push(result);
     blocked.add(lawKey(law.file, law.name));
+    options.onEvent?.({ type: 'result', result });
   };
+  options.onEvent?.({ type: 'plan', laws: laws.map((l) => ({ file: l.file, name: l.name, line: l.line })) });
 
   let lockMissing = false;
   let lock: Lock | undefined;
@@ -92,6 +95,7 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
 
   for (const law of laws) {
     if (blocked.has(lawKey(law.file, law.name))) continue;
+    options.onEvent?.({ type: 'start', file: law.file, name: law.name });
     let types: LawTypes;
     try {
       types = typesOf(program, built.outDir, law);
@@ -119,7 +123,7 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
     try {
       details = browser
         ? await runBrowserLaw(
-            { name: law.name, jsFile: jsPath(built.outDir, law.file), generators: types.generators },
+            { file: law.file, name: law.name, jsFile: jsPath(built.outDir, law.file), generators: types.generators },
             options,
           )
         : await runLawGuarded(built.outDir, law, options);

@@ -40,6 +40,10 @@ jobs:
       - run: npm ci
       - run: npm run fetch:upstream
       - run: npm run build:native -w tsc-ts
+      - name: Name the Windows build tsc.exe
+        if: runner.os == 'Windows'
+        run: cp packages/tsc-ts/dist/tsc packages/tsc-ts/dist/tsc.exe
+        shell: bash
       - run: npm run build -w tslaws
       - name: Compiler tests for law
         run: node --test packages/tsc-ts/tests/laws.test.mjs
@@ -52,7 +56,10 @@ jobs:
       - name: Example project
         working-directory: examples/basic
         # sortKeepsLength fails on purpose; the other laws must hold.
-        run: node ../../packages/tslaws/bin/tslaws.js check --summary | tee out.txt; grep -q "1 failed" out.txt
+        run: |
+          node ../../packages/tslaws/bin/tslaws.js check --summary > out.txt || true
+          cat out.txt
+          grep -q "1 failed" out.txt
         shell: bash
         env:
           TSC_LAWS_BIN: ${{ github.workspace }}/packages/tsc-ts/dist/${{ runner.os == 'Windows' && 'tsc.exe' || 'tsc' }}

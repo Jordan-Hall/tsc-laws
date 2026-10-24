@@ -71,7 +71,7 @@ export async function closeBrowser(): Promise<void> {
 
 // Runs inside the page: the law, a clean DOM before and after, and a result that survives structured cloning.
 const harness = `
-window.__runLaw = async (name, args, keep) => {
+window.__runLaw = async (name, args, keep, pause) => {
   const clean = () => {
     for (const undo of (window.__tslawsCleanup || []).splice(0)) { try { undo(); } catch (e) {} }
     document.body.innerHTML = '';
@@ -83,6 +83,11 @@ window.__runLaw = async (name, args, keep) => {
   } catch (error) {
     return { error: { name: error && error.name, message: error && error.message ? error.message : String(error) } };
   } finally {
+    if (pause > 0) {
+      window.__shown = true;
+      await new Promise((done) => setTimeout(done, pause));
+      window.__shown = false;
+    }
     if (!keep) clean();
   }
 };`;
@@ -104,6 +109,7 @@ async function bundleOf(jsFile: string, cwd: string): Promise<string> {
 }
 
 export interface BrowserLaw {
+  file: string;
   name: string;
   jsFile: string;
   generators: fc.Arbitrary<unknown>[];
@@ -144,6 +150,8 @@ async function capture(
 export async function runBrowserLaw(law: BrowserLaw, options: CheckOptions): Promise<PropertyOutcome | 'timeout'> {
   const code = await bundleOf(law.jsFile, options.cwd);
   const page: Page = await (await launch()).newPage();
+  // A watcher needs only the first few runs to linger; the rest should not eat the time limit.
+  let calls = 0;
   let timedOut = false;
   const timer = setTimeout(() => {
     timedOut = true;
@@ -151,18 +159,36 @@ export async function runBrowserLaw(law: BrowserLaw, options: CheckOptions): Pro
   }, options.propertyTimeoutMs ?? 30000);
   const pageErrors: string[] = [];
   page.on('pageerror', (error) => pageErrors.push(error.message));
+  // While someone watches, photograph the page a few times a second.
+  let framing = false;
+  const frames = options.onEvent
+    ? setInterval(() => {
+        if (framing || page.isClosed()) return;
+        framing = true;
+        // Only while the law has left the page as it wants it seen, not between runs when it is empty.
+        page
+          .evaluate(() => (window as unknown as { __shown?: boolean }).__shown === true)
+          .then((shown) => (shown ? page.screenshot({ type: 'jpeg', quality: 55, timeout: 2000 }) : undefined))
+          .then((jpeg) =>
+            jpeg === undefined ? undefined : options.onEvent?.({ type: 'frame', file: law.file, name: law.name, jpeg }),
+          )
+          .catch(() => undefined)
+          .finally(() => (framing = false));
+      }, 120)
+    : undefined;
   try {
     await page.setContent('<!doctype html><html><head><meta charset="utf-8"></head><body></body></html>');
     await page.addScriptTag({ content: code });
     await page.addScriptTag({ content: harness });
     const call = async (...args: unknown[]): Promise<unknown> => {
       const outcome = (await page.evaluate(
-        ([name, input]) =>
-          (window as unknown as { __runLaw: (n: string, a: unknown[]) => Promise<unknown> }).__runLaw(
-            name as string,
-            input as unknown[],
-          ),
-        [law.name, args] as const,
+        ([name, input, pause]) =>
+          (
+            window as unknown as {
+              __runLaw: (n: string, a: unknown[], keep: boolean, pause: number) => Promise<unknown>;
+            }
+          ).__runLaw(name as string, input as unknown[], false, pause as number),
+        [law.name, args, calls++ < 12 ? (options.browserPauseMs ?? 0) : 0] as const,
       )) as PageOutcome;
       if (outcome.error !== undefined) {
         const error = new Error(outcome.error.message);
@@ -184,6 +210,7 @@ export async function runBrowserLaw(law: BrowserLaw, options: CheckOptions): Pro
     throw new Error(`${(error as Error).message}${extra}`);
   } finally {
     clearTimeout(timer);
+    if (frames !== undefined) clearInterval(frames);
     if (!page.isClosed()) await page.close();
   }
 }

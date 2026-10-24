@@ -234,7 +234,9 @@ export async function main(args: string[]): Promise<number> {
       cwd,
       port: Number(flags.get('port') ?? 51205),
       open: !flags.has('no-open'),
-      run: (only) => check(options(cwd, flags, only ?? chosen), !flags.has('proposed')),
+      // A watcher sees a browser page only if it stays as the law left it for a moment.
+      run: (only, onEvent) =>
+        check({ ...options(cwd, flags, only ?? chosen), onEvent, browserPauseMs: 120 }, !flags.has('proposed')),
       log: (line) => process.stdout.write(`${line}\n`),
     });
   }

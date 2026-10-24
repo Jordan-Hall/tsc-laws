@@ -170,6 +170,8 @@ the next step), the law's source with its lines highlighted, and the compiler ou
 (`r`; `/` focuses search; `Esc` clears the selection); hovering a file shows a button that reruns just that file. When a browser law fails, the page is photographed at the shrunk counterexample (`.tslaws/screenshots/`) and the image appears in the report. `--port N` picks the port (default 51205, another if busy);
 `--no-open` keeps it from opening a browser.
 
+Laws appear as the run proceeds: waiting, running (pulsing), then their result, with a progress bar and a Running filter. For browser laws the dashboard shows the page itself, live: while a law runs, the first runs linger for a moment (`browserPauseMs`) and the page is photographed a few times a second, so you see the component the law is driving; afterwards the last frame stays on the law's report.
+
 It listens on 127.0.0.1 only, rejects requests whose Host or Origin is not loopback and the page itself, and cannot accept
 laws: `tslaws accept` stays a person's act at a terminal.
 

@@ -175,6 +175,7 @@ export function runLawGuarded(
       if (message.ok !== undefined) resolve(message.ok);
       else reject(new Error(message.error));
     });
-    current.postMessage({ outDir, law, options });
+    // Functions cannot cross to the worker; it needs only the numbers.
+    current.postMessage({ outDir, law, options: { ...options, onEvent: undefined } });
   });
 }

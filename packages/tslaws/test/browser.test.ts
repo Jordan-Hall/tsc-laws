@@ -164,6 +164,39 @@ describe(
       const r = byName(results, 'waitsForever');
       assert.equal(r.status, 'error', JSON.stringify(r));
       assert.match(r.message ?? '', /may not terminate/);
+
+      it('tell a watcher what is planned, started, finished and, in a browser, what the page looks like', async () => {
+        const opts = project('events', {
+          'src/ui.ts': counter,
+          'src/ui.browser.laws.ts': [
+            "import type { int } from 'tslaws';",
+            "import { assume } from 'tslaws';",
+            "import { click, mount } from 'tslaws/browser';",
+            "import { createCounter } from './ui';",
+            'export law counts(clicks: int) {',
+            '  assume(clicks >= 0 && clicks <= 3);',
+            '  const { button, label } = createCounter(mount());',
+            '  for (let i = 0; i < clicks; i++) click(button);',
+            '  return label.textContent === String(clicks);',
+            '}',
+            '',
+          ].join('\n'),
+        });
+        const seen: string[] = [];
+        let frameBytes = 0;
+        opts.runs = 8;
+        opts.browserPauseMs = 150;
+        opts.onEvent = (event) => {
+          seen.push(event.type);
+          if (event.type === 'frame') frameBytes = Math.max(frameBytes, event.jpeg.length);
+        };
+        await check(opts, true);
+        assert.deepEqual(
+          seen.filter((t) => t !== 'frame'),
+          ['plan', 'start', 'result'],
+        );
+        assert.ok(frameBytes > 500, 'at least one JPEG frame of the page arrived');
+      });
     });
   },
 );
