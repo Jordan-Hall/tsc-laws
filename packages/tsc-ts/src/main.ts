@@ -2,6 +2,7 @@
 import { dirname } from 'node:path';
 import { Worker, isMainThread, workerData } from 'node:worker_threads';
 import { runServer } from './api/server.js';
+import { runLawsManifest } from './laws/manifest.js';
 import { runThread, startThreads, type ThreadData, type ThreadDrivers } from './compiler/thread-entry.js';
 import { mark, markMemory, timeline } from './compiler/timeline.js';
 import {
@@ -39,6 +40,7 @@ else {
     const hr = process.hrtime();
     mark(`main clock ${hr[0]} ${hr[1]}`);
   }
+  if (args[0] === '--laws-manifest') process.exit(runLawsManifest(args.slice(1)));
   if (args[0] !== '--api') startThreads(spawnThread, drivers, args);
   const status = args[0] === '--api' ? runServer(args.slice(1), defaultLibraryPath) : runTsc(args, defaultLibraryPath);
   // Watch mode and `--checkers` keep running until their callbacks exit.
