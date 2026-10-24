@@ -162,6 +162,31 @@ return what undoes it. The page is cleaned between inputs. `tslaws/browser` also
 Browser laws are `tested` (method `browser`), never `proved`: Z3 cannot model a DOM or an `await`. A page that never
 settles is stopped after `--property-timeout` and reported `error`. They sit under the same lock and coverage gate as any law.
 
+### Accessibility laws
+
+`a11y(root?, { rules?, ignore? })` audits an element (default: the page) with [axe-core](https://github.com/dequelabs/axe-core) and
+returns `{ violations, ok }`, each violation being `{ id, impact, help, nodes }` with `nodes` the offending elements' HTML trimmed to
+200 characters. `accessible(root?, options?)` returns just `ok`, so a law can `return await accessible(el)`. `rules` runs only those
+axe rule ids and `ignore` skips some. When `root` is an element, page-level rules (`region`, `landmark-one-main`,
+`page-has-heading-one`) are skipped.
+
+```ts
+export async law cardIsAccessible(n: int) {
+  assume(n >= 0 && n <= 3);
+  return await accessible(renderCard(mount(), n));
+}
+```
+
+`axe-core` is an optional peer dependency, resolved from your project and bundled into the page only when a law reaches it:
+`npm i -D axe-core`. Without it `a11y()` throws `a11y() needs axe-core: npm i -D axe-core`.
+
+### Engines
+
+Chromium is the default. `--browser firefox` or `--browser webkit` (or `TSLAWS_BROWSER_ENGINE`) runs the laws in that engine
+instead. Install Playwright's build with `npx playwright install firefox` (or `webkit`), or point `TSLAWS_BROWSER` at an
+executable of that engine; with neither, the run fails naming that command. Chromium still uses `TSLAWS_BROWSER` or an installed
+Chrome, Edge or Chromium.
+
 ## Stateful laws
 
 Stores, components and caches are tested by driving them with a sequence of operations and comparing them with a simple
@@ -478,5 +503,5 @@ On Windows the native build is `dist/tsc`; copy it to `tsc.exe` to run it.
 - Loop invariants prove partial correctness (a loop that never ends is not flagged), and an array that grows past its room
   is outside the claim.
 - Browser and async laws are tested, not proved.
-- Browser laws need an installed Chromium-family browser; Firefox and WebKit are not driven.
+- Browser laws need an installed browser: Chrome, Edge or Chromium by default, or Playwright's Firefox or WebKit with `--browser`.
 - The compiler needs a native toolchain to build; the `laws-v*` release workflow publishes builds for macOS, Linux and Windows.

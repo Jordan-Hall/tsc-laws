@@ -51,3 +51,66 @@ export function type(field: HTMLInputElement | HTMLTextAreaElement | HTMLSelectE
   fire(field, 'input');
   fire(field, 'change');
 }
+
+export interface A11yViolation {
+  id: string;
+  impact: string | null;
+  help: string;
+  /** Outer HTML of each offending element, trimmed to 200 characters. */
+  nodes: string[];
+}
+
+export interface A11yOptions {
+  /** Run only these axe rule ids. */
+  rules?: string[];
+  /** Skip these axe rule ids. */
+  ignore?: string[];
+}
+
+interface AxeApi {
+  run: (
+    context: Element | Document,
+    options: Record<string, unknown>,
+  ) => Promise<{
+    violations: { id: string; impact?: string | null; help: string; nodes: { html: string }[] }[];
+  }>;
+}
+
+// Rules about a whole page, which an element on its own cannot satisfy.
+const pageRules = ['region', 'page-has-heading-one', 'landmark-one-main'];
+
+/**
+ * Audits `root` (default: the whole page) with axe-core. Needs `axe-core` in the project: `npm i -D axe-core`.
+ * Page-level rules (landmarks, a level-one heading) are skipped when `root` is an element.
+ */
+export async function a11y(
+  root?: Element,
+  options: A11yOptions = {},
+): Promise<{ violations: A11yViolation[]; ok: boolean }> {
+  let axe: AxeApi;
+  try {
+    // @ts-ignore axe-core is an optional peer dependency and may not be installed when this file is compiled.
+    const loaded = (await import('axe-core')) as unknown as { default?: AxeApi } & Partial<AxeApi>;
+    axe = (loaded.default ?? loaded) as AxeApi;
+    if (typeof axe.run !== 'function') throw new Error('not axe');
+  } catch {
+    throw new Error('a11y() needs axe-core: npm i -D axe-core');
+  }
+  const config: Record<string, unknown> = {};
+  if (options.rules !== undefined) config.runOnly = { type: 'rule', values: options.rules };
+  const off = [...(options.ignore ?? []), ...(root !== undefined && options.rules === undefined ? pageRules : [])];
+  if (off.length > 0) config.rules = Object.fromEntries(off.map((id) => [id, { enabled: false }]));
+  const results = await axe.run(root ?? document, config);
+  const violations = results.violations.map((v) => ({
+    id: v.id,
+    impact: v.impact ?? null,
+    help: v.help,
+    nodes: v.nodes.map((n) => (n.html.length > 200 ? `${n.html.slice(0, 197)}...` : n.html)),
+  }));
+  return { violations, ok: violations.length === 0 };
+}
+
+/** True when `root` has no accessibility violations, so a law can `return await accessible(el)`. */
+export async function accessible(root?: Element, options?: A11yOptions): Promise<boolean> {
+  return (await a11y(root, options)).ok;
+}

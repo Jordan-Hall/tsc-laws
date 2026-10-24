@@ -2,9 +2,10 @@
 // each input is sent to a page where the compiled law and the code it checks run against a live DOM.
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { delimiter, join } from 'node:path';
-import { build as bundleWith } from 'esbuild';
-import { chromium, type Browser, type Page } from 'playwright-core';
+import { build as bundleWith, type Plugin } from 'esbuild';
+import { chromium, firefox, webkit, type Browser, type BrowserType, type Page } from 'playwright-core';
 import type * as fc from 'fast-check';
 import { runProperty, summarise, type PropertyOutcome } from './property.ts';
 import type { CheckOptions } from './types.ts';
@@ -46,26 +47,66 @@ function findBrowser(): string | undefined {
   return candidates.find((c) => existsSync(c));
 }
 
-let browser: Promise<Browser> | undefined;
+export type BrowserEngine = 'chromium' | 'firefox' | 'webkit';
+const engines: BrowserEngine[] = ['chromium', 'firefox', 'webkit'];
 
-function launch(): Promise<Browser> {
-  browser ??= (async () => {
-    const executablePath = findBrowser();
-    if (executablePath === undefined)
+/** The engine to use: the requested one, else `TSLAWS_BROWSER_ENGINE`, else chromium. Throws on an unknown name. */
+export function resolveEngine(requested?: string, env: NodeJS.ProcessEnv = process.env): BrowserEngine {
+  const name = (requested ?? env.TSLAWS_BROWSER_ENGINE ?? '').trim().toLowerCase();
+  if (name === '') return 'chromium';
+  if ((engines as string[]).includes(name)) return name as BrowserEngine;
+  throw new Error(`unknown browser engine '${name}': use chromium, firefox or webkit`);
+}
+
+/**
+ * The executable to launch for an engine. Chromium falls back to an installed Chrome or Edge; Firefox and WebKit use
+ * TSLAWS_BROWSER or Playwright's own download. Throws, naming the install command, when there is none.
+ */
+export function engineExecutable(engine: BrowserEngine, env: NodeJS.ProcessEnv = process.env): string {
+  if (engine === 'chromium') {
+    const found = findBrowser();
+    if (found === undefined)
       throw new Error('no browser found: install Chrome, Edge or Chromium, or set TSLAWS_BROWSER to its executable');
-    return chromium.launch({ executablePath, headless: true });
-  })();
-  return browser;
+    return found;
+  }
+  const fromEnv = env.TSLAWS_BROWSER;
+  let path = fromEnv !== undefined && fromEnv !== '' ? fromEnv : undefined;
+  if (path === undefined) {
+    try {
+      path = (engine === 'firefox' ? firefox : webkit).executablePath();
+    } catch {
+      // Playwright has no such browser installed.
+    }
+  }
+  if (path === undefined || !existsSync(path))
+    throw new Error(
+      `no ${engine} installed: run \`npx playwright install ${engine}\` or set TSLAWS_BROWSER to its executable`,
+    );
+  return path;
+}
+
+const browsers = new Map<BrowserEngine, Promise<Browser>>();
+
+function launch(engine: BrowserEngine): Promise<Browser> {
+  let open = browsers.get(engine);
+  if (open === undefined) {
+    const type: BrowserType = { chromium, firefox, webkit }[engine];
+    open = (async () => type.launch({ executablePath: engineExecutable(engine), headless: true }))();
+    open.catch(() => browsers.delete(engine));
+    browsers.set(engine, open);
+  }
+  return open;
 }
 
 export async function closeBrowser(): Promise<void> {
-  const open = browser;
-  browser = undefined;
-  if (open === undefined) return;
-  try {
-    await (await open).close();
-  } catch {
-    // Already gone.
+  const open = [...browsers.values()];
+  browsers.clear();
+  for (const one of open) {
+    try {
+      await (await one).close();
+    } catch {
+      // Already gone.
+    }
   }
 }
 
@@ -92,8 +133,26 @@ window.__runLaw = async (name, args, keep, pause) => {
   }
 };`;
 
+// axe-core is an optional peer dependency: bundle the project's copy when it has one, else leave the import for the page
+// to fail on (a11y() turns that into a clear message), so projects without it still bundle.
+function axePlugin(cwd: string): Plugin {
+  return {
+    name: 'tslaws-axe-core',
+    setup(build) {
+      build.onResolve({ filter: /^axe-core$/ }, () => {
+        try {
+          return { path: createRequire(join(cwd, 'package.json')).resolve('axe-core') };
+        } catch {
+          return { path: 'axe-core', external: true };
+        }
+      });
+    },
+  };
+}
+
 async function bundleOf(jsFile: string, cwd: string): Promise<string> {
   const result = await bundleWith({
+    plugins: [axePlugin(cwd)],
     entryPoints: [jsFile],
     bundle: true,
     write: false,
@@ -149,7 +208,7 @@ async function capture(
 /** Property-tests one law in a page; `'timeout'` when it does not finish within `options.propertyTimeoutMs`. */
 export async function runBrowserLaw(law: BrowserLaw, options: CheckOptions): Promise<PropertyOutcome | 'timeout'> {
   const code = await bundleOf(law.jsFile, options.cwd);
-  const page: Page = await (await launch()).newPage();
+  const page: Page = await (await launch(resolveEngine(options.browser))).newPage();
   // A watcher needs only the first few runs to linger; the rest should not eat the time limit.
   let calls = 0;
   let timedOut = false;

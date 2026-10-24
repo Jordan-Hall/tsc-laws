@@ -37,6 +37,14 @@
     "typescript": "5.9",
     "z3-solver": "^4.15.0"
   },
+  "peerDependencies": {
+    "axe-core": "^4.0.0"
+  },
+  "peerDependenciesMeta": {
+    "axe-core": {
+      "optional": true
+    }
+  },
   "devDependencies": {
     "@types/node": "^24.0.0"
   }

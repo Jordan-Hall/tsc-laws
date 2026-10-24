@@ -17,6 +17,8 @@
   export, only laws call laws). Laws may be `async`.
 - **Browser laws:** `*.browser.laws.ts` runs in a real Chromium-family browser with inputs generated in Node; `tslaws/browser`
   helpers (`mount`, `settle`, `click`, `type`, `fire`) are framework-agnostic.
+- **Accessibility and engines for browser laws:** `a11y` and `accessible` audit a mounted component with axe-core (optional peer
+  dependency), and `--browser chromium|firefox|webkit` (or `TSLAWS_BROWSER_ENGINE`) picks the engine.
 - **`forall` and `exists`:** quantifier helpers over arrays for `assume`, law results and `invariant`s; the prover lowers them over the
   array slots, so claims that use them are `bounded`.
 - **Stateful laws:** `runModel` and `runModelAsync` (from `tslaws`) drive a real object and a simple model through a generated

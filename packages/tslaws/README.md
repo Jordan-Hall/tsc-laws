@@ -137,6 +137,7 @@ A law file named `*.browser.laws.ts` runs in a real browser (Chrome, Edge or Chr
 executable). Node generates and shrinks the inputs; each one is sent to a page where the compiled law and your code run
 against a live DOM. The law may be `async`. `tslaws/browser` has `mount`, `settle`, `click`, `type` and `fire`, and works with
 any framework or none: `mount(el => render(el))` accepts whatever renders into an element and may return its unmount.
+`a11y` and `accessible` audit a mounted component with the optional `axe-core` peer dependency, and `--browser firefox|webkit` picks another engine (`npx playwright install firefox`).
 Browser laws are `tested`, never `proved`. See [docs/laws.md](../../docs/laws.md#browser-laws).
 
 - **Stateful laws:** a law over `ops: Op[]` (a union type) can use `runModel` or `runModelAsync` to apply the operations to the
