@@ -18,6 +18,9 @@
   helpers (`mount`, `settle`, `click`, `type`, `fire`) are framework-agnostic.
 - **`forall` and `exists`:** quantifier helpers over arrays for `assume`, law results and `invariant`s; the prover lowers them over the
   array slots, so claims that use them are `bounded`.
+- **Stateful laws:** `runModel` and `runModelAsync` (from `tslaws`) drive a real object and a simple model through a generated
+  operation list and compare them after every step; a failing sequence shrinks to the shortest one, and `modelFailure()` names
+  the step that diverged.
 - **Invariant loops** may `return`, `break` and `continue`, and may change arrays and records. Property tests run in a
   killable worker (`--property-timeout`). A `laws.yml` workflow tests on Linux and Windows and publishes builds on `laws-v*` tags.
 - **npm:** `npm i tslaws` brings the compiler for the machine (`tslaws-compiler-<platform>` optional dependencies); the release workflow publishes them with provenance when `NPM_PUBLISH` is set. See RELEASING-LAWS.md.

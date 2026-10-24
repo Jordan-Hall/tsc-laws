@@ -162,6 +162,67 @@ return what undoes it. The page is cleaned between inputs. `tslaws/browser` also
 Browser laws are `tested` (method `browser`), never `proved`: Z3 cannot model a DOM or an `await`. A page that never
 settles is stopped after `--property-timeout` and reported `error`. They sit under the same lock and coverage gate as any law.
 
+## Stateful laws
+
+Stores, components and caches are tested by driving them with a sequence of operations and comparing them with a simple
+model. A law can already take an array of a union type, so the operations are an ordinary input: the runner derives the
+generator from the type and fast-check shrinks a failing array to the shortest one.
+
+```ts
+import { runModel } from 'tslaws';
+import { Counter } from './counter';
+
+export law counterAgreesWithModel(ops: ('inc' | 'dec' | 'reset')[]) {
+  return runModel({
+    ops,
+    real: new Counter(), // the thing under test, already created
+    model: 0, // the reference model's initial state
+    apply: (counter, model, op) => {
+      // do the op on the real thing, return the next model state
+      if (op === 'inc') { counter.inc(); return model + 1; }
+      if (op === 'dec') { counter.dec(); return model - 1; }
+      counter.reset();
+      return 0;
+    },
+    agree: (counter, model) => counter.n === model, // checked before the first op and after every op
+  });
+}
+```
+
+`runModel` returns false at the first disagreement. `modelFailure()` (from `tslaws`) then gives `{ step, op }` for the latest
+call (`step` is -1 when real and model disagreed before any op), which is useful in a helper or a debugger; the report
+format is unchanged. `runModelAsync` is the same with `apply` and `agree` allowed to return promises. Both are plain code
+with no Node-only imports, so they work in browser bundles.
+
+Because the operations are the law's input, a bug that needs a particular history is found by random search and then
+shrunk. If `reset` fails to reset when the count is exactly 3, the counterexample is `[["inc","inc","inc","reset"]]`, not
+the long sequence that first failed. Keep the operation union small so shrinking can reach a minimal sequence. Stateful
+laws are `tested`: the prover does not model `apply` callbacks.
+
+In a browser law the operations are clicks and `apply` waits for the page to settle:
+
+```ts
+// src/counter.browser.laws.ts
+import { runModelAsync } from 'tslaws';
+import { click, mount, settle } from 'tslaws/browser';
+import { createCounter } from './counter';
+
+export async law counterUiAgreesWithModel(ops: ('inc' | 'dec')[]) {
+  const ui = createCounter(mount());
+  return runModelAsync({
+    ops,
+    real: ui,
+    model: 0,
+    apply: async (ui, model, op) => {
+      click(op === 'inc' ? ui.incButton : ui.decButton);
+      await settle();
+      return op === 'inc' ? model + 1 : model - 1;
+    },
+    agree: (ui, model) => ui.label.textContent === String(model),
+  });
+}
+```
+
 ## The dashboard
 
 `tslaws ui` opens a local dashboard in the manner of Vitest's UI: a sidebar tree of files and laws with status icons, filters

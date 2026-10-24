@@ -139,6 +139,10 @@ against a live DOM. The law may be `async`. `tslaws/browser` has `mount`, `settl
 any framework or none: `mount(el => render(el))` accepts whatever renders into an element and may return its unmount.
 Browser laws are `tested`, never `proved`. See [docs/laws.md](../../docs/laws.md#browser-laws).
 
+- **Stateful laws:** a law over `ops: Op[]` (a union type) can use `runModel` or `runModelAsync` to apply the operations to the
+  real thing and to a simple model and compare them after every step. Failing sequences shrink to the shortest one. See
+  [docs/laws.md](../../docs/laws.md#stateful-laws).
+
 ## Dashboard
 
 `tslaws ui [files...] [--port N] [--no-open]` serves a local dashboard (127.0.0.1 only) like Vitest's UI: a tree of files and laws,
