@@ -175,6 +175,16 @@ Laws appear as the run proceeds: waiting, running (pulsing), then their result, 
 It listens on 127.0.0.1 only, rejects requests whose Host or Origin is not loopback and the page itself, and cannot accept
 laws: `tslaws accept` stays a person's act at a terminal.
 
+## Editor integration
+
+`packages/vscode-tslaws` is a VS Code extension with no bundled dependencies. Above each `law` in a `*.laws.ts` file it shows a
+CodeLens with the last status (`proved`, `bounded`, `tested`, `open`, `failed`, `uncovered`, `tampered`, `error` or `not run`),
+a `Run` lens, and for a failure the shrunk counterexample. Failed, open, tampered and error laws appear as problems on the
+law's line with the message, counterexample and hint. A status-bar item shows totals (`laws: 3 proved, 1 failed`) and opens
+the dashboard. Commands: `tslaws.check`, `tslaws.runFile`, `tslaws.openDashboard` (runs `tslaws ui --no-open --port 0`), and
+`tslaws.accept`, which only types `npx tslaws accept` into a terminal; a person presses Enter. Settings: `tslaws.runOnSave`
+(default on), `tslaws.executable` and `tslaws.args`. It runs `node_modules/.bin/tslaws`, else `npx tslaws`.
+
 ## Statuses
 
 | Status      | Meaning                                                                                                           | Passes? |

@@ -23,7 +23,7 @@
   annotations and, when `GITHUB_STEP_SUMMARY` is set, a results table for the job summary. Exit status is unchanged.
 - **`tslaws ui`:** a local, loopback-only dashboard in the manner of Vitest's UI, with live progress (waiting, running, result), a live view of the browser page while a browser law runs, a per-file rerun, and a screenshot of the page at a failing browser law's counterexample.
 - **`tslaws mutate`:** mutation testing. Mutates the covered code, re-runs the laws on each mutant in a scratch copy, and reports survivors (laws too weak) with a mutation score; exit 0 only when every tried mutant is killed.
-- **`vscode-tslaws`:** a TextMate injection grammar for `law`.
+- **`vscode-tslaws`:** a TextMate injection grammar for `law`, and an extension: CodeLens status and a counterexample lens above each law in `*.laws.ts`, problems for failed, open, tampered and error laws, a status-bar total that opens the dashboard, the commands `tslaws.check`, `tslaws.runFile`, `tslaws.openDashboard` and `tslaws.accept` (types the command in a terminal and never runs it), and a debounced re-run on save.
 - **Tests:** Windows fixes in the upstream test harness (extensionless oracles, slashed paths, fixture directories).
 
 ## 0.0.9
