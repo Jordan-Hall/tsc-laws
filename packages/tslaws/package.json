@@ -26,7 +26,7 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "node --test test/*.test.ts",
+    "test": "node --test --test-concurrency=1 test/*.test.ts",
     "check": "node bin/tslaws.js check",
     "check:watch": "node bin/tslaws.js check --watch"
   },

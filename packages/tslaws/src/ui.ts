@@ -8,14 +8,14 @@ import { basename, join, resolve, sep } from 'node:path';
 import type { CheckReport } from './check.ts';
 import { hintFor } from './hints.ts';
 import { page } from './uiPage.ts';
-import type { LawResult } from './types.ts';
+import type { LawEvent, LawResult, LawStatus } from './types.ts';
 
 export interface UiOptions {
   cwd: string;
   port: number;
   open: boolean;
   /** Runs the check of the project, or of just these law files. */
-  run: (files?: string[]) => Promise<CheckReport>;
+  run: (files: string[] | undefined, onEvent: (event: LawEvent) => void) => Promise<CheckReport>;
   log: (line: string) => void;
 }
 
@@ -31,9 +31,11 @@ interface State {
     compileOk: boolean;
     compileDiagnostics: string;
     lockMissing: boolean;
-    results: (LawResult & { hint?: string })[];
+    results: (Omit<LawResult, 'status'> & { status: LawStatus | 'pending' | 'running'; hint?: string })[];
   };
   sources: Record<string, string>;
+  /** Counts the frames received of each browser law, so the page knows when to reload the picture. */
+  frames: Record<string, number>;
 }
 
 const ignored = new Set(['node_modules', '.tslaws', '.git']);
@@ -68,7 +70,9 @@ function openInBrowser(url: string): void {
 /** Serves the dashboard until Ctrl+C. Resolves 0. */
 export async function serveUi(options: UiOptions): Promise<number> {
   const cwd = resolve(options.cwd);
-  const state: State = { project: basename(cwd), running: false, runs: 0, sources: {} };
+  const state: State = { project: basename(cwd), running: false, runs: 0, sources: {}, frames: {} };
+  const latestFrame = new Map<string, Buffer>();
+  let pushTimer: NodeJS.Timeout | undefined;
   const clients = new Set<ServerResponse>();
   let queued = false;
 
@@ -76,6 +80,15 @@ export async function serveUi(options: UiOptions): Promise<number> {
     const data = `data: ${JSON.stringify(state)}\n\n`;
     for (const client of clients) client.write(data);
   };
+  // Events can arrive many times a second; the page hears of them at most ten times a second.
+  const pushSoon = (): void => {
+    if (pushTimer !== undefined) return;
+    pushTimer = setTimeout(() => {
+      pushTimer = undefined;
+      push();
+    }, 100);
+  };
+  const keyOf = (file: string, name: string): string => `${file}::${name}`;
 
   const cycle = async (only?: string): Promise<void> => {
     if (state.running) {
@@ -89,7 +102,37 @@ export async function serveUi(options: UiOptions): Promise<number> {
       push();
       const started = Date.now();
       try {
-        const report = await options.run(only === undefined ? undefined : [only]);
+        const heldBack =
+          only === undefined || state.report === undefined ? [] : state.report.results.filter((r) => r.file !== only);
+        const live = (event: LawEvent): void => {
+          if (event.type === 'frame') {
+            const key = keyOf(event.file, event.name);
+            latestFrame.set(key, event.jpeg);
+            state.frames[key] = (state.frames[key] ?? 0) + 1;
+          } else if (event.type === 'plan') {
+            const planned = event.laws.map((l) => ({ ...l, status: 'pending' as const, method: 'waiting' }));
+            state.report = {
+              ok: false,
+              compileOk: true,
+              compileDiagnostics: '',
+              lockMissing: false,
+              results: [...heldBack, ...planned],
+            };
+          } else if (state.report !== undefined) {
+            const list = state.report.results;
+            if (event.type === 'start') {
+              const at = list.findIndex((r) => r.file === event.file && r.name === event.name);
+              if (at >= 0) list[at] = { ...list[at]!, status: 'running', method: 'running' };
+            } else {
+              const at = list.findIndex((r) => r.file === event.result.file && r.name === event.result.name);
+              const next = { ...event.result, hint: hintFor(event.result) };
+              if (at >= 0) list[at] = next;
+              else list.push(next);
+            }
+          }
+          pushSoon();
+        };
+        const report = await options.run(only === undefined ? undefined : [only], live);
         const fresh = report.results.map((r) => ({ ...r, hint: hintFor(r) }));
         // One file's rerun replaces that file's results and keeps the others (and the coverage verdicts) as they were.
         const kept =
@@ -143,6 +186,10 @@ export async function serveUi(options: UiOptions): Promise<number> {
       response.write(`data: ${JSON.stringify(state)}\n\n`);
       clients.add(response);
       request.on('close', () => clients.delete(response));
+    } else if (request.method === 'GET' && url.pathname === '/api/frame') {
+      const frame = latestFrame.get(keyOf(url.searchParams.get('file') ?? '', url.searchParams.get('name') ?? ''));
+      if (frame === undefined) response.writeHead(404).end('not found');
+      else response.writeHead(200, { 'content-type': 'image/jpeg', 'cache-control': 'no-store' }).end(frame);
     } else if (request.method === 'GET' && url.pathname === '/api/screenshot') {
       // Only the PNGs the runner writes are served.
       const file = resolve(cwd, url.searchParams.get('path') ?? '');

@@ -62,7 +62,7 @@ describe('tslaws ui', { skip: compiler === undefined ? 'set TSC_LAWS_BIN' : fals
       cwd,
       port: 0,
       open: false,
-      run: () => check(opts, true),
+      run: (_only, onEvent) => check({ ...opts, onEvent }, true),
       log: (line) => (announced = line),
     });
     for (let i = 0; i < 100 && announced === ''; i++) await new Promise((r) => setTimeout(r, 50));

@@ -1,4 +1,4 @@
-import { spawnSync } from 'node:child_process';
+import { spawnSync, type SpawnSyncOptionsWithStringEncoding, type SpawnSyncReturns } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import type { ManifestLaw } from './types.ts';
@@ -8,6 +8,27 @@ export interface BuildResult {
   /** Diagnostics the compiler printed; empty when the files type-check. */
   diagnostics: string;
   ok: boolean;
+}
+
+/**
+ * Runs the compiler, trying again when the system could not start it. On Windows a freshly built executable can be
+ * briefly unavailable (a scanner holds it, the machine is out of handles), which surfaces as ENOENT or UNKNOWN.
+ */
+function launch(
+  compiler: string,
+  args: string[],
+  options: SpawnSyncOptionsWithStringEncoding,
+): SpawnSyncReturns<string> {
+  let run = spawnSync(compiler, args, options);
+  for (
+    let attempt = 0;
+    attempt < 4 && run.error !== undefined && /UNKNOWN|EBUSY|EAGAIN|EMFILE/.test(String(run.error));
+    attempt += 1
+  ) {
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 250 * (attempt + 1));
+    run = spawnSync(compiler, args, options);
+  }
+  return run;
 }
 
 /** The compiler finds its lib files in TSC_TS_LIB_DIR; without it, use the TypeScript 7 libs scriptc ships. */
@@ -27,7 +48,7 @@ function compilerEnv(cwd: string): NodeJS.ProcessEnv {
 
 /** Lists the laws of `files` with the problems that stop them running. */
 export function readManifest(compiler: string, files: string[], cwd: string): ManifestLaw[] {
-  const run = spawnSync(compiler, ['--laws-manifest', ...files], {
+  const run = launch(compiler, ['--laws-manifest', ...files], {
     cwd,
     encoding: 'utf8',
     maxBuffer: 64 << 20,
@@ -64,7 +85,17 @@ export function build(compiler: string, files: string[], cwd: string): BuildResu
     outDir,
     ...files,
   ];
-  const run = spawnSync(compiler, args, { cwd, encoding: 'utf8', maxBuffer: 64 << 20, env: compilerEnv(cwd) });
+  let run = launch(compiler, args, { cwd, encoding: 'utf8', maxBuffer: 64 << 20, env: compilerEnv(cwd) });
+  // A compiler that dies without a word (out of memory on a busy machine) is run again; a type error always says so.
+  for (
+    let attempt = 0;
+    attempt < 2 &&
+    run.error === undefined &&
+    run.status !== 0 &&
+    `${run.stdout ?? ''}${run.stderr ?? ''}`.trim() === '';
+    attempt += 1
+  )
+    run = launch(compiler, args, { cwd, encoding: 'utf8', maxBuffer: 64 << 20, env: compilerEnv(cwd) });
   if (run.error !== undefined) throw new Error(`cannot run ${compiler}: ${run.error.message}`);
   return { outDir, diagnostics: `${run.stdout ?? ''}${run.stderr ?? ''}`.trim(), ok: run.status === 0 };
 }

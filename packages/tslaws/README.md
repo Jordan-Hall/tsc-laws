@@ -135,7 +135,7 @@ Browser laws are `tested`, never `proved`. See [docs/laws.md](../../docs/laws.md
 ## Dashboard
 
 `tslaws ui [files...] [--port N] [--no-open]` serves a local dashboard (127.0.0.1 only) like Vitest's UI: a tree of files and laws,
-status filters, search, a report with a copyable reproduce command, the law's source, and live reruns on save.
+live progress, a live view of the browser page during browser laws, status filters, search, a report with a copyable reproduce command, the law's source, and live reruns on save.
 See [docs/laws.md](../../docs/laws.md#the-dashboard).
 
 ## Agents cannot move the goalposts

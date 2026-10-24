@@ -43,4 +43,14 @@ export interface CheckOptions {
   proofTimeoutMs: number;
   /** Longest a law's property test may run before it counts as non-terminating. Default 30000. */
   propertyTimeoutMs?: number;
+  /** How long a browser law's page stays as the law left it before it is cleaned, so a watcher can see it. Default 0. */
+  browserPauseMs?: number;
+  /** Told as the check proceeds: which laws there are, which is running, each result, and frames of a browser page. */
+  onEvent?: (event: LawEvent) => void;
 }
+
+export type LawEvent =
+  | { type: 'plan'; laws: { file: string; name: string; line: number }[] }
+  | { type: 'start'; file: string; name: string }
+  | { type: 'result'; result: LawResult }
+  | { type: 'frame'; file: string; name: string; jpeg: Buffer };

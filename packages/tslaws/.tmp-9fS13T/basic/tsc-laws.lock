@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "laws": {
+    "src/f.laws.ts::commutes": "a1ef8f32339be75d59e2c295feeac14d7de2a13181a5ca0f7a47b51b352a87d7",
+    "src/f.laws.ts::revTwice": "cee38ac85dab7c199dbcb1f51aa422ae9606fcdef2f266a940642b7d4c2a1a42"
+  },
+  "exempt": []
+}
