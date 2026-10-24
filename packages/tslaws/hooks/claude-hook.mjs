@@ -13,7 +13,7 @@ const event = input.hook_event_name;
 
 if (event === 'PreToolUse') {
   const command = input.tool_input?.command ?? '';
-  if (input.tool_name !== 'Bash' || !/\bgit\s+commit\b/.test(command)) process.exit(0);
+  if (input.tool_name !== 'Bash' || !/\bgit\b[^;&|\n]*?\bcommit\b/.test(command)) process.exit(0);
 } else if (event === 'Stop') {
   if (input.stop_hook_active) process.exit(0);
 } else {
