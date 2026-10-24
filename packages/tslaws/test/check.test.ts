@@ -129,6 +129,26 @@ describe('tslaws check', { skip: compiler === undefined ? 'set TSC_LAWS_BIN' : f
     assert.equal(byName(results, 'absOfSmall').status, 'proved');
   });
 
+  it('proves laws over records of numbers', async () => {
+    const cwd = project('records', {
+      'src/f.ts':
+        'export interface P { x: number; y: number }\nexport const dist = (p: P, q: P): number => Math.abs(p.x - q.x) + Math.abs(p.y - q.y);\n',
+      'src/f.laws.ts': [
+        "import { dist, type P } from './f';",
+        'export law symmetric(p: P, q: P) => dist(p, q) === dist(q, p);',
+        'export law nonNegative(p: P, q: P) => dist(p, q) >= 0;',
+        'export law wrong(p: P, q: P) => dist(p, q) > 0;',
+        '',
+      ].join('\n'),
+    });
+    const opts = options(cwd, ['src/f.laws.ts']);
+    lockNow(opts);
+    const { results } = await check(opts, true);
+    assert.equal(byName(results, 'symmetric').status, 'proved');
+    assert.equal(byName(results, 'nonNegative').status, 'proved');
+    assert.equal(byName(results, 'wrong').status, 'failed');
+  });
+
   it('rejects laws that changed, were added or removed since the lock', async () => {
     const cwd = project('tamper', {
       'src/f.ts': 'export const id = (a: number): number => a;\n',
@@ -151,6 +171,17 @@ describe('tslaws check', { skip: compiler === undefined ? 'set TSC_LAWS_BIN' : f
 
     writeFileSync(join(cwd, 'src/f.laws.ts'), "import { id } from './f';\n");
     assert.equal(byName((await check(opts, true)).results, 'keeps').status, 'tampered');
+  });
+
+  it('checks proposed laws without a lock', async () => {
+    const cwd = project('proposed', {
+      'src/f.proposed.laws.ts': 'export law t(a: number) => a === a;
+',
+    });
+    const opts = options(cwd, ['src/f.proposed.laws.ts']);
+    const report = await check(opts, false);
+    assert.equal(byName(report.results, 't').status, 'proved');
+    assert.equal(report.ok, true);
   });
 
   it('fails when there is no lock', async () => {

@@ -19,8 +19,8 @@ export type NumberModel = 'real' | 'fp';
 
 export interface ProveInput {
   law: ManifestLaw;
-  /** The declared type of each parameter, as the compiler prints it. */
-  paramTypes: string[];
+  /** The shape of each parameter's type; `undefined` when the type is not modelled. */
+  shapes: Shape[];
   /** The compiled JavaScript file of the law. */
   jsFile: string;
   model: NumberModel;
@@ -29,13 +29,18 @@ export interface ProveInput {
   holds: (inputs: unknown[]) => boolean;
 }
 
+/** The part of a parameter type the prover models: numbers, booleans and records of them. */
+export type Shape = 'number' | 'boolean' | { fields: Record<string, Shape> } | undefined;
+
 class Unsupported extends Error {}
 
-type Sort = 'num' | 'bool';
+type Sort = 'num' | 'bool' | 'rec';
 
 interface Term {
   smt: string;
   sort: Sort;
+  /** The members of a record: records are flattened to one constant per field. */
+  fields?: Map<string, Term>;
 }
 
 type FunctionNode = ts.FunctionDeclaration | ts.ArrowFunction | ts.FunctionExpression;
@@ -151,7 +156,8 @@ class Lowering {
         const rest = statement.elseStatement !== undefined ? [statement.elseStatement] : statements.slice(i + 1);
         const elseResult = this.branch(file, rest.length === 1 ? rest[0]! : ts.factory.createBlock(rest as ts.Statement[]), scope);
         if (thenResult === undefined || elseResult === undefined) throw new Unsupported('both branches of an if must return a value');
-        if (thenResult.sort !== elseResult.sort) throw new Unsupported('branches return different kinds of value');
+        if (thenResult.sort !== elseResult.sort || thenResult.sort === 'rec')
+          throw new Unsupported('branches return different kinds of value or records');
         return { smt: `(ite ${condition} ${thenResult.smt} ${elseResult.smt})`, sort: thenResult.sort };
       } else if (ts.isBlock(statement)) {
         return this.block(file, statement.statements, scope, false);
@@ -230,8 +236,14 @@ class Lowering {
       const condition = this.boolean(this.expression(file, node.condition, env));
       const a = this.expression(file, node.whenTrue, env);
       const b = this.expression(file, node.whenFalse, env);
-      if (a.sort !== b.sort) throw new Unsupported('conditional branches differ in kind');
+      if (a.sort !== b.sort || a.sort === 'rec') throw new Unsupported('conditional branches differ in kind or are records');
       return { smt: `(ite ${condition} ${a.smt} ${b.smt})`, sort: a.sort };
+    }
+    if (ts.isPropertyAccessExpression(node)) {
+      const base = this.expression(file, node.expression, env);
+      const field = base.fields?.get(node.name.text);
+      if (base.sort !== 'rec' || field === undefined) throw new Unsupported(`property ${node.name.text} is not modelled`);
+      return field;
     }
     if (ts.isBinaryExpression(node)) return this.binary(file, node, env);
     if (ts.isCallExpression(node)) return this.call(file, node, env);
@@ -265,7 +277,7 @@ class Lowering {
         return comparison('>=');
       case ts.SyntaxKind.EqualsEqualsEqualsToken:
       case ts.SyntaxKind.ExclamationEqualsEqualsToken: {
-        if (left.sort !== right.sort) throw new Unsupported('comparison of a number with a boolean');
+        if (left.sort !== right.sort || left.sort === 'rec') throw new Unsupported('comparison of unlike values or records');
         const equal = `(= ${left.smt} ${right.smt})`;
         return { smt: node.operatorToken.kind === ts.SyntaxKind.EqualsEqualsEqualsToken ? equal : `(not ${equal})`, sort: 'bool' };
       }
@@ -315,10 +327,38 @@ class Lowering {
   }
 }
 
-function sortOf(typeName: string): Sort {
-  if (typeName === 'number') return 'num';
-  if (typeName === 'boolean') return 'bool';
-  throw new Unsupported(`parameter type ${typeName} is not modelled`);
+/** Declares the constants of a parameter, flattening a record to one per field. */
+function declareParam(name: string, shape: Shape, declarations: string[]): Term {
+  if (shape === 'number') {
+    declarations.push(`(declare-const ${name} Real)`);
+    return { smt: name, sort: 'num' };
+  }
+  if (shape === 'boolean') {
+    declarations.push(`(declare-const ${name} Bool)`);
+    return { smt: name, sort: 'bool' };
+  }
+  if (shape === undefined)
+    throw new Unsupported('a parameter type is not modelled (only numbers, booleans and records of them)');
+  const fields = new Map<string, Term>();
+  for (const [field, fieldShape] of Object.entries(shape.fields))
+    fields.set(field, declareParam(`${name}__${field}`, fieldShape, declarations));
+  return { smt: name, sort: 'rec', fields };
+}
+
+/** The JavaScript value a model gives a parameter. */
+function valueOfParam(name: string, shape: Shape, model: Map<string, number | boolean>): unknown {
+  if (shape === 'number') return model.get(name) ?? 0;
+  if (shape === 'boolean') return model.get(name) ?? false;
+  const value: Record<string, unknown> = {};
+  if (shape !== undefined)
+    for (const [field, fieldShape] of Object.entries(shape.fields))
+      value[field] = valueOfParam(`${name}__${field}`, fieldShape, model);
+  return value;
+}
+
+function declaredNames(name: string, shape: Shape): string[] {
+  if (shape === 'number' || shape === 'boolean' || shape === undefined) return [name];
+  return Object.entries(shape.fields).flatMap(([field, fieldShape]) => declaredNames(`${name}__${field}`, fieldShape));
 }
 
 /** Reads a Z3 value: `3.0`, `(- 1.5)`, `(/ 1.0 3.0)`, `true`. */
@@ -371,10 +411,10 @@ export async function proveLaw(input: ProveInput): Promise<ProofResult> {
       (s): s is ts.FunctionDeclaration => ts.isFunctionDeclaration(s) && s.name?.text === input.law.name,
     );
     if (fn === undefined || fn.body === undefined) throw new Unsupported('law function not found in the compiled output');
-    if (fn.parameters.length !== input.paramTypes.length) throw new Unsupported('parameter count mismatch');
+    if (fn.parameters.length !== input.shapes.length) throw new Unsupported('parameter count mismatch');
     const names = fn.parameters.map((p) => (ts.isIdentifier(p.name) ? p.name.text : ''));
-    const declare = names.map((name, i) => `(declare-const ${name} ${sortOf(input.paramTypes[i]!) === 'num' ? 'Real' : 'Bool'})`);
-    const params = names.map((name, i): Term => ({ smt: name, sort: sortOf(input.paramTypes[i]!) }));
+    const declare: string[] = [];
+    const params = names.map((name, i) => declareParam(name, input.shapes[i], declare));
     const result = lowering.lawResult(input.jsFile, fn, params);
     // A law that returns a number (or nothing) holds as long as it does not throw, which lowering cannot see.
     const holds = result === undefined || result.sort === 'num' ? 'true' : result.smt;
@@ -392,8 +432,11 @@ export async function proveLaw(input: ProveInput): Promise<ProofResult> {
     if (output.startsWith('unsat')) return { kind: 'proved', model: input.model };
     if (output.startsWith('unknown')) throw new Unsupported(`solver gave up within ${input.timeoutMs} ms`);
     if (!output.startsWith('sat')) throw new Unsupported(`solver said: ${output.split('\n')[0]}`);
-    const model = parseModel(output.slice(3), names);
-    const inputs = names.map((name) => model.get(name) ?? 0);
+    const model = parseModel(
+      output.slice(3),
+      names.flatMap((name, i) => declaredNames(name, input.shapes[i])),
+    );
+    const inputs = names.map((name, i) => valueOfParam(name, input.shapes[i], model));
     // A model over reals may not be a double that fails in JavaScript; only a reproduced failure is a refutation.
     if (input.holds(inputs)) throw new Unsupported(`solver model ${JSON.stringify(inputs)} does not fail in JavaScript (float effects)`);
     return { kind: 'refuted', model: names.map((n, i) => `${n} = ${JSON.stringify(inputs[i])}`).join(', '), inputs };

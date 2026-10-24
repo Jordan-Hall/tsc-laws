@@ -6,7 +6,7 @@ import ts from 'typescript';
 import { build, readManifest } from './compile.ts';
 import { GeneratorFactory, UnsupportedType } from './generators.ts';
 import { compareLock, lawKey, readLock } from './lock.ts';
-import { proveLaw } from './smt.ts';
+import { proveLaw, type Shape } from './smt.ts';
 import type { CheckOptions, LawResult, ManifestLaw } from './types.ts';
 
 export interface CheckReport {
@@ -20,7 +20,7 @@ export interface CheckReport {
 
 interface LawTypes {
   generators: fc.Arbitrary<unknown>[];
-  typeNames: string[];
+  shapes: Shape[];
 }
 
 function dtsPath(outDir: string, file: string): string {
@@ -29,6 +29,23 @@ function dtsPath(outDir: string, file: string): string {
 
 function jsPath(outDir: string, file: string): string {
   return join(outDir, file.replace(/\.(ts|mts|cts)$/, '.js'));
+}
+
+/** What the prover models of `type`: numbers, booleans and records of them. */
+function shapeOf(checker: ts.TypeChecker, type: ts.Type): Shape {
+  if (type.flags & ts.TypeFlags.Number) return 'number';
+  if (type.flags & ts.TypeFlags.Boolean) return 'boolean';
+  if (!(type.flags & ts.TypeFlags.Object) || checker.isArrayType(type) || checker.isTupleType(type)) return undefined;
+  if (type.getCallSignatures().length > 0 || checker.getIndexInfosOfType(type).length > 0) return undefined;
+  const fields: Record<string, Shape> = {};
+  for (const property of checker.getPropertiesOfType(type)) {
+    const declaration = property.valueDeclaration ?? property.declarations?.[0];
+    if (declaration === undefined || property.flags & ts.SymbolFlags.Optional) return undefined;
+    const shape = shapeOf(checker, checker.getTypeOfSymbolAtLocation(property, declaration));
+    if (shape === undefined) return undefined;
+    fields[property.getName()] = shape;
+  }
+  return { fields };
 }
 
 function typesOf(program: ts.Program, outDir: string, law: ManifestLaw): LawTypes {
@@ -43,16 +60,16 @@ function typesOf(program: ts.Program, outDir: string, law: ManifestLaw): LawType
   if (signature === undefined) throw new UnsupportedType(`law ${law.name} is not a function`);
   const factory = new GeneratorFactory(checker);
   const generators: fc.Arbitrary<unknown>[] = [];
-  const typeNames: string[] = [];
+  const shapes: Shape[] = [];
   for (const parameter of signature.getParameters()) {
     const declaration = parameter.valueDeclaration ?? parameter.declarations?.[0];
     if (declaration === undefined) throw new UnsupportedType(`parameter ${parameter.getName()} has no declaration`);
     const type = checker.getTypeOfSymbolAtLocation(parameter, declaration);
-    typeNames.push(checker.typeToString(type));
+    shapes.push(shapeOf(checker, type));
     const optional = (parameter.flags & ts.SymbolFlags.Optional) !== 0;
     generators.push(factory.of(optional ? checker.getNonNullableType(type) : type));
   }
-  return { generators, typeNames };
+  return { generators, shapes };
 }
 
 function isDiscard(error: unknown): boolean {
@@ -194,7 +211,7 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
     };
     const proof = await proveLaw({
       law,
-      paramTypes: types.typeNames,
+      shapes: types.shapes,
       jsFile: jsPath(built.outDir, law.file),
       model: options.numbers,
       timeoutMs: options.proofTimeoutMs,
