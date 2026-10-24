@@ -281,8 +281,24 @@ function startWorker(): Worker {
   return w;
 }
 
-/** Runs `query` (and `values` when it is sat) in Z3, giving up on the whole worker after `timeoutMs` + a grace period. */
+/**
+ * Runs the query, and runs it again in a fresh worker when the solver itself fell over (a WebAssembly allocation that
+ * fails on a machine short of memory). A query that merely ran too long is not retried: it would only run long again.
+ */
 async function solve(query: string, values: string, timeoutMs: number): Promise<{ out: string; vals: string }> {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await solveOnce(query, values, timeoutMs);
+    } catch (error) {
+      if (attempt >= 2 || !(error instanceof Unsupported) || !error.message.startsWith('the solver crashed'))
+        throw error;
+      await new Promise((done) => setTimeout(done, 400 * (attempt + 1)));
+    }
+  }
+}
+
+/** One try: gives up on the whole worker after the timeout plus a grace period. */
+async function solveOnce(query: string, values: string, timeoutMs: number): Promise<{ out: string; vals: string }> {
   worker ??= startWorker();
   const current = worker;
   const id = (nextId += 1);

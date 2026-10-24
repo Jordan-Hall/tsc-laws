@@ -4,6 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>tslaws</title>
+    <link rel="icon" href="data:," />
     <style>
       :root {
         --bg: #ffffff;
@@ -890,7 +891,36 @@
             }, 0);
         }
 
-        function renderDetail() {
+        var lastDetail = null;
+
+        function detailSignature() {
+          var r = results().filter(function (x) {
+            return key(x) === selected;
+          })[0];
+          var frame = r && state.frames ? state.frames[key(r)] : 0;
+          if (r) return JSON.stringify([selected, tab, r, frame]);
+          var by = {};
+          results().forEach(function (x) {
+            by[x.status] = (by[x.status] || 0) + 1;
+          });
+          var live = results().filter(function (x) {
+            return x.status === 'running';
+          })[0];
+          var liveFrame = live && state.frames ? state.frames[key(live)] : 0;
+          return JSON.stringify([
+            by,
+            state.running,
+            state.error,
+            !!state.report,
+            liveFrame,
+            state.report && state.report.compileDiagnostics,
+          ]);
+        }
+
+        function renderDetail(force) {
+          var sig = state ? detailSignature() : null;
+          if (!force && sig !== null && sig === lastDetail) return;
+          lastDetail = sig;
           var d = $('detail');
           d.textContent = '';
           if (!state) return;
