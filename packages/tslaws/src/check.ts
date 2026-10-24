@@ -14,6 +14,7 @@ import {
 import { analyzeCoverage, coverFiles, readConfig } from './coverage.ts';
 import { compareLock, lawKey, readLock, type Lock } from './lock.ts';
 import { proveLaw } from './smt.ts';
+import { decodeExample, loadExamples, regressionMessage, saveExample } from './regressions.ts';
 import { closeBrowser, isBrowserLawFile, runBrowserLaw } from './browser.ts';
 import type { CheckOptions, LawResult, ManifestLaw } from './types.ts';
 
@@ -120,13 +121,17 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
       }
     }
     let details: PropertyOutcome | 'timeout';
+    // Counterexamples found before are tried first.
+    const lawOptions: CheckOptions = options.noRegressions
+      ? options
+      : { ...options, regressionExamples: loadExamples(options.cwd, law.file, law.name) };
     try {
       details = browser
         ? await runBrowserLaw(
             { file: law.file, name: law.name, jsFile: jsPath(built.outDir, law.file), generators: types.generators },
-            options,
+            lawOptions,
           )
-        : await runLawGuarded(built.outDir, law, options);
+        : await runLawGuarded(built.outDir, law, lawOptions);
     } catch (error) {
       add(law, 'error', method, { message: (error as Error).message });
       continue;
@@ -145,15 +150,18 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
           message: 'assume() discards nearly every generated input',
         });
       } else {
+        if (!options.noRegressions && details.encoded !== undefined && !details.regression)
+          saveExample(options.cwd, law.file, law.name, decodeExample(details.encoded));
+        const reason =
+          details.message === undefined || details.message.startsWith('Property failed by returning false')
+            ? 'returned false'
+            : `threw: ${details.message}`;
         add(law, 'failed', method, {
           runs: details.numRuns,
           seed: details.seed,
           counterexample: details.counterexample,
           screenshot: details.screenshot,
-          message:
-            details.message === undefined || details.message.startsWith('Property failed by returning false')
-              ? 'returned false'
-              : `threw: ${details.message}`,
+          message: details.regression ? `${regressionMessage} (${details.counterexample}): ${reason}` : reason,
         });
       }
       continue;

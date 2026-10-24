@@ -45,6 +45,10 @@ export interface CheckOptions {
   propertyTimeoutMs?: number;
   /** How long a browser law's page stays as the law left it before it is cleaned, so a watcher can see it. Default 0. */
   browserPauseMs?: number;
+  /** Skip the regression corpus: nothing is replayed and nothing is saved. */
+  noRegressions?: boolean;
+  /** Stored counterexamples to replay before the random search, as JSON text from `encodeExample`. Set by `check`. */
+  regressionExamples?: string[];
   /** Told as the check proceeds: which laws there are, which is running, each result, and frames of a browser page. */
   onEvent?: (event: LawEvent) => void;
 }

@@ -200,7 +200,7 @@ export async function runBrowserLaw(law: BrowserLaw, options: CheckOptions): Pro
     const details = await runProperty(call, law.generators, options);
     // Closing the page fails the call in flight, which the property reports as a failure of the law.
     if (timedOut) return 'timeout';
-    const outcome = summarise(details);
+    const outcome = summarise(details, options);
     if (details.failed && details.counterexample !== null && !page.isClosed())
       outcome.screenshot = await capture(page, law, details.counterexample, options);
     return outcome;
