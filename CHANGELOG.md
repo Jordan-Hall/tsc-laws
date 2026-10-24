@@ -4,6 +4,17 @@
 
 <!-- release:start -->
 
+### tsc-laws
+
+- **`law` declarations:** a contextual statement, `law [proved] name(params) { … }` or `=> expr;`, parsed as a flagged function
+  declaration; `tsc-ts --laws-manifest` lists them.
+- **`tslaws`:** property tests with generators derived from declared types, a Z3 prover (IEEE doubles, exact `int` and
+  `bigint`, bounded arrays, loops and recursion, strings, records), loop `invariant`s for proofs over every iteration count,
+  a tamper lock, a coverage gate with lock-recorded exemptions, `init`, `--watch`, `--summary`, `--json` hints, and a Claude
+  Code hook.
+- **`vscode-tslaws`:** a TextMate injection grammar for `law`.
+- **Tests:** Windows fixes in the upstream test harness (extensionless oracles, slashed paths, fixture directories).
+
 ## 0.0.9
 
 ### Highlights

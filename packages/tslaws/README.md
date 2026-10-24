@@ -135,14 +135,25 @@ under `CI`, or with `TSLAWS_AGENT` set. Agents propose laws in `*.proposed.laws.
 ## Commands
 
 ```
-tslaws check [files...] [--json] [--runs N] [--seed N] [--no-prove] [--bound N]
-             [--proof-timeout MS] [--proposed] [--compiler PATH]
+tslaws init [--force]
 tslaws accept [files...]
+tslaws check [files...] [--json] [--summary] [--watch] [--runs N] [--seed N] [--no-prove] [--bound N]
+             [--proof-timeout MS] [--proposed] [--compiler PATH]
 ```
+
+- `init` scaffolds `tslaws.json`, the `.tslaws` ignore entry, the agent rules in `AGENTS.md`, the Claude Code hook in
+  `.claude/settings.json`, and a starter law if none exists. It never writes the lock; a person then runs `accept`.
+- `accept` records the laws and the `@tslaws-exempt` functions in `tsc-laws.lock`. It refuses to run without a terminal,
+  under `CI`, or with `TSLAWS_AGENT` set.
+- `check` exits 0 only when every law is `proved`, `bounded` or `tested`, nothing is `uncovered`, the files compile and the
+  lock matches. `--json` adds a `hint` to each result, the concrete next action for an agent. `--summary` prints only the
+  results that do not pass, plus the totals. `--watch` re-runs on every `.ts` change.
 
 Without files, every `*.laws.ts` under the current directory is used. The compiler is `--compiler`, `TSC_LAWS_BIN`, or
 `tsc-laws` on `PATH`; it finds its lib files through `TSC_TS_LIB_DIR`, or the TypeScript 7 libs scriptc installs in
 `node_modules/@scriptc/*`.
+
+See [docs/laws.md](../../docs/laws.md) for the language, how it compares with Bend 2, and the limits.
 
 ## Build and test
 
