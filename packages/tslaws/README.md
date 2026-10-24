@@ -1,5 +1,10 @@
 # tslaws
 
+```sh
+npm i -D tslaws   # also installs the compiler for your platform (tslaws-compiler-<platform>)
+npx tslaws init
+```
+
 Laws for TypeScript, checked the way Bend 2 checks its `LAWS.bend`: a person writes the laws, an agent writes the code,
 and one command says whether the code satisfies every law and whether any code is left unchecked.
 

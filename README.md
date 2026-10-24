@@ -44,7 +44,7 @@ What it offers:
 - **Humans stay in control.** It is TypeScript, so every counterexample, proof obligation and fix is code a person can read
   and run. A VS Code grammar highlights `law`.
 
-Start with the [guide to laws](docs/laws.md), the [`tslaws` reference](packages/tslaws/README.md), and the
+Install with `npm i -D tslaws`: the compiler for your platform comes with it. Start with the [guide to laws](docs/laws.md), the [`tslaws` reference](packages/tslaws/README.md), and the
 [basic example](examples/basic/README.md). The rest of this file is the upstream tsc-ts README.
 
 ---

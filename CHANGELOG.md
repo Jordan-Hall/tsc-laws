@@ -18,6 +18,7 @@
   helpers (`mount`, `settle`, `click`, `type`, `fire`) are framework-agnostic.
 - **Invariant loops** may `return`, `break` and `continue`, and may change arrays and records. Property tests run in a
   killable worker (`--property-timeout`). A `laws.yml` workflow tests on Linux and Windows and publishes builds on `laws-v*` tags.
+- **npm:** `npm i tslaws` brings the compiler for the machine (`tslaws-compiler-<platform>` optional dependencies); the release workflow publishes them with provenance when `NPM_PUBLISH` is set. See RELEASING-LAWS.md.
 - **`tslaws ui`:** a local, loopback-only dashboard in the manner of Vitest's UI, with live progress (waiting, running, result), a live view of the browser page while a browser law runs, a per-file rerun, and a screenshot of the page at a failing browser law's counterexample.
 - **`vscode-tslaws`:** a TextMate injection grammar for `law`.
 - **Tests:** Windows fixes in the upstream test harness (extensionless oracles, slashed paths, fixture directories).

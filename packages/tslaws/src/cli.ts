@@ -1,6 +1,7 @@
 import { createInterface } from 'node:readline/promises';
 import { readdirSync, statSync, watch } from 'node:fs';
 import { join, relative, resolve, sep } from 'node:path';
+import { bundledCompiler } from './bundled.ts';
 import { check, exemptionsOf } from './check.ts';
 import type { CheckReport } from './check.ts';
 import { readManifest } from './compile.ts';
@@ -106,7 +107,7 @@ function options(cwd: string, flags: Map<string, string | true>, chosen: string[
     cwd,
     runs: Number(flags.get('runs') ?? 200),
     seed: flags.has('seed') ? Number(flags.get('seed')) : undefined,
-    compiler: String(flags.get('compiler') ?? process.env.TSC_LAWS_BIN ?? 'tsc-laws'),
+    compiler: String(flags.get('compiler') ?? process.env.TSC_LAWS_BIN ?? bundledCompiler() ?? 'tsc-laws'),
     lockFile: join(cwd, 'tsc-laws.lock'),
     noProve: flags.has('no-prove'),
     bound: Number(flags.get('bound') ?? 4),
