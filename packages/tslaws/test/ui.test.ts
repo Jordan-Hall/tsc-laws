@@ -76,13 +76,15 @@ describe('tslaws ui', { skip: compiler === undefined ? 'set TSC_LAWS_BIN' : fals
     assert.equal((await get(port, '/api/run', {}, 'POST')).status, 403);
     assert.equal((await get(port, '/', { host: 'evil.example' })).status, 403);
     assert.equal((await get(port, '/api/run', { 'x-tslaws': '1', origin: 'http://evil.example' }, 'POST')).status, 403);
-    assert.equal((await get(port, '/api/run', { 'x-tslaws': '1' }, 'POST')).status, 202);
+    assert.equal((await get(port, '/api/run?file=src%2Ff.laws.ts', { 'x-tslaws': '1' }, 'POST')).status, 202);
     for (let i = 0; i < 400 && state.runs === before; i++) {
       await new Promise((r) => setTimeout(r, 100));
       state = JSON.parse((await get(port, '/api/state')).body);
     }
     assert.ok(state.runs > before, 'the run was repeated');
 
+    assert.equal(state.report?.results.length, 1, 'a rerun of one file keeps the results');
+    assert.equal((await get(port, '/api/screenshot?path=..%2F..%2Fpackage.json')).status, 404);
     process.emit('SIGINT');
     assert.equal(await done, 0);
   });

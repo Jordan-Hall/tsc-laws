@@ -127,6 +127,7 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
           runs: details.numRuns,
           seed: details.seed,
           counterexample: details.counterexample,
+          screenshot: details.screenshot,
           message:
             details.message === undefined || details.message.startsWith('Property failed by returning false')
               ? 'returned false'

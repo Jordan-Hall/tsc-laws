@@ -4,7 +4,7 @@
 import { spawn } from 'node:child_process';
 import { readFileSync, watch } from 'node:fs';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
-import { basename, resolve, sep } from 'node:path';
+import { basename, join, resolve, sep } from 'node:path';
 import type { CheckReport } from './check.ts';
 import { hintFor } from './hints.ts';
 import { page } from './uiPage.ts';
@@ -14,8 +14,8 @@ export interface UiOptions {
   cwd: string;
   port: number;
   open: boolean;
-  /** Runs the check of the project. */
-  run: () => Promise<CheckReport>;
+  /** Runs the check of the project, or of just these law files. */
+  run: (files?: string[]) => Promise<CheckReport>;
   log: (line: string) => void;
 }
 
@@ -71,7 +71,7 @@ export async function serveUi(options: UiOptions): Promise<number> {
     for (const client of clients) client.write(data);
   };
 
-  const cycle = async (): Promise<void> => {
+  const cycle = async (only?: string): Promise<void> => {
     if (state.running) {
       queued = true;
       return;
@@ -83,16 +83,19 @@ export async function serveUi(options: UiOptions): Promise<number> {
       push();
       const started = Date.now();
       try {
-        const report = await options.run();
+        const report = await options.run(only === undefined ? undefined : [only]);
+        const fresh = report.results.map((r) => ({ ...r, hint: hintFor(r) }));
+        // One file's rerun replaces that file's results and keeps the others (and the coverage verdicts) as they were.
+        const kept = only === undefined || state.report === undefined ? [] : state.report.results.filter((r) => r.file !== only);
         state.report = {
-          ok: report.ok,
+          ok: report.ok && kept.every((r) => ['proved', 'bounded', 'tested'].includes(r.status)),
           compileOk: report.compileOk,
           compileDiagnostics: report.compileDiagnostics,
           lockMissing: report.lockMissing,
-          results: report.results.map((r) => ({ ...r, hint: hintFor(r) })),
+          results: only === undefined ? fresh : [...kept, ...fresh.filter((r) => r.method !== 'coverage')],
         };
         const sources: Record<string, string> = {};
-        for (const file of new Set(report.results.map((r) => r.file))) {
+        for (const file of new Set(state.report.results.map((r) => r.file))) {
           const text = sourceOf(cwd, file);
           if (text !== undefined) sources[file] = text;
         }
@@ -126,13 +129,25 @@ export async function serveUi(options: UiOptions): Promise<number> {
       response.write(`data: ${JSON.stringify(state)}\n\n`);
       clients.add(response);
       request.on('close', () => clients.delete(response));
+    } else if (request.method === 'GET' && url.pathname === '/api/screenshot') {
+      // Only the PNGs the runner writes are served.
+      const file = resolve(cwd, url.searchParams.get('path') ?? '');
+      if (!file.startsWith(join(cwd, '.tslaws', 'screenshots') + sep) || !file.endsWith('.png')) {
+        response.writeHead(404).end('not found');
+        return;
+      }
+      try {
+        response.writeHead(200, { 'content-type': 'image/png', 'cache-control': 'no-store' }).end(readFileSync(file));
+      } catch {
+        response.writeHead(404).end('not found');
+      }
     } else if (request.method === 'POST' && url.pathname === '/api/run') {
       const origin = request.headers.origin;
       if (request.headers['x-tslaws'] !== '1' || (origin !== undefined && new URL(origin).host !== request.headers.host)) {
         response.writeHead(403).end('forbidden');
         return;
       }
-      void cycle();
+      void cycle(url.searchParams.get('file') ?? undefined);
       response.writeHead(202).end('started');
     } else {
       response.writeHead(404).end('not found');

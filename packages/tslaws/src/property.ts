@@ -132,6 +132,7 @@ export interface PropertyOutcome {
   /** Absent when the law failed because `assume` discarded nearly every input. */
   counterexample?: string;
   message?: string;
+  screenshot?: string;
 }
 
 export function summarise(details: fc.RunDetails<unknown[]>): PropertyOutcome {

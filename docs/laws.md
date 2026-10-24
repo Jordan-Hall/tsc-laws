@@ -167,7 +167,7 @@ settles is stopped after `--property-timeout` and reported `error`. They sit und
 `tslaws ui` opens a local dashboard in the manner of Vitest's UI: a sidebar tree of files and laws with status icons, filters
 (All, Failed, Open, Passed), search, and a detail pane with the report (message, counterexample, a copyable reproduce command,
 the next step), the law's source with its lines highlighted, and the compiler output. It reruns on save and has a Run all button
-(`r`; `/` focuses search; `Esc` clears the selection). `--port N` picks the port (default 51205, another if busy);
+(`r`; `/` focuses search; `Esc` clears the selection); hovering a file shows a button that reruns just that file. When a browser law fails, the page is photographed at the shrunk counterexample (`.tslaws/screenshots/`) and the image appears in the report. `--port N` picks the port (default 51205, another if busy);
 `--no-open` keeps it from opening a browser.
 
 It listens on 127.0.0.1 only, rejects requests whose Host or Origin is not loopback and the page itself, and cannot accept

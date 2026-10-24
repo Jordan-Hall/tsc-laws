@@ -1,6 +1,7 @@
 // Runs laws in a real browser. Node generates the inputs (from the declared types, with shrinking, like any law), and
 // each input is sent to a page where the compiled law and the code it checks run against a live DOM.
 import { existsSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
 import { delimiter, join } from 'node:path';
 import { build as bundleWith } from 'esbuild';
 import { chromium, type Browser, type Page } from 'playwright-core';
@@ -67,7 +68,7 @@ export async function closeBrowser(): Promise<void> {
 
 // Runs inside the page: the law, a clean DOM before and after, and a result that survives structured cloning.
 const harness = `
-window.__runLaw = async (name, args) => {
+window.__runLaw = async (name, args, keep) => {
   const clean = () => {
     for (const undo of (window.__tslawsCleanup || []).splice(0)) { try { undo(); } catch (e) {} }
     document.body.innerHTML = '';
@@ -79,7 +80,7 @@ window.__runLaw = async (name, args) => {
   } catch (error) {
     return { error: { name: error && error.name, message: error && error.message ? error.message : String(error) } };
   } finally {
-    clean();
+    if (!keep) clean();
   }
 };`;
 
@@ -108,6 +109,23 @@ export interface BrowserLaw {
 interface PageOutcome {
   ok?: boolean;
   error?: { name?: string; message: string };
+}
+
+/** Runs the counterexample once more, leaves the DOM as it is, and photographs the page. Best effort. */
+async function capture(page: Page, law: BrowserLaw, args: unknown[], options: CheckOptions): Promise<string | undefined> {
+  try {
+    await page.evaluate(
+      ([name, input]) =>
+        (window as unknown as { __runLaw: (n: string, a: unknown[], keep: boolean) => Promise<unknown> }).__runLaw(name as string, input as unknown[], true),
+      [law.name, args] as const,
+    );
+    const relative = `.tslaws/screenshots/${law.name.replace(/[^\w-]/g, '_')}.png`;
+    mkdirSync(join(options.cwd, '.tslaws/screenshots'), { recursive: true });
+    await page.screenshot({ path: join(options.cwd, relative) });
+    return relative;
+  } catch {
+    return undefined;
+  }
 }
 
 /** Property-tests one law in a page; `'timeout'` when it does not finish within `options.propertyTimeoutMs`. */
@@ -140,7 +158,11 @@ export async function runBrowserLaw(law: BrowserLaw, options: CheckOptions): Pro
     };
     const details = await runProperty(call, law.generators, options);
     // Closing the page fails the call in flight, which the property reports as a failure of the law.
-    return timedOut ? 'timeout' : summarise(details);
+    if (timedOut) return 'timeout';
+    const outcome = summarise(details);
+    if (details.failed && details.counterexample !== null && !page.isClosed())
+      outcome.screenshot = await capture(page, law, details.counterexample, options);
+    return outcome;
   } catch (error) {
     if (timedOut) return 'timeout';
     const extra = pageErrors.length > 0 ? ` (page error: ${pageErrors[0]})` : '';

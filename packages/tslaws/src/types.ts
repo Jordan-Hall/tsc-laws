@@ -24,6 +24,8 @@ export interface LawResult {
   seed?: number;
   counterexample?: string;
   message?: string;
+  /** Project-relative path of a screenshot of the page at the counterexample (browser laws). */
+  screenshot?: string;
 }
 
 export interface CheckOptions {

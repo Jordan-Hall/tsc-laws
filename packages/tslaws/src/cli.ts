@@ -224,7 +224,7 @@ export async function main(args: string[]): Promise<number> {
       cwd,
       port: Number(flags.get('port') ?? 51205),
       open: !flags.has('no-open'),
-      run: () => check(options(cwd, flags, chosen), !flags.has('proposed')),
+      run: (only) => check(options(cwd, flags, only ?? chosen), !flags.has('proposed')),
       log: (line) => process.stdout.write(`${line}\n`),
     });
   }

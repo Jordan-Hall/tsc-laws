@@ -53,6 +53,9 @@ aside { width: 340px; min-width: 240px; border-right: 1px solid var(--line); bac
 .row.law { padding-left: 34px; }
 .row .name { overflow: hidden; text-overflow: ellipsis; flex: 1; }
 .row .tag { color: var(--muted); font-size: 11px; }
+.runfile { padding: 0 6px; border: 0; color: var(--muted); font-size: 11px; opacity: 0; }
+.row:hover .runfile, .runfile:focus-visible { opacity: 1; }
+.shot { max-width: 100%; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
 .caret { width: 12px; color: var(--muted); display: inline-block; transition: transform .1s; }
 .collapsed > .caret { transform: rotate(-90deg); }
 .icon { width: 16px; text-align: center; font-weight: 700; }
@@ -114,8 +117,8 @@ pre { background: var(--code); border: 1px solid var(--line); border-radius: 8px
     document.documentElement.dataset.theme = next;
     try { localStorage.setItem('tslaws-theme', next); } catch (e) {}
   };
-  $('run').onclick = run;
-  function run() { fetch('/api/run', { method: 'POST', headers: { 'x-tslaws': '1' } }); }
+  $('run').onclick = function () { run(); };
+  function run(file) { fetch('/api/run' + (file ? '?file=' + encodeURIComponent(file) : ''), { method: 'POST', headers: { 'x-tslaws': '1' } }); }
 
   function counts() {
     var c = { all: 0, passed: 0, failed: 0, open: 0 };
@@ -176,6 +179,9 @@ pre { background: var(--code); border: 1px solid var(--line); border-radius: 8px
       row.appendChild(el('span', 'icon s-' + worst, ICON[worst]));
       row.appendChild(el('span', 'name', file));
       row.appendChild(el('span', 'tag', String(rs.length)));
+      var go = el('button', 'runfile', '▶'); go.title = 'Run this file'; go.setAttribute('aria-label', 'Run ' + file);
+      go.onclick = function (e) { e.stopPropagation(); run(file); };
+      row.appendChild(go);
       var toggle = function () { collapsed[file] = !collapsed[file]; renderTree(); };
       row.onclick = toggle;
       row.onkeydown = function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } };
@@ -249,6 +255,13 @@ pre { background: var(--code); border: 1px solid var(--line); border-radius: 8px
       d.appendChild(el('h3', '', 'Reproduce'));
       var cmd = 'tslaws check ' + r.file + ' --seed ' + r.seed;
       var wrap = el('div', 'cmd'); wrap.appendChild(el('pre', '', cmd)); wrap.appendChild(copyButton(cmd)); d.appendChild(wrap);
+    }
+    if (r.screenshot) {
+      d.appendChild(el('h3', '', 'Page at the counterexample'));
+      var img = el('img', 'shot');
+      img.alt = 'Screenshot of the page at the counterexample';
+      img.src = '/api/screenshot?path=' + encodeURIComponent(r.screenshot) + '&t=' + (state.finishedAt || 0);
+      d.appendChild(img);
     }
     if (r.hint) { d.appendChild(el('h3', '', 'Next step')); d.appendChild(el('pre', '', r.hint)); }
     if (r.runs !== undefined) { d.appendChild(el('h3', '', 'Runs')); d.appendChild(el('pre', '', r.runs + ' generated inputs' + (r.seed !== undefined ? ', seed ' + r.seed : ''))); }

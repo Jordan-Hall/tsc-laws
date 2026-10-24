@@ -134,6 +134,7 @@ describe('browser laws', { skip: compiler === undefined || !hasBrowser() ? 'need
     const r = byName(results, 'labelNeverShowsThree');
     assert.equal(r.status, 'failed', JSON.stringify(r));
     assert.equal(r.counterexample, '[3]');
+    assert.ok(r.screenshot !== undefined && existsSync(join(opts.cwd, r.screenshot)), 'a screenshot of the page was kept');
     assert.equal(ok, false);
   });
 
