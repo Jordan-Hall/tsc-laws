@@ -95,6 +95,7 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
   const require = createRequire(import.meta.url);
 
   for (const law of laws) {
+    if (options.only !== undefined && !options.only.includes(law.name)) continue;
     if (blocked.has(lawKey(law.file, law.name))) continue;
     options.onEvent?.({ type: 'start', file: law.file, name: law.name });
     let types: LawTypes;
