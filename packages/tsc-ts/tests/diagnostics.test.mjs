@@ -57,10 +57,17 @@ function compareLists(name, expected, actual) {
 test('messages and translations match tsgo in every locale', { skip }, async () => {
   const tags = ['en', ...(await localeTags()).slice(1)];
   const { expected, actual } = run({ locales: tags, matches: [], formats: [], renders: [] }, 'messages');
+  // tsc-laws appends its own messages (codes 9101 and up) after tsgo's; the catalog must otherwise match tsgo's.
+  const ownFrom = expected.messages.length;
+  const own = actual.messages.slice(ownFrom);
+  assert.ok(
+    own.every((m) => m.code >= 9101),
+    'messages after the tsgo ones are tsc-laws own',
+  );
   compareLists(
     'messages',
     expected.messages.map((m) => ({ code: m.code, category: m.category, key: m.key, text: m.text, flags: m.flags })),
-    actual.messages,
+    actual.messages.slice(0, ownFrom),
   );
   // Enum members carry tsgo's names.
   const source = readFileSync(join(root, 'src/compiler/diagnostic-messages.ts'), 'utf8');
@@ -68,9 +75,9 @@ test('messages and translations match tsgo in every locale', { skip }, async () 
   compareLists(
     'names',
     expected.messages.map((m) => m.name),
-    names,
+    names.slice(0, ownFrom),
   );
-  for (const tag of tags) compareLists(tag, expected.localized[tag], actual.localized[tag]);
+  for (const tag of tags) compareLists(tag, expected.localized[tag], actual.localized[tag].slice(0, ownFrom));
   console.log(`${expected.messages.length} messages, ${tags.length} locales`);
 });
 
