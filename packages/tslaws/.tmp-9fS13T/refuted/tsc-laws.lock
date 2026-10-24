@@ -1,7 +1,0 @@
-{
-  "version": 1,
-  "laws": {
-    "src/f.laws.ts::dblGrows": "e052d2977cc41ae8d4e4c5677b5917d08afd5111daf41426032c6ed5e1934fae"
-  },
-  "exempt": []
-}
