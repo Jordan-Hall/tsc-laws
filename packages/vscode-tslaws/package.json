@@ -1,16 +1,18 @@
 {
   "name": "vscode-tslaws",
-  "displayName": "tsc-laws syntax",
+  "displayName": "tsc-laws",
   "version": "0.0.1",
   "private": true,
-  "description": "Highlighting for law declarations of the tsc-laws TypeScript dialect",
+  "description": "tsc-laws for VS Code: law highlighting, CodeLens status, diagnostics and commands",
   "categories": [
+    "Linters",
     "Programming Languages"
   ],
   "license": "MIT",
   "publisher": "tsc-laws",
+  "main": "./src/extension.js",
   "scripts": {
-    "test": "node --test test/grammar.test.mjs"
+    "test": "node --test test/grammar.test.mjs test/find-laws.test.mjs test/parse-report.test.mjs test/summary.test.mjs test/command.test.mjs test/extension.test.mjs"
   },
   "devDependencies": {
     "vscode-oniguruma": "^2.0.1",
@@ -26,8 +28,53 @@
           "source.tsx"
         ]
       }
-    ]
+    ],
+    "commands": [
+      {
+        "command": "tslaws.check",
+        "title": "tslaws: Check all laws"
+      },
+      {
+        "command": "tslaws.runFile",
+        "title": "tslaws: Check laws in this file"
+      },
+      {
+        "command": "tslaws.openDashboard",
+        "title": "tslaws: Open dashboard"
+      },
+      {
+        "command": "tslaws.accept",
+        "title": "tslaws: Accept (types the command in a terminal; you press Enter)"
+      }
+    ],
+    "configuration": {
+      "title": "tslaws",
+      "properties": {
+        "tslaws.runOnSave": {
+          "type": "boolean",
+          "default": true,
+          "description": "Run `tslaws check` after saving a TypeScript file."
+        },
+        "tslaws.executable": {
+          "type": "string",
+          "default": "",
+          "description": "Path of the tslaws executable. Empty uses node_modules/.bin/tslaws, else `npx tslaws`."
+        },
+        "tslaws.args": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Extra arguments appended to every tslaws invocation, for example [\"--compiler\", \"path/to/tsc\"]."
+        }
+      }
+    }
   },
+  "activationEvents": [
+    "onLanguage:typescript",
+    "workspaceContains:**/*.laws.ts"
+  ],
   "engines": {
     "vscode": "^1.80.0"
   }
