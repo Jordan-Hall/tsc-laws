@@ -77,13 +77,22 @@ function activate(context) {
         void vscode.window.showWarningMessage('tslaws: open a folder first.');
         return resolve();
       }
-      const { command, args, shell } = cmdFor(['check', '--json', ...files]);
+      if (!vscode.workspace.isTrusted) {
+        void vscode.window.showWarningMessage('tslaws: trust this workspace to run its checks.');
+        return resolve();
+      }
+      const cmd = cmdFor(['check', '--json', ...files]);
+      if ('error' in cmd) {
+        void vscode.window.showWarningMessage(`tslaws: ${cmd.error}`);
+        return resolve();
+      }
+      const { command, args } = cmd;
       running++;
       refreshStatus();
       output.appendLine(`> ${command} ${args.join(' ')}`);
       let stdout = '';
       let stderr = '';
-      const child = spawn(command, args, { cwd, shell });
+      const child = spawn(command, args, { cwd, shell: false });
       child.stdout.on('data', (d) => (stdout += d));
       child.stderr.on('data', (d) => (stderr += d));
       const finish = () => {
@@ -157,8 +166,17 @@ function activate(context) {
       return vscode.env.openExternal(vscode.Uri.parse(dashboard.url));
     }
     if (dashboard !== null) return;
-    const { command, args, shell } = cmdFor(['ui', '--no-open', '--port', '0']);
-    const child = spawn(command, args, { cwd, shell });
+    if (!vscode.workspace.isTrusted) {
+      void vscode.window.showWarningMessage('tslaws: trust this workspace to open the dashboard.');
+      return;
+    }
+    const cmd = cmdFor(['ui', '--no-open', '--port', '0']);
+    if ('error' in cmd) {
+      void vscode.window.showWarningMessage(`tslaws: ${cmd.error}`);
+      return;
+    }
+    const { command, args } = cmd;
+    const child = spawn(command, args, { cwd, shell: false });
     dashboard = { child, url: null };
     const onData = (d) => {
       output.append(String(d));

@@ -58,7 +58,8 @@
         "tslaws.executable": {
           "type": "string",
           "default": "",
-          "description": "Path of the tslaws executable. Empty uses node_modules/.bin/tslaws, else `npx tslaws`."
+          "description": "Path of tslaws.js or a native tslaws executable (.cmd/.bat shims are refused). Empty uses the workspace's node_modules/tslaws. Machine setting: a workspace cannot set it.",
+          "scope": "machine"
         },
         "tslaws.args": {
           "type": "array",
@@ -66,7 +67,8 @@
             "type": "string"
           },
           "default": [],
-          "description": "Extra arguments appended to every tslaws invocation, for example [\"--compiler\", \"path/to/tsc\"]."
+          "description": "Extra arguments appended to every tslaws invocation, for example [\"--compiler\", \"path/to/tsc\"].",
+          "scope": "machine"
         }
       }
     }
@@ -77,5 +79,15 @@
   ],
   "engines": {
     "vscode": "^1.80.0"
+  },
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "tslaws runs the workspace's code (the laws and the code they check), so it does not run in an untrusted workspace.",
+      "restrictedConfigurations": [
+        "tslaws.executable",
+        "tslaws.args"
+      ]
+    }
   }
 }
