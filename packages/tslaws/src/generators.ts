@@ -14,6 +14,16 @@ const numbers = fc.oneof(
   { weight: 2, arbitrary: fc.double({ noNaN: true, noDefaultInfinity: true }) },
 );
 
+// `int` from 'tslaws': whole numbers, biased to small ones.
+arbitraryRegistry().set(
+  'int',
+  fc.oneof(
+    { weight: 4, arbitrary: fc.integer({ min: -8, max: 8 }) },
+    { weight: 3, arbitrary: fc.integer({ min: -1000, max: 1000 }) },
+    { weight: 1, arbitrary: fc.integer({ min: -Number.MAX_SAFE_INTEGER, max: Number.MAX_SAFE_INTEGER }) },
+  ),
+);
+
 export class GeneratorFactory {
   private readonly checker: ts.TypeChecker;
   private readonly active = new Set<ts.Type>();

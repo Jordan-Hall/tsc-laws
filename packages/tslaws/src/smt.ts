@@ -1,21 +1,34 @@
-// The prover: lowers the compiled JavaScript of a law (and the project functions it calls) to SMT-LIB and asks
-// Z3 whether any input makes it return `false`. Only a small pure subset lowers: numbers, booleans,
-// arithmetic, comparisons, `const` bindings, `if`/`return`, `assume`, and calls to other lowerable
-// functions. Anything else is reported as unsupported and the law stays property-tested.
+// The prover: symbolically executes the compiled JavaScript of a law (see symbolic.ts) and asks Z3 whether any input
+// makes it return `false`, or break an obligation (an integer leaving the safe range, an index leaving its array).
 //
-// Numbers are modelled as exact reals by default, so a proof ignores rounding, overflow and NaN; that is the
-// price of Z3 deciding in milliseconds what its floating-point theory cannot decide in 20 seconds.
-import { readFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+//   proved    no such input exists, with no bound involved: the law holds for every input
+//   bounded   no such input exists within the bounds the proof had to cut at (array length, loop count, recursion)
+//   refuted   Z3 found an input and the compiled law really fails on it in JavaScript
+//   unsupported  the code uses something that does not lower, Z3 gave up, or its model did not reproduce
+//
+// Numbers are IEEE doubles; a parameter typed `number` is a finite double (the generators exclude NaN and the
+// infinities too). A parameter typed `int` (from 'tslaws') or `bigint` is an exact integer.
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import ts from 'typescript';
+import { Executor, SpuriousModel, Unsupported, and, type Value } from './symbolic.ts';
 import type { ManifestLaw } from './types.ts';
 
+export type Shape =
+  | 'number'
+  | 'int'
+  | 'bigint'
+  | 'boolean'
+  | 'string'
+  | { array: Shape }
+  | { fields: Record<string, Shape> }
+  | undefined;
+
 export type ProofResult =
-  | { kind: 'proved'; model: NumberModel }
+  | { kind: 'proved' }
+  | { kind: 'bounded'; limits: string[] }
   | { kind: 'refuted'; model: string; inputs: unknown[] }
   | { kind: 'unsupported'; reason: string };
-
-export type NumberModel = 'real' | 'fp';
 
 export interface ProveInput {
   law: ManifestLaw;
@@ -23,371 +36,199 @@ export interface ProveInput {
   shapes: Shape[];
   /** The compiled JavaScript file of the law. */
   jsFile: string;
-  model: NumberModel;
   timeoutMs: number;
+  /** Longest array, most loop iterations and deepest recursion a proof considers. */
+  bound: number;
   /** Runs the compiled law on concrete inputs; true when it holds. */
   holds: (inputs: unknown[]) => boolean;
 }
 
-/** The part of a parameter type the prover models: numbers, booleans and records of them. */
-export type Shape = 'number' | 'boolean' | { fields: Record<string, Shape> } | undefined;
+type Sort = 'fp' | 'int' | 'bool' | 'str';
 
-class Unsupported extends Error {}
-
-type Sort = 'num' | 'bool' | 'rec';
-
-interface Term {
-  smt: string;
+interface Declared {
+  name: string;
   sort: Sort;
-  /** The members of a record: records are flattened to one constant per field. */
-  fields?: Map<string, Term>;
 }
 
-type FunctionNode = ts.FunctionDeclaration | ts.ArrowFunction | ts.FunctionExpression;
+const safeRange = (t: string): string => `(and (<= (- 9007199254740991) ${t}) (<= ${t} 9007199254740991))`;
 
-interface FunctionIndex {
-  /** Top-level functions: declarations and `const f = (...) => ...` bindings. */
-  functions: Map<string, FunctionNode>;
-  /** `local = require("./x")` bindings: local name to the resolved JavaScript file. */
-  imports: Map<string, string>;
-}
-
-const maxInlineDepth = 8;
-
-class Lowering {
-  private readonly files = new Map<string, FunctionIndex>();
+class Declarations {
+  readonly lines: string[] = [];
+  readonly constants: Declared[] = [];
   readonly assumptions: string[] = [];
-  private depth = 0;
 
-
-  index(file: string): FunctionIndex {
-    const known = this.files.get(file);
-    if (known !== undefined) return known;
-    const source = ts.createSourceFile(file, readFileSync(file, 'utf8'), ts.ScriptTarget.ES2022, true, ts.ScriptKind.JS);
-    const index: FunctionIndex = { functions: new Map(), imports: new Map() };
-    this.files.set(file, index);
-    for (const statement of source.statements) {
-      if (ts.isFunctionDeclaration(statement) && statement.name !== undefined && statement.body !== undefined)
-        index.functions.set(statement.name.text, statement);
-      if (ts.isVariableStatement(statement)) {
-        for (const declaration of statement.declarationList.declarations) {
-          const init = declaration.initializer;
-          if (ts.isIdentifier(declaration.name) && init !== undefined && (ts.isArrowFunction(init) || ts.isFunctionExpression(init)))
-            index.functions.set(declaration.name.text, init);
-          if (
-            ts.isIdentifier(declaration.name) &&
-            init !== undefined &&
-            ts.isCallExpression(init) &&
-            ts.isIdentifier(init.expression) &&
-            init.expression.text === 'require' &&
-            init.arguments.length === 1 &&
-            ts.isStringLiteral(init.arguments[0]!)
-          ) {
-            const specifier = init.arguments[0].text;
-            if (specifier.startsWith('.')) index.imports.set(declaration.name.text, this.resolveModule(file, specifier));
-          }
-        }
-      }
-    }
-    return index;
-  }
-
-  private resolveModule(from: string, specifier: string): string {
-    const base = resolve(dirname(from), specifier);
-    return /\.[cm]?js$/.test(base) ? base : `${base}.js`;
-  }
-
-  /** The value a call of `fn` returns, with `args` bound to its parameters. */
-  callFunction(file: string, fn: FunctionNode, args: Term[]): Term {
-    if (this.depth >= maxInlineDepth) throw new Unsupported('calls nest too deeply (recursion?)');
-    if (fn.parameters.length !== args.length) throw new Unsupported('call has the wrong number of arguments');
-    const env = new Map<string, Term>();
-    fn.parameters.forEach((parameter, i) => {
-      if (!ts.isIdentifier(parameter.name) || parameter.initializer !== undefined || parameter.dotDotDotToken !== undefined)
-        throw new Unsupported('parameters must be plain identifiers');
-      env.set(parameter.name.text, args[i]!);
-    });
-    this.depth += 1;
-    try {
-      const result = this.functionBody(file, fn, env);
-      if (result === undefined) throw new Unsupported('a called function returns nothing');
-      return result;
-    } finally {
-      this.depth -= 1;
-    }
-  }
-
-  /** The law's own result: `undefined` when it returns nothing, which counts as holding. */
-  lawResult(file: string, fn: FunctionNode, params: Term[]): Term | undefined {
-    const env = new Map<string, Term>();
-    fn.parameters.forEach((parameter, i) => {
-      if (!ts.isIdentifier(parameter.name)) throw new Unsupported('parameters must be plain identifiers');
-      env.set(parameter.name.text, params[i]!);
-    });
-    return this.functionBody(file, fn, env);
-  }
-
-  private functionBody(file: string, fn: FunctionNode, env: Map<string, Term>): Term | undefined {
-    const body = fn.body;
-    if (body === undefined) throw new Unsupported('function has no body');
-    if (ts.isBlock(body)) return this.block(file, body.statements, env, true);
-    return this.expression(file, body, env);
-  }
-
-  private block(file: string, statements: readonly ts.Statement[], env: Map<string, Term>, top: boolean): Term | undefined {
-    const scope = new Map(env);
-    for (let i = 0; i < statements.length; i += 1) {
-      const statement = statements[i]!;
-      if (ts.isVariableStatement(statement)) {
-        for (const declaration of statement.declarationList.declarations) {
-          if (!ts.isIdentifier(declaration.name) || declaration.initializer === undefined)
-            throw new Unsupported('variable declarations need a name and an initializer');
-          if (!(statement.declarationList.flags & ts.NodeFlags.Const)) throw new Unsupported('only const bindings lower');
-          scope.set(declaration.name.text, this.expression(file, declaration.initializer, scope));
-        }
-      } else if (ts.isExpressionStatement(statement)) {
-        if (!top || !this.assumption(file, statement.expression, scope)) throw new Unsupported('only assume() may be an expression statement');
-      } else if (ts.isReturnStatement(statement)) {
-        if (statement.expression === undefined) return undefined;
-        return this.expression(file, statement.expression, scope);
-      } else if (ts.isIfStatement(statement)) {
-        const condition = this.boolean(this.expression(file, statement.expression, scope));
-        const thenResult = this.branch(file, statement.thenStatement, scope);
-        const rest = statement.elseStatement !== undefined ? [statement.elseStatement] : statements.slice(i + 1);
-        const elseResult = this.branch(file, rest.length === 1 ? rest[0]! : ts.factory.createBlock(rest as ts.Statement[]), scope);
-        if (thenResult === undefined || elseResult === undefined) throw new Unsupported('both branches of an if must return a value');
-        if (thenResult.sort !== elseResult.sort || thenResult.sort === 'rec')
-          throw new Unsupported('branches return different kinds of value or records');
-        return { smt: `(ite ${condition} ${thenResult.smt} ${elseResult.smt})`, sort: thenResult.sort };
-      } else if (ts.isBlock(statement)) {
-        return this.block(file, statement.statements, scope, false);
-      } else {
-        throw new Unsupported(`statement ${ts.SyntaxKind[statement.kind]} does not lower`);
-      }
-    }
-    return undefined;
-  }
-
-  private branch(file: string, statement: ts.Statement, env: Map<string, Term>): Term | undefined {
-    return this.block(file, ts.isBlock(statement) ? statement.statements : [statement], env, false);
-  }
-
-  private assumption(file: string, expression: ts.Expression, env: Map<string, Term>): boolean {
-    if (!ts.isCallExpression(expression)) return false;
-    const callee = this.calleeName(expression.expression);
-    if (callee?.name !== 'assume' || expression.arguments.length !== 1) return false;
-    this.assumptions.push(this.boolean(this.expression(file, expression.arguments[0]!, env)));
-    return true;
-  }
-
-  private calleeName(expression: ts.Expression): { owner: string | undefined; name: string } | undefined {
-    let node = expression;
-    // `(0, mod_1.fn)(...)` is how CommonJS emit calls an import.
-    while (ts.isParenthesizedExpression(node)) node = node.expression;
-    if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.CommaToken) node = node.right;
-    while (ts.isParenthesizedExpression(node)) node = node.expression;
-    if (ts.isIdentifier(node)) return { owner: undefined, name: node.text };
-    if (ts.isPropertyAccessExpression(node) && ts.isIdentifier(node.expression))
-      return { owner: node.expression.text, name: node.name.text };
-    return undefined;
-  }
-
-  private num(term: Term): string {
-    if (term.sort !== 'num') throw new Unsupported('a boolean was used as a number');
-    return term.smt;
-  }
-
-  private boolean(term: Term): string {
-    if (term.sort !== 'bool') throw new Unsupported('a number was used as a condition');
-    return term.smt;
-  }
-
-  private literal(value: number): Term {
-    if (!Number.isFinite(value)) throw new Unsupported('non-finite literal');
-    const text = String(Math.abs(value));
-    if (/e/i.test(text)) throw new Unsupported('literal needs exponent notation');
-    const real = text.includes('.') ? text : `${text}.0`;
-    return { smt: value < 0 ? `(- ${real})` : real, sort: 'num' };
-  }
-
-  expression(file: string, node: ts.Expression, env: Map<string, Term>): Term {
-    if (ts.isParenthesizedExpression(node)) return this.expression(file, node.expression, env);
-    if (ts.isNumericLiteral(node)) return this.literal(Number(node.text));
-    if (node.kind === ts.SyntaxKind.TrueKeyword) return { smt: 'true', sort: 'bool' };
-    if (node.kind === ts.SyntaxKind.FalseKeyword) return { smt: 'false', sort: 'bool' };
-    if (ts.isIdentifier(node)) {
-      const bound = env.get(node.text);
-      if (bound === undefined) throw new Unsupported(`unknown name ${node.text}`);
-      return bound;
-    }
-    if (ts.isPrefixUnaryExpression(node)) {
-      const operand = this.expression(file, node.operand, env);
-      switch (node.operator) {
-        case ts.SyntaxKind.MinusToken:
-          return { smt: `(- ${this.num(operand)})`, sort: 'num' };
-        case ts.SyntaxKind.PlusToken:
-          return { smt: this.num(operand), sort: 'num' };
-        case ts.SyntaxKind.ExclamationToken:
-          return { smt: `(not ${this.boolean(operand)})`, sort: 'bool' };
-      }
-      throw new Unsupported('unary operator does not lower');
-    }
-    if (ts.isConditionalExpression(node)) {
-      const condition = this.boolean(this.expression(file, node.condition, env));
-      const a = this.expression(file, node.whenTrue, env);
-      const b = this.expression(file, node.whenFalse, env);
-      if (a.sort !== b.sort || a.sort === 'rec') throw new Unsupported('conditional branches differ in kind or are records');
-      return { smt: `(ite ${condition} ${a.smt} ${b.smt})`, sort: a.sort };
-    }
-    if (ts.isPropertyAccessExpression(node)) {
-      const base = this.expression(file, node.expression, env);
-      const field = base.fields?.get(node.name.text);
-      if (base.sort !== 'rec' || field === undefined) throw new Unsupported(`property ${node.name.text} is not modelled`);
-      return field;
-    }
-    if (ts.isBinaryExpression(node)) return this.binary(file, node, env);
-    if (ts.isCallExpression(node)) return this.call(file, node, env);
-    throw new Unsupported(`expression ${ts.SyntaxKind[node.kind]} does not lower`);
-  }
-
-  private binary(file: string, node: ts.BinaryExpression, env: Map<string, Term>): Term {
-    const left = this.expression(file, node.left, env);
-    const right = this.expression(file, node.right, env);
-    const arithmetic = (op: string): Term => ({ smt: `(${op} ${this.num(left)} ${this.num(right)})`, sort: 'num' });
-    const comparison = (op: string): Term => ({ smt: `(${op} ${this.num(left)} ${this.num(right)})`, sort: 'bool' });
-    switch (node.operatorToken.kind) {
-      case ts.SyntaxKind.PlusToken:
-        return arithmetic('+');
-      case ts.SyntaxKind.MinusToken:
-        return arithmetic('-');
-      case ts.SyntaxKind.AsteriskToken:
-        return arithmetic('*');
-      case ts.SyntaxKind.SlashToken: {
-        // Real division by zero is unconstrained in SMT-LIB but Infinity or NaN in JavaScript.
-        if (!ts.isNumericLiteral(node.right) || Number(node.right.text) === 0) throw new Unsupported('division only by a nonzero literal');
-        return arithmetic('/');
-      }
-      case ts.SyntaxKind.LessThanToken:
-        return comparison('<');
-      case ts.SyntaxKind.LessThanEqualsToken:
-        return comparison('<=');
-      case ts.SyntaxKind.GreaterThanToken:
-        return comparison('>');
-      case ts.SyntaxKind.GreaterThanEqualsToken:
-        return comparison('>=');
-      case ts.SyntaxKind.EqualsEqualsEqualsToken:
-      case ts.SyntaxKind.ExclamationEqualsEqualsToken: {
-        if (left.sort !== right.sort || left.sort === 'rec') throw new Unsupported('comparison of unlike values or records');
-        const equal = `(= ${left.smt} ${right.smt})`;
-        return { smt: node.operatorToken.kind === ts.SyntaxKind.EqualsEqualsEqualsToken ? equal : `(not ${equal})`, sort: 'bool' };
-      }
-      case ts.SyntaxKind.AmpersandAmpersandToken:
-        return { smt: `(and ${this.boolean(left)} ${this.boolean(right)})`, sort: 'bool' };
-      case ts.SyntaxKind.BarBarToken:
-        return { smt: `(or ${this.boolean(left)} ${this.boolean(right)})`, sort: 'bool' };
-    }
-    throw new Unsupported(`operator ${node.operatorToken.getText()} does not lower`);
-  }
-
-  private call(file: string, node: ts.CallExpression, env: Map<string, Term>): Term {
-    const callee = this.calleeName(node.expression);
-    if (callee === undefined) throw new Unsupported('call target is not a plain name');
-    const args = node.arguments.map((arg) => this.expression(file, arg, env));
-    if (callee.owner === 'Math') {
-      const a = args.map((arg) => this.num(arg));
-      switch (callee.name) {
-        case 'abs':
-          if (a.length === 1) return { smt: `(ite (< ${a[0]} 0.0) (- ${a[0]}) ${a[0]})`, sort: 'num' };
-          break;
-        case 'min':
-          if (a.length === 2) return { smt: `(ite (< ${a[0]} ${a[1]}) ${a[0]} ${a[1]})`, sort: 'num' };
-          break;
-        case 'max':
-          if (a.length === 2) return { smt: `(ite (> ${a[0]} ${a[1]}) ${a[0]} ${a[1]})`, sort: 'num' };
-          break;
-        case 'floor':
-          if (a.length === 1) return { smt: `(to_real (to_int ${a[0]}))`, sort: 'num' };
-          break;
-      }
-      throw new Unsupported(`Math.${callee.name} does not lower`);
-    }
-    const index = this.index(file);
-    let targetFile = file;
-    let target: FunctionNode | undefined;
-    if (callee.owner === undefined) target = index.functions.get(callee.name);
-    else {
-      const moduleFile = index.imports.get(callee.owner);
-      if (moduleFile !== undefined) {
-        targetFile = moduleFile;
-        target = this.index(moduleFile).functions.get(callee.name);
-      }
-    }
-    if (target === undefined) throw new Unsupported(`cannot find the source of ${callee.owner === undefined ? '' : `${callee.owner}.`}${callee.name}`);
-    return this.callFunction(targetFile, target, args);
+  constant(name: string, sort: Sort): void {
+    const smt = { fp: '(_ FloatingPoint 11 53)', int: 'Int', bool: 'Bool', str: 'String' }[sort];
+    this.lines.push(`(declare-const ${name} ${smt})`);
+    this.constants.push({ name, sort });
   }
 }
 
-/** Declares the constants of a parameter, flattening a record to one per field. */
-function declareParam(name: string, shape: Shape, declarations: string[]): Term {
+/** JavaScript strings stop near 2^29 units; a longer one would also push their lengths out of the safe integers. */
+const maxStringLength = 536870888;
+
+function declareParam(name: string, shape: Shape, bound: number, decl: Declarations, intLimit: bigint | undefined): Value {
   if (shape === 'number') {
-    declarations.push(`(declare-const ${name} Real)`);
-    return { smt: name, sort: 'num' };
+    decl.constant(name, 'fp');
+    decl.assumptions.push(`(and (not (fp.isNaN ${name})) (not (fp.isInfinite ${name})))`);
+    return { k: 'fp', t: name };
+  }
+  if (shape === 'int') {
+    decl.constant(name, 'int');
+    decl.assumptions.push(intLimit === undefined ? safeRange(name) : `(and (<= (- ${intLimit}) ${name}) (<= ${name} ${intLimit}))`);
+    return { k: 'int', t: name };
+  }
+  if (shape === 'bigint') {
+    decl.constant(name, 'int');
+    return { k: 'big', t: name };
   }
   if (shape === 'boolean') {
-    declarations.push(`(declare-const ${name} Bool)`);
-    return { smt: name, sort: 'bool' };
+    decl.constant(name, 'bool');
+    return { k: 'bool', t: name };
   }
-  if (shape === undefined)
-    throw new Unsupported('a parameter type is not modelled (only numbers, booleans and records of them)');
-  const fields = new Map<string, Term>();
+  if (shape === 'string') {
+    decl.constant(name, 'str');
+    // JavaScript strings are UTF-16; SMT-LIB strings are code points. Keep to the BMP so they agree.
+    decl.assumptions.push(`(str.in_re ${name} (re.* (re.range "\\u{0}" "\\u{ffff}")))`);
+    decl.assumptions.push(`(<= (str.len ${name}) ${maxStringLength})`);
+    return { k: 'str', t: name };
+  }
+  if (shape === undefined) throw new Unsupported('a parameter type is not modelled');
+  if ('array' in shape) {
+    const len = `${name}__len`;
+    decl.constant(len, 'int');
+    decl.assumptions.push(`(and (<= 0 ${len}) (<= ${len} ${bound}))`);
+    const slots: Value[] = [];
+    for (let i = 0; i < bound; i += 1) slots.push(declareParam(`${name}__${i}`, shape.array, bound, decl, intLimit));
+    return { k: 'arr', len: { k: 'int', t: len }, slots, id: { escaped: true } };
+  }
+  const fields = new Map<string, Value>();
   for (const [field, fieldShape] of Object.entries(shape.fields))
-    fields.set(field, declareParam(`${name}__${field}`, fieldShape, declarations));
-  return { smt: name, sort: 'rec', fields };
+    fields.set(field, declareParam(`${name}__${field}`, fieldShape, bound, decl, intLimit));
+  return { k: 'rec', fields };
 }
 
-/** The JavaScript value a model gives a parameter. */
-function valueOfParam(name: string, shape: Shape, model: Map<string, number | boolean>): unknown {
-  if (shape === 'number') return model.get(name) ?? 0;
-  if (shape === 'boolean') return model.get(name) ?? false;
-  const value: Record<string, unknown> = {};
-  if (shape !== undefined)
-    for (const [field, fieldShape] of Object.entries(shape.fields))
-      value[field] = valueOfParam(`${name}__${field}`, fieldShape, model);
+// ---- reading Z3's model --------------------------------------------------------------------------------------
+
+type Sexp = string | Sexp[];
+
+function parseSexp(text: string): Sexp {
+  let i = 0;
+  const blank = (): void => {
+    while (i < text.length && /\s/.test(text[i]!)) i += 1;
+  };
+  const read = (): Sexp => {
+    blank();
+    if (text[i] === '(') {
+      i += 1;
+      const list: Sexp[] = [];
+      for (;;) {
+        blank();
+        if (text[i] === ')') {
+          i += 1;
+          return list;
+        }
+        if (i >= text.length) throw new Unsupported('truncated model');
+        list.push(read());
+      }
+    }
+    if (text[i] === '"') {
+      let out = '"';
+      i += 1;
+      while (i < text.length) {
+        if (text[i] === '"') {
+          if (text[i + 1] === '"') {
+            out += '"';
+            i += 2;
+            continue;
+          }
+          i += 1;
+          break;
+        }
+        out += text[i];
+        i += 1;
+      }
+      return `${out}"`;
+    }
+    const start = i;
+    while (i < text.length && !/[\s()]/.test(text[i]!)) i += 1;
+    return text.slice(start, i);
+  };
+  return read();
+}
+
+function rational(e: Sexp): [bigint, bigint] {
+  if (typeof e === 'string') {
+    const m = /^(\d+)(?:\.(\d+))?$/.exec(e);
+    if (m === null) throw new Unsupported(`cannot read model number ${e}`);
+    const frac = m[2] ?? '';
+    return [BigInt(m[1]! + frac), 10n ** BigInt(frac.length)];
+  }
+  if (e[0] === '-' && e.length === 2) {
+    const [n, d] = rational(e[1]!);
+    return [-n, d];
+  }
+  if (e[0] === '/' && e.length === 3) {
+    const [a, b] = rational(e[1]!);
+    const [c, d] = rational(e[2]!);
+    return [a * d, b * c];
+  }
+  throw new Unsupported(`cannot read model number ${JSON.stringify(e)}`);
+}
+
+/** The double a rational is, exactly when it is one (a model of an `fp.to_real`). */
+function toDouble([n, d]: [bigint, bigint]): number {
+  if (d < 0n) [n, d] = [-n, -d];
+  if (d === 1n) return Number(n);
+  let k = 0;
+  let power = d;
+  while (power > 1n && power % 2n === 0n) {
+    power /= 2n;
+    k += 1;
+  }
+  if (power !== 1n) return Number(n) / Number(d);
+  let value = Number(n);
+  for (let left = k; left > 0; left -= 500) value *= 2 ** -Math.min(left, 500);
   return value;
 }
 
-function declaredNames(name: string, shape: Shape): string[] {
-  if (shape === 'number' || shape === 'boolean' || shape === undefined) return [name];
-  return Object.entries(shape.fields).flatMap(([field, fieldShape]) => declaredNames(`${name}__${field}`, fieldShape));
+function decodeString(e: Sexp): string {
+  if (typeof e !== 'string' || !e.startsWith('"')) throw new Unsupported('cannot read model string');
+  return e.slice(1, -1).replace(/\\u\{([0-9a-fA-F]+)\}/g, (_, hex: string) => String.fromCodePoint(parseInt(hex, 16)));
 }
 
-/** Reads a Z3 value: `3.0`, `(- 1.5)`, `(/ 1.0 3.0)`, `true`. */
-function parseValue(text: string): number | boolean {
-  const value = text.trim();
-  if (value === 'true') return true;
-  if (value === 'false') return false;
-  const compound = /^\((-|\/)\s+(.+)\)$/.exec(value);
-  if (compound !== null) {
-    if (compound[1] === '-') return -(parseValue(compound[2]!) as number);
-    const parts = /^(\S+|\(.+?\))\s+(\S+|\(.+?\))$/.exec(compound[2]!);
-    if (parts === null) throw new Unsupported(`cannot read model value ${text}`);
-    return (parseValue(parts[1]!) as number) / (parseValue(parts[2]!) as number);
+function modelValue(sort: Sort, e: Sexp): number | bigint | boolean | string {
+  if (sort === 'bool') return e === 'true';
+  if (sort === 'str') return decodeString(e);
+  const [n, d] = rational(e);
+  if (sort === 'int') return n / d;
+  return toDouble([n, d]);
+}
+
+function jsValue(shape: Shape, name: string, model: Map<string, number | bigint | boolean | string>): unknown {
+  if (shape === 'number' || shape === 'int') return Number(model.get(name) ?? 0);
+  if (shape === 'bigint') return BigInt(model.get(name) ?? 0);
+  if (shape === 'boolean') return model.get(name) === true;
+  if (shape === 'string') return String(model.get(name) ?? '');
+  if (shape === undefined) return undefined;
+  if ('array' in shape) {
+    const len = Number(model.get(`${name}__len`) ?? 0);
+    const out: unknown[] = [];
+    for (let i = 0; i < len; i += 1) out.push(jsValue(shape.array, `${name}__${i}`, model));
+    return out;
   }
-  const number = Number(value);
-  if (Number.isNaN(number)) throw new Unsupported(`cannot read model value ${text}`);
-  return number;
+  const out: Record<string, unknown> = {};
+  for (const [field, fieldShape] of Object.entries(shape.fields)) out[field] = jsValue(fieldShape, `${name}__${field}`, model);
+  return out;
 }
 
-function parseModel(output: string, names: string[]): Map<string, number | boolean> {
-  const values = new Map<string, number | boolean>();
-  for (const name of names) {
-    const match = new RegExp(`\\(define-fun ${name} \\(\\) \\w+\\s+([\\s\\S]*?)\\)\\s*(?=\\(define-fun|\\)\\s*$)`).exec(output);
-    if (match !== null) values.set(name, parseValue(match[1]!));
-  }
-  return values;
-}
+// ---- Z3 ------------------------------------------------------------------------------------------------------
 
-type Z3Api = { mk_context: (config: unknown) => unknown; mk_config: () => unknown; eval_smtlib2_string: (ctx: unknown, text: string) => Promise<string> };
+interface Z3Api {
+  mk_context: (config: unknown) => unknown;
+  mk_config: () => unknown;
+  eval_smtlib2_string: (ctx: unknown, text: string) => Promise<string>;
+}
 
 let z3: Promise<Z3Api> | undefined;
 
@@ -396,52 +237,105 @@ async function z3Api(): Promise<Z3Api> {
   return z3;
 }
 
-/** Closes the Z3 worker threads so the process can exit. */
-export async function shutdownProver(): Promise<void> {
-  if (z3 === undefined) return;
-  z3 = undefined;
+function resultOf(value: Value): string {
+  return value.k === 'bool' ? value.t : 'true';
 }
 
-/** Tries to prove `input.law` for every input. */
+function containsArray(shape: Shape): boolean {
+  if (shape === undefined || typeof shape === 'string') return false;
+  if ('array' in shape) return true;
+  return Object.values(shape.fields).some(containsArray);
+}
+
+function show(value: unknown): string {
+  return JSON.stringify(value, (_, v: unknown) => (typeof v === 'bigint' ? `${v}n` : v));
+}
+
+/** Ints stay within this in the second attempt, where products and sums cannot leave the safe range. */
+const smallInts = 2n ** 26n;
+
+/** Tries to prove `input.law` for every input within `input.bound`. */
 export async function proveLaw(input: ProveInput): Promise<ProofResult> {
   try {
-    const lowering = new Lowering();
-    const source = ts.createSourceFile(input.jsFile, readFileSync(input.jsFile, 'utf8'), ts.ScriptTarget.ES2022, true, ts.ScriptKind.JS);
-    const fn = source.statements.find(
-      (s): s is ts.FunctionDeclaration => ts.isFunctionDeclaration(s) && s.name?.text === input.law.name,
-    );
-    if (fn === undefined || fn.body === undefined) throw new Unsupported('law function not found in the compiled output');
-    if (fn.parameters.length !== input.shapes.length) throw new Unsupported('parameter count mismatch');
-    const names = fn.parameters.map((p) => (ts.isIdentifier(p.name) ? p.name.text : ''));
-    const declare: string[] = [];
-    const params = names.map((name, i) => declareParam(name, input.shapes[i], declare));
-    const result = lowering.lawResult(input.jsFile, fn, params);
-    // A law that returns a number (or nothing) holds as long as it does not throw, which lowering cannot see.
-    const holds = result === undefined || result.sort === 'num' ? 'true' : result.smt;
-    const query = [
-      `(set-option :timeout ${input.timeoutMs})`,
-      ...declare,
-      ...lowering.assumptions.map((a) => `(assert ${a})`),
-      `(assert (not ${holds}))`,
-      '(check-sat)',
-      '(get-model)',
-    ].join('\n');
-    const api = await z3Api();
-    const ctx = api.mk_context(api.mk_config());
-    const output = (await api.eval_smtlib2_string(ctx, query)).trim();
-    if (output.startsWith('unsat')) return { kind: 'proved', model: input.model };
-    if (output.startsWith('unknown')) throw new Unsupported(`solver gave up within ${input.timeoutMs} ms`);
-    if (!output.startsWith('sat')) throw new Unsupported(`solver said: ${output.split('\n')[0]}`);
-    const model = parseModel(
-      output.slice(3),
-      names.flatMap((name, i) => declaredNames(name, input.shapes[i])),
-    );
-    const inputs = names.map((name, i) => valueOfParam(name, input.shapes[i], model));
-    // A model over reals may not be a double that fails in JavaScript; only a reproduced failure is a refutation.
-    if (input.holds(inputs)) throw new Unsupported(`solver model ${JSON.stringify(inputs)} does not fail in JavaScript (float effects)`);
-    return { kind: 'refuted', model: names.map((n, i) => `${n} = ${JSON.stringify(inputs[i])}`).join(', '), inputs };
+    try {
+      return await attempt(input, undefined);
+    } catch (error) {
+      // The full safe range failed only on an obligation (an integer result that could round): try smaller ints.
+      if (!(error instanceof SpuriousModel) || !input.shapes.some(containsInt)) throw error;
+      const result = await attempt(input, smallInts);
+      return result;
+    }
   } catch (error) {
     if (error instanceof Unsupported) return { kind: 'unsupported', reason: error.message };
     throw error;
+  }
+}
+
+function containsInt(shape: Shape): boolean {
+  if (shape === 'int') return true;
+  if (shape === undefined || typeof shape === 'string') return false;
+  if ('array' in shape) return containsInt(shape.array);
+  return Object.values(shape.fields).some(containsInt);
+}
+
+async function attempt(input: ProveInput, intLimit: bigint | undefined): Promise<ProofResult> {
+  {
+    const source = ts.createSourceFile(input.jsFile, readFileSync(input.jsFile, 'utf8'), ts.ScriptTarget.ES2022, true, ts.ScriptKind.JS);
+    const fn = source.statements.find((s): s is ts.FunctionDeclaration => ts.isFunctionDeclaration(s) && s.name?.text === input.law.name);
+    if (fn === undefined || fn.body === undefined) throw new Unsupported('law function not found in the compiled output');
+    if (fn.parameters.length !== input.shapes.length) throw new Unsupported('parameter count mismatch');
+    const names = fn.parameters.map((p) => (ts.isIdentifier(p.name) ? p.name.text : ''));
+    const executor = new Executor(input.bound);
+    const decl = new Declarations();
+    const params = names.map((name, i) => declareParam(name, input.shapes[i], input.bound, decl, intLimit));
+    if (intLimit !== undefined) executor.bounded.push(`int values stay within ±2^26`);
+    if (input.shapes.some(containsArray)) executor.bounded.push(`arrays hold at most ${input.bound} elements`);
+    const result = executor.runLaw(input.jsFile, fn, params);
+    const holds = resultOf(result);
+    const safe = and(...executor.obligations);
+    const query = [
+      `(set-option :timeout ${input.timeoutMs})`,
+      ...decl.lines,
+      ...executor.defs,
+      ...[...decl.assumptions, ...executor.assumptions].map((a) => `(assert ${a})`),
+      `(assert (or (not ${holds}) (not ${safe})))`,
+      '(check-sat)',
+    ];
+    const watch = decl.constants.map((c) => (c.sort === 'fp' ? `(fp.to_real ${c.name})` : c.name));
+    // TSLAWS_DEBUG=1 keeps each query next to the compiled output, to replay in z3.
+    if (process.env.TSLAWS_DEBUG !== undefined) {
+      const dir = join(dirname(input.jsFile), '..', 'smt');
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(join(dir, `${input.law.name}.smt2`), `${query.join('\n')}\n(get-model)\n`);
+    }
+    const api = await z3Api();
+    const ctx = api.mk_context(api.mk_config());
+    let check: string;
+    try {
+      check = (await api.eval_smtlib2_string(ctx, query.join('\n'))).trim();
+    } catch (error) {
+      // A crash leaves the WebAssembly instance unusable; the next law starts a fresh one.
+      z3 = undefined;
+      throw new Unsupported(`the solver crashed: ${(error as Error).message}`);
+    }
+    if (check.startsWith('unsat')) {
+      return executor.bounded.length === 0 ? { kind: 'proved' } : { kind: 'bounded', limits: executor.bounded };
+    }
+    if (check.startsWith('unknown')) throw new Unsupported(`solver gave up within ${input.timeoutMs} ms`);
+    if (!check.startsWith('sat')) throw new Unsupported(`solver said: ${check.split('\n')[0]}`);
+    const values = watch.length === 0 ? '()' : (await api.eval_smtlib2_string(ctx, `(get-value (${watch.join(' ')}))`)).trim();
+    const pairs = parseSexp(values) as Sexp[];
+    const model = new Map<string, number | bigint | boolean | string>();
+    decl.constants.forEach((c, i) => {
+      const pair = pairs[i];
+      if (Array.isArray(pair) && pair.length === 2) model.set(c.name, modelValue(c.sort, pair[1]!));
+    });
+    const inputs = names.map((name, i) => jsValue(input.shapes[i], name, model));
+    // A model may break only an obligation, or rest on float effects the replay does not share.
+    if (input.holds(inputs)) {
+      const why = `Z3 model ${show(inputs)} passes in JavaScript (an integer may leave the safe range, an index may leave its array, or the bound cut the code)`;
+      throw intLimit === undefined ? new SpuriousModel(why) : new Unsupported(why);
+    }
+    return { kind: 'refuted', model: names.map((n, i) => `${n} = ${show(inputs[i])}`).join(', '), inputs };
   }
 }

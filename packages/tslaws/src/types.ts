@@ -1,4 +1,4 @@
-export type LawStatus = 'proved' | 'tested' | 'open' | 'failed' | 'tampered' | 'error';
+export type LawStatus = 'proved' | 'bounded' | 'tested' | 'open' | 'failed' | 'tampered' | 'uncovered' | 'error';
 
 export interface ManifestLaw {
   file: string;
@@ -36,7 +36,7 @@ export interface CheckOptions {
   lockFile: string;
   /** Skip the Z3 prover. */
   noProve: boolean;
-  /** How the prover models JavaScript numbers. */
-  numbers: 'real' | 'fp';
+  /** Longest array, most loop iterations and deepest recursion a proof considers. */
+  bound: number;
   proofTimeoutMs: number;
 }

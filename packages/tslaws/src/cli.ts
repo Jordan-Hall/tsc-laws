@@ -6,7 +6,7 @@ import { readManifest } from './compile.ts';
 import { writeLock } from './lock.ts';
 import type { CheckOptions, LawResult } from './types.ts';
 
-const usage = `tslaws check [files...] [--json] [--runs N] [--seed N] [--no-prove] [--numbers real|fp] [--proof-timeout MS] [--proposed] [--compiler PATH]
+const usage = `tslaws check [files...] [--json] [--runs N] [--seed N] [--no-prove] [--bound N] [--proof-timeout MS] [--proposed] [--compiler PATH]
 tslaws accept [files...]     record the current laws in tsc-laws.lock (people only: needs a terminal)
 
 Without files, every *.laws.ts under the current directory is checked (*.proposed.laws.ts only with --proposed).
@@ -30,7 +30,7 @@ function parse(args: string[]): { command: string; flags: Map<string, string | t
   const flags = new Map<string, string | true>();
   const files: string[] = [];
   let command = 'check';
-  const valued = new Set(['runs', 'seed', 'compiler', 'numbers', 'proof-timeout']);
+  const valued = new Set(['runs', 'seed', 'compiler', 'bound', 'proof-timeout']);
   for (let i = 0; i < args.length; i += 1) {
     const arg = args[i]!;
     if (arg.startsWith('--')) {
@@ -70,7 +70,7 @@ export async function main(args: string[]): Promise<number> {
     compiler: String(flags.get('compiler') ?? process.env.TSC_LAWS_BIN ?? 'tsc-laws'),
     lockFile: join(cwd, 'tsc-laws.lock'),
     noProve: flags.has('no-prove'),
-    numbers: flags.get('numbers') === 'fp' ? 'fp' : 'real',
+    bound: Number(flags.get('bound') ?? 4),
     proofTimeoutMs: Number(flags.get('proof-timeout') ?? 5000),
   };
   if (chosen.length === 0) {
@@ -104,7 +104,7 @@ export async function main(args: string[]): Promise<number> {
   for (const result of report.results) process.stdout.write(`${describe(result)}\n`);
   const count = (status: string): number => report.results.filter((r) => r.status === status).length;
   process.stdout.write(
-    `\n${report.results.length} laws: ${count('proved')} proved, ${count('tested')} tested, ${count('open')} open, ${count('failed')} failed, ${count('tampered')} tampered, ${count('error')} errors\n`,
+    `\n${report.results.length} laws: ${count('proved')} proved, ${count('bounded')} bounded, ${count('tested')} tested, ${count('open')} open, ${count('failed')} failed, ${count('tampered')} tampered, ${count('error')} errors\n`,
   );
   return report.ok ? 0 : 1;
 }

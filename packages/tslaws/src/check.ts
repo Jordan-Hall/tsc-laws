@@ -31,11 +31,19 @@ function jsPath(outDir: string, file: string): string {
   return join(outDir, file.replace(/\.(ts|mts|cts)$/, '.js'));
 }
 
-/** What the prover models of `type`: numbers, booleans and records of them. */
+/** What the prover models of `type`: numbers, `int`s, bigints, strings, booleans, arrays and records of them. */
 function shapeOf(checker: ts.TypeChecker, type: ts.Type): Shape {
+  if ((type.aliasSymbol ?? type.getSymbol())?.getName() === 'int' && type.flags & (ts.TypeFlags.Intersection | ts.TypeFlags.Number))
+    return 'int';
   if (type.flags & ts.TypeFlags.Number) return 'number';
+  if (type.flags & ts.TypeFlags.BigInt) return 'bigint';
+  if (type.flags & ts.TypeFlags.String) return 'string';
   if (type.flags & ts.TypeFlags.Boolean) return 'boolean';
-  if (!(type.flags & ts.TypeFlags.Object) || checker.isArrayType(type) || checker.isTupleType(type)) return undefined;
+  if (checker.isArrayType(type)) {
+    const element = shapeOf(checker, checker.getTypeArguments(type as ts.TypeReference)[0]!);
+    return element === undefined ? undefined : { array: element };
+  }
+  if (!(type.flags & ts.TypeFlags.Object) || checker.isTupleType(type)) return undefined;
   if (type.getCallSignatures().length > 0 || checker.getIndexInfosOfType(type).length > 0) return undefined;
   const fields: Record<string, Shape> = {};
   for (const property of checker.getPropertiesOfType(type)) {
@@ -213,12 +221,17 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
       law,
       shapes: types.shapes,
       jsFile: jsPath(built.outDir, law.file),
-      model: options.numbers,
+      bound: options.bound,
       timeoutMs: options.proofTimeoutMs,
       holds,
     });
-    if (proof.kind === 'proved') add(law, 'proved', `smt:${proof.model}`, { runs: details.numRuns, seed: details.seed });
-    else if (proof.kind === 'refuted')
+    if (proof.kind === 'proved') add(law, 'proved', 'smt', { runs: details.numRuns, seed: details.seed });
+    else if (proof.kind === 'bounded') {
+      // `law proved` promises every input; a bounded proof is the most Z3 could show.
+      const message = `holds within bounds: ${proof.limits.join('; ')}`;
+      if (law.proved) add(law, 'open', 'smt', { runs: details.numRuns, seed: details.seed, message: `marked proved but only ${message}` });
+      else add(law, 'bounded', 'smt', { runs: details.numRuns, seed: details.seed, message });
+    } else if (proof.kind === 'refuted')
       add(law, 'failed', 'smt', { counterexample: proof.model, message: 'refuted by the prover' });
     else if (law.proved)
       add(law, 'open', 'smt', {
@@ -229,6 +242,6 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
     else add(law, 'tested', 'property', { runs: details.numRuns, seed: details.seed, message: proof.reason });
   }
 
-  const ok = built.ok && !lockMissing && results.every((r) => r.status === 'proved' || r.status === 'tested');
+  const ok = built.ok && !lockMissing && results.every((r) => r.status === 'proved' || r.status === 'bounded' || r.status === 'tested');
   return { results, compileDiagnostics: built.diagnostics, compileOk: built.ok, lockMissing, ok };
 }

@@ -38,7 +38,7 @@ function options(cwd: string, lawFiles: string[], extra: Partial<CheckOptions> =
     compiler: compiler!,
     lockFile: join(cwd, 'tsc-laws.lock'),
     noProve: false,
-    numbers: 'real',
+    bound: 4,
     proofTimeoutMs: 5000,
     ...extra,
   };
@@ -69,7 +69,7 @@ describe('tslaws check', { skip: compiler === undefined ? 'set TSC_LAWS_BIN' : f
     lockNow(opts);
     const report = await check(opts, true);
     assert.equal(byName(report.results, 'commutes').status, 'proved');
-    assert.equal(byName(report.results, 'revTwice').status, 'tested');
+    assert.equal(byName(report.results, 'revTwice').status, 'bounded');
     assert.equal(report.ok, true);
   });
 
@@ -129,10 +129,87 @@ describe('tslaws check', { skip: compiler === undefined ? 'set TSC_LAWS_BIN' : f
     assert.equal(byName(results, 'absOfSmall').status, 'proved');
   });
 
+  it('proves integer laws exactly and refuses what could round', async () => {
+    const cwd = project('ints', {
+      'src/f.ts': 'export const inc = (a: number): number => a + 1;\n',
+      'src/f.laws.ts': [
+        "import type { int } from 'tslaws';",
+        "import { inc } from './f';",
+        'export law proved zero(a: int) => a + 0 === a;',
+        'export law commutes(a: int, b: int) => a * b === b * a;',
+        'export law grows(a: int) => inc(a) > a;',
+        'export law bigs(a: bigint, b: bigint) => a + b === b + a;',
+        '',
+      ].join('\n'),
+    });
+    const opts = options(cwd, ['src/f.laws.ts']);
+    lockNow(opts);
+    const { results } = await check(opts, true);
+    assert.equal(byName(results, 'zero').status, 'proved');
+    // A product or a + 1 can leave the safe integers, where JavaScript rounds: Z3 can only show the law within ±2^26.
+    assert.equal(byName(results, 'commutes').status, 'bounded');
+    assert.equal(byName(results, 'grows').status, 'bounded');
+    assert.equal(byName(results, 'bigs').status, 'proved');
+  });
+
+  it('proves doubles with IEEE semantics', async () => {
+    const cwd = project('doubles', {
+      'src/f.laws.ts': [
+        'export law addCommutes(a: number, b: number) => a + b === b + a;',
+        'export law proved squareNonNegative(a: number) => a * a >= 0;',
+        'export law notAssociative(a: number, b: number, c: number) => (a + b) + c === a + (b + c);',
+        '',
+      ].join('\n'),
+    });
+    const opts = options(cwd, ['src/f.laws.ts']);
+    lockNow(opts);
+    const { results } = await check(opts, true);
+    assert.equal(byName(results, 'addCommutes').status, 'proved');
+    assert.equal(byName(results, 'squareNonNegative').status, 'proved');
+    // Real arithmetic would prove this; doubles refute it.
+    assert.equal(byName(results, 'notAssociative').status, 'failed');
+  });
+
+  it('verifies arrays, loops and strings within a bound', async () => {
+    const cwd = project('bounded', {
+      'src/f.ts': [
+        'export function sum(xs: number[]): number { let t = 0; for (let i = 0; i < xs.length; i++) { t += xs[i]; } return t; }',
+        'export const sorted = (xs: number[]): number[] => [...xs].sort((a, b) => a - b);',
+        'export const rev = (xs: number[]): number[] => [...xs].reverse();',
+        'export const dedupe = (xs: number[]): number[] => [...new Set(xs)];',
+        'export const shout = (s: string): string => s + "!";',
+        '',
+      ].join('\n'),
+      'src/f.laws.ts': [
+        "import type { int } from 'tslaws';",
+        "import { sum, sorted, rev, dedupe, shout } from './f';",
+        'export law sortKeepsLength(xs: int[]) => sorted(xs).length === xs.length;',
+        'export law sortOrders(xs: int[]) { const s = sorted(xs); for (let i = 1; i < s.length; i++) { if (s[i - 1] > s[i]) return false; } return true; }',
+        'export law revTwice(xs: int[]) { const r = rev(rev(xs)); return r.length === xs.length && r.every((v, i) => v === xs[i]); }',
+        'export law dedupeKeepsLength(xs: int[]) => dedupe(xs).length === xs.length;',
+        'export law sumOfEmpty(xs: int[]) { assume(xs.length === 0); return sum(xs) === 0; }',
+        'export law shoutAddsOne(s: string) => shout(s).length === s.length + 1;',
+        'export law proved shoutEndsBang(s: string) => shout(s).endsWith("!");',
+        "import { assume } from 'tslaws';",
+        '',
+      ].join('\n'),
+    });
+    const opts = options(cwd, ['src/f.laws.ts']);
+    lockNow(opts);
+    const { results } = await check(opts, true);
+    assert.equal(byName(results, 'sortKeepsLength').status, 'bounded');
+    assert.equal(byName(results, 'sortOrders').status, 'bounded');
+    assert.equal(byName(results, 'revTwice').status, 'bounded');
+    assert.equal(byName(results, 'dedupeKeepsLength').status, 'failed');
+    assert.equal(byName(results, 'sumOfEmpty').status, 'bounded');
+    assert.equal(byName(results, 'shoutAddsOne').status, 'proved');
+    assert.equal(byName(results, 'shoutEndsBang').status, 'proved');
+  });
+
   it('proves laws over records of numbers', async () => {
     const cwd = project('records', {
       'src/f.ts':
-        'export interface P { x: number; y: number }\nexport const dist = (p: P, q: P): number => Math.abs(p.x - q.x) + Math.abs(p.y - q.y);\n',
+        "import type { int } from 'tslaws';\nexport interface P { x: int; y: int }\nexport const dist = (p: P, q: P): number => Math.abs(p.x - q.x) + Math.abs(p.y - q.y);\n",
       'src/f.laws.ts': [
         "import { dist, type P } from './f';",
         'export law symmetric(p: P, q: P) => dist(p, q) === dist(q, p);',
@@ -144,8 +221,8 @@ describe('tslaws check', { skip: compiler === undefined ? 'set TSC_LAWS_BIN' : f
     const opts = options(cwd, ['src/f.laws.ts']);
     lockNow(opts);
     const { results } = await check(opts, true);
-    assert.equal(byName(results, 'symmetric').status, 'proved');
-    assert.equal(byName(results, 'nonNegative').status, 'proved');
+    assert.equal(byName(results, 'symmetric').status, 'bounded');
+    assert.equal(byName(results, 'nonNegative').status, 'bounded');
     assert.equal(byName(results, 'wrong').status, 'failed');
   });
 

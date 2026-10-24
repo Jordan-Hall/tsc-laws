@@ -4,6 +4,12 @@ import * as fc from 'fast-check';
 
 export { fc };
 
+/**
+ * An integer the prover treats exactly (within the safe integers) instead of as an IEEE double, so laws over it can be
+ * proved. At runtime it is an ordinary number.
+ */
+export type int = number & { readonly __tslawsInt: true };
+
 /** Thrown by `assume`; the runner skips the input. */
 export class LawDiscard extends Error {
   constructor() {
