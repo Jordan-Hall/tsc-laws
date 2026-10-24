@@ -6,11 +6,13 @@ import type { CheckReport } from './check.ts';
 import { readManifest } from './compile.ts';
 import { hintFor } from './hints.ts';
 import { init, nextStep } from './init.ts';
+import { serveUi } from './ui.ts';
 import { writeLock } from './lock.ts';
 import type { CheckOptions, LawResult } from './types.ts';
 
 const usage = `tslaws init [--force]       scaffold tslaws.json, .gitignore, AGENTS.md, Claude Code hooks and a starter law (never writes the lock)
 tslaws check [files...] [--json] [--summary] [--watch] [--runs N] [--seed N] [--no-prove] [--bound N] [--proof-timeout MS] [--property-timeout MS] [--proposed] [--compiler PATH]
+tslaws ui [files...] [--port N] [--no-open]   open a dashboard of the laws in a browser: tree, filters, search, source, live reruns on save
 tslaws accept [files...]     record the current laws in tsc-laws.lock (people only: needs a terminal)
 
 Without files, every *.laws.ts under the current directory is checked (*.proposed.laws.ts only with --proposed).
@@ -41,14 +43,14 @@ function parse(args: string[]): { command: string; flags: Map<string, string | t
   const flags = new Map<string, string | true>();
   const files: string[] = [];
   let command = 'check';
-  const valued = new Set(['runs', 'seed', 'compiler', 'bound', 'proof-timeout', 'property-timeout']);
+  const valued = new Set(['runs', 'seed', 'compiler', 'bound', 'proof-timeout', 'property-timeout', 'port']);
   for (let i = 0; i < args.length; i += 1) {
     const arg = args[i]!;
     if (arg.startsWith('--')) {
       const name = arg.slice(2);
       if (valued.has(name)) flags.set(name, args[(i += 1)] ?? '');
       else flags.set(name, true);
-    } else if (i === 0 && (arg === 'check' || arg === 'accept' || arg === 'init')) command = arg;
+    } else if (i === 0 && (arg === 'check' || arg === 'accept' || arg === 'init' || arg === 'ui')) command = arg;
     else files.push(arg);
   }
   return { command, flags, files };
@@ -210,6 +212,21 @@ export async function main(args: string[]): Promise<number> {
     writeLock(opts.lockFile, laws, exempt);
     process.stdout.write('tsc-laws.lock written\n');
     return 0;
+  }
+
+  if (command === 'ui') {
+    const chosen = lawFiles(cwd, flags, files);
+    if (chosen.length === 0) {
+      process.stderr.write('no laws files found (looking for *.laws.ts)\n');
+      return 1;
+    }
+    return serveUi({
+      cwd,
+      port: Number(flags.get('port') ?? 51205),
+      open: !flags.has('no-open'),
+      run: () => check(options(cwd, flags, chosen), !flags.has('proposed')),
+      log: (line) => process.stdout.write(`${line}\n`),
+    });
   }
 
   return flags.has('watch') ? watchChecks(cwd, flags, files) : runCheck(cwd, flags, files);

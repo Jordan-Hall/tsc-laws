@@ -162,6 +162,17 @@ return what undoes it. The page is cleaned between inputs. `tslaws/browser` also
 Browser laws are `tested` (method `browser`), never `proved`: Z3 cannot model a DOM or an `await`. A page that never
 settles is stopped after `--property-timeout` and reported `error`. They sit under the same lock and coverage gate as any law.
 
+## The dashboard
+
+`tslaws ui` opens a local dashboard in the manner of Vitest's UI: a sidebar tree of files and laws with status icons, filters
+(All, Failed, Open, Passed), search, and a detail pane with the report (message, counterexample, a copyable reproduce command,
+the next step), the law's source with its lines highlighted, and the compiler output. It reruns on save and has a Run all button
+(`r`; `/` focuses search; `Esc` clears the selection). `--port N` picks the port (default 51205, another if busy);
+`--no-open` keeps it from opening a browser.
+
+It listens on 127.0.0.1 only, rejects requests whose Host or Origin is not loopback and the page itself, and cannot accept
+laws: `tslaws accept` stays a person's act at a terminal.
+
 ## Statuses
 
 | Status | Meaning | Passes? |

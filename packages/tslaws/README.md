@@ -130,6 +130,12 @@ against a live DOM. The law may be `async`. `tslaws/browser` has `mount`, `settl
 any framework or none: `mount(el => render(el))` accepts whatever renders into an element and may return its unmount.
 Browser laws are `tested`, never `proved`. See [docs/laws.md](../../docs/laws.md#browser-laws).
 
+## Dashboard
+
+`tslaws ui [files...] [--port N] [--no-open]` serves a local dashboard (127.0.0.1 only) like Vitest's UI: a tree of files and laws,
+status filters, search, a report with a copyable reproduce command, the law's source, and live reruns on save.
+See [docs/laws.md](../../docs/laws.md#the-dashboard).
+
 ## Agents cannot move the goalposts
 
 `tsc-laws.lock` holds a hash of every law declaration and the list of coverage exemptions. A change, an added law, a removed

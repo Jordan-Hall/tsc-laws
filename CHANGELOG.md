@@ -18,6 +18,7 @@
   helpers (`mount`, `settle`, `click`, `type`, `fire`) are framework-agnostic.
 - **Invariant loops** may `return`, `break` and `continue`, and may change arrays and records. Property tests run in a
   killable worker (`--property-timeout`). A `laws.yml` workflow tests on Linux and Windows and publishes builds on `laws-v*` tags.
+- **`tslaws ui`:** a local, loopback-only dashboard in the manner of Vitest's UI, with live reruns.
 - **`vscode-tslaws`:** a TextMate injection grammar for `law`.
 - **Tests:** Windows fixes in the upstream test harness (extensionless oracles, slashed paths, fixture directories).
 
