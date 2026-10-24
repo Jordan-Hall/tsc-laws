@@ -129,3 +129,42 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "$GITHUB_REF_NAME" release/* --title "$GITHUB_REF_NAME" --generate-notes
+
+  # Publishes to npm when the repository variable NPM_PUBLISH is 'true'. Authenticate with npm trusted publishing (give
+  # each package a trusted publisher for this workflow) or an NPM_TOKEN secret. See RELEASING-LAWS.md.
+  npm:
+    name: npm
+    if: startsWith(github.ref, 'refs/tags/laws-v') && vars.NPM_PUBLISH == 'true'
+    needs: release
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run build -w tslaws
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: tsc-laws-*
+          path: platform
+          merge-multiple: true
+      - name: Repack the compilers as tslaws-compiler-<platform>
+        run: |
+          node scripts/ci/laws-npm.mjs compilers platform compilers
+          node scripts/ci/laws-npm.mjs main compilers
+          cp LICENSE packages/tslaws/LICENSE
+      - name: Publish
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -n "$NPM_TOKEN" ]; then echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" >> ~/.npmrc; fi
+          # The compilers first, so tslaws never points at a package that is not there yet.
+          for package in compilers/*.tgz; do
+            npm publish "$package" --access public --provenance
+          done
+          npm publish packages/tslaws --access public --provenance

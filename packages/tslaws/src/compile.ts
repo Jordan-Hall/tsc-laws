@@ -32,8 +32,11 @@ function launch(
 }
 
 /** The compiler finds its lib files in TSC_TS_LIB_DIR; without it, use the TypeScript 7 libs scriptc ships. */
-function compilerEnv(cwd: string): NodeJS.ProcessEnv {
+function compilerEnv(cwd: string, compiler: string): NodeJS.ProcessEnv {
   if (process.env.TSC_TS_LIB_DIR !== undefined) return process.env;
+  // The npm compiler package keeps the lib files beside the executable.
+  const beside = dirname(compiler);
+  if (existsSync(join(beside, 'lib.d.ts'))) return { ...process.env, TSC_TS_LIB_DIR: beside };
   for (let dir = cwd; ; dir = dirname(dir)) {
     const scope = join(dir, 'node_modules', '@scriptc');
     if (existsSync(scope)) {
@@ -52,7 +55,7 @@ export function readManifest(compiler: string, files: string[], cwd: string): Ma
     cwd,
     encoding: 'utf8',
     maxBuffer: 64 << 20,
-    env: compilerEnv(cwd),
+    env: compilerEnv(cwd, compiler),
   });
   if (run.error !== undefined) throw new Error(`cannot run ${compiler}: ${run.error.message}`);
   const text = (run.stdout ?? '').trim();
@@ -85,7 +88,7 @@ export function build(compiler: string, files: string[], cwd: string): BuildResu
     outDir,
     ...files,
   ];
-  let run = launch(compiler, args, { cwd, encoding: 'utf8', maxBuffer: 64 << 20, env: compilerEnv(cwd) });
+  let run = launch(compiler, args, { cwd, encoding: 'utf8', maxBuffer: 64 << 20, env: compilerEnv(cwd, compiler) });
   // A compiler that dies without a word (out of memory on a busy machine) is run again; a type error always says so.
   for (
     let attempt = 0;
@@ -95,7 +98,7 @@ export function build(compiler: string, files: string[], cwd: string): BuildResu
     `${run.stdout ?? ''}${run.stderr ?? ''}`.trim() === '';
     attempt += 1
   )
-    run = launch(compiler, args, { cwd, encoding: 'utf8', maxBuffer: 64 << 20, env: compilerEnv(cwd) });
+    run = launch(compiler, args, { cwd, encoding: 'utf8', maxBuffer: 64 << 20, env: compilerEnv(cwd, compiler) });
   if (run.error !== undefined) throw new Error(`cannot run ${compiler}: ${run.error.message}`);
   return { outDir, diagnostics: `${run.stdout ?? ''}${run.stderr ?? ''}`.trim(), ok: run.status === 0 };
 }
