@@ -246,6 +246,16 @@ reported as `failed`.
   Invariants live in the implementation, so the agent writes them; the laws stay yours. The loop may change numbers,
   booleans, strings, arrays and records, and may `return`, `break` or `continue`. A changed array keeps the room it had,
   so such a proof is `bounded` by that length. This is partial correctness.
+- **Quantifiers:** `forall(xs, (x, i) => cond)` and `exists(xs, (x, i) => cond)` (from `tslaws`) say that every, or some,
+  element satisfies a condition. They run as loops in property tests. The prover lowers them over the array's slots:
+  `forall` is the conjunction of `k < length => cond(xs[k], k)` and `exists` the disjunction of `k < length && cond(xs[k], k)`.
+  Use them in `assume(...)`, in a law's result and in `invariant(...)`; the predicate may use outer variables and the index.
+  Like any array claim, a proof that uses them is `bounded` by `--bound`, never `proved`. The predicate must be an arrow
+  function the prover can lower, or the law stays `tested`:
+
+  ```ts
+  export law allPositiveSumPositive(xs: int[]) { assume(forall(xs, (x) => x > 0)); return sum(xs) >= 0; }
+  ```
 
 Anything else leaves the law `tested`, or a `law proved` `open`, with the reason. Z3 runs in a worker that is terminated if
 a query outlives its timeout (`--proof-timeout`, default 5000 ms). `TSLAWS_DEBUG=1` keeps each query as an `.smt2` file

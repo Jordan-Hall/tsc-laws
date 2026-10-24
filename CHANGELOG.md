@@ -16,6 +16,16 @@
   export, only laws call laws). Laws may be `async`.
 - **Browser laws:** `*.browser.laws.ts` runs in a real Chromium-family browser with inputs generated in Node; `tslaws/browser`
   helpers (`mount`, `settle`, `click`, `type`, `fire`) are framework-agnostic.
+- **`forall` and `exists`:** quantifier helpers over arrays for `assume`, law results and `invariant`s; the prover lowers them over the
+  array slots, so claims that use them are `bounded`.
+- **Invariant loops** may `return`, `break` and `continue`, and may change arrays and records. Property tests run in a
+  killable worker (`--property-timeout`). A `laws.yml` workflow tests on Linux and Windows and publishes builds on `laws-v*` tags.
+- **npm:** `npm i tslaws` brings the compiler for the machine (`tslaws-compiler-<platform>` optional dependencies); the release workflow publishes them with provenance when `NPM_PUBLISH` is set. See RELEASING-LAWS.md.
+- **CI reporters:** `tslaws check --reporter text|json|junit|github`. `junit` writes JUnit XML (a suite per law file); `github` writes workflow
+  annotations and, when `GITHUB_STEP_SUMMARY` is set, a results table for the job summary. Exit status is unchanged.
+- **`tslaws ui`:** a local, loopback-only dashboard in the manner of Vitest's UI, with live progress (waiting, running, result), a live view of the browser page while a browser law runs, a per-file rerun, and a screenshot of the page at a failing browser law's counterexample.
+- **`tslaws mutate`:** mutation testing. Mutates the covered code, re-runs the laws on each mutant in a scratch copy, and reports survivors (laws too weak) with a mutation score; exit 0 only when every tried mutant is killed.
+- **`vscode-tslaws`:** a TextMate injection grammar for `law`, and an extension: CodeLens status and a counterexample lens above each law in `*.laws.ts`, problems for failed, open, tampered and error laws, a status-bar total that opens the dashboard, the commands `tslaws.check`, `tslaws.runFile`, `tslaws.openDashboard` and `tslaws.accept` (types the command in a terminal and never runs it), and a debounced re-run on save.
 - **Invariant loops** may `return`, `break` and `continue`, and may change arrays and records. Property tests run in a
   killable worker (`--property-timeout`). A `laws.yml` workflow tests on Linux and Windows and publishes builds on `laws-v*` tags.
 - **npm:** `npm i tslaws` brings the compiler for the machine (`tslaws-compiler-<platform>` optional dependencies); the release workflow publishes them with provenance when `NPM_PUBLISH` is set. See RELEASING-LAWS.md.

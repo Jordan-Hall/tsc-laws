@@ -101,6 +101,8 @@ reported as `failed`.
 - **Strings** are unbounded SMT strings restricted to the BMP: `+`, templates, `length`, `charAt`, indexing, `slice`,
   `substring`, `includes`, `startsWith`, `endsWith`, `indexOf`, comparisons.
 - **Records** of any of these, and `typeof`, `Math.abs/min/max/floor/ceil/trunc`, ternaries, `const`/`let`, `assume`.
+- **`forall(xs, (x, i) => cond)` and `exists(...)`** (from `tslaws`) quantify over arrays in `assume`, law results and
+  `invariant`s. The prover lowers them over the array slots, so a claim that uses them is `bounded` by `--bound`.
 
 - **Loop invariants give proofs for every number of iterations.** Put `invariant(cond)` first in a loop body (`import {
   invariant } from 'tslaws'`; it throws at runtime when false, so property tests check it on every iteration). The prover

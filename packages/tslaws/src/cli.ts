@@ -7,14 +7,16 @@ import type { CheckReport } from './check.ts';
 import { readManifest } from './compile.ts';
 import { hintFor } from './hints.ts';
 import { init, nextStep } from './init.ts';
+import { clearCorpus, listCorpus } from './regressions.ts';
 import { reporterNames, reportAs } from './reporters.ts';
 import { serveUi } from './ui.ts';
 import { writeLock } from './lock.ts';
 import type { CheckOptions, LawResult } from './types.ts';
 
 const usage = `tslaws init [--force]       scaffold tslaws.json, .gitignore, AGENTS.md, Claude Code hooks and a starter law (never writes the lock)
-tslaws check [files...] [--reporter text|json|junit|github] [--json] [--summary] [--watch] [--runs N] [--seed N] [--no-prove] [--bound N] [--proof-timeout MS] [--property-timeout MS] [--proposed] [--compiler PATH]
+tslaws check [files...] [--reporter text|json|junit|github] [--json] [--summary] [--watch] [--runs N] [--seed N] [--no-prove] [--no-regressions] [--bound N] [--proof-timeout MS] [--property-timeout MS] [--proposed] [--compiler PATH]
 tslaws ui [files...] [--port N] [--no-open]   open a dashboard of the laws in a browser: tree, filters, search, source, live reruns on save
+tslaws regressions [list|clear]   show or delete the stored counterexamples (.tslaws/regressions); check replays them first, --no-regressions skips them
 tslaws accept [files...]     record the current laws in tsc-laws.lock (people only: needs a terminal)
 
 Without files, every *.laws.ts under the current directory is checked (*.proposed.laws.ts only with --proposed).
@@ -53,7 +55,8 @@ function parse(args: string[]): { command: string; flags: Map<string, string | t
       const name = arg.slice(2);
       if (valued.has(name)) flags.set(name, args[(i += 1)] ?? '');
       else flags.set(name, true);
-    } else if (i === 0 && (arg === 'check' || arg === 'accept' || arg === 'init' || arg === 'ui')) command = arg;
+    } else if (i === 0 && (arg === 'check' || arg === 'accept' || arg === 'init' || arg === 'ui' || arg === 'regressions'))
+      command = arg;
     else files.push(arg);
   }
   return { command, flags, files };
@@ -117,6 +120,7 @@ function options(cwd: string, flags: Map<string, string | true>, chosen: string[
     compiler: String(flags.get('compiler') ?? process.env.TSC_LAWS_BIN ?? bundledCompiler() ?? 'tsc-laws'),
     lockFile: join(cwd, 'tsc-laws.lock'),
     noProve: flags.has('no-prove'),
+    noRegressions: flags.has('no-regressions'),
     bound: Number(flags.get('bound') ?? 4),
     proofTimeoutMs: Number(flags.get('proof-timeout') ?? 5000),
     propertyTimeoutMs: Number(flags.get('property-timeout') ?? 30000),
@@ -229,6 +233,25 @@ export async function main(args: string[]): Promise<number> {
     if (exempt.length > 0) process.stdout.write(`exempt from coverage:\n${exempt.map((e) => `  ${e}`).join('\n')}\n`);
     writeLock(opts.lockFile, laws, exempt);
     process.stdout.write('tsc-laws.lock written\n');
+    return 0;
+  }
+
+  if (command === 'regressions') {
+    const action = files[0] ?? 'list';
+    if (action === 'clear') {
+      process.stdout.write(clearCorpus(cwd) ? 'cleared .tslaws/regressions\n' : 'no regression corpus to clear\n');
+      return 0;
+    }
+    if (action !== 'list') {
+      process.stderr.write(`unknown action '${action}' (expected list or clear)\n`);
+      return 1;
+    }
+    const corpus = listCorpus(cwd);
+    process.stdout.write(
+      corpus.length === 0
+        ? 'no stored counterexamples\n'
+        : `${corpus.map((e) => `${e.file} ${e.law}: ${e.count} example${e.count === 1 ? '' : 's'}`).join('\n')}\n`,
+    );
     return 0;
   }
 
