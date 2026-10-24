@@ -15,6 +15,7 @@ class LawEntry {
     readonly line: number,
     readonly params: string[],
     readonly body: string,
+    readonly text: string,
     readonly problems: string[],
   ) {}
 }
@@ -58,6 +59,7 @@ function lawsOf(file: SourceFile, fileName: string): LawEntry[] {
         lineOf(starts, statement.name === undefined ? statement.pos : statement.name.pos),
         params,
         body,
+        file.text.substring(statement.name === undefined ? statement.pos : statement.name.pos, statement.end).trim(),
         problems,
       ),
     );

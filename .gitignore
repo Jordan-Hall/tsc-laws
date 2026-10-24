@@ -10,3 +10,4 @@ isolate-*.log
 next-env.d.ts
 *.tsbuildinfo
 !packages/tsc-ts/tests/fixtures/tsc-project/node_modules/
+.tslaws
