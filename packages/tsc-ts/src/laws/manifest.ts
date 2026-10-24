@@ -1,7 +1,7 @@
 // `tsc-ts --laws-manifest <files>`: lists the `law` declarations of the files as JSON, with the problems
 // that stop a law from running. Types are not resolved here; the declaration emit carries them.
 import { readFileSync } from 'node:fs';
-import { FunctionDeclaration, Identifier, ParameterDeclaration, type Node, type SourceFile } from '../compiler/ast.js';
+import { FunctionDeclaration, Identifier, ParameterDeclaration, type SourceFile } from '../compiler/ast.js';
 import { NodeFlags, ModifierFlags } from '../compiler/ast.js';
 import { parseSourceFile } from '../compiler/parser.js';
 import { computeLineStarts } from '../compiler/scanner.js';
@@ -35,9 +35,13 @@ function lawsOf(file: SourceFile, fileName: string): LawEntry[] {
   for (const statement of file.statements.nodes) {
     if (!(statement instanceof FunctionDeclaration) || (statement.flags & NodeFlags.Law) === 0) continue;
     const problems: string[] = [];
-    const exported = statement.modifiers !== undefined && (statement.modifiers.modifierFlags & ModifierFlags.Export) !== 0;
+    const exported =
+      statement.modifiers !== undefined && (statement.modifiers.modifierFlags & ModifierFlags.Export) !== 0;
     if (!exported) problems.push('a law must be exported so the runner can load it');
-    if (statement.modifiers !== undefined && (statement.modifiers.modifierFlags & (ModifierFlags.Async | ModifierFlags.Default)) !== 0)
+    if (
+      statement.modifiers !== undefined &&
+      (statement.modifiers.modifierFlags & (ModifierFlags.Async | ModifierFlags.Default)) !== 0
+    )
       problems.push('a law cannot be async or the default export');
     if (statement.body === undefined) problems.push('a law needs a body');
     const params: string[] = [];
@@ -46,7 +50,8 @@ function lawsOf(file: SourceFile, fileName: string): LawEntry[] {
         problems.push('law parameters must be plain identifiers');
         continue;
       }
-      if (parameter.type === undefined) problems.push(`parameter '${parameter.name.text}' needs a type annotation to generate inputs`);
+      if (parameter.type === undefined)
+        problems.push(`parameter '${parameter.name.text}' needs a type annotation to generate inputs`);
       params.push(parameter.name.text);
     }
     const body = statement.body === undefined ? '' : file.text.substring(statement.body.pos, statement.body.end).trim();

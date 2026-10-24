@@ -1584,7 +1584,8 @@ export class Parser extends ScannerErrorReporter {
         if (this.isStartOfDeclaration()) return this.parseDeclaration();
         break;
       case SyntaxKind.Identifier:
-        if (this.isLawDeclarationStart()) return this.parseLawDeclaration(this.nodePos(), this.jsdocScannerInfo(), undefined);
+        if (this.isLawDeclarationStart())
+          return this.parseLawDeclaration(this.nodePos(), this.jsdocScannerInfo(), undefined);
         break;
     }
     return this.parseExpressionOrLabeledStatement();
@@ -2203,7 +2204,10 @@ export class Parser extends ScannerErrorReporter {
       const expression = this.parseAssignmentExpressionOrHigher();
       this.parseSemicolon();
       const statement = this.finishNode(new ReturnStatement(expression), bodyPos);
-      body = this.finishNode(new Block(this.newNodeList(bodyPos, this.nodePos(), [statement]), false), bodyPos) as Block;
+      body = this.finishNode(
+        new Block(this.newNodeList(bodyPos, this.nodePos(), [statement]), false),
+        bodyPos,
+      ) as Block;
     } else {
       body = this.parseFunctionBlockOrSemicolon(ParseFlags.None, Diagnostics.X_or_expected);
     }

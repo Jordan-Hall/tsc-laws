@@ -175,8 +175,7 @@ describe('tslaws check', { skip: compiler === undefined ? 'set TSC_LAWS_BIN' : f
 
   it('checks proposed laws without a lock', async () => {
     const cwd = project('proposed', {
-      'src/f.proposed.laws.ts': 'export law t(a: number) => a === a;
-',
+      'src/f.proposed.laws.ts': 'export law t(a: number) => a === a;\n',
     });
     const opts = options(cwd, ['src/f.proposed.laws.ts']);
     const report = await check(opts, false);
