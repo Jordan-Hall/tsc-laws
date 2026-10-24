@@ -1,7 +1,0 @@
-{
-  "version": 1,
-  "laws": {
-    "src/f.laws.ts::keepsLength": "2e4922365fefbd193b3d79b10302690272722aaedbf154185a0a6f918efa6f78"
-  },
-  "exempt": []
-}

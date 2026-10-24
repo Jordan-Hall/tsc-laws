@@ -1,7 +1,0 @@
-{
-  "version": 1,
-  "laws": {
-    "src/f.laws.ts::revLen": "aa5f2739d7c182b608d9921e0eb29cb61bb9b4126c1ca0bc467df789b11d048e"
-  },
-  "exempt": []
-}
