@@ -161,7 +161,7 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
     const details = runLaw(fn, types.generators, options);
     if (details.failed) {
       const message = details.errorInstance instanceof Error ? details.errorInstance.message : undefined;
-      if (message?.includes('pre-condition')) {
+      if (details.counterexample === null) {
         add(law, 'open', 'property', {
           runs: details.numRuns,
           seed: details.seed,

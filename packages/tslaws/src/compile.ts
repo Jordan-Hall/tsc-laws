@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import type { ManifestLaw } from './types.ts';
 
 export interface BuildResult {
@@ -10,9 +10,24 @@ export interface BuildResult {
   ok: boolean;
 }
 
+/** The compiler finds its lib files in TSC_TS_LIB_DIR; without it, use the TypeScript 7 libs scriptc ships. */
+function compilerEnv(cwd: string): NodeJS.ProcessEnv {
+  if (process.env.TSC_TS_LIB_DIR !== undefined) return process.env;
+  for (let dir = cwd; ; dir = dirname(dir)) {
+    const scope = join(dir, 'node_modules', '@scriptc');
+    if (existsSync(scope)) {
+      for (const entry of readdirSync(scope)) {
+        const lib = join(scope, entry, 'dist', 'lib', 'typescript', 'lib');
+        if (existsSync(join(lib, 'lib.d.ts'))) return { ...process.env, TSC_TS_LIB_DIR: lib };
+      }
+    }
+    if (dirname(dir) === dir) return process.env;
+  }
+}
+
 /** Lists the laws of `files` with the problems that stop them running. */
 export function readManifest(compiler: string, files: string[], cwd: string): ManifestLaw[] {
-  const run = spawnSync(compiler, ['--laws-manifest', ...files], { cwd, encoding: 'utf8', maxBuffer: 64 << 20 });
+  const run = spawnSync(compiler, ['--laws-manifest', ...files], { cwd, encoding: 'utf8', maxBuffer: 64 << 20, env: compilerEnv(cwd) });
   if (run.error !== undefined) throw new Error(`cannot run ${compiler}: ${run.error.message}`);
   const text = (run.stdout ?? '').trim();
   if (text === '') throw new Error(`${compiler} --laws-manifest printed nothing: ${run.stderr ?? ''}`);
@@ -39,7 +54,7 @@ export function build(compiler: string, files: string[], cwd: string): BuildResu
     '--outDir', outDir,
     ...files,
   ];
-  const run = spawnSync(compiler, args, { cwd, encoding: 'utf8', maxBuffer: 64 << 20 });
+  const run = spawnSync(compiler, args, { cwd, encoding: 'utf8', maxBuffer: 64 << 20, env: compilerEnv(cwd) });
   if (run.error !== undefined) throw new Error(`cannot run ${compiler}: ${run.error.message}`);
   return { outDir, diagnostics: `${run.stdout ?? ''}${run.stderr ?? ''}`.trim(), ok: run.status === 0 };
 }

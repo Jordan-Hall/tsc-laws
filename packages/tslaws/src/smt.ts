@@ -38,8 +38,11 @@ interface Term {
   sort: Sort;
 }
 
+type FunctionNode = ts.FunctionDeclaration | ts.ArrowFunction | ts.FunctionExpression;
+
 interface FunctionIndex {
-  functions: Map<string, ts.FunctionDeclaration>;
+  /** Top-level functions: declarations and `const f = (...) => ...` bindings. */
+  functions: Map<string, FunctionNode>;
   /** `local = require("./x")` bindings: local name to the resolved JavaScript file. */
   imports: Map<string, string>;
 }
@@ -64,6 +67,8 @@ class Lowering {
       if (ts.isVariableStatement(statement)) {
         for (const declaration of statement.declarationList.declarations) {
           const init = declaration.initializer;
+          if (ts.isIdentifier(declaration.name) && init !== undefined && (ts.isArrowFunction(init) || ts.isFunctionExpression(init)))
+            index.functions.set(declaration.name.text, init);
           if (
             ts.isIdentifier(declaration.name) &&
             init !== undefined &&
@@ -88,9 +93,9 @@ class Lowering {
   }
 
   /** The value a call of `fn` returns, with `args` bound to its parameters. */
-  callFunction(file: string, fn: ts.FunctionDeclaration, args: Term[]): Term {
+  callFunction(file: string, fn: FunctionNode, args: Term[]): Term {
     if (this.depth >= maxInlineDepth) throw new Unsupported('calls nest too deeply (recursion?)');
-    if (fn.parameters.length !== args.length) throw new Unsupported(`call of ${fn.name?.text} has the wrong number of arguments`);
+    if (fn.parameters.length !== args.length) throw new Unsupported('call has the wrong number of arguments');
     const env = new Map<string, Term>();
     fn.parameters.forEach((parameter, i) => {
       if (!ts.isIdentifier(parameter.name) || parameter.initializer !== undefined || parameter.dotDotDotToken !== undefined)
@@ -99,8 +104,8 @@ class Lowering {
     });
     this.depth += 1;
     try {
-      const result = this.block(file, fn.body!.statements, env, true);
-      if (result === undefined) throw new Unsupported(`${fn.name?.text} returns nothing`);
+      const result = this.functionBody(file, fn, env);
+      if (result === undefined) throw new Unsupported('a called function returns nothing');
       return result;
     } finally {
       this.depth -= 1;
@@ -108,13 +113,20 @@ class Lowering {
   }
 
   /** The law's own result: `undefined` when it returns nothing, which counts as holding. */
-  lawResult(file: string, fn: ts.FunctionDeclaration, params: Term[]): Term | undefined {
+  lawResult(file: string, fn: FunctionNode, params: Term[]): Term | undefined {
     const env = new Map<string, Term>();
     fn.parameters.forEach((parameter, i) => {
       if (!ts.isIdentifier(parameter.name)) throw new Unsupported('parameters must be plain identifiers');
       env.set(parameter.name.text, params[i]!);
     });
-    return this.block(file, fn.body!.statements, env, true);
+    return this.functionBody(file, fn, env);
+  }
+
+  private functionBody(file: string, fn: FunctionNode, env: Map<string, Term>): Term | undefined {
+    const body = fn.body;
+    if (body === undefined) throw new Unsupported('function has no body');
+    if (ts.isBlock(body)) return this.block(file, body.statements, env, true);
+    return this.expression(file, body, env);
   }
 
   private block(file: string, statements: readonly ts.Statement[], env: Map<string, Term>, top: boolean): Term | undefined {
@@ -289,7 +301,7 @@ class Lowering {
     }
     const index = this.index(file);
     let targetFile = file;
-    let target: ts.FunctionDeclaration | undefined;
+    let target: FunctionNode | undefined;
     if (callee.owner === undefined) target = index.functions.get(callee.name);
     else {
       const moduleFile = index.imports.get(callee.owner);
