@@ -9,7 +9,7 @@
 // refreshing it is a matter of gain, not of correctness. SCRIPTC selects the scriptc executable.
 import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
@@ -18,6 +18,7 @@ const root = resolve(import.meta.dirname, '..');
 const repo = resolve(root, '../..');
 const scriptc = process.env.SCRIPTC ?? join(repo, 'node_modules/.bin/scriptc');
 const output = join(root, 'profiles/tsc-ts.profdata');
+const versionFile = join(root, 'profiles/scriptc-version');
 
 const { values } = parseArgs({ options: { project: { type: 'string', multiple: true, default: [] } } });
 const projects = [
@@ -62,9 +63,19 @@ try {
     throw new Error(`expected ${projects.length} raw profiles in ${raw}, found ${profiles.length}`);
   mkdirSync(dirname(output), { recursive: true });
   run(scriptc, ['merge-profiles', '-o', output, '--sparse', ...profiles], { cwd: root });
+  // The scriptc that generated the profiled code. tests/profile.test.mjs compares it with the pinned scriptc.
+  writeFileSync(versionFile, `${scriptcVersion()}\n`);
   console.log(`wrote ${output}`);
 } finally {
   rmSync(work, { recursive: true, force: true });
+}
+
+// The version the scriptc executable reports.
+function scriptcVersion() {
+  const result = spawnSync(scriptc, ['--version'], { encoding: 'utf8' });
+  const version = /\d+\.\d+\.\d+\S*/.exec(result.stdout ?? '')?.[0];
+  if (result.status !== 0 || version === undefined) throw new Error(`${scriptc} --version did not report a version`);
+  return version;
 }
 
 // TypeScript 7.0.2's lib files, from the tsc bundled with the installed scriptc.
