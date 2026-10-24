@@ -133,4 +133,119 @@ describe('loop invariants', { skip: compiler === undefined ? 'set TSC_LAWS_BIN' 
     const { results } = await check(opts, true);
     assert.equal(byName(results, 'atLeastLo').status, 'proved', JSON.stringify(byName(results, 'atLeastLo')));
   });
+
+  it('prove loops that return or break early', async () => {
+    const opts = project('early', {
+      'src/f.ts': [
+        "import { invariant } from 'tslaws';",
+        "import type { int } from 'tslaws';",
+        'export function firstSquareAtLeast(n: int, k: int): int {',
+        '  let i = 0;',
+        '  while (i < n) {',
+        '    invariant(0 <= i && i <= n);',
+        '    if (i * i >= k) return i;',
+        '    i += 1;',
+        '  }',
+        '  return n;',
+        '}',
+        'export function stopAtSquare(n: int, k: int): int {',
+        '  let i = 0;',
+        '  while (i < n) {',
+        '    invariant(0 <= i && i <= n);',
+        '    if (i * i >= k) break;',
+        '    i += 1;',
+        '  }',
+        '  return i;',
+        '}',
+        '',
+      ].join('\n'),
+      'src/f.laws.ts': [
+        "import { assume } from 'tslaws';",
+        "import type { int } from 'tslaws';",
+        "import { firstSquareAtLeast, stopAtSquare } from './f';",
+        'export law proved returnsInRange(n: int, k: int) {',
+        '  assume(n >= 0 && n <= 1000 && k >= 0 && k <= 1000000);',
+        '  const r = firstSquareAtLeast(n, k);',
+        '  return r >= 0 && r <= n && (r === n || r * r >= k);',
+        '}',
+        'export law neverStopsEarly(n: int, k: int) {',
+        '  assume(n >= 0 && n <= 1000 && k >= 0 && k <= 1000000);',
+        '  return stopAtSquare(n, k) === n;',
+        '}',
+        'export law proved breaksInRange(n: int, k: int) {',
+        '  assume(n >= 0 && n <= 1000 && k >= 0 && k <= 1000000);',
+        '  const r = stopAtSquare(n, k);',
+        '  return r >= 0 && r <= n && (r === n || r * r >= k);',
+        '}',
+        '',
+      ].join('\n'),
+    });
+    const { results } = await check(opts, true);
+    assert.equal(byName(results, 'neverStopsEarly').status, 'failed', JSON.stringify(byName(results, 'neverStopsEarly')));
+    for (const name of ['returnsInRange', 'breaksInRange']) assert.equal(byName(results, name).status, 'proved', JSON.stringify(byName(results, name)));
+  });
+
+  it('reject a loop whose early exit breaks the law', async () => {
+    const opts = project('earlybad', {
+      'src/f.ts': [
+        "import { invariant } from 'tslaws';",
+        "import type { int } from 'tslaws';",
+        'export function find(n: int, k: int): int {',
+        '  let i = 0;',
+        '  while (i < n) {',
+        '    invariant(0 <= i && i <= n);',
+        '    if (i * i >= k) return i + 2;',
+        '    i += 1;',
+        '  }',
+        '  return n;',
+        '}',
+        '',
+      ].join('\n'),
+      'src/f.laws.ts': [
+        "import { assume } from 'tslaws';",
+        "import type { int } from 'tslaws';",
+        "import { find } from './f';",
+        'export law proved inRange(n: int, k: int) {',
+        '  assume(n >= 0 && n <= 1000 && k >= 0 && k <= 1000000);',
+        '  return find(n, k) <= n;',
+        '}',
+        '',
+      ].join('\n'),
+    });
+    const { results } = await check(opts, true);
+    assert.equal(byName(results, 'inRange').status, 'failed', JSON.stringify(byName(results, 'inRange')));
+  });
+
+  it('track arrays changed inside an invariant loop', async () => {
+    const opts = project('arrays', {
+      'src/f.ts': [
+        "import { invariant } from 'tslaws';",
+        "import type { int } from 'tslaws';",
+        'export function zeroFirst(xs: int[], n: int): int[] {',
+        '  const ys = [...xs];',
+        '  let i = 0;',
+        '  while (i < n) {',
+        '    invariant(0 <= i && i <= n);',
+        '    invariant(ys.length === xs.length);',
+        '    ys[i] = 0 as int;',
+        '    i += 1;',
+        '  }',
+        '  return ys;',
+        '}',
+        '',
+      ].join('\n'),
+      'src/f.laws.ts': [
+        "import { assume } from 'tslaws';",
+        "import type { int } from 'tslaws';",
+        "import { zeroFirst } from './f';",
+        'export law keepsLength(xs: int[], n: int) {',
+        '  assume(n >= 0 && n <= xs.length);',
+        '  return zeroFirst(xs, n).length === xs.length;',
+        '}',
+        '',
+      ].join('\n'),
+    });
+    const { results } = await check(opts, true);
+    assert.equal(byName(results, 'keepsLength').status, 'bounded', JSON.stringify(byName(results, 'keepsLength')));
+  });
 });

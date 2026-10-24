@@ -127,6 +127,7 @@ import { instantiateType } from './instantiation.js';
 import { symbolToString, typeToString } from './type-printer.js';
 import { checkNodeDeferred, checkSourceElement, checkTypeNodeIfPresent } from './checker-source-file.js';
 import { checkFunctionLikeBody } from './checker-functions.js';
+import { checkLawDeclaration } from './checker-laws.js';
 import { ContainerFlags, getContainerFlags } from './binder.js';
 import {
   isAmbientModule,
@@ -598,6 +599,7 @@ export function checkFunctionDeclaration(c: Checker, node: Node): void {
   const symbol = getSymbolOfDeclaration(c, node);
   if (symbol !== undefined) getTypeOfSymbol(c, symbol);
   checkFunctionLikeBody(c, node);
+  checkLawDeclaration(c, node);
   checkJSDocFullSignature(c, node);
   checkFunctionOrMethodSymbols(c, node);
   checkCollisionsForDeclarationName(c, node, getName(node));

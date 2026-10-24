@@ -4,6 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { gunzipSync } from 'node:zlib';
+import { lawMessages } from './law-diagnostics.mjs';
 
 const root = resolve(import.meta.dirname, '..');
 const upstream = resolve(root, '../../upstream/typescript-go/internal/diagnostics');
@@ -169,7 +170,8 @@ export const ${localeName(tag)} = ${joined(texts)};
   };
 }
 
-const messages = readMessages();
+// tsc-laws messages follow tsgo's, so tsgo's numbering is unchanged; other locales fall back to English for them.
+const messages = [...readMessages(), ...lawMessages];
 const tags = readLocaleTags();
 const files = new Map([
   ['diagnostic-messages.ts', messagesModule(messages)],

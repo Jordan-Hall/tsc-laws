@@ -195,6 +195,7 @@ import {
 } from './checker-contextual.js';
 import { couldContainTypeVariables } from './instantiation.js';
 import { typeToString } from './type-printer.js';
+import { checkLawCall } from './checker-laws.js';
 import { checkTypeRelatedToAndOptionallyElaborate } from './checker-elaboration.js';
 import { getGlobalValueSymbol, getSymbolOfDeclaration, resolveName } from './checker-symbols.js';
 import { checkImportCallExpression } from './checker-modules.js';
@@ -231,6 +232,7 @@ export function checkCallExpression(c: Checker, node: Node, checkMode: CheckMode
   // A deferred call to a generic function returning a function, under SkipGenericFunctions.
   if (signature === c.resolvingSignature) return c.silentNeverType;
   checkDeprecatedSignature(c, signature, node);
+  checkLawCall(c, node, signature.declaration);
   if (callee.kind === SyntaxKind.SuperKeyword) return c.voidType;
   if (isInJSFile(node) && isCommonJSRequire(c, node))
     return resolveExternalModuleTypeByLiteral(c, call.arguments.nodes[0]!);

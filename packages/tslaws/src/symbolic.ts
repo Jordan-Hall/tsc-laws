@@ -380,8 +380,21 @@ export class Executor {
         throw new Unsupported('variable declarations need a name and an initializer');
       const name = declaration.name.text;
       if (f.env.has(name)) throw new Unsupported(`${name} is declared twice or shadows another name`);
-      f.env.set(name, this.escape(this.ev(declaration.initializer, f, pc, false, true)));
+      const value = this.ev(declaration.initializer, f, pc, false, true);
+      // A new array has one name, so it may be changed; anything else may be an alias of an array someone else holds.
+      f.env.set(name, this.isNewArray(declaration.initializer) ? value : this.escape(value));
     }
+  }
+
+  private isNewArray(node: ts.Expression): boolean {
+    let e = node;
+    while (ts.isParenthesizedExpression(e) || ts.isAsExpression(e) || ts.isNonNullExpression(e)) e = e.expression;
+    if (ts.isArrayLiteralExpression(e)) return true;
+    return (
+      ts.isCallExpression(e) &&
+      ts.isPropertyAccessExpression(e.expression) &&
+      ['map', 'filter', 'slice', 'concat'].includes(e.expression.name.text)
+    );
   }
 
   private ifStatement(node: ts.IfStatement, f: Frame, pc: string): void {
@@ -483,8 +496,6 @@ export class Executor {
         names.add(n.operand.text);
       if (ts.isCallExpression(n) && ts.isPropertyAccessExpression(n.expression) && ts.isIdentifier(n.expression.expression))
         if (['push', 'pop', 'shift', 'unshift', 'splice', 'sort', 'reverse', 'fill'].includes(n.expression.name.text)) names.add(n.expression.expression.text);
-      if (ts.isReturnStatement(n) || ts.isBreakStatement(n) || ts.isContinueStatement(n))
-        throw new Unsupported('a loop with an invariant cannot return, break or continue inside its body');
       ts.forEachChild(n, visit);
     };
     for (const n of nodes) visit(n);
@@ -493,30 +504,50 @@ export class Executor {
 
   /** A constant standing for an arbitrary value of the same kind as `v`, with the facts every such value has. */
   private fresh(v: Value): Value {
-    const name = `_h${this.havocked++}`;
-    const decl = (sort: string): void => {
+    const declare = (sort: string): string => {
+      const name = `_h${this.havocked++}`;
       this.freshDecls.push(`(declare-const ${name} ${sort})`);
+      return name;
     };
     switch (v.k) {
-      case 'int':
-        decl('Int');
+      case 'int': {
+        const name = declare('Int');
         this.assumptions.push(`(and (<= (- ${maxSafe}) ${name}) (<= ${name} ${maxSafe}))`);
         return { k: 'int', t: name };
+      }
       case 'big':
-        decl('Int');
-        return { k: 'big', t: name };
+        return { k: 'big', t: declare('Int') };
       case 'fp':
-        decl('(_ FloatingPoint 11 53)');
-        return { k: 'fp', t: name };
+        return { k: 'fp', t: declare('(_ FloatingPoint 11 53)') };
       case 'bool':
-        decl('Bool');
-        return { k: 'bool', t: name };
-      case 'str':
-        decl('String');
-        this.assumptions.push(`(and (str.in_re ${name} (re.* (re.range "\\u{0}" "\\u{ffff}"))) (<= (str.len ${name}) 536870888))`);
+        return { k: 'bool', t: declare('Bool') };
+      case 'str': {
+        const name = declare('String');
+        this.assumptions.push(`(and (str.in_re ${name} (re.* (re.range "\u{0}" "\u{ffff}"))) (<= (str.len ${name}) 536870888))`);
         return { k: 'str', t: name };
+      }
+      case 'rec': {
+        const fields = new Map<string, Value>();
+        for (const [field, value] of v.fields) fields.set(field, this.fresh(value));
+        return { k: 'rec', fields };
+      }
+      case 'arr': {
+        // The array keeps the room it had, so the claim holds for arrays of at most that many elements.
+        const room = v.slots.length;
+        const len = declare('Int');
+        this.assumptions.push(`(and (<= 0 ${len}) (<= ${len} ${room}))`);
+        const why = `arrays changed in an invariant loop hold at most ${room} elements`;
+        if (!this.bounded.includes(why)) this.bounded.push(why);
+        return {
+          k: 'arr',
+          len: { k: 'int', t: len },
+          slots: v.slots.map((slot) => (slot.k === 'undef' ? slot : this.fresh(slot))),
+          id: { escaped: v.id.escaped },
+        };
+      }
+      case 'undef':
+        return v;
     }
-    throw new Unsupported(`a ${v.k} changed in a loop with an invariant is not modelled (arrays and records may only be read)`);
   }
 
   private invariantTerm(exprs: readonly ts.Expression[], f: Frame, pc: string): string {
@@ -553,14 +584,26 @@ export class Executor {
     this.execList(rest, run, inside);
     run.cnt = 'false';
     if (incrementor !== undefined) this.ev(incrementor, run, inside, true);
-    if (run.done !== f.done || run.brk !== f.brk) throw new Unsupported('a loop with an invariant cannot return or break');
+    if (f.brk !== 'false' || f.cnt !== 'false') throw new Unsupported('a loop with an invariant inside a break or continue');
     for (const [name, kind] of kinds) {
       if (run.env.get(name)?.k !== kind) throw new Unsupported(`${name} changes kind inside a loop with an invariant`);
     }
     this.oblige(run, inside, this.invariantTerm(exprs, run, this.guard(run, inside)));
 
-    // After the loop: any state satisfying the invariant in which the condition is false.
-    this.assume(f, pc, not(c));
+    // After the loop: any state satisfying the invariant in which the condition is false, or the state of an iteration
+    // that started from such a state and left through a return or break. Which of the two is not known: a fresh choice.
+    const left = or(and(run.done, not(f.done)), run.brk);
+    if (left === 'false') {
+      this.assume(f, pc, not(c));
+    } else {
+      const choice = `_h${this.havocked++}`;
+      this.freshDecls.push(`(declare-const ${choice} Bool)`);
+      this.assume(f, pc, or(not(choice), and(holds, c, left)));
+      this.assume(f, pc, or(choice, not(c)));
+      run.brk = 'false';
+      run.cnt = 'false';
+      this.mergeFrames(choice, run, f, f);
+    }
     f.brk = 'false';
   }
 
