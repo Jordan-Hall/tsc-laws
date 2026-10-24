@@ -119,7 +119,7 @@ reported as `failed`.
   change numbers, booleans and strings but only read arrays and records, and may not `return`, `break` or `continue`.
   This is partial correctness (a loop that never ends is not flagged).
 
-Anything else leaves the law `tested`, or a `law proved` `open`, with the reason. Z3 runs in a worker thread that is terminated if a query outlives its timeout, so a hard query cannot hang the check. `TSLAWS_DEBUG=1` keeps each query as an
+Anything else leaves the law `tested`, or a `law proved` `open`, with the reason. Z3 runs in a worker thread that is terminated if a query outlives its timeout, so a hard query cannot hang the check; property tests run in a worker too, and a law that outlives `--property-timeout` (default 30000 ms) is reported `error`: the law or the code it calls may not terminate. `TSLAWS_DEBUG=1` keeps each query as an
 `.smt2` file under `.tslaws/out/smt` to replay in `z3`.
 
 ## Agents cannot move the goalposts
@@ -138,7 +138,7 @@ under `CI`, or with `TSLAWS_AGENT` set. Agents propose laws in `*.proposed.laws.
 tslaws init [--force]
 tslaws accept [files...]
 tslaws check [files...] [--json] [--summary] [--watch] [--runs N] [--seed N] [--no-prove] [--bound N]
-             [--proof-timeout MS] [--proposed] [--compiler PATH]
+             [--proof-timeout MS] [--property-timeout MS] [--proposed] [--compiler PATH]
 ```
 
 - `init` scaffolds `tslaws.json`, the `.tslaws` ignore entry, the agent rules in `AGENTS.md`, the Claude Code hook in

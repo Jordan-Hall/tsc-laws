@@ -240,8 +240,8 @@ On Windows the native build is `dist/tsc`; copy it to `tsc.exe` to run it.
 
 ## Limits
 
-- The property tests run in the main thread, so a law that calls code which never terminates can hang the check. Only the
-  prover is protected by a watchdog.
+- A law whose property test outlives `--property-timeout` (default 30 s) is reported `error`, not hung: the worker running it is
+  terminated. Only the check of that law is lost.
 - Laws over arrays are bounded; unbounded array proofs would need quantifiers.
 - Laws over plain `number` mostly stay `tested`, because Z3 cannot decide most double arithmetic. Use `int` or `bigint`
   where you want a proof.

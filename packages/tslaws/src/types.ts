@@ -39,4 +39,6 @@ export interface CheckOptions {
   /** Longest array, most loop iterations and deepest recursion a proof considers. */
   bound: number;
   proofTimeoutMs: number;
+  /** Longest a law's property test may run before it counts as non-terminating. Default 30000. */
+  propertyTimeoutMs?: number;
 }

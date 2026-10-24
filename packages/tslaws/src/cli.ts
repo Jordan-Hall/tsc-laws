@@ -10,7 +10,7 @@ import { writeLock } from './lock.ts';
 import type { CheckOptions, LawResult } from './types.ts';
 
 const usage = `tslaws init [--force]       scaffold tslaws.json, .gitignore, AGENTS.md, Claude Code hooks and a starter law (never writes the lock)
-tslaws check [files...] [--json] [--summary] [--watch] [--runs N] [--seed N] [--no-prove] [--bound N] [--proof-timeout MS] [--proposed] [--compiler PATH]
+tslaws check [files...] [--json] [--summary] [--watch] [--runs N] [--seed N] [--no-prove] [--bound N] [--proof-timeout MS] [--property-timeout MS] [--proposed] [--compiler PATH]
 tslaws accept [files...]     record the current laws in tsc-laws.lock (people only: needs a terminal)
 
 Without files, every *.laws.ts under the current directory is checked (*.proposed.laws.ts only with --proposed).
@@ -41,7 +41,7 @@ function parse(args: string[]): { command: string; flags: Map<string, string | t
   const flags = new Map<string, string | true>();
   const files: string[] = [];
   let command = 'check';
-  const valued = new Set(['runs', 'seed', 'compiler', 'bound', 'proof-timeout']);
+  const valued = new Set(['runs', 'seed', 'compiler', 'bound', 'proof-timeout', 'property-timeout']);
   for (let i = 0; i < args.length; i += 1) {
     const arg = args[i]!;
     if (arg.startsWith('--')) {
@@ -105,6 +105,7 @@ function options(cwd: string, flags: Map<string, string | true>, chosen: string[
     noProve: flags.has('no-prove'),
     bound: Number(flags.get('bound') ?? 4),
     proofTimeoutMs: Number(flags.get('proof-timeout') ?? 5000),
+    propertyTimeoutMs: Number(flags.get('property-timeout') ?? 30000),
   };
 }
 

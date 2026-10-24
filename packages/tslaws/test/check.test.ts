@@ -364,4 +364,22 @@ describe('tslaws check', { skip: compiler === undefined ? 'set TSC_LAWS_BIN' : f
     const { results } = await check(opts, true);
     for (const name of ['pointShape', 'colorKnown', 'tupleLen', 'recordKeys']) assert.equal(byName(results, name).status, 'tested', name);
   });
+
+  it('reports a law over non-terminating code instead of hanging', async () => {
+    const cwd = project('hang', {
+      'src/f.ts': 'export const spin = (n: number): number => { while (true) { n += 1; } };\nexport const fine = (n: number): number => n;\n',
+      'src/f.laws.ts': [
+        "import { spin, fine } from './f';",
+        'export law spins(n: number) { return spin(n) === 0; }',
+        'export law finishes(n: number) { return fine(n) === n; }',
+      ].join('\n'),
+    });
+    const opts = options(cwd, ['src/f.laws.ts'], { noProve: true, propertyTimeoutMs: 1500 });
+    lockNow(opts);
+    const { results, ok } = await check(opts, true);
+    assert.equal(byName(results, 'spins').status, 'error');
+    assert.match(byName(results, 'spins').message ?? '', /may not terminate/);
+    assert.equal(byName(results, 'finishes').status, 'tested');
+    assert.equal(ok, false);
+  });
 });
