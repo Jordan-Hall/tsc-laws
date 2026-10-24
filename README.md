@@ -1,4 +1,55 @@
-# tsc-ts
+# tsc-laws
+
+**Laws for TypeScript, checked the way Bend 2 checks its laws, without leaving TypeScript.**
+
+A person writes `law` declarations. A coding agent writes the code. One command, `tslaws check`, says whether the code
+satisfies every law, proves what it can, tests the rest, and fails if any exported code is not covered by a law or if
+anyone touched the laws.
+
+```ts
+export law proved clampWithinBounds(x: number, lo: number, hi: number) {
+  assume(lo <= hi);
+  const y = clamp(x, lo, hi);
+  return y >= lo && y <= hi;
+}
+```
+
+```
+$ tslaws check
+PROVED    clampWithinBounds (src/math.laws.ts:5) [smt]
+BOUNDED   sortOrders (src/math.laws.ts:11) [smt]
+          holds within bounds: int values stay within ±2^26; arrays hold at most 4 elements; loops run at most 4 times
+FAILED    sortKeepsLength (src/math.laws.ts:17) [property]
+          counterexample: [[3,3]]
+UNCOVERED sub (src/math.ts) [coverage]
+```
+
+What it offers:
+
+- **`law` as syntax.** A fork of [tsc-ts](https://github.com/vercel-labs/tsc-ts) (the TypeScript 7 compiler, ported to
+  TypeScript and compiled natively) parses `law`, enforces the rules of a specification in the checker (TS9101 to TS9106),
+  and emits ordinary, type-checked functions. `law` stays a normal identifier
+  everywhere else.
+- **Proof where possible, tests everywhere else.** Z3 proves laws over exact integers, bigints, strings, booleans and
+  records, bounded-checks arrays, loops and recursion, and proves loops for every iteration count when the code carries an
+  `invariant`. Whatever does not lower is property-tested with inputs generated from your types, shrunk to a minimal
+  counterexample. Every result says which it was.
+- **Agents cannot weaken the laws.** A lock file hashes the laws and coverage exemptions; `tslaws accept` needs a person at
+  a terminal. A coverage gate fails exported code that no law reaches.
+- **Built for the agent loop.** `tslaws init` scaffolds the rules and a Claude Code hook that blocks commits on failure;
+  `--json` and `--summary` give compact output with a next-action hint per result; `--watch` re-checks on save.
+- **Browser laws.** Name a file `*.browser.laws.ts` and its laws run in a real Chrome, Edge or Chromium against a live DOM,
+  with any framework or none. Inputs are still generated from your types and shrunk in Node.
+- **A dashboard.** `tslaws ui` opens a Vitest-style UI: tree, filters, search, counterexamples, source, live reruns.
+- **Humans stay in control.** It is TypeScript, so every counterexample, proof obligation and fix is code a person can read
+  and run. A VS Code grammar highlights `law`.
+
+Start with the [guide to laws](docs/laws.md), the [`tslaws` reference](packages/tslaws/README.md), and the
+[basic example](examples/basic/README.md). The rest of this file is the upstream tsc-ts README.
+
+---
+
+## tsc-ts (upstream compiler)
 
 <p>
   <a href="https://vercel.com/labs#active-experiments"><img alt="Vercel Labs Experiment" src="https://img.shields.io/badge/LABS-EXPERIMENT-0a0a0a.svg?style=for-the-badge&amp;logo=Vercel&amp;labelColor=000000" height="28"></a>

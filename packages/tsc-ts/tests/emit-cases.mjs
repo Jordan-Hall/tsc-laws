@@ -4,9 +4,9 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, normalize, relative, resolve } from 'node:path';
 import { repo, run } from './parser-cases.mjs';
-import { compileSources, tempDir } from './temp.mjs';
+import { compileSources, nativeExe, tempDir } from './temp.mjs';
 
-export const tsgo = resolve(repo, 'packages/tsgo/dist/tsgo');
+export const tsgo = nativeExe(resolve(repo, 'packages/tsgo/dist/tsgo'));
 
 /** Options for both compilers: no type checking or loading of other files, ECMAScript module output. */
 export const baseFlags = [

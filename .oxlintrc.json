@@ -1,4 +1,12 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "ignorePatterns": ["packages/tsc-ts/tests/fixtures/**", "upstream/**", "**/dist/**", "**/.next/**", "**/.source/**"]
+  "ignorePatterns": [
+    "packages/tsc-ts/tests/fixtures/**",
+    "upstream/**",
+    "**/*.laws.ts",
+    "**/.tslaws/**",
+    "**/dist/**",
+    "**/.next/**",
+    "**/.source/**"
+  ]
 }

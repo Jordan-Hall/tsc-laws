@@ -1,0 +1,15 @@
+{
+  "scopeName": "source.tslaws",
+  "injectionSelector": "L:source.ts -comment -string, L:source.tsx -comment -string",
+  "patterns": [{ "include": "#law-declaration" }],
+  "repository": {
+    "law-declaration": {
+      "match": "(?<![.\\w$])(law)(?:[ \\t]+(proved))?[ \\t]+([A-Za-z_$][\\w$]*)[ \\t]*(?=[(<])",
+      "captures": {
+        "1": { "name": "keyword.declaration.law.tslaws storage.type.law.tslaws" },
+        "2": { "name": "keyword.declaration.law.tslaws storage.modifier.proved.tslaws" },
+        "3": { "name": "entity.name.function.law.tslaws" }
+      }
+    }
+  }
+}

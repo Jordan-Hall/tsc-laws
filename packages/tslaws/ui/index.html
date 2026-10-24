@@ -1,0 +1,899 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>tslaws</title>
+    <style>
+      :root {
+        --bg: #ffffff;
+        --panel: #f6f7f9;
+        --line: #e2e5ea;
+        --text: #1d2330;
+        --muted: #6b7384;
+        --hover: #eceff4;
+        --select: #e3ebff;
+        --proved: #1a8f5a;
+        --bounded: #0f8f8f;
+        --tested: #3b6fd4;
+        --open: #b7791f;
+        --failed: #d1383d;
+        --uncovered: #c2570c;
+        --tampered: #8e44ad;
+        --error: #a3243b;
+        --code: #f3f5f8;
+        --hit: #fff3c4;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root:not([data-theme='light']) {
+          --bg: #111418;
+          --panel: #181c22;
+          --line: #2a303a;
+          --text: #e6e9ef;
+          --muted: #8b93a3;
+          --hover: #202630;
+          --select: #1f2d4d;
+          --proved: #3ecf8e;
+          --bounded: #2fc4c4;
+          --tested: #6c9cff;
+          --open: #e0b04a;
+          --failed: #ff6b70;
+          --uncovered: #f08a3c;
+          --tampered: #c18bf0;
+          --error: #ff7a8f;
+          --code: #1a1f27;
+          --hit: #4a4217;
+        }
+      }
+      :root[data-theme='dark'] {
+        --bg: #111418;
+        --panel: #181c22;
+        --line: #2a303a;
+        --text: #e6e9ef;
+        --muted: #8b93a3;
+        --hover: #202630;
+        --select: #1f2d4d;
+        --proved: #3ecf8e;
+        --bounded: #2fc4c4;
+        --tested: #6c9cff;
+        --open: #e0b04a;
+        --failed: #ff6b70;
+        --uncovered: #f08a3c;
+        --tampered: #c18bf0;
+        --error: #ff7a8f;
+        --code: #1a1f27;
+        --hit: #4a4217;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+      }
+      body {
+        background: var(--bg);
+        color: var(--text);
+        font:
+          14px/1.45 system-ui,
+          -apple-system,
+          'Segoe UI',
+          sans-serif;
+        display: flex;
+        flex-direction: column;
+      }
+      button {
+        font: inherit;
+        color: inherit;
+        background: none;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 4px 10px;
+        cursor: pointer;
+      }
+      button:hover {
+        background: var(--hover);
+      }
+      button:focus-visible,
+      input:focus-visible,
+      .row:focus-visible {
+        outline: 2px solid var(--tested);
+        outline-offset: -1px;
+      }
+      code,
+      pre {
+        font:
+          12.5px/1.5 ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          Consolas,
+          monospace;
+      }
+      header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 8px 16px;
+        border-bottom: 1px solid var(--line);
+      }
+      header h1 {
+        font-size: 15px;
+        margin: 0;
+        letter-spacing: 0.2px;
+      }
+      header .project {
+        color: var(--muted);
+      }
+      header .grow {
+        flex: 1;
+      }
+      .pill {
+        padding: 2px 10px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 600;
+        color: #fff;
+        background: var(--muted);
+      }
+      .pill.ok {
+        background: var(--proved);
+      }
+      .pill.bad {
+        background: var(--failed);
+      }
+      .pill.run {
+        background: var(--tested);
+      }
+      .spin {
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        margin-right: 6px;
+        border: 2px solid #fff6;
+        border-top-color: #fff;
+        border-radius: 50%;
+        animation: s 0.8s linear infinite;
+      }
+      @keyframes s {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .spin {
+          animation: none;
+        }
+      }
+      main {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+      }
+      aside {
+        width: 340px;
+        min-width: 240px;
+        border-right: 1px solid var(--line);
+        background: var(--panel);
+        display: flex;
+        flex-direction: column;
+      }
+      .filters {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        padding: 10px 12px 6px;
+      }
+      .chip {
+        border-radius: 999px;
+        padding: 2px 10px;
+        font-size: 12px;
+      }
+      .chip[aria-pressed='true'] {
+        background: var(--select);
+        border-color: var(--tested);
+      }
+      .search {
+        padding: 4px 12px 10px;
+      }
+      .search input {
+        width: 100%;
+        padding: 6px 10px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: var(--bg);
+        color: inherit;
+        font: inherit;
+      }
+      #tree {
+        overflow: auto;
+        flex: 1;
+        padding-bottom: 12px;
+      }
+      .row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 4px 12px;
+        cursor: pointer;
+        user-select: none;
+        white-space: nowrap;
+      }
+      .row:hover {
+        background: var(--hover);
+      }
+      .row[aria-selected='true'] {
+        background: var(--select);
+      }
+      .row.file {
+        font-weight: 600;
+      }
+      .row.law {
+        padding-left: 34px;
+      }
+      .row .name {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        flex: 1;
+      }
+      .row .tag {
+        color: var(--muted);
+        font-size: 11px;
+      }
+      .runfile {
+        padding: 0 6px;
+        border: 0;
+        color: var(--muted);
+        font-size: 11px;
+        opacity: 0;
+      }
+      .row:hover .runfile,
+      .runfile:focus-visible {
+        opacity: 1;
+      }
+      .shot {
+        max-width: 100%;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fff;
+      }
+      .caret {
+        width: 12px;
+        color: var(--muted);
+        display: inline-block;
+        transition: transform 0.1s;
+      }
+      .collapsed > .caret {
+        transform: rotate(-90deg);
+      }
+      .icon {
+        width: 16px;
+        text-align: center;
+        font-weight: 700;
+      }
+      .s-proved {
+        color: var(--proved);
+      }
+      .s-bounded {
+        color: var(--bounded);
+      }
+      .s-tested {
+        color: var(--tested);
+      }
+      .s-open {
+        color: var(--open);
+      }
+      .s-failed {
+        color: var(--failed);
+      }
+      .s-uncovered {
+        color: var(--uncovered);
+      }
+      .s-tampered {
+        color: var(--tampered);
+      }
+      .s-error {
+        color: var(--error);
+      }
+      section#detail {
+        flex: 1;
+        min-width: 0;
+        overflow: auto;
+        padding: 20px 28px 40px;
+      }
+      .cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        gap: 12px;
+        margin: 14px 0 22px;
+      }
+      .card {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 12px 14px;
+        background: var(--panel);
+        text-align: left;
+      }
+      .card .n {
+        font-size: 28px;
+        font-weight: 700;
+        line-height: 1.1;
+      }
+      .card .l {
+        color: var(--muted);
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+      h2 {
+        margin: 0 0 4px;
+        font-size: 20px;
+      }
+      h3 {
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.6px;
+        color: var(--muted);
+        margin: 20px 0 6px;
+      }
+      .meta {
+        color: var(--muted);
+        display: flex;
+        gap: 14px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      .badge {
+        padding: 1px 9px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 700;
+        text-transform: uppercase;
+        border: 1px solid currentColor;
+      }
+      .tabs {
+        display: flex;
+        gap: 2px;
+        border-bottom: 1px solid var(--line);
+        margin: 16px 0 0;
+      }
+      .tab {
+        border: 0;
+        border-bottom: 2px solid transparent;
+        border-radius: 0;
+        padding: 8px 14px;
+      }
+      .tab[aria-selected='true'] {
+        border-bottom-color: var(--tested);
+        font-weight: 600;
+      }
+      pre {
+        background: var(--code);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 10px 12px;
+        overflow: auto;
+        margin: 0;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+      .src {
+        padding: 0;
+        white-space: pre;
+        word-break: normal;
+      }
+      .src .ln {
+        display: grid;
+        grid-template-columns: 52px 1fr;
+      }
+      .src .ln > span:first-child {
+        text-align: right;
+        padding-right: 12px;
+        color: var(--muted);
+        user-select: none;
+      }
+      .src .ln.hit {
+        background: var(--hit);
+      }
+      .empty {
+        color: var(--muted);
+        padding: 40px 0;
+        text-align: center;
+      }
+      .cmd {
+        display: flex;
+        gap: 8px;
+        align-items: stretch;
+      }
+      .cmd pre {
+        flex: 1;
+      }
+      .err {
+        color: var(--failed);
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>tslaws</h1>
+      <span class="project" id="project"></span><span class="pill" id="status">…</span> <span class="grow"></span
+      ><span class="meta" id="runmeta"></span>
+      <button id="run" title="Run all laws again (r)">▶ Run all</button>
+      <button id="theme" title="Toggle theme" aria-label="Toggle theme">◐</button>
+    </header>
+    <main>
+      <aside>
+        <div class="filters" id="filters" role="group" aria-label="Filter by status"></div>
+        <div class="search">
+          <input id="search" type="search" placeholder="Search laws…  ( / )" aria-label="Search laws" />
+        </div>
+        <div id="tree" role="tree" aria-label="Laws"></div>
+      </aside>
+      <section id="detail" aria-live="polite"></section>
+    </main>
+    <script>
+      (function () {
+        'use strict';
+        var STATUSES = ['proved', 'bounded', 'tested', 'open', 'failed', 'uncovered', 'tampered', 'error'];
+        var ICON = {
+          proved: '✓',
+          bounded: '✓',
+          tested: '✓',
+          open: '!',
+          failed: '✗',
+          uncovered: '○',
+          tampered: '⚠',
+          error: '✗',
+        };
+        var PASSING = { proved: 1, bounded: 1, tested: 1 };
+        var state = null,
+          selected = null,
+          filter = 'all',
+          query = '',
+          tab = 'report';
+        var collapsed = {};
+        var $ = function (id) {
+          return document.getElementById(id);
+        };
+        function el(tag, cls, text) {
+          var e = document.createElement(tag);
+          if (cls) e.className = cls;
+          if (text !== undefined) e.textContent = text;
+          return e;
+        }
+        function key(r) {
+          return r.file + '::' + r.name;
+        }
+        function results() {
+          return (state && state.report && state.report.results) || [];
+        }
+
+        try {
+          var saved = localStorage.getItem('tslaws-theme');
+          if (saved) document.documentElement.dataset.theme = saved;
+        } catch (e) {}
+        $('theme').onclick = function () {
+          var dark =
+            document.documentElement.dataset.theme === 'dark' ||
+            (!document.documentElement.dataset.theme && matchMedia('(prefers-color-scheme: dark)').matches);
+          var next = dark ? 'light' : 'dark';
+          document.documentElement.dataset.theme = next;
+          try {
+            localStorage.setItem('tslaws-theme', next);
+          } catch (e) {}
+        };
+        $('run').onclick = function () {
+          run();
+        };
+        function run(file) {
+          fetch('/api/run' + (file ? '?file=' + encodeURIComponent(file) : ''), {
+            method: 'POST',
+            headers: { 'x-tslaws': '1' },
+          });
+        }
+
+        function counts() {
+          var c = { all: 0, passed: 0, failed: 0, open: 0 };
+          results().forEach(function (r) {
+            c.all++;
+            if (PASSING[r.status]) c.passed++;
+            else if (r.status === 'open') c.open++;
+            else c.failed++;
+          });
+          return c;
+        }
+
+        function matches(r) {
+          if (filter === 'passed' && !PASSING[r.status]) return false;
+          if (filter === 'failed' && (PASSING[r.status] || r.status === 'open')) return false;
+          if (filter === 'open' && r.status !== 'open') return false;
+          if (query && (r.name + ' ' + r.file).toLowerCase().indexOf(query) < 0) return false;
+          return true;
+        }
+
+        function renderHeader() {
+          $('project').textContent = state.project;
+          var pill = $('status');
+          pill.textContent = '';
+          pill.className = 'pill';
+          if (state.running) {
+            pill.classList.add('run');
+            pill.appendChild(el('span', 'spin'));
+            pill.appendChild(document.createTextNode('Running'));
+          } else if (state.error || !state.report) {
+            pill.classList.add('bad');
+            pill.textContent = state.error ? 'Error' : '…';
+          } else if (state.report.ok) {
+            pill.classList.add('ok');
+            pill.textContent = 'All laws hold';
+          } else {
+            pill.classList.add('bad');
+            pill.textContent = 'Failing';
+          }
+          var meta = '';
+          if (state.finishedAt)
+            meta =
+              'run ' +
+              state.runs +
+              ' · ' +
+              (state.durationMs / 1000).toFixed(1) +
+              's · ' +
+              new Date(state.finishedAt).toLocaleTimeString();
+          $('runmeta').textContent = meta;
+          $('run').disabled = state.running;
+        }
+
+        function renderFilters() {
+          var c = counts(),
+            box = $('filters');
+          box.textContent = '';
+          [
+            ['all', 'All', c.all],
+            ['failed', 'Failed', c.failed],
+            ['open', 'Open', c.open],
+            ['passed', 'Passed', c.passed],
+          ].forEach(function (f) {
+            var b = el('button', 'chip', f[1] + ' ' + f[2]);
+            b.setAttribute('aria-pressed', String(filter === f[0]));
+            b.onclick = function () {
+              filter = f[0];
+              renderSide();
+            };
+            box.appendChild(b);
+          });
+        }
+
+        function renderTree() {
+          var tree = $('tree');
+          tree.textContent = '';
+          var byFile = {};
+          results()
+            .filter(matches)
+            .forEach(function (r) {
+              (byFile[r.file] = byFile[r.file] || []).push(r);
+            });
+          var files = Object.keys(byFile).sort();
+          if (!files.length) {
+            tree.appendChild(el('div', 'empty', state.report ? 'No laws match.' : 'Running…'));
+            return;
+          }
+          files.forEach(function (file) {
+            var rs = byFile[file].sort(function (a, b) {
+              return a.line - b.line;
+            });
+            var worst = rs.some(function (r) {
+              return !PASSING[r.status] && r.status !== 'open';
+            })
+              ? 'failed'
+              : rs.some(function (r) {
+                    return r.status === 'open';
+                  })
+                ? 'open'
+                : 'proved';
+            var row = el('div', 'row file' + (collapsed[file] ? ' collapsed' : ''));
+            row.tabIndex = 0;
+            row.setAttribute('role', 'treeitem');
+            row.setAttribute('aria-expanded', String(!collapsed[file]));
+            row.appendChild(el('span', 'caret', '▾'));
+            row.appendChild(el('span', 'icon s-' + worst, ICON[worst]));
+            row.appendChild(el('span', 'name', file));
+            row.appendChild(el('span', 'tag', String(rs.length)));
+            var go = el('button', 'runfile', '▶');
+            go.title = 'Run this file';
+            go.setAttribute('aria-label', 'Run ' + file);
+            go.onclick = function (e) {
+              e.stopPropagation();
+              run(file);
+            };
+            row.appendChild(go);
+            var toggle = function () {
+              collapsed[file] = !collapsed[file];
+              renderTree();
+            };
+            row.onclick = toggle;
+            row.onkeydown = function (e) {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                toggle();
+              }
+            };
+            tree.appendChild(row);
+            if (collapsed[file]) return;
+            rs.forEach(function (r) {
+              var line = el('div', 'row law');
+              line.tabIndex = 0;
+              line.setAttribute('role', 'treeitem');
+              line.setAttribute('aria-selected', String(selected === key(r)));
+              line.appendChild(el('span', 'icon s-' + r.status, ICON[r.status]));
+              line.appendChild(el('span', 'name', r.name));
+              line.appendChild(el('span', 'tag', r.method));
+              var pick = function () {
+                selected = key(r);
+                tab = 'report';
+                renderSide();
+                renderDetail();
+              };
+              line.onclick = pick;
+              line.onkeydown = function (e) {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  pick();
+                }
+              };
+              tree.appendChild(line);
+            });
+          });
+        }
+
+        function renderSide() {
+          renderFilters();
+          renderTree();
+        }
+
+        function card(n, label, status, onclick) {
+          var b = el('button', 'card');
+          var num = el('div', 'n ' + (status ? 's-' + status : ''), String(n));
+          b.appendChild(num);
+          b.appendChild(el('div', 'l', label));
+          if (onclick) b.onclick = onclick;
+          return b;
+        }
+
+        function renderDashboard(d) {
+          d.appendChild(el('h2', '', state.project));
+          if (state.error) d.appendChild(el('pre', 'err', state.error));
+          if (!state.report) {
+            d.appendChild(el('div', 'empty', 'Running the laws…'));
+            return;
+          }
+          var by = {};
+          results().forEach(function (r) {
+            by[r.status] = (by[r.status] || 0) + 1;
+          });
+          var cards = el('div', 'cards');
+          cards.appendChild(
+            card(results().length, 'laws', null, function () {
+              filter = 'all';
+              renderSide();
+            }),
+          );
+          STATUSES.forEach(function (s) {
+            if (by[s])
+              cards.appendChild(
+                card(by[s], s, s, function () {
+                  filter = PASSING[s] ? 'passed' : s === 'open' ? 'open' : 'failed';
+                  renderSide();
+                }),
+              );
+          });
+          d.appendChild(cards);
+          if (state.report.lockMissing) {
+            d.appendChild(el('h3', '', 'Lock'));
+            d.appendChild(
+              el('pre', 'err', 'tsc-laws.lock is missing: a person must run `tslaws accept` in a terminal.'),
+            );
+          }
+          if (state.report.compileDiagnostics) {
+            d.appendChild(el('h3', '', 'Compiler'));
+            d.appendChild(el('pre', 'err', state.report.compileDiagnostics));
+          }
+          var bad = results().filter(function (r) {
+            return !PASSING[r.status];
+          });
+          if (bad.length) {
+            d.appendChild(el('h3', '', 'Needs attention'));
+            bad.forEach(function (r) {
+              var row = el('div', 'row law');
+              row.style.paddingLeft = '0';
+              row.appendChild(el('span', 'icon s-' + r.status, ICON[r.status]));
+              row.appendChild(el('span', 'name', r.name + '  ·  ' + r.file + ':' + r.line));
+              row.onclick = function () {
+                selected = key(r);
+                tab = 'report';
+                renderSide();
+                renderDetail();
+              };
+              d.appendChild(row);
+            });
+          }
+        }
+
+        function copyButton(text) {
+          var b = el('button', '', 'Copy');
+          b.onclick = function () {
+            navigator.clipboard.writeText(text).then(function () {
+              b.textContent = 'Copied';
+              setTimeout(function () {
+                b.textContent = 'Copy';
+              }, 1200);
+            });
+          };
+          return b;
+        }
+
+        function renderReport(d, r) {
+          if (r.message) {
+            d.appendChild(el('h3', '', 'Message'));
+            d.appendChild(el('pre', r.status === 'failed' || r.status === 'error' ? 'err' : '', r.message));
+          }
+          if (r.counterexample) {
+            d.appendChild(el('h3', '', 'Counterexample'));
+            d.appendChild(el('pre', '', r.counterexample));
+          }
+          if (r.seed !== undefined && r.status === 'failed') {
+            d.appendChild(el('h3', '', 'Reproduce'));
+            var cmd = 'tslaws check ' + r.file + ' --seed ' + r.seed;
+            var wrap = el('div', 'cmd');
+            wrap.appendChild(el('pre', '', cmd));
+            wrap.appendChild(copyButton(cmd));
+            d.appendChild(wrap);
+          }
+          if (r.screenshot) {
+            d.appendChild(el('h3', '', 'Page at the counterexample'));
+            var img = el('img', 'shot');
+            img.alt = 'Screenshot of the page at the counterexample';
+            img.src = '/api/screenshot?path=' + encodeURIComponent(r.screenshot) + '&t=' + (state.finishedAt || 0);
+            d.appendChild(img);
+          }
+          if (r.hint) {
+            d.appendChild(el('h3', '', 'Next step'));
+            d.appendChild(el('pre', '', r.hint));
+          }
+          if (r.runs !== undefined) {
+            d.appendChild(el('h3', '', 'Runs'));
+            d.appendChild(
+              el('pre', '', r.runs + ' generated inputs' + (r.seed !== undefined ? ', seed ' + r.seed : '')),
+            );
+          }
+          if (PASSING[r.status] && !r.message && !r.counterexample)
+            d.appendChild(el('div', 'empty', r.status === 'proved' ? 'Proved for every input.' : 'Nothing to fix.'));
+        }
+
+        function renderSource(d, r) {
+          var text = state.sources[r.file];
+          if (text === undefined) {
+            d.appendChild(el('div', 'empty', 'Source not available.'));
+            return;
+          }
+          var lines = text.split(/\r?\n/);
+          // The law runs from its line to the first line that closes it at column 0 or a lone "}" at the same indent.
+          var end = r.line,
+            indent = lines[r.line - 1] ? lines[r.line - 1].match(/^\s*/)[0].length : 0;
+          if (lines[r.line - 1] && lines[r.line - 1].indexOf('{') >= 0 && !/}\s*;?\s*$/.test(lines[r.line - 1])) {
+            for (var i = r.line; i < lines.length; i++) {
+              if (lines[i].match(/^\s*/)[0].length <= indent && /^\s*}/.test(lines[i])) {
+                end = i + 1;
+                break;
+              }
+            }
+          }
+          var pre = el('pre', 'src');
+          lines.forEach(function (content, i) {
+            var n = i + 1,
+              row = el('div', 'ln' + (n >= r.line && n <= end ? ' hit' : ''));
+            row.appendChild(el('span', '', String(n)));
+            row.appendChild(el('span', '', content || ' '));
+            if (n === r.line) row.id = 'hitline';
+            pre.appendChild(row);
+          });
+          d.appendChild(pre);
+          var hit = pre.querySelector('#hitline');
+          if (hit)
+            setTimeout(function () {
+              hit.scrollIntoView({ block: 'center' });
+            }, 0);
+        }
+
+        function renderDetail() {
+          var d = $('detail');
+          d.textContent = '';
+          if (!state) return;
+          var r = results().filter(function (x) {
+            return key(x) === selected;
+          })[0];
+          if (!r) {
+            selected = null;
+            renderDashboard(d);
+            return;
+          }
+          d.appendChild(el('h2', '', r.name));
+          var meta = el('div', 'meta');
+          meta.appendChild(el('span', 'badge s-' + r.status, r.status));
+          meta.appendChild(el('span', '', r.file + ':' + r.line));
+          meta.appendChild(el('span', '', 'checked by ' + r.method));
+          d.appendChild(meta);
+          var tabs = el('div', 'tabs');
+          tabs.setAttribute('role', 'tablist');
+          [
+            ['report', 'Report'],
+            ['source', 'Source'],
+            ['diagnostics', 'Diagnostics'],
+          ].forEach(function (t) {
+            var b = el('button', 'tab', t[1]);
+            b.setAttribute('role', 'tab');
+            b.setAttribute('aria-selected', String(tab === t[0]));
+            b.onclick = function () {
+              tab = t[0];
+              renderDetail();
+            };
+            tabs.appendChild(b);
+          });
+          d.appendChild(tabs);
+          var body = el('div');
+          d.appendChild(body);
+          if (tab === 'report') renderReport(body, r);
+          else if (tab === 'source') renderSource(body, r);
+          else {
+            body.appendChild(el('h3', '', 'Compiler output'));
+            body.appendChild(
+              el(
+                'pre',
+                state.report.compileDiagnostics ? 'err' : '',
+                state.report.compileDiagnostics || 'The project compiles with no diagnostics.',
+              ),
+            );
+          }
+        }
+
+        function render() {
+          renderHeader();
+          renderSide();
+          renderDetail();
+        }
+
+        $('search').oninput = function (e) {
+          query = e.target.value.trim().toLowerCase();
+          renderTree();
+        };
+        document.addEventListener('keydown', function (e) {
+          if (e.target && /input|textarea/i.test(e.target.tagName)) {
+            if (e.key === 'Escape') e.target.blur();
+            return;
+          }
+          if (e.key === '/') {
+            e.preventDefault();
+            $('search').focus();
+          } else if (e.key === 'r') run();
+          else if (e.key === 'Escape') {
+            selected = null;
+            renderSide();
+            renderDetail();
+          }
+        });
+
+        function connect() {
+          var source = new EventSource('/api/events');
+          source.onmessage = function (m) {
+            state = JSON.parse(m.data);
+            render();
+          };
+          source.onerror = function () {
+            $('status').className = 'pill bad';
+            $('status').textContent = 'Disconnected';
+          };
+        }
+        connect();
+      })();
+    </script>
+  </body>
+</html>

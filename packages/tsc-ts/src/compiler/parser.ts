@@ -1583,6 +1583,10 @@ export class Parser extends ScannerErrorReporter {
       case SyntaxKind.GlobalKeyword:
         if (this.isStartOfDeclaration()) return this.parseDeclaration();
         break;
+      case SyntaxKind.Identifier:
+        if (this.isLawDeclarationStart())
+          return this.parseLawDeclaration(this.nodePos(), this.jsdocScannerInfo(), undefined);
+        break;
     }
     return this.parseExpressionOrLabeledStatement();
   }
@@ -1628,6 +1632,9 @@ export class Parser extends ScannerErrorReporter {
         return this.parseModuleDeclaration(pos, jsdoc, modifiers);
       case SyntaxKind.ImportKeyword:
         return this.parseImportDeclarationOrImportEqualsDeclaration(pos, jsdoc, modifiers);
+      case SyntaxKind.Identifier:
+        if (this.isLawDeclarationStart()) return this.parseLawDeclaration(pos, jsdoc, modifiers);
+        break;
       case SyntaxKind.ExportKeyword:
         this.nextToken();
         switch (this.token()) {
@@ -2144,6 +2151,85 @@ export class Parser extends ScannerErrorReporter {
 
   parseTypeAnnotation(): TypeNode | undefined {
     return this.parseOptional(SyntaxKind.ColonToken) ? this.parseType() : undefined;
+  }
+
+  identifierText(): string {
+    return this.scanner.getTokenText();
+  }
+
+  /** `law name(` or `law proved name(` on one line: `law` stays an ordinary identifier elsewhere. */
+  isLawDeclarationStart(): boolean {
+    return this.lookAhead(scanLawDeclarationStart);
+  }
+
+  scanLawDeclarationStart(): boolean {
+    if (this.token() !== SyntaxKind.Identifier || this.identifierText() !== 'law') return false;
+    this.nextToken();
+    if (!this.isIdentifier() || this.hasPrecedingLineBreak()) return false;
+    if (this.identifierText() === 'proved') {
+      this.nextToken();
+      if (this.hasPrecedingLineBreak()) return false;
+      if (this.isIdentifier()) {
+        this.nextToken();
+        return this.token() === SyntaxKind.OpenParenToken || this.token() === SyntaxKind.LessThanToken;
+      }
+      return this.token() === SyntaxKind.OpenParenToken || this.token() === SyntaxKind.LessThanToken;
+    }
+    this.nextToken();
+    return this.token() === SyntaxKind.OpenParenToken || this.token() === SyntaxKind.LessThanToken;
+  }
+
+  /**
+   * `law name(params) { body }` or `law name(params) => expression;`, a function declaration flagged `Law`.
+   * The law holds for an input when the function returns anything but `false` and doesn't throw.
+   */
+  parseLawDeclaration(pos: number, jsdoc: JSDocScannerInfo, modifiers: ModifierList | undefined): Statement {
+    this.nextToken();
+    let flags = NodeFlags.Law;
+    if (this.identifierText() === 'proved') {
+      const next = this.lookAhead(scanLawProvedModifier);
+      if (next) {
+        this.nextToken();
+        flags |= NodeFlags.Proved;
+      }
+    }
+    const name = this.parseBindingIdentifier();
+    const typeParameters = this.parseTypeParameters();
+    // An async law may `await`, as a browser law does to let the page settle.
+    const isAsync = modifiers !== undefined && (modifiers.modifierFlags & ModifierFlags.Async) !== 0;
+    const signatureFlags = isAsync ? ParseFlags.Await : ParseFlags.None;
+    const parameters = this.parseParameters(signatureFlags);
+    const returnType = this.parseReturnType(SyntaxKind.ColonToken, false);
+    let body: Block | undefined;
+    if (this.token() === SyntaxKind.EqualsGreaterThanToken) {
+      const bodyPos = this.nodePos();
+      this.nextToken();
+      const saveContextFlags = this.contextFlags;
+      if (isAsync) this.setContextFlags(NodeFlags.AwaitContext, true);
+      const expression = this.parseAssignmentExpressionOrHigher();
+      this.contextFlags = saveContextFlags;
+      this.parseSemicolon();
+      const statement = this.finishNode(new ReturnStatement(expression), bodyPos);
+      body = this.finishNode(
+        new Block(this.newNodeList(bodyPos, this.nodePos(), [statement]), false),
+        bodyPos,
+      ) as Block;
+    } else {
+      body = this.parseFunctionBlockOrSemicolon(signatureFlags, Diagnostics.X_or_expected);
+    }
+    const result = this.finishWithJSDoc(
+      new FunctionDeclaration(modifiers, undefined, name, typeParameters, parameters, returnType, undefined, body),
+      pos,
+      jsdoc,
+    );
+    result.flags |= flags;
+    return result;
+  }
+
+  /** `proved` is a modifier only when a law name follows it. */
+  scanLawProvedModifier(): boolean {
+    this.nextToken();
+    return this.isIdentifier() && !this.hasPrecedingLineBreak();
   }
 
   parseFunctionDeclaration(pos: number, jsdoc: JSDocScannerInfo, modifiers: ModifierList | undefined): Statement {
@@ -6283,6 +6369,8 @@ export class Parser extends ScannerErrorReporter {
         case SyntaxKind.StaticKeyword:
           this.nextToken();
           continue;
+        case SyntaxKind.Identifier:
+          return this.scanLawDeclarationStart();
       }
       return false;
     }
@@ -7123,6 +7211,14 @@ function scanClassMemberStart(p: Parser): boolean {
 
 function scanStartOfDeclaration(p: Parser): boolean {
   return p.scanStartOfDeclaration();
+}
+
+function scanLawDeclarationStart(p: Parser): boolean {
+  return p.scanLawDeclarationStart();
+}
+
+function scanLawProvedModifier(p: Parser): boolean {
+  return p.scanLawProvedModifier();
 }
 
 function nextTokenIsTokenStringLiteral(p: Parser): boolean {

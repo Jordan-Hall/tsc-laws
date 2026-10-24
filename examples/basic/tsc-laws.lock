@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "laws": {
+    "src/math.laws.ts::addCommutes": "54d5d5b043b5bc147cd34edc9111d2055d931f37a39413f6e6af7eca139ec9dd",
+    "src/math.laws.ts::addIdentity": "cb217f908de2e2acbb25f5b8d0d5ca1242414620904de9a1bad157465f86a296",
+    "src/math.laws.ts::clampWithinBounds": "c62507af1c9f75f5b3edc866526f1ca611e4e977844172b553816294f4dc8654",
+    "src/math.laws.ts::manhattanSymmetric": "247f257ee24852f52b7cd61da1d4b040814c69968a3d4a3df7565ed09379de75",
+    "src/math.laws.ts::sortKeepsLength": "0f7aeb2894611163fa8e00699efc15e0b05a4e35fd23ce7d57657d0ddf5bc277"
+  }
+}

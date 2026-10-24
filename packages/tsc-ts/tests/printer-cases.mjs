@@ -3,10 +3,10 @@
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { repo, run } from './parser-cases.mjs';
-import { compileSources, tempDir } from './temp.mjs';
+import { repo, run, slashed } from './parser-cases.mjs';
+import { compileSources, nativeExe, tempDir } from './temp.mjs';
 
-export const printOracle = resolve(repo, 'packages/tsgo/dist/print-oracle');
+export const printOracle = nativeExe(resolve(repo, 'packages/tsgo/dist/print-oracle'));
 
 /** Compiles the print driver with tsc and returns the command that runs it under Node. */
 export function buildPrintDriver() {
@@ -39,7 +39,7 @@ export async function comparePrints(command, paths, flags, jobs, batchSize = 100
       mkdirSync(expectedDir, { recursive: true });
       mkdirSync(actualDir, { recursive: true });
       const list = join(batchDir, 'list');
-      writeFileSync(list, slice.join('\n') + '\n');
+      writeFileSync(list, slice.map(slashed).join('\n') + '\n');
       await Promise.all([
         run([printOracle, '--batch', list, expectedDir, ...flags]),
         run([...command, '--batch', list, actualDir, ...flags]),
@@ -48,7 +48,7 @@ export async function comparePrints(command, paths, flags, jobs, batchSize = 100
       for (let i = 0; i < slice.length; i++) {
         if (existsSync(join(actualDir, i + '.out')) || existsSync(join(actualDir, i + '.err'))) continue;
         const single = join(batchDir, 'single-' + i);
-        writeFileSync(single, slice[i] + '\n');
+        writeFileSync(single, slashed(slice[i]) + '\n');
         const one = join(batchDir, 'one-' + i);
         mkdirSync(one);
         await run([...command, '--batch', single, one, ...flags]);

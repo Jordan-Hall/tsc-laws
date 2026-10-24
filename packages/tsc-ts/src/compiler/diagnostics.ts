@@ -70,7 +70,8 @@ function textOf(locale: Locale, message: DiagnosticMessage): string {
     table = (locale === Locale.Default ? messageTexts : translations(locale)).split('\n');
     texts[locale] = table;
   }
-  return table[message] ?? '';
+  // Translations predate tsc-laws' own messages; those read in English.
+  return table[message] || (locale === Locale.Default ? '' : textOf(Locale.Default, message));
 }
 
 function keyList(): readonly string[] {

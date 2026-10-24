@@ -1,0 +1,8 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      { "matcher": "Bash", "hooks": [{ "type": "command", "command": "node packages/tslaws/hooks/claude-hook.mjs" }] }
+    ],
+    "Stop": [{ "hooks": [{ "type": "command", "command": "node packages/tslaws/hooks/claude-hook.mjs" }] }]
+  }
+}

@@ -3,11 +3,11 @@
 import { spawn } from 'node:child_process';
 import { mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
-import { compileSources, tempDir } from './temp.mjs';
+import { compileSources, nativeExe, tempDir } from './temp.mjs';
 
 export const root = resolve(import.meta.dirname, '..');
 export const repo = resolve(root, '../..');
-export const oracle = resolve(repo, 'packages/tsgo/dist/encode-oracle');
+export const oracle = nativeExe(resolve(repo, 'packages/tsgo/dist/encode-oracle'));
 export const cases = resolve(repo, 'upstream/TypeScript/tests/cases');
 export const libs = resolve(repo, 'upstream/typescript-go/internal/bundled/libs');
 
@@ -103,9 +103,17 @@ export function buildDriver() {
   return [process.execPath, '--stack-size=16000', join(out, 'drivers/parse.js')];
 }
 
+/**
+ * A path with forward slashes. The drivers take a file's name from the text after the last '/' of its path
+ * argument, as the reference oracles do, so on Windows they need paths written this way.
+ */
+export const slashed = (path) => path.replaceAll('\\', '/');
+
+/** Runs `argv` and collects its output. Absolute path arguments are passed with forward slashes. */
 export function run(argv) {
   return new Promise((done) => {
-    const child = spawn(argv[0], argv.slice(1), { stdio: ['ignore', 'pipe', 'pipe'] });
+    const args = argv.slice(1).map((arg) => (/^[A-Za-z]:\\/.test(arg) ? slashed(arg) : arg));
+    const child = spawn(argv[0], args, { stdio: ['ignore', 'pipe', 'pipe'] });
     const chunks = [];
     const errors = [];
     child.stdout.on('data', (d) => chunks.push(d));

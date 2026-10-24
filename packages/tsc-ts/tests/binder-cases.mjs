@@ -2,9 +2,9 @@
 // comparing it with the bind oracle.
 import { join, resolve } from 'node:path';
 import { repo, run } from './parser-cases.mjs';
-import { compileSources } from './temp.mjs';
+import { compileSources, nativeExe } from './temp.mjs';
 
-export const bindOracle = resolve(repo, 'packages/tsgo/dist/bind-oracle');
+export const bindOracle = nativeExe(resolve(repo, 'packages/tsgo/dist/bind-oracle'));
 
 /** Compiles the bind driver with tsc and returns the command that runs it under Node. */
 export function buildBindDriver() {

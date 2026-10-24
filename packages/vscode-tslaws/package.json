@@ -1,0 +1,34 @@
+{
+  "name": "vscode-tslaws",
+  "displayName": "tsc-laws syntax",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Highlighting for law declarations of the tsc-laws TypeScript dialect",
+  "categories": [
+    "Programming Languages"
+  ],
+  "license": "MIT",
+  "publisher": "tsc-laws",
+  "scripts": {
+    "test": "node --test test/grammar.test.mjs"
+  },
+  "devDependencies": {
+    "vscode-oniguruma": "^2.0.1",
+    "vscode-textmate": "^9.2.0"
+  },
+  "contributes": {
+    "grammars": [
+      {
+        "scopeName": "source.tslaws",
+        "path": "./syntaxes/tslaws.injection.json",
+        "injectTo": [
+          "source.ts",
+          "source.tsx"
+        ]
+      }
+    ]
+  },
+  "engines": {
+    "vscode": "^1.80.0"
+  }
+}

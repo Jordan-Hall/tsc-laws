@@ -3,12 +3,12 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { existsSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { compileSources } from './temp.mjs';
+import { compileSources, nativeExe } from './temp.mjs';
 
 const root = resolve(import.meta.dirname, '..');
 const repo = resolve(root, '../..');
 const libs = join(repo, 'upstream/typescript-go/internal/bundled/libs');
-const oracle = join(repo, 'packages/tsgo/dist/check-oracle');
+const oracle = nativeExe(join(repo, 'packages/tsgo/dist/check-oracle'));
 
 /** `n` declarations named after `prefix`, which a flow walk passes one by one. */
 const filler = (prefix, n = 40, indent = '') =>

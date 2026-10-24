@@ -1,0 +1,43 @@
+{
+  "name": "tslaws",
+  "version": "0.1.0",
+  "description": "Runs and checks `law` declarations compiled by tsc-laws: property tests, SMT proofs, tamper lock.",
+  "bin": {
+    "tslaws": "bin/tslaws.js"
+  },
+  "files": [
+    "bin",
+    "dist",
+    "hooks",
+    "ui"
+  ],
+  "type": "module",
+  "main": "./dist/api.js",
+  "exports": {
+    ".": {
+      "types": "./dist/api.d.ts",
+      "default": "./dist/api.js"
+    },
+    "./browser": {
+      "types": "./dist/browserApi.d.ts",
+      "default": "./dist/browserApi.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "node --test test/*.test.ts",
+    "check": "node bin/tslaws.js check",
+    "check:watch": "node bin/tslaws.js check --watch"
+  },
+  "dependencies": {
+    "esbuild": "^0.27.7",
+    "fast-check": "^4.0.0",
+    "playwright-core": "^1.64.1",
+    "typescript": "5.9",
+    "z3-solver": "^4.15.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0"
+  }
+}
