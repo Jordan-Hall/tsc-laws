@@ -27,7 +27,12 @@ function compilerEnv(cwd: string): NodeJS.ProcessEnv {
 
 /** Lists the laws of `files` with the problems that stop them running. */
 export function readManifest(compiler: string, files: string[], cwd: string): ManifestLaw[] {
-  const run = spawnSync(compiler, ['--laws-manifest', ...files], { cwd, encoding: 'utf8', maxBuffer: 64 << 20, env: compilerEnv(cwd) });
+  const run = spawnSync(compiler, ['--laws-manifest', ...files], {
+    cwd,
+    encoding: 'utf8',
+    maxBuffer: 64 << 20,
+    env: compilerEnv(cwd),
+  });
   if (run.error !== undefined) throw new Error(`cannot run ${compiler}: ${run.error.message}`);
   const text = (run.stdout ?? '').trim();
   if (text === '') throw new Error(`${compiler} --laws-manifest printed nothing: ${run.stderr ?? ''}`);
@@ -43,15 +48,20 @@ export function build(compiler: string, files: string[], cwd: string): BuildResu
   writeFileSync(join(outDir, 'package.json'), JSON.stringify({ type: 'commonjs' }));
   const args = [
     '--ignoreConfig',
-    '--target', 'es2022',
-    '--module', 'commonjs',
-    '--moduleResolution', 'bundler',
+    '--target',
+    'es2022',
+    '--module',
+    'commonjs',
+    '--moduleResolution',
+    'bundler',
     '--strict',
     '--skipLibCheck',
     '--esModuleInterop',
     '--declaration',
-    '--rootDir', cwd,
-    '--outDir', outDir,
+    '--rootDir',
+    cwd,
+    '--outDir',
+    outDir,
     ...files,
   ];
   const run = spawnSync(compiler, args, { cwd, encoding: 'utf8', maxBuffer: 64 << 20, env: compilerEnv(cwd) });

@@ -46,9 +46,15 @@ describe('init', () => {
     writeFileSync(join(d, 'tslaws.json'), '{"cover":["lib/**/*.ts"]}\n');
     const before = scaffold.map((f) => read(d, f));
     const lines = init({ cwd: d });
-    assert.deepEqual(scaffold.map((f) => read(d, f)), before);
+    assert.deepEqual(
+      scaffold.map((f) => read(d, f)),
+      before,
+    );
     assert.equal(read(d, 'tslaws.json'), '{"cover":["lib/**/*.ts"]}\n');
-    assert.ok(lines.every((l) => l.startsWith('kept')), lines.join('\n'));
+    assert.ok(
+      lines.every((l) => l.startsWith('kept')),
+      lines.join('\n'),
+    );
     init({ cwd: d, force: true });
     assert.deepEqual(JSON.parse(read(d, 'tslaws.json')).cover, ['src/**/*.ts', '!src/**/*.laws.ts']);
     assert.equal(read(d, 'AGENTS.md').split(agentsBegin).length, 2);
@@ -101,7 +107,8 @@ describe('init', () => {
 
 describe('hintFor', () => {
   const base = { file: 'src/a.laws.ts', name: 'law1', line: 3, method: 'smt' };
-  const hint = (status: LawStatus, extra: Partial<LawResult> = {}): string | undefined => hintFor({ ...base, status, ...extra });
+  const hint = (status: LawStatus, extra: Partial<LawResult> = {}): string | undefined =>
+    hintFor({ ...base, status, ...extra });
 
   it('says nothing for proved', () => assert.equal(hint('proved'), undefined));
 

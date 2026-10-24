@@ -120,10 +120,7 @@ export class GeneratorFactory {
         if (declaration === undefined) continue;
         const propertyType = checker.getTypeOfSymbolAtLocation(property, declaration);
         const optional = (property.flags & ts.SymbolFlags.Optional) !== 0;
-        const generator = this.of(
-          optional ? checker.getNonNullableType(propertyType) : propertyType,
-          depth + 1,
-        );
+        const generator = this.of(optional ? checker.getNonNullableType(propertyType) : propertyType, depth + 1);
         model[property.getName()] = generator;
         if (!optional) required.push(property.getName());
       }

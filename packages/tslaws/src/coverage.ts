@@ -85,7 +85,9 @@ function parseModule(jsFile: string, modules: Map<string, Module>): Module | und
   const module: Module = { nodes: new Map(), imports: new Map() };
   modules.set(jsFile, module);
   const exempt = (statement: ts.Node): boolean =>
-    (ts.getLeadingCommentRanges(text, statement.getFullStart()) ?? []).some((r) => text.slice(r.pos, r.end).includes('@tslaws-exempt'));
+    (ts.getLeadingCommentRanges(text, statement.getFullStart()) ?? []).some((r) =>
+      text.slice(r.pos, r.end).includes('@tslaws-exempt'),
+    );
   for (const statement of source.statements) {
     if ((ts.isFunctionDeclaration(statement) || ts.isClassDeclaration(statement)) && statement.name !== undefined)
       module.nodes.set(statement.name.text, { name: statement.name.text, body: statement, exempt: exempt(statement) });
@@ -122,7 +124,10 @@ function exportedFunctions(program: ts.Program, dts: string): string[] {
     if (target.flags & (ts.SymbolFlags.Function | ts.SymbolFlags.Class)) names.push(symbol.getName());
     else if (target.flags & ts.SymbolFlags.Variable) {
       const declaration = target.valueDeclaration ?? target.declarations?.[0];
-      if (declaration !== undefined && checker.getTypeOfSymbolAtLocation(target, declaration).getCallSignatures().length > 0)
+      if (
+        declaration !== undefined &&
+        checker.getTypeOfSymbolAtLocation(target, declaration).getCallSignatures().length > 0
+      )
         names.push(symbol.getName());
     }
   }

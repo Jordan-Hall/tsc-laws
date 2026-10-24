@@ -62,14 +62,18 @@ function describe(result: LawResult): string {
   const lines = [head];
   if (result.message !== undefined) lines.push(`         ${result.message}`);
   if (result.counterexample !== undefined) lines.push(`         counterexample: ${result.counterexample}`);
-  if (result.status === 'failed' && result.seed !== undefined) lines.push(`         reproduce with --seed ${result.seed}`);
+  if (result.status === 'failed' && result.seed !== undefined)
+    lines.push(`         reproduce with --seed ${result.seed}`);
   const hint = hintFor(result);
   if (hint !== undefined) lines.push(`         hint: ${hint}`);
   return lines.join('\n');
 }
 
 function summarise(result: LawResult): string {
-  const detail = [result.message, result.counterexample !== undefined ? `counterexample: ${result.counterexample}` : undefined]
+  const detail = [
+    result.message,
+    result.counterexample !== undefined ? `counterexample: ${result.counterexample}` : undefined,
+  ]
     .filter((d): d is string => d !== undefined)
     .join(' | ')
     .replace(/\s+/g, ' ');
@@ -112,7 +116,9 @@ function options(cwd: string, flags: Map<string, string | true>, chosen: string[
 }
 
 function lawFiles(cwd: string, flags: Map<string, string | true>, files: string[]): string[] {
-  return files.length > 0 ? files.map((f) => relative(cwd, resolve(cwd, f)).replace(/\\/g, '/')) : discover(cwd, flags.has('proposed'));
+  return files.length > 0
+    ? files.map((f) => relative(cwd, resolve(cwd, f)).replace(/\\/g, '/'))
+    : discover(cwd, flags.has('proposed'));
 }
 
 /** One check of the project. Resolves the exit status. */
@@ -155,7 +161,9 @@ async function watchChecks(cwd: string, flags: Map<string, string | true>, files
         process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
         last = 1;
       }
-      process.stdout.write(`==== exit status ${last}${last === 0 ? ' (ok)' : ' (failing)'}; watching for changes, Ctrl+C exits ====\n`);
+      process.stdout.write(
+        `==== exit status ${last}${last === 0 ? ' (ok)' : ' (failing)'}; watching for changes, Ctrl+C exits ====\n`,
+      );
       next = queued;
     }
     running = false;
@@ -202,7 +210,9 @@ export async function main(args: string[]): Promise<number> {
     }
     const opts = options(cwd, flags, chosen);
     const laws = readManifest(opts.compiler, opts.files, cwd);
-    process.stdout.write(`${laws.length} laws in ${chosen.length} files:\n${laws.map((l) => `  ${l.file}:${l.line} ${l.name}`).join('\n')}\n`);
+    process.stdout.write(
+      `${laws.length} laws in ${chosen.length} files:\n${laws.map((l) => `  ${l.file}:${l.line} ${l.name}`).join('\n')}\n`,
+    );
     const rl = createInterface({ input: process.stdin, output: process.stdout });
     const answer = await rl.question('Type ACCEPT to write tsc-laws.lock: ');
     rl.close();

@@ -57,7 +57,8 @@ function byName(results: LawResult[], name: string): LawResult {
 describe('tslaws check', { skip: compiler === undefined ? 'set TSC_LAWS_BIN' : false }, () => {
   it('proves a pure law with Z3 and tests the rest', async () => {
     const cwd = project('basic', {
-      'src/f.ts': 'export const add = (a: number, b: number): number => a + b;\nexport const rev = (xs: number[]): number[] => [...xs].reverse();\n',
+      'src/f.ts':
+        'export const add = (a: number, b: number): number => a + b;\nexport const rev = (xs: number[]): number[] => [...xs].reverse();\n',
       'src/f.laws.ts': [
         "import { add, rev } from './f';",
         'export law commutes(a: number, b: number) => add(a, b) === add(b, a);',
@@ -76,7 +77,8 @@ describe('tslaws check', { skip: compiler === undefined ? 'set TSC_LAWS_BIN' : f
   it('fails a false law with a shrunk counterexample', async () => {
     const cwd = project('false-law', {
       'src/f.ts': 'export const dedupe = (xs: number[]): number[] => [...new Set(xs)];\n',
-      'src/f.laws.ts': "import { dedupe } from './f';\nexport law keepsLength(xs: number[]) => dedupe(xs).length === xs.length;\n",
+      'src/f.laws.ts':
+        "import { dedupe } from './f';\nexport law keepsLength(xs: number[]) => dedupe(xs).length === xs.length;\n",
     });
     const opts = options(cwd, ['src/f.laws.ts']);
     lockNow(opts);
@@ -101,7 +103,8 @@ describe('tslaws check', { skip: compiler === undefined ? 'set TSC_LAWS_BIN' : f
   it('leaves a proved law open when it cannot be proved', async () => {
     const cwd = project('open', {
       'src/f.ts': 'export const rev = (xs: number[]): number[] => [...xs].reverse();\n',
-      'src/f.laws.ts': "import { rev } from './f';\nexport law proved revLen(xs: number[]) => rev(xs).length === xs.length;\n",
+      'src/f.laws.ts':
+        "import { rev } from './f';\nexport law proved revLen(xs: number[]) => rev(xs).length === xs.length;\n",
     });
     const opts = options(cwd, ['src/f.laws.ts']);
     lockNow(opts);
@@ -304,7 +307,10 @@ describe('tslaws check', { skip: compiler === undefined ? 'set TSC_LAWS_BIN' : f
     writeLock(opts.lockFile, readManifest(opts.compiler, opts.files, opts.cwd), exemptionsOf(opts));
     const second = await check(opts, true);
     assert.equal(second.ok, true);
-    assert.equal(second.results.some((r) => r.name === 'glue'), false);
+    assert.equal(
+      second.results.some((r) => r.name === 'glue'),
+      false,
+    );
   });
 
   it('checks proposed laws without a lock', async () => {
@@ -340,7 +346,8 @@ describe('tslaws check', { skip: compiler === undefined ? 'set TSC_LAWS_BIN' : f
 
   it('treats assume that discards everything as open', async () => {
     const cwd = project('discard', {
-      'src/f.laws.ts': "import { assume } from 'tslaws';\nexport law never(a: number) { assume(false); return true; }\n",
+      'src/f.laws.ts':
+        "import { assume } from 'tslaws';\nexport law never(a: number) { assume(false); return true; }\n",
     });
     const opts = options(cwd, ['src/f.laws.ts'], { noProve: true });
     lockNow(opts);
@@ -362,12 +369,14 @@ describe('tslaws check', { skip: compiler === undefined ? 'set TSC_LAWS_BIN' : f
     const opts = options(cwd, ['src/f.laws.ts'], { noProve: true });
     lockNow(opts);
     const { results } = await check(opts, true);
-    for (const name of ['pointShape', 'colorKnown', 'tupleLen', 'recordKeys']) assert.equal(byName(results, name).status, 'tested', name);
+    for (const name of ['pointShape', 'colorKnown', 'tupleLen', 'recordKeys'])
+      assert.equal(byName(results, name).status, 'tested', name);
   });
 
   it('reports a law over non-terminating code instead of hanging', async () => {
     const cwd = project('hang', {
-      'src/f.ts': 'export const spin = (n: number): number => { while (true) { n += 1; } };\nexport const fine = (n: number): number => n;\n',
+      'src/f.ts':
+        'export const spin = (n: number): number => { while (true) { n += 1; } };\nexport const fine = (n: number): number => n;\n',
       'src/f.laws.ts': [
         "import { spin, fine } from './f';",
         'export law spins(n: number) { return spin(n) === 0; }',

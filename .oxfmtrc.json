@@ -10,6 +10,9 @@
     "**/.next/**",
     "**/.source/**",
     "**/next-env.d.ts",
-    "upstream/**"
+    "upstream/**",
+    "**/*.laws.ts",
+    "**/.tslaws/**",
+    "**/.tmp-*/**"
   ]
 }

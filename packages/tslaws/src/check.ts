@@ -1,7 +1,16 @@
 import { createRequire } from 'node:module';
 import ts from 'typescript';
 import { build, readManifest } from './compile.ts';
-import { compilerOptions, declarationFiles, isDiscard, jsPath, runLawGuarded, typesOf, type LawTypes, type PropertyOutcome } from './property.ts';
+import {
+  compilerOptions,
+  declarationFiles,
+  isDiscard,
+  jsPath,
+  runLawGuarded,
+  typesOf,
+  type LawTypes,
+  type PropertyOutcome,
+} from './property.ts';
 import { analyzeCoverage, coverFiles, readConfig } from './coverage.ts';
 import { compareLock, lawKey, readLock, type Lock } from './lock.ts';
 import { proveLaw } from './smt.ts';
@@ -23,7 +32,13 @@ export function exemptionsOf(options: CheckOptions): string[] {
   const compiled = [...new Set([...options.files, ...covered])];
   const built = build(options.compiler, compiled, options.cwd);
   const program = ts.createProgram(declarationFiles(built.outDir), compilerOptions);
-  return analyzeCoverage({ cwd: options.cwd, outDir: built.outDir, lawFiles: options.files, coverFiles: covered, program }).exempt;
+  return analyzeCoverage({
+    cwd: options.cwd,
+    outDir: built.outDir,
+    lawFiles: options.files,
+    coverFiles: covered,
+    program,
+  }).exempt;
 }
 
 export async function check(options: CheckOptions, enforceLock: boolean): Promise<CheckReport> {
@@ -103,7 +118,10 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
     let details: PropertyOutcome | 'timeout';
     try {
       details = browser
-        ? await runBrowserLaw({ name: law.name, jsFile: jsPath(built.outDir, law.file), generators: types.generators }, options)
+        ? await runBrowserLaw(
+            { name: law.name, jsFile: jsPath(built.outDir, law.file), generators: types.generators },
+            options,
+          )
         : await runLawGuarded(built.outDir, law, options);
     } catch (error) {
       add(law, 'error', method, { message: (error as Error).message });
@@ -137,12 +155,20 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
       continue;
     }
     // Browser and async laws are tested, never proved: the prover cannot model a DOM or an await.
-    const unprovable = browser ? 'runs in a browser' : fn!.constructor.name === 'AsyncFunction' ? 'is async' : undefined;
+    const unprovable = browser
+      ? 'runs in a browser'
+      : fn!.constructor.name === 'AsyncFunction'
+        ? 'is async'
+        : undefined;
     if (options.noProve || unprovable !== undefined) {
       add(law, law.proved ? 'open' : 'tested', method, {
         runs: details.numRuns,
         seed: details.seed,
-        message: law.proved ? (unprovable !== undefined ? `marked proved but the law ${unprovable}` : 'marked proved but proving is disabled') : undefined,
+        message: law.proved
+          ? unprovable !== undefined
+            ? `marked proved but the law ${unprovable}`
+            : 'marked proved but proving is disabled'
+          : undefined,
       });
       continue;
     }
@@ -165,7 +191,12 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
     else if (proof.kind === 'bounded') {
       // `law proved` promises every input; a bounded proof is the most Z3 could show.
       const message = `holds within bounds: ${proof.limits.join('; ')}`;
-      if (law.proved) add(law, 'open', 'smt', { runs: details.numRuns, seed: details.seed, message: `marked proved but only ${message}` });
+      if (law.proved)
+        add(law, 'open', 'smt', {
+          runs: details.numRuns,
+          seed: details.seed,
+          message: `marked proved but only ${message}`,
+        });
       else add(law, 'bounded', 'smt', { runs: details.numRuns, seed: details.seed, message });
     } else if (proof.kind === 'refuted')
       add(law, 'failed', 'smt', { counterexample: proof.model, message: 'refuted by the prover' });
@@ -179,7 +210,13 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
   }
 
   if (enforceLock) {
-    const coverage = analyzeCoverage({ cwd: options.cwd, outDir: built.outDir, lawFiles: options.files, coverFiles: covered, program });
+    const coverage = analyzeCoverage({
+      cwd: options.cwd,
+      outDir: built.outDir,
+      lawFiles: options.files,
+      coverFiles: covered,
+      program,
+    });
     for (const { file, name } of coverage.uncovered) {
       results.push({
         file,
@@ -206,6 +243,9 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
 
   await closeBrowser();
 
-  const ok = built.ok && !lockMissing && results.every((r) => r.status === 'proved' || r.status === 'bounded' || r.status === 'tested');
+  const ok =
+    built.ok &&
+    !lockMissing &&
+    results.every((r) => r.status === 'proved' || r.status === 'bounded' || r.status === 'tested');
   return { results, compileDiagnostics: built.diagnostics, compileOk: built.ok, lockMissing, ok };
 }

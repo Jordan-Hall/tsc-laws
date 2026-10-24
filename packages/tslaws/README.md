@@ -51,16 +51,16 @@ Two things, both required for exit status 0:
 
 ## Statuses
 
-| Status | Meaning |
-| --- | --- |
-| `proved` | Z3 shows no input makes the law return `false`, with no bound involved. |
-| `bounded` | Z3 shows it for every input within stated bounds: array length (`--bound`, default 4), loop iterations, recursion depth, `int` values within ±2^26. |
-| `tested` | `fast-check` found no counterexample in `--runs` inputs (default 200); the code does not lower to the prover. Not a proof. |
-| `open` | Declared `law proved …` but not proved for every input (a bounded proof does not count), or `assume` discards nearly every input. Fails the check. |
-| `failed` | A counterexample, shrunk to a minimal input, with the seed to reproduce it. |
-| `uncovered` | Exported code no law reaches. Fails the check. |
-| `tampered` | A law changed, was added or removed since `tsc-laws.lock` was accepted, or a coverage exemption is not in it. Fails the check. |
-| `error` | The law cannot run: not exported, a parameter has no type, no generator for a type, load failure. |
+| Status      | Meaning                                                                                                                                             |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `proved`    | Z3 shows no input makes the law return `false`, with no bound involved.                                                                             |
+| `bounded`   | Z3 shows it for every input within stated bounds: array length (`--bound`, default 4), loop iterations, recursion depth, `int` values within ±2^26. |
+| `tested`    | `fast-check` found no counterexample in `--runs` inputs (default 200); the code does not lower to the prover. Not a proof.                          |
+| `open`      | Declared `law proved …` but not proved for every input (a bounded proof does not count), or `assume` discards nearly every input. Fails the check.  |
+| `failed`    | A counterexample, shrunk to a minimal input, with the seed to reproduce it.                                                                         |
+| `uncovered` | Exported code no law reaches. Fails the check.                                                                                                      |
+| `tampered`  | A law changed, was added or removed since `tsc-laws.lock` was accepted, or a coverage exemption is not in it. Fails the check.                      |
+| `error`     | The law cannot run: not exported, a parameter has no type, no generator for a type, load failure.                                                   |
 
 `tslaws check` exits 0 only when every law is `proved`, `bounded` or `tested`, nothing is `uncovered`, the files compile, and
 the lock matches.
@@ -104,11 +104,13 @@ reported as `failed`.
 
   ```ts
   export function sumTo(n: int): int {
-    let s = 0, i = 0;
+    let s = 0,
+      i = 0;
     while (i < n) {
       invariant(0 <= i && i <= n);
       invariant(2 * s === i * (i - 1));
-      s += i; i += 1;
+      s += i;
+      i += 1;
     }
     return s as int;
   }

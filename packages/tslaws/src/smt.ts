@@ -69,7 +69,13 @@ class Declarations {
 /** JavaScript strings stop near 2^29 units; a longer one would also push their lengths out of the safe integers. */
 const maxStringLength = 536870888;
 
-function declareParam(name: string, shape: Shape, bound: number, decl: Declarations, intLimit: bigint | undefined): Value {
+function declareParam(
+  name: string,
+  shape: Shape,
+  bound: number,
+  decl: Declarations,
+  intLimit: bigint | undefined,
+): Value {
   if (shape === 'number') {
     decl.constant(name, 'fp');
     decl.assumptions.push(`(and (not (fp.isNaN ${name})) (not (fp.isInfinite ${name})))`);
@@ -77,7 +83,9 @@ function declareParam(name: string, shape: Shape, bound: number, decl: Declarati
   }
   if (shape === 'int') {
     decl.constant(name, 'int');
-    decl.assumptions.push(intLimit === undefined ? safeRange(name) : `(and (<= (- ${intLimit}) ${name}) (<= ${name} ${intLimit}))`);
+    decl.assumptions.push(
+      intLimit === undefined ? safeRange(name) : `(and (<= (- ${intLimit}) ${name}) (<= ${name} ${intLimit}))`,
+    );
     return { k: 'int', t: name };
   }
   if (shape === 'bigint') {
@@ -220,7 +228,8 @@ function jsValue(shape: Shape, name: string, model: Map<string, number | bigint 
     return out;
   }
   const out: Record<string, unknown> = {};
-  for (const [field, fieldShape] of Object.entries(shape.fields)) out[field] = jsValue(fieldShape, `${name}__${field}`, model);
+  for (const [field, fieldShape] of Object.entries(shape.fields))
+    out[field] = jsValue(fieldShape, `${name}__${field}`, model);
   return out;
 }
 
@@ -264,7 +273,10 @@ let worker: Worker | undefined;
 let nextId = 0;
 
 function startWorker(): Worker {
-  const w = new Worker(workerSource, { eval: true, workerData: { z3: createRequire(import.meta.url).resolve('z3-solver') } });
+  const w = new Worker(workerSource, {
+    eval: true,
+    workerData: { z3: createRequire(import.meta.url).resolve('z3-solver') },
+  });
   w.unref();
   return w;
 }
@@ -351,9 +363,18 @@ function containsInt(shape: Shape): boolean {
 
 async function attempt(input: ProveInput, intLimit: bigint | undefined): Promise<ProofResult> {
   {
-    const source = ts.createSourceFile(input.jsFile, readFileSync(input.jsFile, 'utf8'), ts.ScriptTarget.ES2022, true, ts.ScriptKind.JS);
-    const fn = source.statements.find((s): s is ts.FunctionDeclaration => ts.isFunctionDeclaration(s) && s.name?.text === input.law.name);
-    if (fn === undefined || fn.body === undefined) throw new Unsupported('law function not found in the compiled output');
+    const source = ts.createSourceFile(
+      input.jsFile,
+      readFileSync(input.jsFile, 'utf8'),
+      ts.ScriptTarget.ES2022,
+      true,
+      ts.ScriptKind.JS,
+    );
+    const fn = source.statements.find(
+      (s): s is ts.FunctionDeclaration => ts.isFunctionDeclaration(s) && s.name?.text === input.law.name,
+    );
+    if (fn === undefined || fn.body === undefined)
+      throw new Unsupported('law function not found in the compiled output');
     if (fn.parameters.length !== input.shapes.length) throw new Unsupported('parameter count mismatch');
     const names = fn.parameters.map((p) => (ts.isIdentifier(p.name) ? p.name.text : ''));
     const executor = new Executor(input.bound);

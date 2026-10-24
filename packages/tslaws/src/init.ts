@@ -46,14 +46,22 @@ function hasLawsFile(dir: string): boolean {
 }
 
 function commandsOf(entries: unknown[]): string[] {
-  return (entries as HookEntry[]).flatMap((e) => (Array.isArray(e?.hooks) ? e.hooks.map((h) => String(h?.command)) : []));
+  return (entries as HookEntry[]).flatMap((e) =>
+    Array.isArray(e?.hooks) ? e.hooks.map((h) => String(h?.command)) : [],
+  );
 }
 
 /** Adds the template's hook entries to settings, keeping every other key and entry. Returns whether anything was added. */
-export function mergeHooks(settings: Record<string, unknown>, template: { hooks: Record<string, HookEntry[]> }): boolean {
+export function mergeHooks(
+  settings: Record<string, unknown>,
+  template: { hooks: Record<string, HookEntry[]> },
+): boolean {
   let changed = false;
   const existing = settings.hooks;
-  const hooks: Record<string, unknown> = typeof existing === 'object' && existing !== null && !Array.isArray(existing) ? (existing as Record<string, unknown>) : {};
+  const hooks: Record<string, unknown> =
+    typeof existing === 'object' && existing !== null && !Array.isArray(existing)
+      ? (existing as Record<string, unknown>)
+      : {};
   for (const [event, entries] of Object.entries(template.hooks)) {
     const current = Array.isArray(hooks[event]) ? (hooks[event] as unknown[]) : [];
     const present = commandsOf(current);
@@ -95,7 +103,12 @@ function initAgents(cwd: string, force: boolean): string {
 
 function initSettings(cwd: string, force: boolean): string {
   const file = join(cwd, '.claude', 'settings.json');
-  const template = JSON.parse(readFileSync(join(hooksDir, 'claude-settings.example.json'), 'utf8').replaceAll('node packages/tslaws/hooks/claude-hook.mjs', hookCommand));
+  const template = JSON.parse(
+    readFileSync(join(hooksDir, 'claude-settings.example.json'), 'utf8').replaceAll(
+      'node packages/tslaws/hooks/claude-hook.mjs',
+      hookCommand,
+    ),
+  );
   const exists = existsSync(file);
   let settings: Record<string, unknown> = {};
   if (exists) {
@@ -127,7 +140,8 @@ export function init(options: InitOptions): string[] {
 
   const ignore = join(cwd, '.gitignore');
   const ignoreText = existsSync(ignore) ? readFileSync(ignore, 'utf8') : '';
-  if (ignoreText.split(/\r?\n/).some((l) => ['.tslaws', '.tslaws/', '/.tslaws', '/.tslaws/'].includes(l.trim()))) out.push('kept     .gitignore (.tslaws already listed)');
+  if (ignoreText.split(/\r?\n/).some((l) => ['.tslaws', '.tslaws/', '/.tslaws', '/.tslaws/'].includes(l.trim())))
+    out.push('kept     .gitignore (.tslaws already listed)');
   else {
     writeFile(ignore, `${ignoreText}${ignoreText === '' || ignoreText.endsWith('\n') ? '' : '\n'}.tslaws\n`);
     out.push('updated  .gitignore (.tslaws)');

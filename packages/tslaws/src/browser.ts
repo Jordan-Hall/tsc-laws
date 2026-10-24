@@ -21,7 +21,10 @@ function findBrowser(): string | undefined {
   if (process.platform === 'win32') {
     for (const base of [process.env.PROGRAMFILES, process.env['PROGRAMFILES(X86)'], process.env.LOCALAPPDATA]) {
       if (base === undefined) continue;
-      candidates.push(join(base, 'Google/Chrome/Application/chrome.exe'), join(base, 'Microsoft/Edge/Application/msedge.exe'));
+      candidates.push(
+        join(base, 'Google/Chrome/Application/chrome.exe'),
+        join(base, 'Microsoft/Edge/Application/msedge.exe'),
+      );
     }
   } else if (process.platform === 'darwin') {
     candidates.push(
@@ -112,11 +115,20 @@ interface PageOutcome {
 }
 
 /** Runs the counterexample once more, leaves the DOM as it is, and photographs the page. Best effort. */
-async function capture(page: Page, law: BrowserLaw, args: unknown[], options: CheckOptions): Promise<string | undefined> {
+async function capture(
+  page: Page,
+  law: BrowserLaw,
+  args: unknown[],
+  options: CheckOptions,
+): Promise<string | undefined> {
   try {
     await page.evaluate(
       ([name, input]) =>
-        (window as unknown as { __runLaw: (n: string, a: unknown[], keep: boolean) => Promise<unknown> }).__runLaw(name as string, input as unknown[], true),
+        (window as unknown as { __runLaw: (n: string, a: unknown[], keep: boolean) => Promise<unknown> }).__runLaw(
+          name as string,
+          input as unknown[],
+          true,
+        ),
       [law.name, args] as const,
     );
     const relative = `.tslaws/screenshots/${law.name.replace(/[^\w-]/g, '_')}.png`;
@@ -146,7 +158,10 @@ export async function runBrowserLaw(law: BrowserLaw, options: CheckOptions): Pro
     const call = async (...args: unknown[]): Promise<unknown> => {
       const outcome = (await page.evaluate(
         ([name, input]) =>
-          (window as unknown as { __runLaw: (n: string, a: unknown[]) => Promise<unknown> }).__runLaw(name as string, input as unknown[]),
+          (window as unknown as { __runLaw: (n: string, a: unknown[]) => Promise<unknown> }).__runLaw(
+            name as string,
+            input as unknown[],
+          ),
         [law.name, args] as const,
       )) as PageOutcome;
       if (outcome.error !== undefined) {

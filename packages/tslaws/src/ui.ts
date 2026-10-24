@@ -51,9 +51,15 @@ function sourceOf(cwd: string, file: string): string | undefined {
 
 function openInBrowser(url: string): void {
   const [command, args]: [string, string[]] =
-    process.platform === 'win32' ? ['cmd', ['/c', 'start', '', url]] : process.platform === 'darwin' ? ['open', [url]] : ['xdg-open', [url]];
+    process.platform === 'win32'
+      ? ['cmd', ['/c', 'start', '', url]]
+      : process.platform === 'darwin'
+        ? ['open', [url]]
+        : ['xdg-open', [url]];
   try {
-    spawn(command, args, { stdio: 'ignore', detached: true }).on('error', () => undefined).unref();
+    spawn(command, args, { stdio: 'ignore', detached: true })
+      .on('error', () => undefined)
+      .unref();
   } catch {
     // The URL is printed either way.
   }
@@ -86,7 +92,8 @@ export async function serveUi(options: UiOptions): Promise<number> {
         const report = await options.run(only === undefined ? undefined : [only]);
         const fresh = report.results.map((r) => ({ ...r, hint: hintFor(r) }));
         // One file's rerun replaces that file's results and keeps the others (and the coverage verdicts) as they were.
-        const kept = only === undefined || state.report === undefined ? [] : state.report.results.filter((r) => r.file !== only);
+        const kept =
+          only === undefined || state.report === undefined ? [] : state.report.results.filter((r) => r.file !== only);
         state.report = {
           ok: report.ok && kept.every((r) => ['proved', 'bounded', 'tested'].includes(r.status)),
           compileOk: report.compileOk,
@@ -111,7 +118,8 @@ export async function serveUi(options: UiOptions): Promise<number> {
     } while (queued);
   };
 
-  const hostOk = (request: IncomingMessage): boolean => /^(127\.0\.0\.1|localhost)(:\d+)?$/.test(request.headers.host ?? '');
+  const hostOk = (request: IncomingMessage): boolean =>
+    /^(127\.0\.0\.1|localhost)(:\d+)?$/.test(request.headers.host ?? '');
 
   const server = createServer((request, response) => {
     // A page on another origin must not drive the dashboard (DNS rebinding, cross-site posts).
@@ -123,9 +131,15 @@ export async function serveUi(options: UiOptions): Promise<number> {
     if (request.method === 'GET' && url.pathname === '/') {
       response.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' }).end(page);
     } else if (request.method === 'GET' && url.pathname === '/api/state') {
-      response.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' }).end(JSON.stringify(state));
+      response
+        .writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' })
+        .end(JSON.stringify(state));
     } else if (request.method === 'GET' && url.pathname === '/api/events') {
-      response.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-store', connection: 'keep-alive' });
+      response.writeHead(200, {
+        'content-type': 'text/event-stream',
+        'cache-control': 'no-store',
+        connection: 'keep-alive',
+      });
       response.write(`data: ${JSON.stringify(state)}\n\n`);
       clients.add(response);
       request.on('close', () => clients.delete(response));
@@ -143,7 +157,10 @@ export async function serveUi(options: UiOptions): Promise<number> {
       }
     } else if (request.method === 'POST' && url.pathname === '/api/run') {
       const origin = request.headers.origin;
-      if (request.headers['x-tslaws'] !== '1' || (origin !== undefined && new URL(origin).host !== request.headers.host)) {
+      if (
+        request.headers['x-tslaws'] !== '1' ||
+        (origin !== undefined && new URL(origin).host !== request.headers.host)
+      ) {
         response.writeHead(403).end('forbidden');
         return;
       }

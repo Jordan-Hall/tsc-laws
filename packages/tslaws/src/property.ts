@@ -7,7 +7,6 @@ import { GeneratorFactory, UnsupportedType } from './generators.ts';
 import type { Shape } from './smt.ts';
 import type { CheckOptions, ManifestLaw } from './types.ts';
 
-
 export interface LawTypes {
   generators: fc.Arbitrary<unknown>[];
   shapes: Shape[];
@@ -38,7 +37,10 @@ export function jsPath(outDir: string, file: string): string {
 
 /** What the prover models of `type`: numbers, `int`s, bigints, strings, booleans, arrays and records of them. */
 export function shapeOf(checker: ts.TypeChecker, type: ts.Type): Shape {
-  if ((type.aliasSymbol ?? type.getSymbol())?.getName() === 'int' && type.flags & (ts.TypeFlags.Intersection | ts.TypeFlags.Number))
+  if (
+    (type.aliasSymbol ?? type.getSymbol())?.getName() === 'int' &&
+    type.flags & (ts.TypeFlags.Intersection | ts.TypeFlags.Number)
+  )
     return 'int';
   if (type.flags & ts.TypeFlags.Number) return 'number';
   if (type.flags & ts.TypeFlags.BigInt) return 'bigint';
@@ -67,7 +69,9 @@ export function typesOf(program: ts.Program, outDir: string, law: ManifestLaw): 
   if (source === undefined) throw new UnsupportedType(`no declaration output for ${law.file}`);
   const moduleSymbol = checker.getSymbolAtLocation(source);
   const exported =
-    moduleSymbol === undefined ? undefined : checker.getExportsOfModule(moduleSymbol).find((s) => s.getName() === law.name);
+    moduleSymbol === undefined
+      ? undefined
+      : checker.getExportsOfModule(moduleSymbol).find((s) => s.getName() === law.name);
   if (exported === undefined) throw new UnsupportedType(`law ${law.name} is not in the declaration output`);
   const signature = checker.getTypeOfSymbol(exported).getCallSignatures()[0];
   if (signature === undefined) throw new UnsupportedType(`law ${law.name} is not a function`);
@@ -149,7 +153,11 @@ export function summarise(details: fc.RunDetails<unknown[]>): PropertyOutcome {
 let worker: Worker | undefined;
 
 /** Runs the property test of `law` in a worker, giving up on it after `options.propertyTimeoutMs`. */
-export function runLawGuarded(outDir: string, law: ManifestLaw, options: CheckOptions): Promise<PropertyOutcome | 'timeout'> {
+export function runLawGuarded(
+  outDir: string,
+  law: ManifestLaw,
+  options: CheckOptions,
+): Promise<PropertyOutcome | 'timeout'> {
   const ext = import.meta.url.endsWith('.ts') ? '.ts' : '.js';
   if (worker === undefined) {
     worker = new Worker(new URL(`./propertyWorker${ext}`, import.meta.url));

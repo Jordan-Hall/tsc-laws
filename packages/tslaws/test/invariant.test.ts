@@ -181,8 +181,13 @@ describe('loop invariants', { skip: compiler === undefined ? 'set TSC_LAWS_BIN' 
       ].join('\n'),
     });
     const { results } = await check(opts, true);
-    assert.equal(byName(results, 'neverStopsEarly').status, 'failed', JSON.stringify(byName(results, 'neverStopsEarly')));
-    for (const name of ['returnsInRange', 'breaksInRange']) assert.equal(byName(results, name).status, 'proved', JSON.stringify(byName(results, name)));
+    assert.equal(
+      byName(results, 'neverStopsEarly').status,
+      'failed',
+      JSON.stringify(byName(results, 'neverStopsEarly')),
+    );
+    for (const name of ['returnsInRange', 'breaksInRange'])
+      assert.equal(byName(results, name).status, 'proved', JSON.stringify(byName(results, name)));
   });
 
   it('reject a loop whose early exit breaks the law', async () => {

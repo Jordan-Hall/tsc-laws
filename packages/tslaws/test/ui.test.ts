@@ -20,7 +20,12 @@ after(() => {
   setTimeout(() => process.exit(process.exitCode ?? 0), 100).unref();
 });
 
-function get(port: number, path: string, headers: Record<string, string> = {}, method = 'GET'): Promise<{ status: number; body: string }> {
+function get(
+  port: number,
+  path: string,
+  headers: Record<string, string> = {},
+  method = 'GET',
+): Promise<{ status: number; body: string }> {
   return new Promise((done, fail) => {
     const req = request({ host: '127.0.0.1', port, path, method, headers }, (res) => {
       let body = '';
@@ -37,7 +42,10 @@ describe('tslaws ui', { skip: compiler === undefined ? 'set TSC_LAWS_BIN' : fals
     const cwd = join(root, 'p');
     mkdirSync(join(cwd, 'src'), { recursive: true });
     writeFileSync(join(cwd, 'src/f.ts'), 'export const add = (a: number, b: number): number => a + b;\n');
-    writeFileSync(join(cwd, 'src/f.laws.ts'), "import { add } from './f';\nexport law addCommutes(a: number, b: number) { return add(a, b) === add(b, a); }\n");
+    writeFileSync(
+      join(cwd, 'src/f.laws.ts'),
+      "import { add } from './f';\nexport law addCommutes(a: number, b: number) { return add(a, b) === add(b, a); }\n",
+    );
     const opts: CheckOptions = {
       files: ['src/f.laws.ts'],
       cwd,
@@ -50,7 +58,13 @@ describe('tslaws ui', { skip: compiler === undefined ? 'set TSC_LAWS_BIN' : fals
     };
     writeLock(opts.lockFile, readManifest(compiler!, opts.files, cwd));
     let announced = '';
-    const done = serveUi({ cwd, port: 0, open: false, run: () => check(opts, true), log: (line) => (announced = line) });
+    const done = serveUi({
+      cwd,
+      port: 0,
+      open: false,
+      run: () => check(opts, true),
+      log: (line) => (announced = line),
+    });
     for (let i = 0; i < 100 && announced === ''; i++) await new Promise((r) => setTimeout(r, 50));
     const port = Number(/:(\d+)\//.exec(announced)![1]);
 
@@ -58,7 +72,12 @@ describe('tslaws ui', { skip: compiler === undefined ? 'set TSC_LAWS_BIN' : fals
     assert.equal(html.status, 200);
     assert.match(html.body, /<title>tslaws<\/title>/);
 
-    let state: { running: boolean; runs: number; report?: { ok: boolean; results: { name: string; status: string; hint?: string }[] }; sources: Record<string, string> } = {
+    let state: {
+      running: boolean;
+      runs: number;
+      report?: { ok: boolean; results: { name: string; status: string; hint?: string }[] };
+      sources: Record<string, string>;
+    } = {
       running: true,
       runs: 0,
       sources: {},

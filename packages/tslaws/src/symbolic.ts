@@ -108,7 +108,8 @@ export function or(a: string, b: string): string {
   if (b === 'false') return a;
   return `(or ${a} ${b})`;
 }
-const ite = (c: string, a: string, b: string): string => (c === 'true' ? a : c === 'false' ? b : a === b ? a : `(ite ${c} ${a} ${b})`);
+const ite = (c: string, a: string, b: string): string =>
+  c === 'true' ? a : c === 'false' ? b : a === b ? a : `(ite ${c} ${a} ${b})`;
 const sorted = (a: string, b: string): [string, string] => (a <= b ? [a, b] : [b, a]);
 
 function toFp(v: Int | Fp): Fp {
@@ -151,7 +152,13 @@ export class Executor {
   index(file: string): FileIndex {
     const known = this.files.get(file);
     if (known !== undefined) return known;
-    const source = ts.createSourceFile(file, readFileSync(file, 'utf8'), ts.ScriptTarget.ES2022, true, ts.ScriptKind.JS);
+    const source = ts.createSourceFile(
+      file,
+      readFileSync(file, 'utf8'),
+      ts.ScriptTarget.ES2022,
+      true,
+      ts.ScriptKind.JS,
+    );
     const index: FileIndex = { functions: new Map(), imports: new Map() };
     this.files.set(file, index);
     for (const statement of source.statements) {
@@ -193,7 +200,11 @@ export class Executor {
   private bindParams(f: Frame, fn: FunctionNode, args: Value[]): void {
     if (fn.parameters.length !== args.length) throw new Unsupported('call has the wrong number of arguments');
     fn.parameters.forEach((parameter, i) => {
-      if (!ts.isIdentifier(parameter.name) || parameter.initializer !== undefined || parameter.dotDotDotToken !== undefined)
+      if (
+        !ts.isIdentifier(parameter.name) ||
+        parameter.initializer !== undefined ||
+        parameter.dotDotDotToken !== undefined
+      )
         throw new Unsupported('parameters must be plain identifiers');
       f.env.set(parameter.name.text, args[i]!);
     });
@@ -343,7 +354,8 @@ export class Executor {
       return;
     }
     if (ts.isReturnStatement(node)) {
-      const v = node.expression === undefined ? ({ k: 'undef' } as Value) : this.escape(this.ev(node.expression, f, pc));
+      const v =
+        node.expression === undefined ? ({ k: 'undef' } as Value) : this.escape(this.ev(node.expression, f, pc));
       const act = this.active(f);
       f.ret = f.ret === undefined ? v : this.merge(act, v, f.ret, true);
       f.done = or(f.done, act);
@@ -489,13 +501,23 @@ export class Executor {
     const visit = (n: ts.Node): void => {
       if (ts.isBinaryExpression(n) && isAssignment(n.operatorToken.kind)) {
         let target: ts.Expression = n.left;
-        while (ts.isElementAccessExpression(target) || ts.isPropertyAccessExpression(target)) target = target.expression;
+        while (ts.isElementAccessExpression(target) || ts.isPropertyAccessExpression(target))
+          target = target.expression;
         if (ts.isIdentifier(target)) names.add(target.text);
       }
-      if ((ts.isPrefixUnaryExpression(n) || ts.isPostfixUnaryExpression(n)) && (n.operator === ts.SyntaxKind.PlusPlusToken || n.operator === ts.SyntaxKind.MinusMinusToken) && ts.isIdentifier(n.operand))
+      if (
+        (ts.isPrefixUnaryExpression(n) || ts.isPostfixUnaryExpression(n)) &&
+        (n.operator === ts.SyntaxKind.PlusPlusToken || n.operator === ts.SyntaxKind.MinusMinusToken) &&
+        ts.isIdentifier(n.operand)
+      )
         names.add(n.operand.text);
-      if (ts.isCallExpression(n) && ts.isPropertyAccessExpression(n.expression) && ts.isIdentifier(n.expression.expression))
-        if (['push', 'pop', 'shift', 'unshift', 'splice', 'sort', 'reverse', 'fill'].includes(n.expression.name.text)) names.add(n.expression.expression.text);
+      if (
+        ts.isCallExpression(n) &&
+        ts.isPropertyAccessExpression(n.expression) &&
+        ts.isIdentifier(n.expression.expression)
+      )
+        if (['push', 'pop', 'shift', 'unshift', 'splice', 'sort', 'reverse', 'fill'].includes(n.expression.name.text))
+          names.add(n.expression.expression.text);
       ts.forEachChild(n, visit);
     };
     for (const n of nodes) visit(n);
@@ -523,7 +545,9 @@ export class Executor {
         return { k: 'bool', t: declare('Bool') };
       case 'str': {
         const name = declare('String');
-        this.assumptions.push(`(and (str.in_re ${name} (re.* (re.range "\u{0}" "\u{ffff}"))) (<= (str.len ${name}) 536870888))`);
+        this.assumptions.push(
+          `(and (str.in_re ${name} (re.* (re.range "\u{0}" "\u{ffff}"))) (<= (str.len ${name}) 536870888))`,
+        );
         return { k: 'str', t: name };
       }
       case 'rec': {
@@ -584,7 +608,8 @@ export class Executor {
     this.execList(rest, run, inside);
     run.cnt = 'false';
     if (incrementor !== undefined) this.ev(incrementor, run, inside, true);
-    if (f.brk !== 'false' || f.cnt !== 'false') throw new Unsupported('a loop with an invariant inside a break or continue');
+    if (f.brk !== 'false' || f.cnt !== 'false')
+      throw new Unsupported('a loop with an invariant inside a break or continue');
     for (const [name, kind] of kinds) {
       if (run.env.get(name)?.k !== kind) throw new Unsupported(`${name} changes kind inside a loop with an invariant`);
     }
@@ -639,8 +664,10 @@ export class Executor {
     void plain;
     if (ts.isParenthesizedExpression(node)) return this.ev(node.expression, f, pc, statement);
     if (ts.isNumericLiteral(node)) return this.numberLiteral(node.text);
-    if (ts.isBigIntLiteral(node)) return { k: 'big', t: intLit(BigInt(node.text.slice(0, -1))).t, c: BigInt(node.text.slice(0, -1)) };
-    if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) return { k: 'str', t: smtString(node.text), c: node.text };
+    if (ts.isBigIntLiteral(node))
+      return { k: 'big', t: intLit(BigInt(node.text.slice(0, -1))).t, c: BigInt(node.text.slice(0, -1)) };
+    if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node))
+      return { k: 'str', t: smtString(node.text), c: node.text };
     if (node.kind === ts.SyntaxKind.TrueKeyword) return T;
     if (node.kind === ts.SyntaxKind.FalseKeyword) return F;
     if (ts.isIdentifier(node)) {
@@ -680,7 +707,16 @@ export class Executor {
   }
 
   private typeOf(v: Value): Value {
-    const name = { int: 'number', fp: 'number', big: 'bigint', bool: 'boolean', str: 'string', arr: 'object', rec: 'object', undef: 'undefined' }[v.k];
+    const name = {
+      int: 'number',
+      fp: 'number',
+      big: 'bigint',
+      bool: 'boolean',
+      str: 'string',
+      arr: 'object',
+      rec: 'object',
+      undef: 'undefined',
+    }[v.k];
     return { k: 'str', t: smtString(name), c: name };
   }
 
@@ -718,7 +754,12 @@ export class Executor {
   private negate(v: Value, f: Frame, pc: string): Value {
     if (v.k === 'fp') return { k: 'fp', t: `(fp.neg ${v.t})` };
     if (v.k === 'int') return this.exact(v.c !== undefined ? intLit(-v.c) : { k: 'int', t: `(- ${v.t})` }, f, pc);
-    if (v.k === 'big') return { k: 'big', t: v.c !== undefined ? intLit(-v.c).t : `(- ${v.t})`, c: v.c === undefined ? undefined : -v.c };
+    if (v.k === 'big')
+      return {
+        k: 'big',
+        t: v.c !== undefined ? intLit(-v.c).t : `(- ${v.t})`,
+        c: v.c === undefined ? undefined : -v.c,
+      };
     throw new Unsupported('negation of a non-number');
   }
 
@@ -732,7 +773,14 @@ export class Executor {
     return v;
   }
 
-  private update(target: ts.Expression, op: ts.SyntaxKind, f: Frame, pc: string, postfix: boolean, statement = false): Value {
+  private update(
+    target: ts.Expression,
+    op: ts.SyntaxKind,
+    f: Frame,
+    pc: string,
+    postfix: boolean,
+    statement = false,
+  ): Value {
     if (!ts.isIdentifier(target)) throw new Unsupported('++/-- only on plain names');
     const old = f.env.get(target.text);
     if (old === undefined) throw new Unsupported(`unknown name ${target.text}`);
@@ -752,7 +800,8 @@ export class Executor {
     const base = this.ev(node.expression, f, pc);
     if (name === 'length') {
       if (base.k === 'arr') return base.len;
-      if (base.k === 'str') return base.c !== undefined ? intLit(BigInt(base.c.length)) : { k: 'int', t: `(str.len ${base.t})` };
+      if (base.k === 'str')
+        return base.c !== undefined ? intLit(BigInt(base.c.length)) : { k: 'int', t: `(str.len ${base.t})` };
     }
     if (base.k === 'rec') {
       const field = base.fields.get(name);
@@ -806,7 +855,12 @@ export class Executor {
 
   /** `...xs`, or `...new Set(xs)` which removes duplicates. */
   private spreadSource(node: ts.Expression, f: Frame, pc: string): Arr {
-    if (ts.isNewExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === 'Set' && node.arguments?.length === 1) {
+    if (
+      ts.isNewExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      node.expression.text === 'Set' &&
+      node.arguments?.length === 1
+    ) {
       return this.dedupe(this.arrayOf(this.ev(node.arguments[0]!, f, pc)), f, pc);
     }
     return this.arrayOf(this.ev(node, f, pc));
@@ -822,7 +876,8 @@ export class Executor {
     for (const property of node.properties) {
       if (ts.isPropertyAssignment(property) && (ts.isIdentifier(property.name) || ts.isStringLiteral(property.name)))
         fields.set(property.name.text, this.escape(this.ev(property.initializer, f, pc)));
-      else if (ts.isShorthandPropertyAssignment(property)) fields.set(property.name.text, this.escape(this.ev(property.name, f, pc)));
+      else if (ts.isShorthandPropertyAssignment(property))
+        fields.set(property.name.text, this.escape(this.ev(property.name, f, pc)));
       else throw new Unsupported('object literal member does not lower');
     }
     return { k: 'rec', fields };
@@ -838,7 +893,14 @@ export class Executor {
     if (a.k === 'str' && b.k === 'str' && op === '+') return this.concat(a, b);
     if (a.k === 'big' && b.k === 'big') {
       if (op === '/' || op === '%') throw new Unsupported('bigint division does not lower');
-      const c = a.c !== undefined && b.c !== undefined ? (op === '+' ? a.c + b.c : op === '-' ? a.c - b.c : a.c * b.c) : undefined;
+      const c =
+        a.c !== undefined && b.c !== undefined
+          ? op === '+'
+            ? a.c + b.c
+            : op === '-'
+              ? a.c - b.c
+              : a.c * b.c
+          : undefined;
       return { k: 'big', t: c !== undefined ? intLit(c).t : `(${op} ${a.t} ${b.t})`, c };
     }
     if (a.k === 'int' && b.k === 'int' && op !== '/' && op !== '%') {
@@ -928,7 +990,9 @@ export class Executor {
     if (kind === ts.SyntaxKind.AmpersandAmpersandToken || kind === ts.SyntaxKind.BarBarToken) {
       const left = this.asBool(this.ev(node.left, f, pc));
       // The right side only runs when the left does not decide, so its obligations hold under that condition.
-      const right = this.asBool(this.ev(node.right, f, and(pc, kind === ts.SyntaxKind.AmpersandAmpersandToken ? left : not(left))));
+      const right = this.asBool(
+        this.ev(node.right, f, and(pc, kind === ts.SyntaxKind.AmpersandAmpersandToken ? left : not(left))),
+      );
       return bool(kind === ts.SyntaxKind.AmpersandAmpersandToken ? and(left, right) : or(left, right));
     }
     if (isAssignment(kind)) return this.assignment(node, f, pc);
@@ -967,7 +1031,12 @@ export class Executor {
 
   private assignment(node: ts.BinaryExpression, f: Frame, pc: string): Value {
     const kind = node.operatorToken.kind;
-    const op = { [ts.SyntaxKind.PlusEqualsToken]: '+', [ts.SyntaxKind.MinusEqualsToken]: '-', [ts.SyntaxKind.AsteriskEqualsToken]: '*', [ts.SyntaxKind.SlashEqualsToken]: '/' }[kind as number];
+    const op = {
+      [ts.SyntaxKind.PlusEqualsToken]: '+',
+      [ts.SyntaxKind.MinusEqualsToken]: '-',
+      [ts.SyntaxKind.AsteriskEqualsToken]: '*',
+      [ts.SyntaxKind.SlashEqualsToken]: '/',
+    }[kind as number];
     const target = node.left;
     if (ts.isIdentifier(target)) {
       const old = f.env.get(target.text);
@@ -980,11 +1049,16 @@ export class Executor {
       this.setVar(f, target.text, value);
       return value;
     }
-    if (ts.isElementAccessExpression(target) && ts.isIdentifier(target.expression) && kind === ts.SyntaxKind.EqualsToken) {
+    if (
+      ts.isElementAccessExpression(target) &&
+      ts.isIdentifier(target.expression) &&
+      kind === ts.SyntaxKind.EqualsToken
+    ) {
       const arr = f.env.get(target.expression.text);
       const index = this.ev(target.argumentExpression, f, pc);
       const value = this.escape(this.ev(node.right, f, pc));
-      if (arr?.k !== 'arr' || index.k !== 'int') throw new Unsupported('indexed assignment only on arrays with integer indexes');
+      if (arr?.k !== 'arr' || index.k !== 'int')
+        throw new Unsupported('indexed assignment only on arrays with integer indexes');
       if (arr.id.escaped) throw new Unsupported('mutation of an array another name can reach');
       this.oblige(f, pc, and(this.le(intLit(0n), index).t, this.lt(index, arr.len).t));
       const act = this.active(f);
@@ -1029,7 +1103,8 @@ export class Executor {
       // Past the end of a, slot j is b's slot j - len a.
       for (let la = a.slots.length; la >= 0; la -= 1) {
         const from = b.slots[j - la];
-        if (j >= la && from !== undefined) v = this.merge(this.strictEquals(a.len, intLit(BigInt(la))).t, from, v, true);
+        if (j >= la && from !== undefined)
+          v = this.merge(this.strictEquals(a.len, intLit(BigInt(la))).t, from, v, true);
       }
       const own = a.slots[j];
       if (own !== undefined) v = this.merge(this.lt(intLit(BigInt(j)), a.len).t, own, v, true);
@@ -1039,7 +1114,12 @@ export class Executor {
   }
 
   private dedupe(source: Arr, f: Frame, pc: string): Arr {
-    let out: Arr = { k: 'arr', len: intLit(0n), slots: source.slots.map(() => ({ k: 'undef' }) as Value), id: { escaped: false } };
+    let out: Arr = {
+      k: 'arr',
+      len: intLit(0n),
+      slots: source.slots.map(() => ({ k: 'undef' }) as Value),
+      id: { escaped: false },
+    };
     for (let k = 0; k < source.slots.length; k += 1) {
       const element = source.slots[k]!;
       if (element.k === 'undef') continue;
@@ -1066,7 +1146,11 @@ export class Executor {
     inner.env = new Map(f.env);
     if (fn.parameters.length > args.length) throw new Unsupported('callback takes more arguments than are passed');
     fn.parameters.forEach((parameter, i) => {
-      if (!ts.isIdentifier(parameter.name) || parameter.initializer !== undefined || parameter.dotDotDotToken !== undefined)
+      if (
+        !ts.isIdentifier(parameter.name) ||
+        parameter.initializer !== undefined ||
+        parameter.dotDotDotToken !== undefined
+      )
         throw new Unsupported('parameters must be plain identifiers');
       inner.env.set(parameter.name.text, args[i]!);
     });
@@ -1074,7 +1158,14 @@ export class Executor {
     return inner.ret ?? { k: 'undef' };
   }
 
-  private method(receiver: ts.Expression, name: string, args: readonly ts.Expression[], f: Frame, pc: string, statement: boolean): Value {
+  private method(
+    receiver: ts.Expression,
+    name: string,
+    args: readonly ts.Expression[],
+    f: Frame,
+    pc: string,
+    statement: boolean,
+  ): Value {
     const target = this.ev(receiver, f, pc);
     if (target.k === 'str') return this.stringMethod(target, name, args, f, pc);
     if (target.k !== 'arr') throw new Unsupported(`method ${name} on a ${target.k}`);
@@ -1095,12 +1186,19 @@ export class Executor {
       }
       case 'map': {
         const fn = this.callback(args[0]!);
-        const slots = arr.slots.map((slot, k) => (slot.k === 'undef' ? slot : this.applyCallback(fn, [slot, intLit(BigInt(k))], f, and(pc, inRange(k)))));
+        const slots = arr.slots.map((slot, k) =>
+          slot.k === 'undef' ? slot : this.applyCallback(fn, [slot, intLit(BigInt(k))], f, and(pc, inRange(k))),
+        );
         return { k: 'arr', len: arr.len, slots, id: { escaped: false } };
       }
       case 'filter': {
         const fn = this.callback(args[0]!);
-        let out: Arr = { k: 'arr', len: intLit(0n), slots: arr.slots.map(() => ({ k: 'undef' }) as Value), id: { escaped: false } };
+        let out: Arr = {
+          k: 'arr',
+          len: intLit(0n),
+          slots: arr.slots.map(() => ({ k: 'undef' }) as Value),
+          id: { escaped: false },
+        };
         arr.slots.forEach((slot, k) => {
           if (slot.k === 'undef') return;
           const keep = this.asBool(this.applyCallback(fn, [slot, intLit(BigInt(k))], f, and(pc, inRange(k))));
@@ -1143,17 +1241,23 @@ export class Executor {
         let index: Value = intLit(-1n);
         for (let k = arr.slots.length - 1; k >= 0; k -= 1) {
           const slot = arr.slots[k]!;
-          if (slot.k !== 'undef') index = this.merge(and(inRange(k), this.strictEquals(slot, needle).t), intLit(BigInt(k)), index);
+          if (slot.k !== 'undef')
+            index = this.merge(and(inRange(k), this.strictEquals(slot, needle).t), intLit(BigInt(k)), index);
         }
         return index;
       }
       case 'slice': {
         const start = args.length > 0 ? evalArg(0) : intLit(0n);
-        if (start.k !== 'int' || start.c === undefined || args.length > 1) throw new Unsupported('slice only with a literal start');
+        if (start.k !== 'int' || start.c === undefined || args.length > 1)
+          throw new Unsupported('slice only with a literal start');
         const from = Number(start.c);
         if (from < 0) throw new Unsupported('slice with a negative start');
         const slots = arr.slots.slice(from);
-        const len = this.merge(this.lt(intLit(BigInt(from)), arr.len).t, this.arith('-', arr.len, intLit(BigInt(from)), f, pc), intLit(0n)) as Int;
+        const len = this.merge(
+          this.lt(intLit(BigInt(from)), arr.len).t,
+          this.arith('-', arr.len, intLit(BigInt(from)), f, pc),
+          intLit(0n),
+        ) as Int;
         return { k: 'arr', len, slots, id: { escaped: false } };
       }
       case 'concat': {
@@ -1185,7 +1289,14 @@ export class Executor {
   }
 
   /** Insertion sort as a fixed network of guarded swaps; stable, as `Array.prototype.sort` is. */
-  private sort(arr: Arr, args: readonly ts.Expression[], receiver: ts.Expression, mutate: (a: Arr) => void, f: Frame, pc: string): Value {
+  private sort(
+    arr: Arr,
+    args: readonly ts.Expression[],
+    receiver: ts.Expression,
+    mutate: (a: Arr) => void,
+    f: Frame,
+    pc: string,
+  ): Value {
     if (args.length !== 1) throw new Unsupported('sort needs a comparator (the default compares strings)');
     if (arr.id.escaped && ts.isIdentifier(receiver)) throw new Unsupported('sort of an array another name can reach');
     const fn = this.callback(args[0]!);
@@ -1236,10 +1347,12 @@ export class Executor {
       case 'slice':
       case 'substring': {
         const from = args.length > 0 ? arg(0) : intLit(0n);
-        if (from.k !== 'int' || from.c === undefined || from.c < 0n) throw new Unsupported(`${name} only with a literal non-negative start`);
+        if (from.k !== 'int' || from.c === undefined || from.c < 0n)
+          throw new Unsupported(`${name} only with a literal non-negative start`);
         if (args.length > 1) {
           const to = arg(1);
-          if (to.k !== 'int' || to.c === undefined || to.c < from.c) throw new Unsupported(`${name} only with literal bounds`);
+          if (to.k !== 'int' || to.c === undefined || to.c < from.c)
+            throw new Unsupported(`${name} only with literal bounds`);
           return { k: 'str', t: `(str.substr ${s.t} ${from.c} ${to.c - from.c})` };
         }
         return { k: 'str', t: `(str.substr ${s.t} ${from.c} (- (str.len ${s.t}) ${from.c}))` };
@@ -1262,7 +1375,13 @@ export class Executor {
     if (ts.isPropertyAccessExpression(callee)) {
       const owner = ts.isIdentifier(callee.expression) ? callee.expression.text : undefined;
       const name = callee.name.text;
-      if (owner === 'Math') return this.math(name, node.arguments.map((a) => this.ev(a, f, pc)), f, pc);
+      if (owner === 'Math')
+        return this.math(
+          name,
+          node.arguments.map((a) => this.ev(a, f, pc)),
+          f,
+          pc,
+        );
       if (owner === 'Array' && name === 'from' && node.arguments.length === 1) {
         const arg = node.arguments[0]!;
         return this.spreadSource(arg, f, pc);
@@ -1320,7 +1439,10 @@ export class Executor {
     const a = numeric(args[0]);
     switch (name) {
       case 'abs':
-        if (a.k === 'int') return a.c !== undefined ? intLit(a.c < 0n ? -a.c : a.c) : { k: 'int', t: `(ite (< ${a.t} 0) (- ${a.t}) ${a.t})` };
+        if (a.k === 'int')
+          return a.c !== undefined
+            ? intLit(a.c < 0n ? -a.c : a.c)
+            : { k: 'int', t: `(ite (< ${a.t} 0) (- ${a.t}) ${a.t})` };
         return { k: 'fp', t: `(fp.abs ${a.t})` };
       case 'floor':
       case 'ceil':
@@ -1340,7 +1462,10 @@ export class Executor {
         const first = name === 'min' ? `(fp.lt ${x} ${y})` : `(fp.gt ${x} ${y})`;
         const second = name === 'min' ? `(fp.lt ${y} ${x})` : `(fp.gt ${y} ${x})`;
         const tie = name === 'min' ? `(ite (fp.isNegative ${x}) ${x} ${y})` : `(ite (fp.isNegative ${x}) ${y} ${x})`;
-        return { k: 'fp', t: `(ite (or (fp.isNaN ${x}) (fp.isNaN ${y})) ${nan} (ite ${first} ${x} (ite ${second} ${y} ${tie})))` };
+        return {
+          k: 'fp',
+          t: `(ite (or (fp.isNaN ${x}) (fp.isNaN ${y})) ${nan} (ite ${first} ${x} (ite ${second} ${y} ${tie})))`,
+        };
       }
     }
     void f;

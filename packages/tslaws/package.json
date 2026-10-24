@@ -2,7 +2,6 @@
   "name": "tslaws",
   "version": "0.1.0",
   "description": "Runs and checks `law` declarations compiled by tsc-laws: property tests, SMT proofs, tamper lock.",
-  "type": "module",
   "bin": {
     "tslaws": "bin/tslaws.js"
   },
@@ -12,6 +11,8 @@
     "hooks",
     "ui"
   ],
+  "type": "module",
+  "main": "./dist/api.js",
   "exports": {
     ".": {
       "types": "./dist/api.d.ts",
@@ -36,7 +37,6 @@
     "typescript": "5.9",
     "z3-solver": "^4.15.0"
   },
-  "main": "./dist/api.js",
   "devDependencies": {
     "@types/node": "^24.0.0"
   }

@@ -8,28 +8,28 @@ difference is that it stays TypeScript, so any human can read, run and fix every
 
 ## What it offers
 
-| Offer | What you get |
-| --- | --- |
-| **`law` declarations** | A statement of the language, type-checked like a function, that says what must hold for all inputs. |
-| **Verdicts, not opinions** | Each law ends `proved`, `bounded`, `tested`, `failed`, `open`, `uncovered`, `tampered` or `error`. One exit status. |
-| **Real proofs** | Z3 proves laws over exact integers, bigints, booleans, strings and records, and over IEEE doubles where it can decide. Loop invariants extend this to loops for every iteration count. |
-| **Bounded proofs** | Arrays, plain loops and recursion are checked exhaustively up to a stated bound. |
-| **Property tests as the floor** | Anything the prover cannot lower is tested with `fast-check`; inputs are generated from your declared types, and failures shrink to a minimal counterexample with a seed. |
-| **Laws the agent cannot weaken** | `tsc-laws.lock` hashes every law. Changing, adding or removing one, or exempting code, fails the check until a person runs `tslaws accept`, which refuses to run without a terminal. |
-| **Coverage** | Every exported function and class must be reached by a law, so new code cannot slip through unchecked. |
-| **Agent ergonomics** | `tslaws init` scaffolds the rules and a Claude Code hook; `--json` and `--summary` give structured, compact output with a next-action `hint` per result; `--watch` re-checks on save. |
-| **Human ergonomics** | A VS Code grammar for `law`, plain TypeScript output, and counterexamples you can paste into a test. |
+| Offer                            | What you get                                                                                                                                                                           |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`law` declarations**           | A statement of the language, type-checked like a function, that says what must hold for all inputs.                                                                                    |
+| **Verdicts, not opinions**       | Each law ends `proved`, `bounded`, `tested`, `failed`, `open`, `uncovered`, `tampered` or `error`. One exit status.                                                                    |
+| **Real proofs**                  | Z3 proves laws over exact integers, bigints, booleans, strings and records, and over IEEE doubles where it can decide. Loop invariants extend this to loops for every iteration count. |
+| **Bounded proofs**               | Arrays, plain loops and recursion are checked exhaustively up to a stated bound.                                                                                                       |
+| **Property tests as the floor**  | Anything the prover cannot lower is tested with `fast-check`; inputs are generated from your declared types, and failures shrink to a minimal counterexample with a seed.              |
+| **Laws the agent cannot weaken** | `tsc-laws.lock` hashes every law. Changing, adding or removing one, or exempting code, fails the check until a person runs `tslaws accept`, which refuses to run without a terminal.   |
+| **Coverage**                     | Every exported function and class must be reached by a law, so new code cannot slip through unchecked.                                                                                 |
+| **Agent ergonomics**             | `tslaws init` scaffolds the rules and a Claude Code hook; `--json` and `--summary` give structured, compact output with a next-action `hint` per result; `--watch` re-checks on save.  |
+| **Human ergonomics**             | A VS Code grammar for `law`, plain TypeScript output, and counterexamples you can paste into a test.                                                                                   |
 
 ## How it compares with Bend 2
 
-| | Bend 2 | tsc-laws |
-| --- | --- | --- |
-| Language | A new language | TypeScript with one added statement |
-| Who writes what | Person: `LAWS.bend`. Agent: code and `PROOF.bend`. | Person: `*.laws.ts`. Agent: code, and loop `invariant`s inside it. |
-| Checker | The type checker is the proof checker | Z3 over symbolic execution of the real code, plus property tests where proof is out of reach |
-| Strength of "pass" | A proof for all inputs | `proved` (all inputs), `bounded` (all inputs within a stated bound) or `tested` (no counterexample found); the status says which |
-| Agent cannot cheat the laws | Human reviews the laws file | Lock file plus coverage gate; agents propose in `*.proposed.laws.ts` |
-| Escape hatch for humans | Learn Bend | Read the code, run it, fix it |
+|                             | Bend 2                                             | tsc-laws                                                                                                                         |
+| --------------------------- | -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Language                    | A new language                                     | TypeScript with one added statement                                                                                              |
+| Who writes what             | Person: `LAWS.bend`. Agent: code and `PROOF.bend`. | Person: `*.laws.ts`. Agent: code, and loop `invariant`s inside it.                                                               |
+| Checker                     | The type checker is the proof checker              | Z3 over symbolic execution of the real code, plus property tests where proof is out of reach                                     |
+| Strength of "pass"          | A proof for all inputs                             | `proved` (all inputs), `bounded` (all inputs within a stated bound) or `tested` (no counterexample found); the status says which |
+| Agent cannot cheat the laws | Human reviews the laws file                        | Lock file plus coverage gate; agents propose in `*.proposed.laws.ts`                                                             |
+| Escape hatch for humans     | Learn Bend                                         | Read the code, run it, fix it                                                                                                    |
 
 The honest difference: a Bend proof is checked by the type system for every program it accepts. Here, proof covers the part
 of TypeScript that lowers to SMT (see [The prover](#the-prover)), and the rest is tested. Every result says which it is.
@@ -40,16 +40,16 @@ A unit test checks examples you chose: `sort([3,1,2])` gives `[1,2,3]`. A law st
 array, the result is ordered and has the same length. Both are TypeScript the agent must satisfy, but they differ in what
 they can promise and who controls them.
 
-| | Unit test | Law |
-| --- | --- | --- |
-| Says | "for this input, this output" | "for every input of this type, this holds" |
-| Inputs | Written by hand; the agent can pick easy ones | Generated from the declared types, biased to edge cases, shrunk to a minimal counterexample |
-| Strongest verdict | Passed on the cases written | `proved` for all inputs, or `bounded` for all inputs within a stated bound, or `tested` |
-| Who can change it | Anyone, including the agent that is being checked | Only a person: the lock fails the check on any change, addition or removal |
-| Missing code | An untested function is invisible | An exported function no law reaches fails as `uncovered` |
+|                       | Unit test                                                           | Law                                                                                                |
+| --------------------- | ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Says                  | "for this input, this output"                                       | "for every input of this type, this holds"                                                         |
+| Inputs                | Written by hand; the agent can pick easy ones                       | Generated from the declared types, biased to edge cases, shrunk to a minimal counterexample        |
+| Strongest verdict     | Passed on the cases written                                         | `proved` for all inputs, or `bounded` for all inputs within a stated bound, or `tested`            |
+| Who can change it     | Anyone, including the agent that is being checked                   | Only a person: the lock fails the check on any change, addition or removal                         |
+| Missing code          | An untested function is invisible                                   | An exported function no law reaches fails as `uncovered`                                           |
 | Can the agent game it | Yes: edit the test, delete it, assert less, special-case the inputs | Not by editing: the lock catches it. Special-casing is caught by generated inputs and by the proof |
-| Feedback | "expected 3, got 2" | A minimal failing input, the seed, and a next-action hint |
-| Cost to write | Cheap per case, many cases | One statement per behaviour, but you must be able to state the behaviour |
+| Feedback              | "expected 3, got 2"                                                 | A minimal failing input, the seed, and a next-action hint                                          |
+| Cost to write         | Cheap per case, many cases                                          | One statement per behaviour, but you must be able to state the behaviour                           |
 
 They also fit together: laws say what must always hold, and unit tests still pin down specific examples, regressions and
 integration behaviour. Use laws for the properties you would otherwise review the agent's code for (ordering, bounds,
@@ -111,14 +111,14 @@ A law compiles to an ordinary exported function, so it type-checks and appears i
 `law` is part of the compiler, not a convention of a test library. The fork parses it and the **checker enforces the rules
 of a specification**, as ordinary compile errors in your editor and in `tsc-laws` output:
 
-| Code | Rule |
-| --- | --- |
-| TS9101 | A law returns `boolean` or `void` (a promise of either, when it is `async`). Anything else is not a claim. |
-| TS9102 | A law is exported, so the runner can load it. |
-| TS9103 | Every parameter has a type annotation, because the type generates the inputs. |
-| TS9104 | A law is not a generator or a default export. |
+| Code   | Rule                                                                                                                                 |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------ |
+| TS9101 | A law returns `boolean` or `void` (a promise of either, when it is `async`). Anything else is not a claim.                           |
+| TS9102 | A law is exported, so the runner can load it.                                                                                        |
+| TS9103 | Every parameter has a type annotation, because the type generates the inputs.                                                        |
+| TS9104 | A law is not a generator or a default export.                                                                                        |
 | TS9105 | Only another law may call a law. Application code cannot call a specification, so a law cannot become part of the program it checks. |
-| TS9106 | Parameters are plain identifiers (no destructuring), so inputs map one to one. |
+| TS9106 | Parameters are plain identifiers (no destructuring), so inputs map one to one.                                                       |
 
 It also fixes what a package cannot: the declaration is a distinct kind of node (`law proved` is a modifier the lock hashes,
 not a comment or a naming pattern), `--laws-manifest` lists every law from the syntax tree rather than by regex, and `law`
@@ -175,16 +175,16 @@ laws: `tslaws accept` stays a person's act at a terminal.
 
 ## Statuses
 
-| Status | Meaning | Passes? |
-| --- | --- | --- |
-| `proved` | No input breaks the law; no bound involved. | yes |
-| `bounded` | No input breaks it within the stated bounds (array length, loop iterations, recursion depth, `int` within ±2^26). | yes |
-| `tested` | `fast-check` found nothing in `--runs` inputs; the code does not lower to the prover. | yes |
-| `open` | `law proved` that was not proved for every input, or `assume` discards nearly everything. | no |
-| `failed` | A counterexample, minimal, with the seed to reproduce. | no |
-| `uncovered` | Exported code no law reaches. | no |
-| `tampered` | A law changed, was added or removed since the lock was accepted, or a coverage exemption is not in the lock. | no |
-| `error` | The law cannot run: not exported, untyped parameter, no generator, load failure. | no |
+| Status      | Meaning                                                                                                           | Passes? |
+| ----------- | ----------------------------------------------------------------------------------------------------------------- | ------- |
+| `proved`    | No input breaks the law; no bound involved.                                                                       | yes     |
+| `bounded`   | No input breaks it within the stated bounds (array length, loop iterations, recursion depth, `int` within ±2^26). | yes     |
+| `tested`    | `fast-check` found nothing in `--runs` inputs; the code does not lower to the prover.                             | yes     |
+| `open`      | `law proved` that was not proved for every input, or `assume` discards nearly everything.                         | no      |
+| `failed`    | A counterexample, minimal, with the seed to reproduce.                                                            | no      |
+| `uncovered` | Exported code no law reaches.                                                                                     | no      |
+| `tampered`  | A law changed, was added or removed since the lock was accepted, or a coverage exemption is not in the lock.      | no      |
+| `error`     | The law cannot run: not exported, untyped parameter, no generator, load failure.                                  | no      |
 
 ## Inputs
 
@@ -218,11 +218,13 @@ reported as `failed`.
 
   ```ts
   export function sumTo(n: int): int {
-    let s = 0, i = 0;
+    let s = 0,
+      i = 0;
     while (i < n) {
       invariant(0 <= i && i <= n);
       invariant(2 * s === i * (i - 1));
-      s += i; i += 1;
+      s += i;
+      i += 1;
     }
     return s as int;
   }
@@ -284,17 +286,17 @@ On Windows the native build is `dist/tsc`; copy it to `tsc.exe` to run it.
 
 ## What is where
 
-| Path | Contents |
-| --- | --- |
-| `packages/tsc-ts/src/compiler/parser.ts` | `law` parsing: `isLawDeclarationStart`, `parseLawDeclaration`; `NodeFlags.Law` and `Proved` in `ast.ts` |
-| `packages/tsc-ts/src/laws/manifest.ts` | `--laws-manifest` |
-| `packages/tslaws/src/symbolic.ts`, `smt.ts` | the symbolic executor and the Z3 driver |
-| `packages/tslaws/src/check.ts`, `coverage.ts`, `lock.ts` | the check, the coverage gate, the tamper lock |
-| `packages/tslaws/src/generators.ts` | generators from declared types |
-| `packages/tslaws/src/init.ts`, `hints.ts`, `cli.ts` | scaffolding, agent hints, commands |
-| `packages/tslaws/hooks/` | Claude Code hook, settings example, agent rules |
-| `packages/vscode-tslaws/` | VS Code grammar for `law` |
-| `examples/basic/` | a small project with a failing law, a lock and coverage |
+| Path                                                     | Contents                                                                                                |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `packages/tsc-ts/src/compiler/parser.ts`                 | `law` parsing: `isLawDeclarationStart`, `parseLawDeclaration`; `NodeFlags.Law` and `Proved` in `ast.ts` |
+| `packages/tsc-ts/src/laws/manifest.ts`                   | `--laws-manifest`                                                                                       |
+| `packages/tslaws/src/symbolic.ts`, `smt.ts`              | the symbolic executor and the Z3 driver                                                                 |
+| `packages/tslaws/src/check.ts`, `coverage.ts`, `lock.ts` | the check, the coverage gate, the tamper lock                                                           |
+| `packages/tslaws/src/generators.ts`                      | generators from declared types                                                                          |
+| `packages/tslaws/src/init.ts`, `hints.ts`, `cli.ts`      | scaffolding, agent hints, commands                                                                      |
+| `packages/tslaws/hooks/`                                 | Claude Code hook, settings example, agent rules                                                         |
+| `packages/vscode-tslaws/`                                | VS Code grammar for `law`                                                                               |
+| `examples/basic/`                                        | a small project with a failing law, a lock and coverage                                                 |
 
 ## Limits
 
