@@ -140,11 +140,15 @@ export function init(options: InitOptions): string[] {
 
   const ignore = join(cwd, '.gitignore');
   const ignoreText = existsSync(ignore) ? readFileSync(ignore, 'utf8') : '';
-  if (ignoreText.split(/\r?\n/).some((l) => ['.tslaws', '.tslaws/', '/.tslaws', '/.tslaws/'].includes(l.trim())))
-    out.push('kept     .gitignore (.tslaws already listed)');
+  // `.tslaws/regressions` is left out on purpose: a team may commit the counterexamples it has found.
+  const ignored = ['.tslaws/out', '.tslaws/mutants', '.tslaws/screenshots'];
+  const listed = ignoreText.split(/\r?\n/).map((l) => l.trim().replace(/^\//, '').replace(/\/$/, ''));
+  const missing = listed.includes('.tslaws') ? [] : ignored.filter((entry) => !listed.includes(entry));
+  if (missing.length === 0) out.push('kept     .gitignore (.tslaws already listed)');
   else {
-    writeFile(ignore, `${ignoreText}${ignoreText === '' || ignoreText.endsWith('\n') ? '' : '\n'}.tslaws\n`);
-    out.push('updated  .gitignore (.tslaws)');
+    const lead = ignoreText === '' || ignoreText.endsWith('\n') ? '' : '\n';
+    writeFile(ignore, `${ignoreText}${lead}${missing.join('\n')}\n`);
+    out.push('updated  .gitignore (.tslaws/out, mutants, screenshots)');
   }
 
   out.push(initAgents(cwd, force));
