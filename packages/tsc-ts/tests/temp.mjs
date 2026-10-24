@@ -1,8 +1,8 @@
 // Temporary directories, deleted when the process exits, and sources compiled into them.
 import { execFileSync } from 'node:child_process';
-import { cpSync, mkdtempSync, rmSync, symlinkSync } from 'node:fs';
+import { copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, renameSync, rmSync, statSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
@@ -16,6 +16,26 @@ export function tempDir(prefix) {
   const dir = mkdtempSync(join(tmpdir(), prefix));
   dirs.push(dir);
   return dir;
+}
+
+/**
+ * The path to run for a native binary built without an extension (go build -o dist/name). Windows only runs
+ * files that end in .exe, so there it returns a copy named *.exe, kept in a cache directory keyed by size and
+ * modification time. Elsewhere, or when the binary is missing, returns `path` unchanged.
+ */
+export function nativeExe(path) {
+  if (process.platform !== 'win32' || path.endsWith('.exe') || !existsSync(path)) return path;
+  if (existsSync(path + '.exe')) return path + '.exe';
+  const { size, mtimeMs } = statSync(path);
+  const cache = join(tmpdir(), 'tsc-ts-exe-cache');
+  const copy = join(cache, `${basename(path)}-${size}-${Math.trunc(mtimeMs)}.exe`);
+  if (!existsSync(copy)) {
+    mkdirSync(cache, { recursive: true });
+    const partial = copy + '.' + process.pid + '.tmp';
+    copyFileSync(path, partial);
+    renameSync(partial, copy);
+  }
+  return copy;
 }
 
 /**

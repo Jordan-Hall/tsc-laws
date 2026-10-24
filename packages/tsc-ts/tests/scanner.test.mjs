@@ -5,11 +5,11 @@ import { existsSync, readdirSync } from 'node:fs';
 import { availableParallelism } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { compileSources } from './temp.mjs';
+import { compileSources, nativeExe } from './temp.mjs';
 
 const root = resolve(import.meta.dirname, '..');
 const repo = resolve(root, '../..');
-const oracle = resolve(repo, 'packages/tsgo/dist/scan-oracle');
+const oracle = nativeExe(resolve(repo, 'packages/tsgo/dist/scan-oracle'));
 const cases = resolve(repo, 'upstream/TypeScript/tests/cases');
 const libs = resolve(repo, 'upstream/typescript-go/internal/bundled/libs');
 
@@ -26,7 +26,9 @@ function sample() {
   visit(join(cases, 'compiler'));
   visit(join(cases, 'conformance'));
   const picked = files.filter((_, i) => i % 25 === 0);
-  const fixtures = readdirSync(join(root, 'tests/fixtures')).map((f) => join(root, 'tests/fixtures', f));
+  const fixtures = readdirSync(join(root, 'tests/fixtures'))
+    .filter((f) => /\.[cm]?[jt]sx?$/.test(f))
+    .map((f) => join(root, 'tests/fixtures', f));
   const bundled = readdirSync(libs).map((f) => join(libs, f));
   return [...fixtures, ...bundled, ...picked];
 }
