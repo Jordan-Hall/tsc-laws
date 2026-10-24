@@ -176,6 +176,9 @@ tslaws check [files...] [--json] [--summary] [--watch] [--runs N] [--seed N] [--
 - `check --reporter text|json|junit|github` picks the output: `junit` is JUnit XML for CI test reports, `github` prints workflow
   annotations and appends a table to `GITHUB_STEP_SUMMARY`. See "CI reporters" in `docs/laws.md`.
 
+- `tslaws mcp` serves `tslaws_check`, `tslaws_check_proposed`, `tslaws_explain` and `tslaws_propose` over MCP (stdio) for
+  agents; it cannot accept laws or touch the lock. `tslaws promote` is the person's step that moves proposed laws into the
+  accepted file. See [docs/laws.md](../../docs/laws.md#agent-integration-mcp).
 - Counterexamples are kept in `.tslaws/regressions` (committable) and replayed before the random search, so a fixed bug cannot
   return unnoticed. `check --no-regressions` skips the corpus; `tslaws regressions [list|clear]` shows or deletes it.
 

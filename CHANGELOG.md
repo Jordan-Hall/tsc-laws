@@ -27,6 +27,8 @@
 - **`tslaws mutate`:** mutation testing. Mutates the covered code, re-runs the laws on each mutant in a scratch copy, and reports survivors (laws too weak) with a mutation score; exit 0 only when every tried mutant is killed.
 - **`vscode-tslaws`:** a TextMate injection grammar for `law`, and an extension: CodeLens status and a counterexample lens above each law in `*.laws.ts`, problems for failed, open, tampered and error laws, a status-bar total that opens the dashboard, the commands `tslaws.check`, `tslaws.runFile`, `tslaws.openDashboard` and `tslaws.accept` (types the command in a terminal and never runs it), and a debounced re-run on save.
 - **Regression corpus:** every counterexample a property test finds is saved to `.tslaws/regressions/` (lossless tagged JSON, 20 per law) and replayed before the random search; a stored example that still fails fails the law as a regression. `tslaws check --no-regressions` skips it, `tslaws regressions [list|clear]` manages it, and `tslaws init` no longer ignores the directory.
+- **`tslaws mcp`:** a Model Context Protocol server over stdio with the tools `tslaws_check`, `tslaws_check_proposed`, `tslaws_explain` and `tslaws_propose`. It can write only `*.proposed.laws.ts` files; no tool accepts laws or edits the lock.
+- **`tslaws promote [file] [--all]`:** people-only (terminal required, like `accept`): shows each proposed law with its check result, asks per law, moves the approved ones into the accepted `*.laws.ts`, and leaves the lock for `tslaws accept`.
 - **Tests:** Windows fixes in the upstream test harness (extensionless oracles, slashed paths, fixture directories).
 
 ## 0.0.9

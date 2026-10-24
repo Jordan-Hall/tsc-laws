@@ -296,6 +296,41 @@ The compiler is `--compiler`, `TSC_LAWS_BIN`, or `tsc-laws` on `PATH`. It finds 
 the TypeScript 7 libs scriptc installs in `node_modules/@scriptc/*`. `tsc-ts --laws-manifest <files>` lists the laws of
 files as JSON.
 
+## Agent integration (MCP)
+
+`tslaws mcp` serves the Model Context Protocol over stdio (JSON-RPC 2.0, one message per line, no dependency), so an
+agent calls the checker as tools instead of parsing terminal output. Add it to Claude Code with a `.mcp.json` at the
+project root:
+
+```json
+{ "mcpServers": { "tslaws": { "command": "npx", "args": ["tslaws", "mcp"] } } }
+```
+
+The compiler is found as for the CLI: `--compiler PATH`, then `TSC_LAWS_BIN`, then the bundled one. The server uses stdout
+only for protocol messages.
+
+| Tool                    | Does                                                                                                        |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `tslaws_check`          | `check --json` with hints; `files` limits it, `summary` keeps only the laws that do not pass and the totals |
+| `tslaws_check_proposed` | `check --proposed`                                                                                          |
+| `tslaws_explain`        | a law's source, its last result in this session with the hint, and the next action                          |
+| `tslaws_propose`        | writes a law into a `*.proposed.laws.ts` file (a same-named law there is replaced) and returns its check    |
+
+**Property: the server cannot weaken accepted laws.** No tool accepts laws, writes `tsc-laws.lock`, promotes a proposal
+or edits a `*.laws.ts` file that is not a `*.proposed.laws.ts`. `tslaws_propose` refuses any other path, an absolute path,
+a path outside the project root (also through a symlinked directory) and the `node_modules`, `.tslaws` and `.git`
+directories, and accepts only imports and `law` declarations as source. The server sets `TSLAWS_AGENT=1`, so nothing it
+spawns can run `accept` or `promote`. A proposed law is still code that `check --proposed` runs, as with any law file.
+
+## Promoting proposed laws
+
+`tslaws promote [file] [--all]` is the person's step after an agent proposes laws. Like `accept`, it refuses without a
+terminal, under `CI`, or with `TSLAWS_AGENT` set. Name one `*.proposed.laws.ts` file, or pass `--all` for every one. For
+each law it shows the name, the source and the current `check --proposed` result, then asks `promote? [y/N]`. Approved
+laws are appended to the matching accepted file (`foo.proposed.laws.ts` to `foo.laws.ts`, created if missing; imports are
+added once) and removed from the proposed file, which is deleted when no law is left. A name the accepted file already
+has is refused. `promote` never writes the lock: review the diff, then run `tslaws accept`.
+
 ## Regression corpus
 
 Every counterexample that a property test finds (node laws and browser laws) is saved to
