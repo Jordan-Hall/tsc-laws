@@ -6,6 +6,11 @@
   "bin": {
     "tslaws": "bin/tslaws.js"
   },
+  "files": [
+    "bin",
+    "dist",
+    "hooks"
+  ],
   "exports": {
     ".": {
       "types": "./dist/api.d.ts",
@@ -15,7 +20,9 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "node --test test/*.test.ts"
+    "test": "node --test test/*.test.ts",
+    "check": "node bin/tslaws.js check",
+    "check:watch": "node bin/tslaws.js check --watch"
   },
   "dependencies": {
     "fast-check": "^4.0.0",
