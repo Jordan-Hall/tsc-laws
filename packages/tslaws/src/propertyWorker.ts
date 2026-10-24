@@ -8,13 +8,13 @@ import type { CheckOptions, ManifestLaw } from './types.ts';
 const require = createRequire(import.meta.url);
 let programOf: { outDir: string; program: ts.Program } | undefined;
 
-parentPort!.on('message', (request: { outDir: string; law: ManifestLaw; options: CheckOptions }) => {
+parentPort!.on('message', async (request: { outDir: string; law: ManifestLaw; options: CheckOptions }) => {
   try {
     const { outDir, law, options } = request;
     if (programOf?.outDir !== outDir) programOf = { outDir, program: ts.createProgram(declarationFiles(outDir), compilerOptions) };
     const types = typesOf(programOf.program, outDir, law);
     const fn = (require(jsPath(outDir, law.file)) as Record<string, (...args: unknown[]) => unknown>)[law.name]!;
-    parentPort!.postMessage({ ok: summarise(runLaw(fn, types.generators, options)) });
+    parentPort!.postMessage({ ok: summarise(await runLaw(fn, types.generators, options)) });
   } catch (error) {
     parentPort!.postMessage({ error: (error as Error).message });
   }

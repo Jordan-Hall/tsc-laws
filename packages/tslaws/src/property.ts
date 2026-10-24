@@ -89,14 +89,15 @@ export function isDiscard(error: unknown): boolean {
   return error instanceof Error && error.name === 'LawDiscard';
 }
 
-export function runLaw(
-  fn: (...args: unknown[]) => unknown,
+/** Runs `call` on generated inputs. `call` may be async (a law that waits, or one that runs in a browser). */
+export async function runProperty(
+  call: (...args: unknown[]) => unknown,
   generators: fc.Arbitrary<unknown>[],
   options: CheckOptions,
-): fc.RunDetails<unknown[]> {
-  const property = fc.property(...(generators as [fc.Arbitrary<unknown>]), (...args: unknown[]) => {
+): Promise<fc.RunDetails<unknown[]>> {
+  const property = fc.asyncProperty(...(generators as [fc.Arbitrary<unknown>]), async (...args: unknown[]) => {
     try {
-      return fn(...args) !== false;
+      return (await call(...args)) !== false;
     } catch (error) {
       if (isDiscard(error)) {
         fc.pre(false);
@@ -105,12 +106,14 @@ export function runLaw(
       throw error;
     }
   });
-  return fc.check(property as unknown as fc.IProperty<unknown[]>, {
+  return (await fc.check(property as unknown as fc.IAsyncProperty<unknown[]>, {
     numRuns: options.runs,
     seed: options.seed,
     maxSkipsPerRun: 100,
-  }) as fc.RunDetails<unknown[]>;
+  })) as fc.RunDetails<unknown[]>;
 }
+
+export const runLaw = runProperty;
 
 export const compilerOptions: ts.CompilerOptions = {
   skipLibCheck: true,

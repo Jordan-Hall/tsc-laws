@@ -91,7 +91,8 @@ describe(
           'law hidden(x: number) { return true; }',
           'export law wrongReturn(x: number) { return 5; }',
           'export law untyped(x) { return true; }',
-          'export async law later(x: number) { return true; }',
+          'export async law later(x: number) { await Promise.resolve(); return true; }',
+          'export async law laterExpr(x: number) => await Promise.resolve(x === x);',
           'export const outside = good(1);',
           'export law composed(x: number) { return good(x); }',
           'export function f() { const law = 3; return law; }',
@@ -99,9 +100,9 @@ describe(
         ].join('\n'),
       );
       assert.equal(status, 2);
-      for (const [line, code] of [[2, 9102], [3, 9101], [4, 9103], [5, 9104], [6, 9105]])
+      for (const [line, code] of [[2, 9102], [3, 9101], [4, 9103], [7, 9105]])
         assert.match(output, new RegExp(`rules\\.ts\\(${line},\\d+\\): error TS${code}`), `TS${code}`);
-      assert.doesNotMatch(output, /rules\.ts\((1|7|8),\d+\): error TS91/);
+      assert.doesNotMatch(output, /rules\.ts\((1|5|6|8|9),\d+\): error TS91/);
     });
 
     it('emit declarations with their parameter types', () => {

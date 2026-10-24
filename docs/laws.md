@@ -104,9 +104,27 @@ law [proved] name<T>(a: A, b: B)  { block }
 law [proved] name<T>(a: A, b: B)  => expression;
 ```
 
-A law compiles to an ordinary exported function, so it type-checks, appears in declaration output and can be called from
-tests. Rules enforced by `tslaws`: a law must be exported, must not be `async` or the default export, and every parameter
-must be a plain identifier with a type annotation (the type drives input generation).
+A law compiles to an ordinary exported function, so it type-checks and appears in declaration output.
+
+### What the language does that a package cannot
+
+`law` is part of the compiler, not a convention of a test library. The fork parses it and the **checker enforces the rules
+of a specification**, as ordinary compile errors in your editor and in `tsc-laws` output:
+
+| Code | Rule |
+| --- | --- |
+| TS9101 | A law returns `boolean` or `void` (a promise of either, when it is `async`). Anything else is not a claim. |
+| TS9102 | A law is exported, so the runner can load it. |
+| TS9103 | Every parameter has a type annotation, because the type generates the inputs. |
+| TS9104 | A law is not a generator or a default export. |
+| TS9105 | Only another law may call a law. Application code cannot call a specification, so a law cannot become part of the program it checks. |
+| TS9106 | Parameters are plain identifiers (no destructuring), so inputs map one to one. |
+
+It also fixes what a package cannot: the declaration is a distinct kind of node (`law proved` is a modifier the lock hashes,
+not a comment or a naming pattern), `--laws-manifest` lists every law from the syntax tree rather than by regex, and `law`
+stays an identifier everywhere else, so no existing code breaks. What stays in the runner is what needs a runtime: running,
+generating, proving, locking. Both halves are needed; the compiler makes a malformed or misplaced law impossible to write,
+and the runner decides whether the code satisfies it.
 
 Helpers from `tslaws`:
 
@@ -114,6 +132,35 @@ Helpers from `tslaws`:
 - `int`: a whole number the prover treats exactly. At runtime an ordinary `number`.
 - `invariant(cond)`: first statement of a loop body (see below). Throws at runtime if false.
 - `arbitrary(typeName, fc.Arbitrary)`: a generator for a type the runner cannot derive.
+
+## Browser laws
+
+Name a law file `*.browser.laws.ts` and its laws run in a real browser (Chrome, Edge or Chromium; `TSLAWS_BROWSER` points at
+another executable). Node still generates the inputs from the declared types and shrinks failures; each input is sent to a
+page where your compiled code and the law run against a live DOM. A law there may be `async`.
+
+```ts
+// src/counter.browser.laws.ts
+import type { int } from 'tslaws';
+import { assume } from 'tslaws';
+import { click, mount, settle } from 'tslaws/browser';
+import { createCounter } from './counter';
+
+export async law counterCountsClicks(clicks: int) {
+  assume(clicks >= 0 && clicks <= 5);
+  const { button, label } = createCounter(mount());
+  for (let i = 0; i < clicks; i++) click(button);
+  await settle();
+  return label.textContent === String(clicks);
+}
+```
+
+It is framework-agnostic: the law talks to the DOM. `mount(content)` takes markup, a node, or a function that renders into
+the container (React's `createRoot(el).render(...)`, Vue's `createApp(...).mount(el)`, Svelte, Lit, or plain DOM) and may
+return what undoes it. The page is cleaned between inputs. `tslaws/browser` also has `settle`, `click`, `type` and `fire`.
+
+Browser laws are `tested` (method `browser`), never `proved`: Z3 cannot model a DOM or an `await`. A page that never
+settles is stopped after `--property-timeout` and reported `error`. They sit under the same lock and coverage gate as any law.
 
 ## Statuses
 
@@ -172,8 +219,8 @@ reported as `failed`.
   ```
 
   Invariants live in the implementation, so the agent writes them; the laws stay yours. The loop may change numbers,
-  booleans and strings, may only read arrays and records, and may not `return`, `break` or `continue`. This is partial
-  correctness.
+  booleans, strings, arrays and records, and may `return`, `break` or `continue`. A changed array keeps the room it had,
+  so such a proof is `bounded` by that length. This is partial correctness.
 
 Anything else leaves the law `tested`, or a `law proved` `open`, with the reason. Z3 runs in a worker that is terminated if
 a query outlives its timeout (`--proof-timeout`, default 5000 ms). `TSLAWS_DEBUG=1` keeps each query as an `.smt2` file
@@ -240,10 +287,12 @@ On Windows the native build is `dist/tsc`; copy it to `tsc.exe` to run it.
 
 ## Limits
 
-- A law whose property test outlives `--property-timeout` (default 30 s) is reported `error`, not hung: the worker running it is
-  terminated. Only the check of that law is lost.
-- Laws over arrays are bounded; unbounded array proofs would need quantifiers.
-- Laws over plain `number` mostly stay `tested`, because Z3 cannot decide most double arithmetic. Use `int` or `bigint`
-  where you want a proof.
-- Loops with an `invariant` cannot change arrays or records, and cannot `return`, `break` or `continue`.
-- The compiler is Windows-, macOS- and Linux-buildable but needs a native toolchain; there is no prebuilt binary yet.
+- Laws over arrays are bounded: Z3 holds an array as a fixed number of slots. Unbounded claims about every element need
+  quantifiers, which Z3 does not decide reliably; put the claim in a loop `invariant` over scalars and the array's length.
+- Laws over plain `number` mostly stay `tested`: SMT floating point arithmetic is decidable but usually too slow. Use `int`
+  or `bigint` where you want a proof.
+- Loop invariants prove partial correctness (a loop that never ends is not flagged), and an array that grows past its room
+  is outside the claim.
+- Browser and async laws are tested, not proved.
+- Browser laws need an installed Chromium-family browser; Firefox and WebKit are not driven.
+- The compiler needs a native toolchain to build; the `laws-v*` release workflow publishes builds for macOS, Linux and Windows.

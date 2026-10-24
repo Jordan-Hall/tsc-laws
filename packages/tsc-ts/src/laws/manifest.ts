@@ -40,9 +40,9 @@ function lawsOf(file: SourceFile, fileName: string): LawEntry[] {
     if (!exported) problems.push('a law must be exported so the runner can load it');
     if (
       statement.modifiers !== undefined &&
-      (statement.modifiers.modifierFlags & (ModifierFlags.Async | ModifierFlags.Default)) !== 0
+      (statement.modifiers.modifierFlags & ModifierFlags.Default) !== 0
     )
-      problems.push('a law cannot be async or the default export');
+      problems.push('a law cannot be the default export');
     if (statement.body === undefined) problems.push('a law needs a body');
     const params: string[] = [];
     for (const parameter of statement.parameters.nodes) {

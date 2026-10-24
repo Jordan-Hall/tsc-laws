@@ -2195,13 +2195,19 @@ export class Parser extends ScannerErrorReporter {
     }
     const name = this.parseBindingIdentifier();
     const typeParameters = this.parseTypeParameters();
-    const parameters = this.parseParameters(ParseFlags.None);
+    // An async law may `await`, as a browser law does to let the page settle.
+    const isAsync = modifiers !== undefined && (modifiers.modifierFlags & ModifierFlags.Async) !== 0;
+    const signatureFlags = isAsync ? ParseFlags.Await : ParseFlags.None;
+    const parameters = this.parseParameters(signatureFlags);
     const returnType = this.parseReturnType(SyntaxKind.ColonToken, false);
     let body: Block | undefined;
     if (this.token() === SyntaxKind.EqualsGreaterThanToken) {
       const bodyPos = this.nodePos();
       this.nextToken();
+      const saveContextFlags = this.contextFlags;
+      if (isAsync) this.setContextFlags(NodeFlags.AwaitContext, true);
       const expression = this.parseAssignmentExpressionOrHigher();
+      this.contextFlags = saveContextFlags;
       this.parseSemicolon();
       const statement = this.finishNode(new ReturnStatement(expression), bodyPos);
       body = this.finishNode(
@@ -2209,7 +2215,7 @@ export class Parser extends ScannerErrorReporter {
         bodyPos,
       ) as Block;
     } else {
-      body = this.parseFunctionBlockOrSemicolon(ParseFlags.None, Diagnostics.X_or_expected);
+      body = this.parseFunctionBlockOrSemicolon(signatureFlags, Diagnostics.X_or_expected);
     }
     const result = this.finishWithJSDoc(
       new FunctionDeclaration(modifiers, undefined, name, typeParameters, parameters, returnType, undefined, body),

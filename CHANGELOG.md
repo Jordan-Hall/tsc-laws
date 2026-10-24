@@ -12,6 +12,12 @@
   `bigint`, bounded arrays, loops and recursion, strings, records), loop `invariant`s for proofs over every iteration count,
   a tamper lock, a coverage gate with lock-recorded exemptions, `init`, `--watch`, `--summary`, `--json` hints, and a Claude
   Code hook.
+- **Checker rules for `law`:** TS9101 to TS9106 (return type, exported, typed plain parameters, not a generator or default
+  export, only laws call laws). Laws may be `async`.
+- **Browser laws:** `*.browser.laws.ts` runs in a real Chromium-family browser with inputs generated in Node; `tslaws/browser`
+  helpers (`mount`, `settle`, `click`, `type`, `fire`) are framework-agnostic.
+- **Invariant loops** may `return`, `break` and `continue`, and may change arrays and records. Property tests run in a
+  killable worker (`--property-timeout`). A `laws.yml` workflow tests on Linux and Windows and publishes builds on `laws-v*` tags.
 - **`vscode-tslaws`:** a TextMate injection grammar for `law`.
 - **Tests:** Windows fixes in the upstream test harness (extensionless oracles, slashed paths, fixture directories).
 

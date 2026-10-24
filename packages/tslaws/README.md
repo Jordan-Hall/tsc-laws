@@ -122,6 +122,14 @@ reported as `failed`.
 Anything else leaves the law `tested`, or a `law proved` `open`, with the reason. Z3 runs in a worker thread that is terminated if a query outlives its timeout, so a hard query cannot hang the check; property tests run in a worker too, and a law that outlives `--property-timeout` (default 30000 ms) is reported `error`: the law or the code it calls may not terminate. `TSLAWS_DEBUG=1` keeps each query as an
 `.smt2` file under `.tslaws/out/smt` to replay in `z3`.
 
+## Browser laws
+
+A law file named `*.browser.laws.ts` runs in a real browser (Chrome, Edge or Chromium; `TSLAWS_BROWSER` names another
+executable). Node generates and shrinks the inputs; each one is sent to a page where the compiled law and your code run
+against a live DOM. The law may be `async`. `tslaws/browser` has `mount`, `settle`, `click`, `type` and `fire`, and works with
+any framework or none: `mount(el => render(el))` accepts whatever renders into an element and may return its unmount.
+Browser laws are `tested`, never `proved`. See [docs/laws.md](../../docs/laws.md#browser-laws).
+
 ## Agents cannot move the goalposts
 
 `tsc-laws.lock` holds a hash of every law declaration and the list of coverage exemptions. A change, an added law, a removed

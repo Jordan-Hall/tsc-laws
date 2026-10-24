@@ -27,7 +27,8 @@ UNCOVERED sub (src/math.ts) [coverage]
 What it offers:
 
 - **`law` as syntax.** A fork of [tsc-ts](https://github.com/vercel-labs/tsc-ts) (the TypeScript 7 compiler, ported to
-  TypeScript and compiled natively) parses `law` and emits ordinary, type-checked functions. `law` stays a normal identifier
+  TypeScript and compiled natively) parses `law`, enforces the rules of a specification in the checker (TS9101 to TS9106),
+  and emits ordinary, type-checked functions. `law` stays a normal identifier
   everywhere else.
 - **Proof where possible, tests everywhere else.** Z3 proves laws over exact integers, bigints, strings, booleans and
   records, bounded-checks arrays, loops and recursion, and proves loops for every iteration count when the code carries an
@@ -37,6 +38,8 @@ What it offers:
   a terminal. A coverage gate fails exported code that no law reaches.
 - **Built for the agent loop.** `tslaws init` scaffolds the rules and a Claude Code hook that blocks commits on failure;
   `--json` and `--summary` give compact output with a next-action hint per result; `--watch` re-checks on save.
+- **Browser laws.** Name a file `*.browser.laws.ts` and its laws run in a real Chrome, Edge or Chromium against a live DOM,
+  with any framework or none. Inputs are still generated from your types and shrunk in Node.
 - **Humans stay in control.** It is TypeScript, so every counterexample, proof obligation and fix is code a person can read
   and run. A VS Code grammar highlights `law`.
 

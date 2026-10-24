@@ -1,0 +1,124 @@
+name: tsc-laws
+
+# Tests the law syntax and the `tslaws` runner against a native build of the compiler on every push and pull request.
+# A `laws-v*` tag also builds the compiler for each platform and publishes a GitHub release with those builds and the
+# `tslaws` package.
+on:
+  push:
+    branches: [main, laws]
+    tags: ['laws-v*']
+  pull_request:
+    paths:
+      - 'packages/tsc-ts/**'
+      - 'packages/tslaws/**'
+      - 'packages/vscode-tslaws/**'
+      - '.github/workflows/laws.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2025]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: vercel-labs/setup-zig@v1
+        if: runner.os == 'Windows'
+        with:
+          version: 0.16.0
+      - run: npm ci
+      - run: npm run fetch:upstream
+      - run: npm run build:native -w tsc-ts
+      - run: npm run build -w tslaws
+      - name: Compiler tests for law
+        run: node --test packages/tsc-ts/tests/laws.test.mjs
+        env:
+          TSC_TS_BIN: ${{ github.workspace }}/packages/tsc-ts/dist/${{ runner.os == 'Windows' && 'tsc.exe' || 'tsc' }}
+      - name: tslaws tests
+        run: npm test -w tslaws
+        env:
+          TSC_LAWS_BIN: ${{ github.workspace }}/packages/tsc-ts/dist/${{ runner.os == 'Windows' && 'tsc.exe' || 'tsc' }}
+      - name: Example project
+        working-directory: examples/basic
+        # sortKeepsLength fails on purpose; the other laws must hold.
+        run: node ../../packages/tslaws/bin/tslaws.js check --summary | tee out.txt; grep -q "1 failed" out.txt
+        shell: bash
+        env:
+          TSC_LAWS_BIN: ${{ github.workspace }}/packages/tsc-ts/dist/${{ runner.os == 'Windows' && 'tsc.exe' || 'tsc' }}
+
+  build:
+    name: build ${{ matrix.platform }}
+    if: startsWith(github.ref, 'refs/tags/laws-v')
+    needs: test
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { platform: darwin-arm64, runner: macos-15 }
+          - { platform: darwin-x64, runner: macos-15-intel }
+          - { platform: linux-arm64-gnu, runner: ubuntu-24.04-arm, target: aarch64-linux-gnu.2.34 }
+          - { platform: linux-x64-gnu, runner: ubuntu-24.04, target: x86_64-linux-gnu.2.34 }
+          - { platform: win32-x64-msvc, runner: windows-2025 }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: vercel-labs/setup-zig@v1
+        if: matrix.platform == 'win32-x64-msvc' || matrix.target
+        with:
+          version: 0.16.0
+      - name: Build and pack the compiler
+        env:
+          SCRIPTC_TARGET: ${{ matrix.target }}
+        run: |
+          npm ci
+          npm run fetch:upstream
+          npm run pack:npm -w tsc-ts -- platform
+        shell: bash
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tsc-laws-${{ matrix.platform }}
+          path: packages/tsc-ts/dist/npm/tsc-ts-${{ matrix.platform }}-*.tgz
+          if-no-files-found: error
+
+  release:
+    name: release
+    if: startsWith(github.ref, 'refs/tags/laws-v')
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run build -w tslaws
+      - run: npm pack -w tslaws --pack-destination release
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: tsc-laws-*
+          path: release
+          merge-multiple: true
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" release/* --title "$GITHUB_REF_NAME" --generate-notes

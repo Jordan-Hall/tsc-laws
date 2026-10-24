@@ -5,6 +5,7 @@ import { compilerOptions, declarationFiles, isDiscard, jsPath, runLawGuarded, ty
 import { analyzeCoverage, coverFiles, readConfig } from './coverage.ts';
 import { compareLock, lawKey, readLock, type Lock } from './lock.ts';
 import { proveLaw } from './smt.ts';
+import { closeBrowser, isBrowserLawFile, runBrowserLaw } from './browser.ts';
 import type { CheckOptions, LawResult, ManifestLaw } from './types.ts';
 
 export interface CheckReport {
@@ -83,39 +84,46 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
       add(law, 'error', 'generators', { message: (error as Error).message });
       continue;
     }
+    const browser = isBrowserLawFile(law.file);
+    const method = browser ? 'browser' : 'property';
     let fn: ((...args: unknown[]) => unknown) | undefined;
-    try {
-      fn = (require(jsPath(built.outDir, law.file)) as Record<string, (...args: unknown[]) => unknown>)[law.name];
-    } catch (error) {
-      add(law, 'error', 'load', { message: `cannot load compiled law: ${(error as Error).message}` });
-      continue;
-    }
-    if (typeof fn !== 'function') {
-      add(law, 'error', 'load', { message: 'compiled module does not export the law' });
-      continue;
+    // A browser law touches the DOM when it loads, so only the browser loads it.
+    if (!browser) {
+      try {
+        fn = (require(jsPath(built.outDir, law.file)) as Record<string, (...args: unknown[]) => unknown>)[law.name];
+      } catch (error) {
+        add(law, 'error', 'load', { message: `cannot load compiled law: ${(error as Error).message}` });
+        continue;
+      }
+      if (typeof fn !== 'function') {
+        add(law, 'error', 'load', { message: 'compiled module does not export the law' });
+        continue;
+      }
     }
     let details: PropertyOutcome | 'timeout';
     try {
-      details = await runLawGuarded(built.outDir, law, options);
+      details = browser
+        ? await runBrowserLaw({ name: law.name, jsFile: jsPath(built.outDir, law.file), generators: types.generators }, options)
+        : await runLawGuarded(built.outDir, law, options);
     } catch (error) {
-      add(law, 'error', 'property', { message: (error as Error).message });
+      add(law, 'error', method, { message: (error as Error).message });
       continue;
     }
     if (details === 'timeout') {
-      add(law, 'error', 'property', {
+      add(law, 'error', method, {
         message: `property test ran longer than ${(options.propertyTimeoutMs ?? 30000) / 1000}s; the law or the code it calls may not terminate`,
       });
       continue;
     }
     if (details.failed) {
       if (details.counterexample === undefined) {
-        add(law, 'open', 'property', {
+        add(law, 'open', method, {
           runs: details.numRuns,
           seed: details.seed,
           message: 'assume() discards nearly every generated input',
         });
       } else {
-        add(law, 'failed', 'property', {
+        add(law, 'failed', method, {
           runs: details.numRuns,
           seed: details.seed,
           counterexample: details.counterexample,
@@ -127,17 +135,19 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
       }
       continue;
     }
-    if (options.noProve) {
-      add(law, law.proved ? 'open' : 'tested', 'property', {
+    // Browser and async laws are tested, never proved: the prover cannot model a DOM or an await.
+    const unprovable = browser ? 'runs in a browser' : fn!.constructor.name === 'AsyncFunction' ? 'is async' : undefined;
+    if (options.noProve || unprovable !== undefined) {
+      add(law, law.proved ? 'open' : 'tested', method, {
         runs: details.numRuns,
         seed: details.seed,
-        message: law.proved ? 'marked proved but proving is disabled' : undefined,
+        message: law.proved ? (unprovable !== undefined ? `marked proved but the law ${unprovable}` : 'marked proved but proving is disabled') : undefined,
       });
       continue;
     }
     const holds = (inputs: unknown[]): boolean => {
       try {
-        return fn(...inputs) !== false;
+        return fn!(...inputs) !== false;
       } catch (error) {
         return isDiscard(error);
       }
@@ -192,6 +202,8 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
       });
     }
   }
+
+  await closeBrowser();
 
   const ok = built.ok && !lockMissing && results.every((r) => r.status === 'proved' || r.status === 'bounded' || r.status === 'tested');
   return { results, compileDiagnostics: built.diagnostics, compileOk: built.ok, lockMissing, ok };
