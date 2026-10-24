@@ -249,8 +249,45 @@
         opacity: 0;
       }
       .row:hover .runfile,
-      .runfile:focus-visible {
+      .runfile:focus-visible,
+      .row:hover .runlaw,
+      .runlaw:focus-visible {
         opacity: 1;
+      }
+      .runlaw {
+        padding: 0 6px;
+        border: 0;
+        color: var(--muted);
+        font-size: 11px;
+        opacity: 0;
+      }
+      .flaky {
+        color: var(--open);
+        border: 1px solid currentColor;
+        border-radius: 6px;
+        padding: 0 5px;
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+      }
+      .history {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 3px;
+      }
+      .history i {
+        display: block;
+        width: 12px;
+        height: 12px;
+        border-radius: 3px;
+        background: var(--proved);
+      }
+      .history i.bad {
+        background: var(--failed);
+      }
+      .slow .dur {
+        color: var(--muted);
+        margin-left: auto;
       }
       .shot {
         max-width: 100%;
@@ -536,17 +573,24 @@
         $('run').onclick = function () {
           run();
         };
-        function run(file) {
-          fetch('/api/run' + (file ? '?file=' + encodeURIComponent(file) : ''), {
+        function run(file, law) {
+          var q = file ? '?file=' + encodeURIComponent(file) + (law ? '&law=' + encodeURIComponent(law) : '') : '';
+          fetch('/api/run' + q, {
             method: 'POST',
             headers: { 'x-tslaws': '1' },
           });
         }
 
+        function fmtMs(ms) {
+          if (ms === undefined || ms === null) return '';
+          return ms < 1000 ? Math.round(ms) + ' ms' : (ms / 1000).toFixed(1) + ' s';
+        }
+
         function counts() {
-          var c = { all: 0, passed: 0, failed: 0, open: 0, live: 0 };
+          var c = { all: 0, passed: 0, failed: 0, open: 0, live: 0, flaky: 0 };
           results().forEach(function (r) {
             c.all++;
+            if (r.flaky) c.flaky++;
             if (PASSING[r.status]) c.passed++;
             else if (r.status === 'open') c.open++;
             else if (LIVE[r.status]) c.live++;
@@ -560,6 +604,7 @@
           if (filter === 'failed' && (PASSING[r.status] || LIVE[r.status] || r.status === 'open')) return false;
           if (filter === 'running' && !LIVE[r.status]) return false;
           if (filter === 'open' && r.status !== 'open') return false;
+          if (filter === 'flaky' && !r.flaky) return false;
           if (query && (r.name + ' ' + r.file).toLowerCase().indexOf(query) < 0) return false;
           return true;
         }
@@ -606,6 +651,7 @@
             ['failed', 'Failed', c.failed],
             ['open', 'Open', c.open],
             ['passed', 'Passed', c.passed],
+            ['flaky', 'Flaky', c.flaky],
           ].forEach(function (f) {
             var b = el('button', 'chip', f[1] + ' ' + f[2]);
             b.setAttribute('aria-pressed', String(filter === f[0]));
@@ -680,7 +726,10 @@
               line.setAttribute('aria-selected', String(selected === key(r)));
               line.appendChild(el('span', 'icon s-' + r.status, ICON[r.status]));
               line.appendChild(el('span', 'name', r.name));
+              if (r.flaky) line.appendChild(el('span', 'flaky', 'flaky'));
+              if (r.durationMs !== undefined) line.appendChild(el('span', 'tag', fmtMs(r.durationMs)));
               line.appendChild(el('span', 'tag', r.method));
+              line.appendChild(lawButton(r));
               var pick = function () {
                 selected = key(r);
                 tab = 'report';
@@ -697,6 +746,17 @@
               tree.appendChild(line);
             });
           });
+        }
+
+        function lawButton(r) {
+          var go = el('button', 'runlaw', '▶');
+          go.title = 'Run this law';
+          go.setAttribute('aria-label', 'Run ' + r.name);
+          go.onclick = function (e) {
+            e.stopPropagation();
+            run(r.file, r.name);
+          };
+          return go;
         }
 
         function renderSide() {
@@ -766,6 +826,51 @@
           if (state.report.compileDiagnostics) {
             d.appendChild(el('h3', '', 'Compiler'));
             d.appendChild(el('pre', 'err', state.report.compileDiagnostics));
+          }
+          if (state.history && state.history.length) {
+            d.appendChild(el('h3', '', 'Recent runs'));
+            var hist = el('div', 'history');
+            state.history.forEach(function (h) {
+              var sq = el('i', h.ok ? '' : 'bad');
+              var parts = Object.keys(h.counts).map(function (k) {
+                return h.counts[k] + ' ' + k;
+              });
+              sq.title =
+                new Date(h.at).toLocaleTimeString() +
+                ' · ' +
+                fmtMs(h.durationMs) +
+                ' · ' +
+                (h.ok ? 'ok' : 'failing') +
+                ' · ' +
+                parts.join(', ');
+              hist.appendChild(sq);
+            });
+            d.appendChild(hist);
+          }
+          var slow = results()
+            .filter(function (r) {
+              return r.durationMs !== undefined && !LIVE[r.status];
+            })
+            .sort(function (a, b) {
+              return b.durationMs - a.durationMs;
+            })
+            .slice(0, 5);
+          if (slow.length) {
+            d.appendChild(el('h3', '', 'Slowest laws'));
+            slow.forEach(function (r) {
+              var row = el('div', 'row law slow');
+              row.style.paddingLeft = '0';
+              row.appendChild(el('span', 'icon s-' + r.status, ICON[r.status]));
+              row.appendChild(el('span', 'name', r.name + '  ·  ' + r.file + ':' + r.line));
+              row.appendChild(el('span', 'dur', fmtMs(r.durationMs)));
+              row.onclick = function () {
+                selected = key(r);
+                tab = 'report';
+                renderSide();
+                renderDetail();
+              };
+              d.appendChild(row);
+            });
           }
           var bad = results().filter(function (r) {
             return !PASSING[r.status] && !LIVE[r.status];
@@ -914,6 +1019,10 @@
             !!state.report,
             liveFrame,
             state.report && state.report.compileDiagnostics,
+            state.history,
+            results().map(function (x) {
+              return [x.durationMs, x.flaky];
+            }),
           ]);
         }
 
@@ -937,6 +1046,14 @@
           meta.appendChild(el('span', 'badge s-' + r.status, r.status));
           meta.appendChild(el('span', '', r.file + ':' + r.line));
           meta.appendChild(el('span', '', 'checked by ' + r.method));
+          if (r.durationMs !== undefined) meta.appendChild(el('span', '', fmtMs(r.durationMs)));
+          if (r.flaky) meta.appendChild(el('span', 'flaky', 'flaky'));
+          var rerun = el('button', '', '▶ Run');
+          rerun.title = 'Run this law again';
+          rerun.onclick = function () {
+            run(r.file, r.name);
+          };
+          meta.appendChild(rerun);
           d.appendChild(meta);
           var tabs = el('div', 'tabs');
           tabs.setAttribute('role', 'tablist');

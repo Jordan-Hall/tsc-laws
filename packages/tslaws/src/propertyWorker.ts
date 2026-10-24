@@ -14,8 +14,10 @@ parentPort!.on('message', async (request: { outDir: string; law: ManifestLaw; op
     if (programOf?.outDir !== outDir)
       programOf = { outDir, program: ts.createProgram(declarationFiles(outDir), compilerOptions) };
     const types = typesOf(programOf.program, outDir, law);
+    // The worker outlives a check, and the code may have been recompiled since the last one.
+    for (const loaded of Object.keys(require.cache)) if (loaded.startsWith(outDir)) delete require.cache[loaded];
     const fn = (require(jsPath(outDir, law.file)) as Record<string, (...args: unknown[]) => unknown>)[law.name]!;
-    parentPort!.postMessage({ ok: summarise(await runLaw(fn, types.generators, options)) });
+    parentPort!.postMessage({ ok: summarise(await runLaw(fn, types.generators, options), options) });
   } catch (error) {
     parentPort!.postMessage({ error: (error as Error).message });
   }

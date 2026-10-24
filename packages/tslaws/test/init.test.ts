@@ -28,7 +28,11 @@ describe('init', () => {
     const d = dir();
     const lines = init({ cwd: d });
     assert.deepEqual(JSON.parse(read(d, 'tslaws.json')), { cover: ['src/**/*.ts', '!src/**/*.laws.ts'] });
-    assert.match(read(d, '.gitignore'), /^\.tslaws$/m);
+    const ignore = read(d, '.gitignore');
+    for (const entry of ['.tslaws/out', '.tslaws/mutants', '.tslaws/screenshots'])
+      assert.ok(ignore.split('\n').includes(entry), entry);
+    assert.doesNotMatch(ignore, /regressions/);
+    assert.doesNotMatch(ignore, /^\.tslaws\/?$/m);
     assert.ok(read(d, 'AGENTS.md').includes(agentsBegin));
     assert.match(read(d, 'AGENTS.md'), /npx tslaws check/);
     const settings = JSON.parse(read(d, '.claude/settings.json'));
@@ -63,7 +67,7 @@ describe('init', () => {
   it('appends to existing .gitignore and AGENTS.md', () => {
     const d = dir({ '.gitignore': 'node_modules', 'AGENTS.md': '# Mine\nKeep this.\n' });
     init({ cwd: d });
-    assert.equal(read(d, '.gitignore'), 'node_modules\n.tslaws\n');
+    assert.equal(read(d, '.gitignore'), 'node_modules\n.tslaws/out\n.tslaws/mutants\n.tslaws/screenshots\n');
     assert.match(read(d, 'AGENTS.md'), /^# Mine\nKeep this\.\n\n<!-- tslaws:begin -->/);
   });
 

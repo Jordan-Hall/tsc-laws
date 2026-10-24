@@ -1372,6 +1372,14 @@ export class Executor {
 
     if (this.calleeOf(node)?.name === 'invariant')
       throw new Unsupported('invariant must be the first statements of a loop body');
+    const quantifier = this.calleeOf(node);
+    if (
+      (quantifier?.name === 'forall' || quantifier?.name === 'exists') &&
+      (quantifier.owner === undefined
+        ? this.index(f.file).functions.get(quantifier.name) === undefined
+        : /tslaws/.test(quantifier.owner) && !f.env.has(quantifier.owner))
+    )
+      return this.quantifier(quantifier.name, node.arguments, f, pc);
     if (ts.isPropertyAccessExpression(callee)) {
       const owner = ts.isIdentifier(callee.expression) ? callee.expression.text : undefined;
       const name = callee.name.text;
@@ -1404,6 +1412,23 @@ export class Executor {
       return this.callProject(f.file, callee.text, node.arguments, f, pc);
     }
     throw new Unsupported('call target is not a plain name');
+  }
+
+  /** `forall(xs, p)` / `exists(xs, p)` over the slots of the array model, so a claim about them is bounded like the array. */
+  private quantifier(name: 'forall' | 'exists', args: readonly ts.Expression[], f: Frame, pc: string): Value {
+    if (args.length !== 2) throw new Unsupported(`${name} takes an array and a predicate`);
+    const arr = this.arrayOf(this.ev(args[0]!, f, pc));
+    const fn = this.callback(args[1]!);
+    if (fn.parameters.length > 2) throw new Unsupported(`${name} predicate takes at most (element, index)`);
+    let result = name === 'forall' ? 'true' : 'false';
+    arr.slots.forEach((slot, k) => {
+      if (slot.k === 'undef') return;
+      const inRange = this.lt(intLit(BigInt(k)), arr.len).t;
+      const args2: Value[] = [slot, intLit(BigInt(k))];
+      const r = this.asBool(this.applyCallback(fn, args2, f, and(pc, inRange)));
+      result = name === 'forall' ? and(result, ite(inRange, r, 'true')) : or(result, and(inRange, r));
+    });
+    return bool(result);
   }
 
   private assumeCall(node: ts.CallExpression, f: Frame, pc: string): Value {

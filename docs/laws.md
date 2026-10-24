@@ -162,6 +162,92 @@ return what undoes it. The page is cleaned between inputs. `tslaws/browser` also
 Browser laws are `tested` (method `browser`), never `proved`: Z3 cannot model a DOM or an `await`. A page that never
 settles is stopped after `--property-timeout` and reported `error`. They sit under the same lock and coverage gate as any law.
 
+### Accessibility laws
+
+`a11y(root?, { rules?, ignore? })` audits an element (default: the page) with [axe-core](https://github.com/dequelabs/axe-core) and
+returns `{ violations, ok }`, each violation being `{ id, impact, help, nodes }` with `nodes` the offending elements' HTML trimmed to
+200 characters. `accessible(root?, options?)` returns just `ok`, so a law can `return await accessible(el)`. `rules` runs only those
+axe rule ids and `ignore` skips some. When `root` is an element, page-level rules (`region`, `landmark-one-main`,
+`page-has-heading-one`) are skipped.
+
+```ts
+export async law cardIsAccessible(n: int) {
+  assume(n >= 0 && n <= 3);
+  return await accessible(renderCard(mount(), n));
+}
+```
+
+`axe-core` is an optional peer dependency, resolved from your project and bundled into the page only when a law reaches it:
+`npm i -D axe-core`. Without it `a11y()` throws `a11y() needs axe-core: npm i -D axe-core`.
+
+### Engines
+
+Chromium is the default. `--browser firefox` or `--browser webkit` (or `TSLAWS_BROWSER_ENGINE`) runs the laws in that engine
+instead. Install Playwright's build with `npx playwright install firefox` (or `webkit`), or point `TSLAWS_BROWSER` at an
+executable of that engine; with neither, the run fails naming that command. Chromium still uses `TSLAWS_BROWSER` or an installed
+Chrome, Edge or Chromium.
+
+## Stateful laws
+
+Stores, components and caches are tested by driving them with a sequence of operations and comparing them with a simple
+model. A law can already take an array of a union type, so the operations are an ordinary input: the runner derives the
+generator from the type and fast-check shrinks a failing array to the shortest one.
+
+```ts
+import { runModel } from 'tslaws';
+import { Counter } from './counter';
+
+export law counterAgreesWithModel(ops: ('inc' | 'dec' | 'reset')[]) {
+  return runModel({
+    ops,
+    real: new Counter(), // the thing under test, already created
+    model: 0, // the reference model's initial state
+    apply: (counter, model, op) => {
+      // do the op on the real thing, return the next model state
+      if (op === 'inc') { counter.inc(); return model + 1; }
+      if (op === 'dec') { counter.dec(); return model - 1; }
+      counter.reset();
+      return 0;
+    },
+    agree: (counter, model) => counter.n === model, // checked before the first op and after every op
+  });
+}
+```
+
+`runModel` returns false at the first disagreement. `modelFailure()` (from `tslaws`) then gives `{ step, op }` for the latest
+call (`step` is -1 when real and model disagreed before any op), which is useful in a helper or a debugger; the report
+format is unchanged. `runModelAsync` is the same with `apply` and `agree` allowed to return promises. Both are plain code
+with no Node-only imports, so they work in browser bundles.
+
+Because the operations are the law's input, a bug that needs a particular history is found by random search and then
+shrunk. If `reset` fails to reset when the count is exactly 3, the counterexample is `[["inc","inc","inc","reset"]]`, not
+the long sequence that first failed. Keep the operation union small so shrinking can reach a minimal sequence. Stateful
+laws are `tested`: the prover does not model `apply` callbacks.
+
+In a browser law the operations are clicks and `apply` waits for the page to settle:
+
+```ts
+// src/counter.browser.laws.ts
+import { runModelAsync } from 'tslaws';
+import { click, mount, settle } from 'tslaws/browser';
+import { createCounter } from './counter';
+
+export async law counterUiAgreesWithModel(ops: ('inc' | 'dec')[]) {
+  const ui = createCounter(mount());
+  return runModelAsync({
+    ops,
+    real: ui,
+    model: 0,
+    apply: async (ui, model, op) => {
+      click(op === 'inc' ? ui.incButton : ui.decButton);
+      await settle();
+      return op === 'inc' ? model + 1 : model - 1;
+    },
+    agree: (ui, model) => ui.label.textContent === String(model),
+  });
+}
+```
+
 ## The dashboard
 
 `tslaws ui` opens a local dashboard in the manner of Vitest's UI: a sidebar tree of files and laws with status icons, filters
@@ -172,8 +258,20 @@ the next step), the law's source with its lines highlighted, and the compiler ou
 
 Laws appear as the run proceeds: waiting, running (pulsing), then their result, with a progress bar and a Running filter. For browser laws the dashboard shows the page itself, live: while a law runs, the first runs linger for a moment (`browserPauseMs`) and the page is photographed a few times a second, so you see the component the law is driving; afterwards the last frame stays on the law's report.
 
+Each law is timed from its start to its result: the duration shows in the law's header and as a tag in the tree, and the overview lists the five slowest laws. The overview also keeps the last 20 runs of the whole project as a row of small squares (green for a run where every law held, red otherwise, newest on the right; hover one for its time, duration and counts). The dashboard remembers each law's last five statuses across those full runs and marks a law `flaky` when they include both a passing (proved, bounded, tested) and a failing (failed, error, open) one; a `Flaky` filter chip counts them. History and flakiness live in the dashboard's memory only. A law's row has a hover button, and its header a Run button, that rerun just that law (`POST /api/run?file=<file>&law=<name>`, with the same protections as other reruns); only that law's entry is replaced, and the rerun adds nothing to the history.
+
 It listens on 127.0.0.1 only, rejects requests whose Host or Origin is not loopback and the page itself, and cannot accept
 laws: `tslaws accept` stays a person's act at a terminal.
+
+## Editor integration
+
+`packages/vscode-tslaws` is a VS Code extension with no bundled dependencies. Above each `law` in a `*.laws.ts` file it shows a
+CodeLens with the last status (`proved`, `bounded`, `tested`, `open`, `failed`, `uncovered`, `tampered`, `error` or `not run`),
+a `Run` lens, and for a failure the shrunk counterexample. Failed, open, tampered and error laws appear as problems on the
+law's line with the message, counterexample and hint. A status-bar item shows totals (`laws: 3 proved, 1 failed`) and opens
+the dashboard. Commands: `tslaws.check`, `tslaws.runFile`, `tslaws.openDashboard` (runs `tslaws ui --no-open --port 0`), and
+`tslaws.accept`, which only types `npx tslaws accept` into a terminal; a person presses Enter. Settings: `tslaws.runOnSave`
+(default on), `tslaws.executable` and `tslaws.args`. It runs `node_modules/.bin/tslaws`, else `npx tslaws`.
 
 ## Statuses
 
@@ -237,6 +335,17 @@ reported as `failed`.
   booleans, strings, arrays and records, and may `return`, `break` or `continue`. A changed array keeps the room it had,
   so such a proof is `bounded` by that length. This is partial correctness.
 
+- **Quantifiers:** `forall(xs, (x, i) => cond)` and `exists(xs, (x, i) => cond)` (from `tslaws`) say that every, or some,
+  element satisfies a condition. They run as loops in property tests. The prover lowers them over the array's slots:
+  `forall` is the conjunction of `k < length => cond(xs[k], k)` and `exists` the disjunction of `k < length && cond(xs[k], k)`.
+  Use them in `assume(...)`, in a law's result and in `invariant(...)`; the predicate may use outer variables and the index.
+  Like any array claim, a proof that uses them is `bounded` by `--bound`, never `proved`. The predicate must be an arrow
+  function the prover can lower, or the law stays `tested`:
+
+  ```ts
+  export law allPositiveSumPositive(xs: int[]) { assume(forall(xs, (x) => x > 0)); return sum(xs) >= 0; }
+  ```
+
 Anything else leaves the law `tested`, or a `law proved` `open`, with the reason. Z3 runs in a worker that is terminated if
 a query outlives its timeout (`--proof-timeout`, default 5000 ms). `TSLAWS_DEBUG=1` keeps each query as an `.smt2` file
 under `.tslaws/out/smt`.
@@ -261,7 +370,9 @@ under `.tslaws/out/smt`.
 ```
 tslaws init [--force]
 tslaws accept [files...]
-tslaws check [files...] [--json] [--summary] [--watch] [--runs N] [--seed N] [--no-prove] [--bound N]
+tslaws regressions [list|clear]
+tslaws mutate [files...] [--max N] [--seed N] [--json]
+tslaws check [files...] [--json] [--summary] [--watch] [--runs N] [--seed N] [--no-prove] [--no-regressions] [--bound N]
              [--proof-timeout MS] [--proposed] [--compiler PATH]
 ```
 
@@ -272,6 +383,89 @@ results that do not pass, and the totals.
 The compiler is `--compiler`, `TSC_LAWS_BIN`, or `tsc-laws` on `PATH`. It finds its lib files through `TSC_TS_LIB_DIR`, or
 the TypeScript 7 libs scriptc installs in `node_modules/@scriptc/*`. `tsc-ts --laws-manifest <files>` lists the laws of
 files as JSON.
+
+## Agent integration (MCP)
+
+`tslaws mcp` serves the Model Context Protocol over stdio (JSON-RPC 2.0, one message per line, no dependency), so an
+agent calls the checker as tools instead of parsing terminal output. Add it to Claude Code with a `.mcp.json` at the
+project root:
+
+```json
+{ "mcpServers": { "tslaws": { "command": "npx", "args": ["tslaws", "mcp"] } } }
+```
+
+The compiler is found as for the CLI: `--compiler PATH`, then `TSC_LAWS_BIN`, then the bundled one. The server uses stdout
+only for protocol messages.
+
+| Tool                    | Does                                                                                                        |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `tslaws_check`          | `check --json` with hints; `files` limits it, `summary` keeps only the laws that do not pass and the totals |
+| `tslaws_check_proposed` | `check --proposed`                                                                                          |
+| `tslaws_explain`        | a law's source, its last result in this session with the hint, and the next action                          |
+| `tslaws_propose`        | writes a law into a `*.proposed.laws.ts` file (a same-named law there is replaced) and returns its check    |
+
+**Property: the server cannot weaken accepted laws.** No tool accepts laws, writes `tsc-laws.lock`, promotes a proposal
+or edits a `*.laws.ts` file that is not a `*.proposed.laws.ts`. `tslaws_propose` refuses any other path, an absolute path,
+a path outside the project root (also through a symlinked directory) and the `node_modules`, `.tslaws` and `.git`
+directories, and accepts only imports and `law` declarations as source. The server sets `TSLAWS_AGENT=1`, so nothing it
+spawns can run `accept` or `promote`. A proposed law is still code that `check --proposed` runs, as with any law file.
+
+## Promoting proposed laws
+
+`tslaws promote [file] [--all]` is the person's step after an agent proposes laws. Like `accept`, it refuses without a
+terminal, under `CI`, or with `TSLAWS_AGENT` set. Name one `*.proposed.laws.ts` file, or pass `--all` for every one. For
+each law it shows the name, the source and the current `check --proposed` result, then asks `promote? [y/N]`. Approved
+laws are appended to the matching accepted file (`foo.proposed.laws.ts` to `foo.laws.ts`, created if missing; imports are
+added once) and removed from the proposed file, which is deleted when no law is left. A name the accepted file already
+has is refused. `promote` never writes the lock: review the diff, then run `tslaws accept`.
+
+## Regression corpus
+
+Every counterexample that a property test finds (node laws and browser laws) is saved to
+`.tslaws/regressions/<law file, with / written as __>/<law>.json`. Values are stored in a lossless tagged JSON, so `NaN`,
+`-0`, `Infinity`, `undefined`, `bigint` and `Date` come back exactly. A law keeps at most 20 distinct examples, newest first.
+Only a real counterexample is saved: not a law whose `assume` discards nearly every input, not a timeout, not a prover model.
+
+On the next run, every stored example of a law is replayed before the random search. If one still fails, the law fails with
+`regression: a previously found counterexample still fails` and the counterexample, whatever the seed or `--runs`. An example
+that now passes stays in the corpus and keeps guarding the law. A fixed bug therefore cannot return unnoticed, even though the
+random search would rarely find it again.
+
+`tslaws init` ignores `.tslaws/out`, `.tslaws/mutants` and `.tslaws/screenshots` but not `.tslaws/regressions`, so a team may
+commit the corpus. `tslaws check --no-regressions` neither reads nor writes it. `tslaws regressions list` prints each law and
+its example count per file; `tslaws regressions clear` deletes the directory.
+
+## Mutation testing
+
+`tslaws mutate [files...] [--max N] [--seed N] [--json]` asks whether the laws are strong enough. It changes the covered
+source in small ways (relational, arithmetic and logical operators, `true`/`false`, numeric literals, negated `if`
+conditions, removed `!`), re-runs the laws against each mutant in a scratch copy under `.tslaws/mutants/`, and reports each
+mutant as killed (a law failed, errored or timed out) or survived (every law still held, so the laws cannot tell the change
+apart). Your files are never written. A `*.laws.ts` argument chooses the laws; other files limit which sources are mutated.
+Without arguments it uses every laws file and every covered module. `--max` (default 50) and `--seed` sample a subset.
+
+It prints each survivor as `file:line  original  ->  mutated` with a hint, and the mutation score. Exit status is 0 only when
+every tried mutant is killed. It first checks the unmutated code and stops if the laws do not pass. Mutants that do not
+compile are skipped and not counted. Some survivors are equivalent mutants (for example `<` to `<=` where both sides are
+equal); strengthen a law only when the survivor is a real behaviour change. Each mutant runs 50 tests with a short proof
+timeout, and the lock is not enforced.
+
+## CI reporters
+
+`tslaws check --reporter <name>` chooses the output. The exit status does not change: 0 only when the check passes.
+
+- `text` (default) is the console report; `json` is the same as `--json`.
+- `junit` writes JUnit XML to stdout: one `<testsuite>` per law file and one `<testcase classname=file name=law>` per law. `failed`,
+  `open`, `tampered`, `error` and `uncovered` results carry a `<failure>` with the message, counterexample and hint.
+- `github` writes GitHub Actions workflow commands: `::error file=...,line=...,title=<law> <status>::...` for each failing
+  result and a `::notice` for `bounded` and `tested` ones. When `GITHUB_STEP_SUMMARY` is set, it also appends a markdown table
+  of the results to that file.
+
+```yaml
+- run: npx tslaws check --reporter github
+```
+
+For a test report, redirect JUnit output: `npx tslaws check --reporter junit > tslaws-junit.xml`.
 
 ## Build
 
@@ -309,5 +503,5 @@ On Windows the native build is `dist/tsc`; copy it to `tsc.exe` to run it.
 - Loop invariants prove partial correctness (a loop that never ends is not flagged), and an array that grows past its room
   is outside the claim.
 - Browser and async laws are tested, not proved.
-- Browser laws need an installed Chromium-family browser; Firefox and WebKit are not driven.
+- Browser laws need an installed browser: Chrome, Edge or Chromium by default, or Playwright's Firefox or WebKit with `--browser`.
 - The compiler needs a native toolchain to build; the `laws-v*` release workflow publishes builds for macOS, Linux and Windows.

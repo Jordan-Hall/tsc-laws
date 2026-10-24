@@ -101,6 +101,8 @@ reported as `failed`.
 - **Strings** are unbounded SMT strings restricted to the BMP: `+`, templates, `length`, `charAt`, indexing, `slice`,
   `substring`, `includes`, `startsWith`, `endsWith`, `indexOf`, comparisons.
 - **Records** of any of these, and `typeof`, `Math.abs/min/max/floor/ceil/trunc`, ternaries, `const`/`let`, `assume`.
+- **`forall(xs, (x, i) => cond)` and `exists(...)`** (from `tslaws`) quantify over arrays in `assume`, law results and
+  `invariant`s. The prover lowers them over the array slots, so a claim that uses them is `bounded` by `--bound`.
 
 - **Loop invariants give proofs for every number of iterations.** Put `invariant(cond)` first in a loop body (`import {
   invariant } from 'tslaws'`; it throws at runtime when false, so property tests check it on every iteration). The prover
@@ -135,13 +137,21 @@ A law file named `*.browser.laws.ts` runs in a real browser (Chrome, Edge or Chr
 executable). Node generates and shrinks the inputs; each one is sent to a page where the compiled law and your code run
 against a live DOM. The law may be `async`. `tslaws/browser` has `mount`, `settle`, `click`, `type` and `fire`, and works with
 any framework or none: `mount(el => render(el))` accepts whatever renders into an element and may return its unmount.
+`a11y` and `accessible` audit a mounted component with the optional `axe-core` peer dependency, and `--browser firefox|webkit` picks another engine (`npx playwright install firefox`).
 Browser laws are `tested`, never `proved`. See [docs/laws.md](../../docs/laws.md#browser-laws).
+
+- **Stateful laws:** a law over `ops: Op[]` (a union type) can use `runModel` or `runModelAsync` to apply the operations to the
+  real thing and to a simple model and compare them after every step. Failing sequences shrink to the shortest one. See
+  [docs/laws.md](../../docs/laws.md#stateful-laws).
 
 ## Dashboard
 
 `tslaws ui [files...] [--port N] [--no-open]` serves a local dashboard (127.0.0.1 only) like Vitest's UI: a tree of files and laws,
 live progress, a live view of the browser page during browser laws, status filters, search, a report with a copyable reproduce command, the law's source, and live reruns on save.
+Laws are timed (the five slowest are listed), the last 20 runs show as a row of coloured squares, laws that flip between passing and failing are marked `flaky`, and any single law can be rerun.
 See [docs/laws.md](../../docs/laws.md#the-dashboard).
+
+`tslaws mutate [files...] [--max N] [--seed N] [--json]` mutation-tests the laws: it mutates the covered code, re-runs the laws against each mutant, and lists the survivors no law caught. See [docs/laws.md](../../docs/laws.md#mutation-testing).
 
 ## Agents cannot move the goalposts
 
@@ -169,6 +179,14 @@ tslaws check [files...] [--json] [--summary] [--watch] [--runs N] [--seed N] [--
 - `check` exits 0 only when every law is `proved`, `bounded` or `tested`, nothing is `uncovered`, the files compile and the
   lock matches. `--json` adds a `hint` to each result, the concrete next action for an agent. `--summary` prints only the
   results that do not pass, plus the totals. `--watch` re-runs on every `.ts` change.
+- `check --reporter text|json|junit|github` picks the output: `junit` is JUnit XML for CI test reports, `github` prints workflow
+  annotations and appends a table to `GITHUB_STEP_SUMMARY`. See "CI reporters" in `docs/laws.md`.
+
+- `tslaws mcp` serves `tslaws_check`, `tslaws_check_proposed`, `tslaws_explain` and `tslaws_propose` over MCP (stdio) for
+  agents; it cannot accept laws or touch the lock. `tslaws promote` is the person's step that moves proposed laws into the
+  accepted file. See [docs/laws.md](../../docs/laws.md#agent-integration-mcp).
+- Counterexamples are kept in `.tslaws/regressions` (committable) and replayed before the random search, so a fixed bug cannot
+  return unnoticed. `check --no-regressions` skips the corpus; `tslaws regressions [list|clear]` shows or deletes it.
 
 Without files, every `*.laws.ts` under the current directory is used. The compiler is `--compiler`, `TSC_LAWS_BIN`, or
 `tsc-laws` on `PATH`; it finds its lib files through `TSC_TS_LIB_DIR`, or the TypeScript 7 libs scriptc installs in

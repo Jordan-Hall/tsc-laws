@@ -41,6 +41,11 @@ What it offers:
 - **Browser laws.** Name a file `*.browser.laws.ts` and its laws run in a real Chrome, Edge or Chromium against a live DOM,
   with any framework or none. Inputs are still generated from your types and shrunk in Node.
 - **A dashboard.** `tslaws ui` opens a Vitest-style UI: tree, filters, search, counterexamples, source, live reruns.
+- **Are the laws strong enough?** `tslaws mutate` changes your code in small ways and reports every change no law notices.
+- **Counterexamples stay fixed.** Failures are saved and replayed first on every later run.
+- **For CI and editors.** JUnit and GitHub reporters; VS Code CodeLens, diagnostics and status bar.
+- **For agents.** `tslaws mcp` (check, explain, propose; no way to accept) and `tslaws promote` for a person to approve proposals.
+- **More kinds of law.** Stateful laws (`runModel`), `forall`/`exists` over arrays, accessibility laws with axe-core, and Chromium, Firefox and WebKit.
 - **Humans stay in control.** It is TypeScript, so every counterexample, proof obligation and fix is code a person can read
   and run. A VS Code grammar highlights `law`.
 

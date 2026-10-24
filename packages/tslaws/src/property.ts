@@ -5,6 +5,7 @@ import * as fc from 'fast-check';
 import ts from 'typescript';
 import { GeneratorFactory, UnsupportedType } from './generators.ts';
 import type { Shape } from './smt.ts';
+import { decodeExample, encodeExample } from './regressions.ts';
 import type { CheckOptions, ManifestLaw } from './types.ts';
 
 export interface LawTypes {
@@ -114,6 +115,7 @@ export async function runProperty(
     numRuns: options.runs,
     seed: options.seed,
     maxSkipsPerRun: 100,
+    ...(options.regressionExamples?.length ? { examples: options.regressionExamples.map(decodeExample) } : {}),
   })) as fc.RunDetails<unknown[]>;
 }
 
@@ -137,11 +139,25 @@ export interface PropertyOutcome {
   counterexample?: string;
   message?: string;
   screenshot?: string;
+  /** The counterexample in the regression corpus's encoding; absent when it cannot be stored. */
+  encoded?: string;
+  /** Whether the counterexample is one that was replayed from the corpus. */
+  regression?: boolean;
 }
 
-export function summarise(details: fc.RunDetails<unknown[]>): PropertyOutcome {
+export function summarise(details: fc.RunDetails<unknown[]>, options?: CheckOptions): PropertyOutcome {
   const message = details.errorInstance instanceof Error ? details.errorInstance.message : undefined;
+  let encoded: string | undefined;
+  if (details.failed && details.counterexample !== null) {
+    try {
+      encoded = encodeExample(details.counterexample);
+    } catch {
+      // Not storable (a class instance, a function): it is reported but not kept.
+    }
+  }
   return {
+    encoded,
+    regression: encoded !== undefined && options?.regressionExamples?.includes(encoded) === true,
     failed: details.failed,
     numRuns: details.numRuns,
     seed: details.seed,

@@ -5,6 +5,7 @@ import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:
 import { dirname, join } from 'node:path';
 import { after, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { engineExecutable, resolveEngine } from '../dist/browser.js';
 import { check } from '../dist/check.js';
 import { readManifest } from '../dist/compile.js';
 import { writeLock } from '../dist/lock.js';
@@ -200,3 +201,18 @@ describe(
     });
   },
 );
+
+describe('browser engine selection', () => {
+  it('defaults to chromium, reads the environment and rejects unknown names', () => {
+    assert.equal(resolveEngine(undefined, {}), 'chromium');
+    assert.equal(resolveEngine(undefined, { TSLAWS_BROWSER_ENGINE: 'webkit' }), 'webkit');
+    assert.equal(resolveEngine('Firefox', { TSLAWS_BROWSER_ENGINE: 'webkit' }), 'firefox');
+    assert.throws(() => resolveEngine('opera', {}), /unknown browser engine 'opera'/);
+  });
+
+  it('names the install command when firefox or webkit is missing', () => {
+    const env = { TSLAWS_BROWSER: join(root, 'no-such-browser') };
+    assert.throws(() => engineExecutable('firefox', env), /no firefox installed.*npx playwright install firefox/);
+    assert.throws(() => engineExecutable('webkit', env), /no webkit installed.*npx playwright install webkit/);
+  });
+});
