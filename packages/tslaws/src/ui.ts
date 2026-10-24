@@ -152,6 +152,10 @@ export async function serveUi(options: UiOptions): Promise<number> {
         state.sources = sources;
       } catch (error) {
         state.error = error instanceof Error ? error.message : String(error);
+        for (const r of state.report?.results ?? []) {
+          if (r.status === 'pending' || r.status === 'running')
+            Object.assign(r, { status: 'error', method: 'run', message: `the run stopped: ${state.error}` });
+        }
       }
       state.runs += 1;
       state.durationMs = Date.now() - started;
