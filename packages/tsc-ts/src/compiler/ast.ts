@@ -86,6 +86,10 @@ export const enum NodeFlags {
   PossiblyContainsDeprecatedTag = 1 << 26,
   Unreachable = 1 << 27,
   ReparserTransformedLiteral = 1 << 28,
+  /** A `law` declaration, parsed as a function declaration. */
+  Law = 1 << 29,
+  /** A law declared `proved`: it must be proved, not just tested. */
+  Proved = 1 << 30,
 
   BlockScoped = Let | Const | Using,
   Constant = Const | Using,
