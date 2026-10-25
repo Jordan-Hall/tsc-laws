@@ -47,6 +47,8 @@ export interface CheckOptions {
   browserPauseMs?: number;
   /** The engine that runs browser laws. Default chromium, or `TSLAWS_BROWSER_ENGINE`. */
   browser?: 'chromium' | 'firefox' | 'webkit';
+  /** Flags the person gave on the command line, which beat `tslaws.json`: `runs`, `property-timeout`. */
+  explicit?: ('runs' | 'property-timeout')[];
   /** Skip the regression corpus: nothing is replayed and nothing is saved. */
   noRegressions?: boolean;
   /** Stored counterexamples to replay before the random search, as JSON text from `encodeExample`. Set by `check`. */

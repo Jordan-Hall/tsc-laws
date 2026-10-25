@@ -1,4 +1,6 @@
+import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { join } from 'node:path';
 import ts from 'typescript';
 import { build, readManifest } from './compile.ts';
 import {
@@ -15,7 +17,8 @@ import { analyzeCoverage, coverFiles, readConfig } from './coverage.ts';
 import { compareLock, lawKey, readLock, type Lock } from './lock.ts';
 import { proveLaw } from './smt.ts';
 import { decodeExample, loadExamples, regressionMessage, saveExample } from './regressions.ts';
-import { closeBrowser, isBrowserLawFile, runBrowserLaw } from './browser.ts';
+import { closeBrowser, runBrowserLaw } from './browser.ts';
+import { ensureServer, importsBoth, lawMode, runE2eLaw, stopServer } from './e2e.ts';
 import type { CheckOptions, LawResult, ManifestLaw } from './types.ts';
 
 export interface CheckReport {
@@ -105,8 +108,22 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
       add(law, 'error', 'generators', { message: (error as Error).message });
       continue;
     }
-    const browser = isBrowserLawFile(law.file);
-    const method = browser ? 'browser' : 'property';
+    let source = '';
+    try {
+      source = readFileSync(join(options.cwd, law.file), 'utf8');
+    } catch {
+      // The compiler already reported an unreadable file.
+    }
+    if (importsBoth(source)) {
+      add(law, 'error', 'manifest', {
+        message: `${law.file}: a browser laws file is either component level (tslaws/browser) or end-to-end (tslaws/e2e), not both`,
+      });
+      continue;
+    }
+    const mode = lawMode(law.file, source);
+    const browser = mode === 'component';
+    const e2e = mode === 'e2e';
+    const method = browser ? 'browser' : e2e ? 'e2e' : 'property';
     let fn: ((...args: unknown[]) => unknown) | undefined;
     // A browser law touches the DOM when it loads, so only the browser loads it.
     if (!browser) {
@@ -123,23 +140,37 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
     }
     let details: PropertyOutcome | 'timeout';
     // Counterexamples found before are tried first.
-    const lawOptions: CheckOptions = options.noRegressions
+    let lawOptions: CheckOptions = options.noRegressions
       ? options
       : { ...options, regressionExamples: loadExamples(options.cwd, law.file, law.name) };
+    // End-to-end inputs are expensive: fewer runs and a longer limit, unless the command line says otherwise.
+    const e2eConfig = e2e ? readConfig(options.cwd).e2e : undefined;
+    let limitMs = options.propertyTimeoutMs ?? 30000;
+    if (e2e) {
+      if (!options.explicit?.includes('runs')) lawOptions = { ...lawOptions, runs: e2eConfig?.runs ?? 10 };
+      if (!options.explicit?.includes('property-timeout')) limitMs = e2eConfig?.timeoutMs ?? 120000;
+    }
     try {
-      details = browser
-        ? await runBrowserLaw(
-            { file: law.file, name: law.name, jsFile: jsPath(built.outDir, law.file), generators: types.generators },
+      details = e2e
+        ? await runE2eLaw(
+            { file: law.file, name: law.name, fn: fn!, generators: types.generators },
             lawOptions,
+            await ensureServer(e2eConfig ?? {}, options.cwd),
+            limitMs,
           )
-        : await runLawGuarded(built.outDir, law, lawOptions);
+        : browser
+          ? await runBrowserLaw(
+              { file: law.file, name: law.name, jsFile: jsPath(built.outDir, law.file), generators: types.generators },
+              lawOptions,
+            )
+          : await runLawGuarded(built.outDir, law, lawOptions);
     } catch (error) {
       add(law, 'error', method, { message: (error as Error).message });
       continue;
     }
     if (details === 'timeout') {
       add(law, 'error', method, {
-        message: `property test ran longer than ${(options.propertyTimeoutMs ?? 30000) / 1000}s; the law or the code it calls may not terminate`,
+        message: `property test ran longer than ${limitMs / 1000}s; the law or the code it calls may not terminate`,
       });
       continue;
     }
@@ -168,11 +199,8 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
       continue;
     }
     // Browser and async laws are tested, never proved: the prover cannot model a DOM or an await.
-    const unprovable = browser
-      ? 'runs in a browser'
-      : fn!.constructor.name === 'AsyncFunction'
-        ? 'is async'
-        : undefined;
+    const unprovable =
+      browser || e2e ? 'runs in a browser' : fn!.constructor.name === 'AsyncFunction' ? 'is async' : undefined;
     if (options.noProve || unprovable !== undefined) {
       add(law, law.proved ? 'open' : 'tested', method, {
         runs: details.numRuns,
@@ -255,6 +283,7 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
   }
 
   await closeBrowser();
+  await stopServer();
 
   const ok =
     built.ok &&

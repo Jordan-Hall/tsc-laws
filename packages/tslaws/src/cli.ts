@@ -152,6 +152,7 @@ function options(cwd: string, flags: Map<string, string | true>, chosen: string[
     bound: Number(flags.get('bound') ?? 4),
     proofTimeoutMs: Number(flags.get('proof-timeout') ?? 5000),
     propertyTimeoutMs: Number(flags.get('property-timeout') ?? 30000),
+    explicit: (['runs', 'property-timeout'] as const).filter((name) => flags.has(name)),
     browser: flags.has('browser')
       ? (resolveEngine(String(flags.get('browser'))) as CheckOptions['browser'])
       : undefined,

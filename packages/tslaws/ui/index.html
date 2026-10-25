@@ -907,7 +907,7 @@
         }
 
         function isBrowserLaw(r) {
-          return /\.browser\.laws\.[cm]?ts$/.test(r.file);
+          return /\.(browser|e2e)\.laws\.[cm]?ts$/.test(r.file);
         }
 
         function liveFrame(d, r, title) {
