@@ -67,6 +67,18 @@ jobs:
           name: vscode-tslaws
           path: packages/vscode-tslaws/tslaws-vscode.vsix
           if-no-files-found: error
+      - name: All examples, from source
+        if: runner.os == 'Linux'
+        shell: bash
+        env:
+          TSC_LAWS_BIN: ${{ github.workspace }}/packages/tsc-ts/dist/tsc
+        run: |
+          # The examples are workspace members, so `tslaws` there is packages/tslaws, and the compiler is the one built above.
+          for example in react angular vanilla-ts vanilla-js; do
+            echo "::group::examples/$example"
+            (cd "examples/$example" && node ../../packages/tslaws/bin/tslaws.js check --summary)
+            echo "::endgroup::"
+          done
       - name: Example project
         working-directory: examples/basic
         # sortKeepsLength fails on purpose; the other laws must hold.

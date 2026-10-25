@@ -17,6 +17,6 @@
   },
   "devDependencies": {
     "axe-core": "^4.14.0",
-    "tslaws": "^0.2.0"
+    "tslaws": "*"
   }
 }
