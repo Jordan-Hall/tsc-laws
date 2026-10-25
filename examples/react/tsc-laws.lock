@@ -5,6 +5,8 @@
     "src/components/App.a11y.browser.laws.ts::boardStaysAccessibleAfterAdding": "b5399b7dd96245fe4c59eb54e00ca7d6d30d41de6dfc28e071b87ae11966d305",
     "src/components/App.browser.laws.ts::addingTitlesRendersTheNonBlankOnes": "dc71d0e5218167ec80a0a6ac2a074e838bc5e9e19404751007f8341e3c2e5eee",
     "src/components/App.browser.laws.ts::boardAgreesWithModel": "101aca80bed330c41fd5f9bec1c1508991ce072e67cd3157a80cb12cc9696f04",
+    "src/components/App.speed.browser.laws.ts::addingATaskDoesNotBlock": "47cafa84d875c3ad13e50a3583ce92065baf7c7808ffff0cb1b1814a1157d6a2",
+    "src/components/App.speed.browser.laws.ts::addingATaskIsFast": "1d44d9f62bb3cac6a6aae0b56640451cca5c6ada0171d574991eba76abf65f8e",
     "src/components/FilterBar.browser.laws.ts::exactlyOneFilterIsPressed": "b5c2ae29a66f87684f7f90ce1ca6384c7fd078422633c00ec76fbb5b44e4ce08",
     "src/model/tasks.laws.ts::addTrimsAndSkipsBlank": "9239cc945fc471a5c0a261dd12efad104eabc128543e4338c0e3b384cf658c17",
     "src/model/tasks.laws.ts::clampIndexKeepsValidIndices": "393f635a9d2bafcd5e8d73c2c108f4c3e91f5fbfa5a5e39304f53769477bf78b",

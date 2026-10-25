@@ -2,7 +2,7 @@ import { createInterface } from 'node:readline/promises';
 import { readdirSync, statSync, watch } from 'node:fs';
 import { join, relative, resolve, sep } from 'node:path';
 import { resolveEngine } from './browser.ts';
-import { bundledCompiler } from './bundled.ts';
+import { bundledCompiler, checkoutCompiler } from './bundled.ts';
 import { check, exemptionsOf } from './check.ts';
 import type { CheckReport } from './check.ts';
 import { readManifest } from './compile.ts';
@@ -21,7 +21,7 @@ import type { CheckOptions, LawResult } from './types.ts';
 
 const usage = `tslaws init [--force]       scaffold tslaws.json, .gitignore, AGENTS.md, Claude Code hooks and a starter law (never writes the lock)
 tslaws check [files...] [--reporter text|json|junit|github] [--json] [--summary] [--watch] [--runs N] [--seed N] [--no-prove] [--no-regressions] [--bound N] [--proof-timeout MS] [--property-timeout MS] [--proposed] [--compiler PATH] [--browser chromium|firefox|webkit]
-tslaws ui [files...] [--port N] [--no-open]   open a dashboard of the laws in a browser: tree, filters, search, source, live reruns on save
+tslaws ui [files...] [--port N] [--no-open] [--tab]   open a dashboard of the laws in its own desktop window (--tab: a browser tab): tree, filters, search, source, live reruns on save
 tslaws mutate [files...] [--max N] [--seed N] [--runs N] [--bound N] [--proof-timeout MS] [--property-timeout MS] [--browser ENGINE] [--json]   mutation-test the laws: mutate covered code, report mutants no law kills
 tslaws regressions [list|clear]   show or delete the stored counterexamples (.tslaws/regressions); check replays them first, --no-regressions skips them
 tslaws accept [files...]     record the current laws in tsc-laws.lock (people only: needs a terminal)
@@ -148,7 +148,9 @@ function options(cwd: string, flags: Map<string, string | true>, chosen: string[
     cwd,
     runs: settings.runs,
     seed: flags.has('seed') ? Number(flags.get('seed')) : undefined,
-    compiler: String(flags.get('compiler') ?? process.env.TSC_LAWS_BIN ?? bundledCompiler() ?? 'tsc-laws'),
+    compiler: String(
+      flags.get('compiler') ?? process.env.TSC_LAWS_BIN ?? bundledCompiler() ?? checkoutCompiler(cwd) ?? 'tsc-laws',
+    ),
     lockFile: join(cwd, 'tsc-laws.lock'),
     noProve: flags.has('no-prove'),
     noRegressions: flags.has('no-regressions'),
@@ -372,6 +374,7 @@ export async function main(args: string[]): Promise<number> {
       cwd,
       port: Number(flags.get('port') ?? 51205),
       open: !flags.has('no-open'),
+      appWindow: !flags.has('tab'),
       // A watcher sees a browser page only if it stays as the law left it for a moment.
       run: (only, onEvent, laws) =>
         check(

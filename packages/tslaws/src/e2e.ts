@@ -236,8 +236,29 @@ export interface E2eLaw {
   generators: fc.Arbitrary<unknown>[];
 }
 
-/** Runs `law` once in a fresh context; `keep` leaves the page open for a photograph. */
+/** A browser that died under the machine, as opposed to a law that failed. */
+const crashed = /Target (?:page, context or browser has been closed|crashed)|Page crashed|browser has been closed/;
+
+/** Runs `law` once in a fresh context; `keep` leaves the page open for a photograph. A crashed browser tab is tried again, twice at most. */
 async function runOnce(
+  law: E2eLaw,
+  args: unknown[],
+  contextOf: () => Promise<BrowserContext>,
+  baseURL: string,
+  options: CheckOptions,
+  track: (page: Page) => void,
+  keep?: { page?: Page; context?: BrowserContext },
+): Promise<unknown> {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await runAttempt(law, args, contextOf, baseURL, options, track, keep);
+    } catch (error) {
+      if (attempt >= 2 || !crashed.test(error instanceof Error ? error.message : String(error))) throw error;
+    }
+  }
+}
+
+async function runAttempt(
   law: E2eLaw,
   args: unknown[],
   contextOf: () => Promise<BrowserContext>,

@@ -1,0 +1,12 @@
+{
+  "hook": "Your agent says it's done. How do you know it works?",
+  "idea": "T S laws lets you write the rules, in TypeScript. The agent writes the code. And nothing lands until your rules hold.",
+  "run": "Here are five laws, running against code an agent wrote.",
+  "catch": "One fails. The sort quietly drops duplicates. And you get the smallest input that breaks it, with a seed to replay it.",
+  "source": "A law is a few lines of plain TypeScript. The compiler understands it.",
+  "proved": "Some laws are not just tested. They are proved, for every number there is.",
+  "lock": "And the agent cannot water them down. Only you can accept a law.",
+  "browser": "It runs in a real browser too. Components, accessibility, speed. All live.",
+  "e2e": "Even a whole app, server and all.",
+  "outro": "T S laws. Trust the code you did not write."
+}

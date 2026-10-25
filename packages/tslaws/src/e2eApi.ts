@@ -139,3 +139,77 @@ function axeConfig(options: A11yOptions): Record<string, unknown> {
 export async function accessible(target?: Page, options?: A11yOptions): Promise<boolean> {
   return (await a11y(target, options)).ok;
 }
+
+/** What the browser measured for the page: the numbers behind Core Web Vitals, plus size. Times are milliseconds. */
+export interface Vitals {
+  /** Time to first contentful paint. */
+  fcp: number | null;
+  /** Largest contentful paint (Chromium). */
+  lcp: number | null;
+  /** Cumulative layout shift, unitless (Chromium). */
+  cls: number;
+  /** Time the main thread was blocked by long tasks beyond 50 ms each (Chromium). */
+  blocking: number;
+  /** DOMContentLoaded and load, from navigation start. */
+  domContentLoaded: number | null;
+  load: number | null;
+  /** Elements in the document. */
+  domNodes: number;
+  /** Bytes transferred for the page and everything it loaded. */
+  bytes: number;
+}
+
+export type SpeedBudget = Partial<Record<keyof Vitals, number>>;
+
+const vitalsScript = `new Promise((done) => {
+  const out = { fcp: null, lcp: null, cls: 0, blocking: 0 };
+  const watch = (type, onEntry) => {
+    try {
+      new PerformanceObserver((list) => list.getEntries().forEach(onEntry)).observe({ type, buffered: true });
+    } catch {}
+  };
+  watch('paint', (e) => { if (e.name === 'first-contentful-paint') out.fcp = e.startTime; });
+  watch('largest-contentful-paint', (e) => { out.lcp = e.startTime; });
+  watch('layout-shift', (e) => { if (!e.hadRecentInput) out.cls += e.value; });
+  watch('longtask', (e) => { out.blocking += Math.max(0, e.duration - 50); });
+  setTimeout(() => {
+    const nav = performance.getEntriesByType('navigation')[0];
+    const bytes = performance.getEntriesByType('resource').reduce((sum, r) => sum + (r.transferSize || 0), nav ? nav.transferSize || 0 : 0);
+    done({
+      ...out,
+      domContentLoaded: nav ? nav.domContentLoadedEventEnd : null,
+      load: nav && nav.loadEventEnd > 0 ? nav.loadEventEnd : null,
+      domNodes: document.getElementsByTagName('*').length,
+      bytes,
+    });
+  }, 250);
+})`;
+
+/** Measures the page as it stands: paint, layout shift, blocking time, load and size. Call it after `open()` and `settle()`. */
+export async function vitals(target?: Page): Promise<Vitals> {
+  const used = target ?? current().page;
+  return (await used.evaluate(vitalsScript)) as Vitals;
+}
+
+/**
+ * Checks the page against a budget, for example `{ lcp: 2500, cls: 0.1, blocking: 200 }`. `violations` names each measure over its
+ * budget, so an agent sees what to fix; a measure the browser cannot report counts as over.
+ */
+export async function speed(
+  budget: SpeedBudget,
+  target?: Page,
+): Promise<{ vitals: Vitals; violations: string[]; ok: boolean }> {
+  const measured = await vitals(target);
+  const violations: string[] = [];
+  for (const [name, limit] of Object.entries(budget) as [keyof Vitals, number][]) {
+    const value = measured[name];
+    if (value === null) violations.push(`${name}: not reported (budget ${limit})`);
+    else if (value > limit) violations.push(`${name}: ${Math.round(value * 1000) / 1000} over budget ${limit}`);
+  }
+  return { vitals: measured, violations, ok: violations.length === 0 };
+}
+
+/** True when the page is within `budget`, so a law can `return await fast({ lcp: 2500 })`. */
+export async function fast(budget: SpeedBudget, target?: Page): Promise<boolean> {
+  return (await speed(budget, target)).ok;
+}

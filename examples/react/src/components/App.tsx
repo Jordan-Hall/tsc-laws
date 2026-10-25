@@ -4,6 +4,7 @@ import { visibleTasks, type Filter, type Task } from '../model/tasks';
 import { AddTaskForm } from './AddTaskForm';
 import { FilterBar } from './FilterBar';
 import { TaskList } from './TaskList';
+import { css } from './styles';
 
 export interface AppProps {
   initialTasks?: Task[];
@@ -15,7 +16,8 @@ export function App({ initialTasks = [] }: AppProps) {
   const hasDone = tasks.some((t) => t.done);
 
   return (
-    <main>
+    <main className="board">
+      <style>{css}</style>
       <h1>Task board</h1>
       <AddTaskForm onAdd={add} />
       <FilterBar filter={filter} onChange={setFilter} />

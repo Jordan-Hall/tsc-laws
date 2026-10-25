@@ -58,6 +58,16 @@ export function bundledCompiler(): string | undefined {
   }
 }
 
+/** The compiler built in a checkout of the tsc-laws repository (packages/tsc-ts/dist), found by walking up from `from`. */
+export function checkoutCompiler(from: string): string | undefined {
+  const name = process.platform === 'win32' ? 'tsc.exe' : 'tsc';
+  for (let dir = from; ; dir = dirname(dir)) {
+    const candidate = join(dir, 'packages', 'tsc-ts', 'dist', name);
+    if (existsSync(candidate)) return candidate;
+    if (dirname(dir) === dir) return undefined;
+  }
+}
+
 /** The version of this package, for messages. */
 export function ownVersion(): string {
   try {

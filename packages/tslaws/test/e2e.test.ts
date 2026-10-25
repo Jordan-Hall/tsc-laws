@@ -240,6 +240,31 @@ describe(
       assert.equal(r.status, 'tested', JSON.stringify(r));
     });
 
+    it('hold the page to a speed budget through speed() and fast()', async () => {
+      const { opts } = await project('speed', {
+        laws: [
+          ...header.map((l) => l.replace('accessible,', 'accessible, fast, speed,')),
+          'export async law shopPageIsFast(n: int) {',
+          '  assume(n >= 0 && n <= 2);',
+          "  await open('/');",
+          '  await settle();',
+          '  return await fast({ fcp: 5000, lcp: 5000, cls: 0.1, blocking: 500, domNodes: 500, load: 10000 });',
+          '}',
+          'export async law shopPageMissesAnImpossibleBudget(n: int) {',
+          '  assume(n >= 0 && n <= 2);',
+          "  await open('/');",
+          '  await settle();',
+          '  const result = await speed({ domNodes: 1, bytes: 1 });',
+          "  return !result.ok && result.violations.length === 2 && result.violations[0]!.startsWith('domNodes');",
+          '}',
+          '',
+        ],
+      });
+      const { results } = await check(opts, true);
+      assert.equal(byName(results, 'shopPageIsFast').status, 'tested', JSON.stringify(results));
+      assert.equal(byName(results, 'shopPageMissesAnImpossibleBudget').status, 'tested', JSON.stringify(results));
+    });
+
     it('audit the page with axe through accessible()', async () => {
       const { opts } = await project('a11y', {
         laws: [

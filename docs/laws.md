@@ -275,6 +275,37 @@ export async law cardIsAccessible(n: int) {
 `axe-core` is an optional peer dependency, resolved from your project and bundled into the page only when a law reaches it:
 `npm i -D axe-core`. Without it `a11y()` throws `a11y() needs axe-core: npm i -D axe-core`.
 
+### Speed laws
+
+Speed is measured in the browser, at both levels.
+
+In a component law (`tslaws/browser`): `measure(work, runs = 7)` times `work` (sync or async, after a warm-up) and returns
+`{ runs, min, median, p95, max }` in milliseconds; `fast(work, budgetMs, runs)` is true when the median is within the budget;
+`blocking(work)` returns the milliseconds the main thread was blocked by long tasks (over 50 ms each) while `work` ran (Chromium).
+
+```ts
+export async law addingATaskIsFast(n: int) {
+  const el = mountApp(sample(Math.abs(n) % 200));
+  await settle(0);
+  return await fast(() => addTask(el, 'Write the speed law'), 150, 3);
+}
+```
+
+In an end-to-end law (`tslaws/e2e`): `vitals(page?)` reports what the browser measured for the loaded page (`fcp`, `lcp`, `cls`,
+`blocking`, `domContentLoaded`, `load`, `domNodes`, `bytes`); `speed(budget, page?)` checks it against a budget and returns
+`{ vitals, violations, ok }`, each violation naming the measure that is over; `fast(budget, page?)` returns just `ok`. A measure
+the browser cannot report (LCP, CLS and long tasks are Chromium only) counts as over budget.
+
+```ts
+export async law shopPageIsFast(n: int) {
+  await open('/');
+  await settle();
+  return await fast({ lcp: 2500, cls: 0.1, blocking: 200, bytes: 500_000 });
+}
+```
+
+Timings depend on the machine, so set budgets with room: a speed law that fails only on a loaded CI runner is noise.
+
 ### Engines
 
 Chromium is the default. `--browser firefox` or `--browser webkit` (or `TSLAWS_BROWSER_ENGINE`) runs the laws in that engine
@@ -792,3 +823,7 @@ On Windows the native build is `dist/tsc`; copy it to `tsc.exe` to run it.
 - Browser and async laws are tested, not proved.
 - Browser laws need an installed browser: Chrome, Edge or Chromium by default, or Playwright's Firefox or WebKit with `--browser`.
 - The compiler needs a native toolchain to build; the `laws-v*` release workflow publishes builds for macOS, Linux and Windows.
+
+## Intro video
+
+[docs/media/tslaws-intro.mp4](media/tslaws-intro.mp4) is a one-minute narrated recording of the real dashboard running the real laws in `examples/basic`, `examples/react` and `examples/e2e`. The voice is [Piper](https://github.com/rhasspy/piper) (`scripts/demo/voice.mjs`, offline neural text to speech); the music bed and sound cues are synthesised by `scripts/demo/mix.mjs`; `scripts/demo/record.mjs` records the screen.

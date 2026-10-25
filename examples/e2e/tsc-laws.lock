@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "laws": {
+    "src/board.browser.laws.ts::addedTaskIsListed": "a63a39d64fe54860fa132e12c0c63a2412136fa06ad74bd6a264d5bca249ac03",
+    "src/board.browser.laws.ts::boardPageIsAccessible": "8d6692d8d5657a0d6155a552e19f12deff0d8d6ce41ae768bf7105ff8fa2133e",
+    "src/board.browser.laws.ts::boardPageIsFast": "9c5ba8dd939e29ee3774f7d02a27b83d83d0f1f863e8feb47bd39d70cfe9dde6",
+    "src/board.browser.laws.ts::counterCountsTheUndone": "2ebed30912a65db5f162f91386f5373db082033b580256aed150b3cc7f93f3db",
+    "src/board.browser.laws.ts::deletedTaskStaysGone": "baee45aa7d30ecf0503478a3043eb49ca9b3b0e3a16f6928912cb061916e90ad"
+  },
+  "exempt": []
+}

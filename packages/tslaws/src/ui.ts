@@ -2,7 +2,7 @@
 // status filters and search, a detail pane (report, source, diagnostics), and live reruns when a file changes.
 // It listens on 127.0.0.1 only and offers no way to accept laws: that stays a person's act at a terminal.
 import { spawn } from 'node:child_process';
-import { readFileSync, watch } from 'node:fs';
+import { existsSync, readFileSync, watch } from 'node:fs';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { basename, join, resolve, sep } from 'node:path';
 import type { CheckReport } from './check.ts';
@@ -14,6 +14,8 @@ export interface UiOptions {
   cwd: string;
   port: number;
   open: boolean;
+  /** Open in its own chromeless window (Chrome, Edge or Chromium) rather than a tab, so it reads as a desktop app. */
+  appWindow?: boolean;
   /** Runs the check of the project, of just these law files, or (with `laws`, in one file) of just these laws. */
   run: (files: string[] | undefined, onEvent: (event: LawEvent) => void, laws?: string[]) => Promise<CheckReport>;
   log: (line: string) => void;
@@ -76,7 +78,37 @@ function sourceOf(cwd: string, file: string): string | undefined {
   }
 }
 
-function openInBrowser(url: string): void {
+/** A Chromium-family browser, which can show the page as an app window. */
+function appBrowser(): string | undefined {
+  const env = process.env;
+  const candidates =
+    process.platform === 'win32'
+      ? [env['ProgramFiles(x86)'], env['ProgramFiles'], env['LOCALAPPDATA']].flatMap((base) =>
+          base === undefined
+            ? []
+            : [join(base, 'Microsoft/Edge/Application/msedge.exe'), join(base, 'Google/Chrome/Application/chrome.exe')],
+        )
+      : process.platform === 'darwin'
+        ? [
+            '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+            '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
+          ]
+        : ['/usr/bin/google-chrome', '/usr/bin/chromium', '/usr/bin/chromium-browser', '/usr/bin/microsoft-edge'];
+  return candidates.find((path) => existsSync(path));
+}
+
+function openInBrowser(url: string, appWindow: boolean): void {
+  const browser = appWindow ? appBrowser() : undefined;
+  if (browser !== undefined) {
+    try {
+      spawn(browser, [`--app=${url}`, '--window-size=1360,860', '--no-first-run'], { stdio: 'ignore', detached: true })
+        .on('error', () => undefined)
+        .unref();
+      return;
+    } catch {
+      // Falls back to the default browser.
+    }
+  }
   const [command, args]: [string, string[]] =
     process.platform === 'win32'
       ? ['cmd', ['/c', 'start', '', url]]
@@ -316,7 +348,7 @@ export async function serveUi(options: UiOptions): Promise<number> {
   }
   const url = `http://127.0.0.1:${port}/`;
   options.log(`tslaws ui: ${url}  (Ctrl+C exits)`);
-  if (options.open) openInBrowser(url);
+  if (options.open) openInBrowser(url, options.appWindow ?? false);
 
   let timer: NodeJS.Timeout | undefined;
   const watcher = watch(cwd, { recursive: true }, (_event, filename) => {
