@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "laws": {
+    "src/convert.laws.ts::centimetresAreHundredPerMetre": "95e15d621121ac27508245357c644154d06e9a1618345bef0f3c8845bf104a60",
+    "src/convert.laws.ts::conversionKeepsSign": "e7c9618047de3442299d4e8039bf30e15e28e4f9a9587419a321cd86b5141e6d",
+    "src/convert.laws.ts::digitsStayInRange": "c7d1c062c29cf3cb4c39e5ae946624bd6b9a33b8036b08ca1789ea9741b053fd",
+    "src/convert.laws.ts::everyUnitHasPositiveSize": "0134f3d280dd114a388ab47fa5359714d505d71b4d58cadb1c6017145d0df39c",
+    "src/convert.laws.ts::formattedNumberParsesBack": "455a08f3a75489c00e351ab2a1518c7b055b52943d86d25377b9fdd77e4b510a",
+    "src/convert.laws.ts::roundTrip": "ed27efe7f528c72ee162e35b1fa3e6a41749f8653b40a94b7a04519213c7da91",
+    "src/convert.laws.ts::sameUnitIsIdentity": "647dc04b0dd32951d9ff6f6404c14adbb1f205cb84ff1a3522ba69b57ed02a19",
+    "src/history.laws.ts::historyAgreesWithModel": "0807ea774c751882a939a92731058fa5595d0bc379b4b583d362b9f9f2a1fe85",
+    "src/history.laws.ts::historyNeverExceedsLimit": "74199b7df3f63e2e5986e9824f36cfa7f2762daa8a099bc8b5e658a13ff0cdbf",
+    "src/history.laws.ts::keptCountIsTheSmaller": "8e98cddb1b30f96ce383069dbd6cf70bd4c4458ecbdb6e72803cc05cc75716a5",
+    "src/history.laws.ts::pushKeepsNewestFirstAndRespectsLimit": "a3af7e5c8408be7b24515558568d47eaef4034c6fbdf8dd01ff7e9bb61532ba3",
+    "src/history.laws.ts::removeDropsOnlyThatId": "c1e96fd4a10c175dd37cd092d054549cac108a5506145c4cc2f179f1af0b71ee",
+    "src/widget.browser.laws.ts::appStartsFocusedAndAccessible": "6444635a620b2d5efc1cddf3d7104b6d69e08c1c084c2110690d21d286eb7f65",
+    "src/widget.browser.laws.ts::emptyValueClearsResult": "f8960af684a0fe8a0f53e30ad26cf6cafc1f565aa473eed23e122863969a0df9",
+    "src/widget.browser.laws.ts::historyListAgreesWithModel": "d428191741c2d4a4b98936a59aa3c8de29831d80431a2d2146bf9b9d56199676",
+    "src/widget.browser.laws.ts::resultMatchesConvert": "1d96507726cd4dbdf0e037a1fb3c56f029ff1d3ef58c6fdb7455251170dd1eea"
+  },
+  "exempt": []
+}
