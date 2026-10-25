@@ -33,3 +33,13 @@ To turn publishing on:
 Packages are published with provenance and `--access public`. The compilers go first, so `tslaws` never points at a package
 that is not there yet. `scripts/ci/laws-npm.mjs` does the repacking (the tsc-ts platform tarballs are renamed and given
 tslaws's version) and adds the optional dependencies.
+
+## VS Code extension
+
+Every workflow run tests the extension (`npm test -w vscode-tslaws`), packages it with `vsce`, and uploads the `.vsix` as the
+`vscode-tslaws` artifact, so each build carries one. A `laws-v*` release attaches it as
+`tslaws-vscode-<version>.vsix` (install with `code --install-extension`). The release refuses to proceed when
+`packages/vscode-tslaws/package.json` has a different version from the tag, so bump both together.
+
+To publish it to the Marketplace and Open VSX, set the repository variable `VSCODE_PUBLISH` to `true` and add a
+`VSCE_PAT` secret (an Azure DevOps token for the `tsc-laws` publisher) and/or an `OVSX_PAT` secret (an Open VSX token).

@@ -53,6 +53,20 @@ jobs:
         run: npm test -w tslaws
         env:
           TSC_LAWS_BIN: ${{ github.workspace }}/packages/tsc-ts/dist/${{ runner.os == 'Windows' && 'tsc.exe' || 'tsc' }}
+      - name: VS Code extension tests
+        run: npm test -w vscode-tslaws
+      - name: Package the VS Code extension
+        if: runner.os == 'Linux'
+        working-directory: packages/vscode-tslaws
+        run: |
+          cp ../../LICENSE LICENSE
+          npx --yes @vscode/vsce package --no-dependencies --out tslaws-vscode.vsix
+      - uses: actions/upload-artifact@v4
+        if: runner.os == 'Linux'
+        with:
+          name: vscode-tslaws
+          path: packages/vscode-tslaws/tslaws-vscode.vsix
+          if-no-files-found: error
       - name: Example project
         working-directory: examples/basic
         # sortKeepsLength fails on purpose; the other laws must hold.
@@ -124,6 +138,18 @@ jobs:
           pattern: tsc-laws-*
           path: release
           merge-multiple: true
+      - uses: actions/download-artifact@v4
+        with:
+          name: vscode-tslaws
+          path: release
+      - name: The VS Code extension matches the tag
+        run: |
+          version="${GITHUB_REF_NAME#laws-v}"
+          extension=$(node -p "require('./packages/vscode-tslaws/package.json').version")
+          if [ "$version" != "$extension" ]; then
+            echo "::error::vscode-tslaws is $extension but the tag is $version"; exit 1
+          fi
+          mv release/tslaws-vscode.vsix "release/tslaws-vscode-$version.vsix"
       - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -168,3 +194,29 @@ jobs:
             npm publish "$package" --access public --provenance
           done
           npm publish packages/tslaws --access public --provenance
+
+  # Publishes the extension to the VS Code Marketplace and Open VSX when the repository variable VSCODE_PUBLISH is 'true'
+  # and the matching secret exists: VSCE_PAT (Marketplace) and/or OVSX_PAT (Open VSX). See RELEASING-LAWS.md.
+  marketplace:
+    name: marketplace
+    if: startsWith(github.ref, 'refs/tags/laws-v') && vars.VSCODE_PUBLISH == 'true'
+    needs: release
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@v4
+        with:
+          name: vscode-tslaws
+          path: vsix
+      - name: Publish
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+        run: |
+          [ -n "$VSCE_PAT$OVSX_PAT" ] || { echo "::error::set VSCE_PAT and/or OVSX_PAT"; exit 1; }
+          if [ -n "$VSCE_PAT" ]; then npx --yes @vscode/vsce publish --packagePath vsix/tslaws-vscode.vsix; fi
+          if [ -n "$OVSX_PAT" ]; then npx --yes ovsx publish vsix/tslaws-vscode.vsix -p "$OVSX_PAT"; fi

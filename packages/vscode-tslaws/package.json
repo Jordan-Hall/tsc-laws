@@ -1,14 +1,19 @@
 {
   "name": "vscode-tslaws",
   "displayName": "tsc-laws",
-  "version": "0.0.1",
+  "version": "0.2.0",
   "private": true,
   "description": "tsc-laws for VS Code: law highlighting, CodeLens status, diagnostics and commands",
   "categories": [
     "Linters",
     "Programming Languages"
   ],
-  "license": "MIT",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Jordan-Hall/tsc-laws.git",
+    "directory": "packages/vscode-tslaws"
+  },
   "publisher": "tsc-laws",
   "main": "./src/extension.js",
   "scripts": {
