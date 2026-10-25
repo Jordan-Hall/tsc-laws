@@ -8,9 +8,11 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, statSyn
 import { createInterface } from 'node:readline';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { check } from './check.ts';
+import { readConfig } from './coverage.ts';
 import type { CheckReport } from './check.ts';
 import { hintFor } from './hints.ts';
 import { parseLawFile } from './promote.ts';
+import { resolveSettings } from './settings.ts';
 import type { CheckOptions, LawResult } from './types.ts';
 
 const ignoredDirs = new Set(['node_modules', '.tslaws', '.git']);
@@ -119,16 +121,17 @@ export function proposalPath(cwd: string, file: string): string {
 }
 
 function options(opts: McpOptions, files: string[]): CheckOptions {
+  const settings = resolveSettings(new Map(), readConfig(opts.cwd));
   return {
     files,
     cwd: opts.cwd,
-    runs: 200,
+    runs: settings.runs,
     compiler: opts.compiler,
     lockFile: join(opts.cwd, 'tsc-laws.lock'),
     noProve: false,
-    bound: 4,
-    proofTimeoutMs: 5000,
-    propertyTimeoutMs: 30000,
+    bound: settings.bound,
+    proofTimeoutMs: settings.proofTimeoutMs,
+    propertyTimeoutMs: settings.propertyTimeoutMs,
   };
 }
 
