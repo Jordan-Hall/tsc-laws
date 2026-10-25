@@ -1,0 +1,12 @@
+{
+  "name": "tslaws-example-checkout",
+  "private": true,
+  "description": "A checkout held to a law: a total is never below zero.",
+  "scripts": {
+    "check": "tslaws check",
+    "ui": "tslaws ui"
+  },
+  "devDependencies": {
+    "tslaws": "*"
+  }
+}

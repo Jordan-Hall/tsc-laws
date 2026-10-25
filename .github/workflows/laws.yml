@@ -74,7 +74,7 @@ jobs:
           TSC_LAWS_BIN: ${{ github.workspace }}/packages/tsc-ts/dist/tsc
         run: |
           # The examples are workspace members, so `tslaws` there is packages/tslaws, and the compiler is the one built above.
-          for example in react angular vanilla-ts vanilla-js e2e; do
+          for example in react angular vanilla-ts vanilla-js e2e checkout; do
             echo "::group::examples/$example"
             (cd "examples/$example" && node ../../packages/tslaws/bin/tslaws.js check --summary)
             echo "::endgroup::"

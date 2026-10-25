@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "laws": {
+    "src/cart.laws.ts::couponNeverRaisesTheTotal": "4630241e0c3056f6556d9fbc0784de57460004be2d268c037cc223cc6a85e08b",
+    "src/cart.laws.ts::totalNeverNegative": "1dce0ddac524da8a170dfbbbd6bcd126a45b9ec54ce69eb8ea71347fde2505a2"
+  },
+  "exempt": []
+}

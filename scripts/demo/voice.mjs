@@ -10,7 +10,7 @@ const [out, voice = 'af_heart'] = process.argv.slice(2);
 const dir = process.env.KOKORO_DIR;
 if (!dir) throw new Error('set KOKORO_DIR to a folder where `npm i kokoro-js` was run');
 const { KokoroTTS } = await import(pathToFileURL(createRequire(join(dir, 'x.js')).resolve('kokoro-js')).href);
-const lines = JSON.parse(readFileSync(new URL('narration.json', import.meta.url), 'utf8'));
+const lines = JSON.parse(readFileSync(new URL(process.env.NARRATION ?? 'narration.json', import.meta.url), 'utf8'));
 mkdirSync(out, { recursive: true });
 const tts = await KokoroTTS.from_pretrained('onnx-community/Kokoro-82M-v1.0-ONNX', { dtype: 'q8', device: 'cpu' });
 for (const [key, text] of Object.entries(lines)) {
