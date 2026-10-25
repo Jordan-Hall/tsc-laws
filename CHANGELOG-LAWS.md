@@ -2,6 +2,12 @@
 
 The upstream tsc-ts changelog is CHANGELOG.md. Releases of tsc-laws are tagged `laws-v<version>` (see RELEASING-LAWS.md).
 
+## 0.3.2
+
+- **Speed laws in the browser:** `measure`, `fast` and `blocking` in `tslaws/browser` (timings and main-thread blocking of component work); `vitals`, `speed` and `fast` in `tslaws/e2e` (FCP, LCP, CLS, blocking time, load, DOM size and bytes against a budget).
+- **Compiler lookup:** in a checkout of the repository `tslaws` finds `packages/tsc-ts/dist` itself, and a missing compiler now says how to fix it instead of `spawnSync tsc-laws ENOENT`.
+- **Desktop window:** `tslaws ui` opens in its own app window (Chrome, Edge or Chromium); `--tab` opens a browser tab instead.
+
 ## 0.3.1
 
 - **Release:** the npm publish step passed compiler tarballs without `./`, which npm reads as a GitHub repository; fixed. Nothing else changed from 0.3.0.
