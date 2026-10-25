@@ -1,7 +1,7 @@
 {
   "name": "vscode-tslaws",
   "displayName": "tsc-laws",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "tsc-laws for VS Code: law highlighting, CodeLens status, diagnostics and commands",
   "categories": [

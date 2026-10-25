@@ -2,7 +2,7 @@
 
 The upstream tsc-ts changelog is CHANGELOG.md. Releases of tsc-laws are tagged `laws-v<version>` (see RELEASING-LAWS.md).
 
-## Unreleased
+## 0.3.0
 
 - **Prover:** exact integer division (`Math.floor/ceil/trunc/round(a / b)`, `(a / b) | 0`, `a % b` over `int`, with a provably non-zero divisor), module-level constants (`const NAME`, `exports.NAME`, `module_1.NAME`), `Number.isFinite/isInteger/isNaN`, `Math.sign` and `Math.min/max` with any number of arguments now lower, so laws over pricing-style code are `proved` instead of `tested`.
 - **Run settings and mutate fixes:** `tslaws.json` accepts `runs`, `bound`, `proofTimeoutMs` and `propertyTimeoutMs` (integers >= 1; unknown top-level keys are an error); precedence is flag, then `tslaws.json`, then default, for `check`, `ui`, `mutate` and `mcp`. `tslaws mutate` takes `--runs`, `--bound`, `--proof-timeout`, `--property-timeout` and `--browser`, defaults to 30 runs and the `check` timeouts (was 50 runs, 1500 ms, 5000 ms), names the failing law when the baseline fails, mutates and copies `.tsx`/`.jsx`, copies `tsc-laws.lock`, and with named laws files mutates only the sources they reach.
