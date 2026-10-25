@@ -1,13 +1,27 @@
 {
   "name": "vscode-tslaws",
   "displayName": "tsc-laws",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "private": true,
   "description": "tsc-laws for VS Code: law highlighting, CodeLens status, diagnostics and commands",
   "categories": [
     "Linters",
     "Programming Languages"
   ],
+  "keywords": [
+    "accessibility",
+    "ai agents",
+    "laws",
+    "proof",
+    "property testing",
+    "testing",
+    "typescript",
+    "z3"
+  ],
+  "homepage": "https://github.com/Jordan-Hall/tsc-laws#readme",
+  "bugs": {
+    "url": "https://github.com/Jordan-Hall/tsc-laws/issues"
+  },
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -82,6 +96,11 @@
     "onLanguage:typescript",
     "workspaceContains:**/*.laws.ts"
   ],
+  "icon": "icon.png",
+  "galleryBanner": {
+    "color": "#0f1220",
+    "theme": "dark"
+  },
   "engines": {
     "vscode": "^1.80.0"
   },
