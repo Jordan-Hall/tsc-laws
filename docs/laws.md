@@ -161,6 +161,101 @@ return what undoes it. The page is cleaned between inputs. `tslaws/browser` also
 
 Browser laws are `tested` (method `browser`), never `proved`: Z3 cannot model a DOM or an `await`. A page that never
 settles is stopped after `--property-timeout` and reported `error`. They sit under the same lock and coverage gate as any law.
+To test a single component with props generated from its type, see [Component testing](#component-testing). To drive a whole
+running app from outside, a file in the same suffix that imports `tslaws/e2e` runs as an [end-to-end law](#end-to-end-laws).
+
+### Component testing
+
+The laws above mount a whole app and drive it. To test **one component in isolation**, with its props generated from its props
+type, use `mountComponent` with an adapter for your framework. tslaws has no framework dependency: you pass the framework's own
+functions to the adapter.
+
+```ts
+// src/button.browser.laws.ts
+import { createElement } from 'react';
+import { flushSync } from 'react-dom';
+import { createRoot } from 'react-dom/client';
+import { mountComponent, reactAdapter } from 'tslaws/browser';
+import { Button, type ButtonProps } from './Button';
+
+const react = reactAdapter({ createRoot, createElement, flushSync });
+
+export async law labelRendersForAnyProps(props: ButtonProps) {
+  const m = await mountComponent(react, Button, props);
+  return m.query.byRole('button').textContent === props.label;
+}
+```
+
+`mountComponent(adapter, component, props)` renders into a fresh `mount()` container, waits for `settle()`, and unmounts at the
+end of the law. It returns `{ el, props, rerender(next), unmount(), query }`; `rerender` renders again with new props and
+settles, and `query` is a set of queries bound to `el`.
+
+**Adapters**, each exported from `tslaws/browser` and from `tslaws/adapters/<name>`:
+
+- `reactAdapter({ createRoot, createElement, flushSync? })`: `component` is a React component; a rerender calls `root.render`
+  again, unmount calls `root.unmount`, and `flushSync` (when given) commits each render synchronously.
+- `angularAdapter({ createApplication, createComponent, provideZonelessChangeDetection?, setInput?, providers? })`: `component`
+  is a standalone component class; props are set with `ref.setInput`, a rerender sets them again and runs `appRef.tick()` and
+  `whenStable()`, unmount calls `appRef.destroy()`.
+- `domAdapter`: `component` is `(props) => Node | string`; a rerender replaces the content.
+- `elementAdapter(tagName, { attributes? })`: `component` is the custom element's class (defined under `tagName` if it is not yet)
+  or `undefined`; props are assigned as properties, and as attributes with `attributes: true`.
+
+The injected functions come straight from the framework (their shapes are the exported interfaces `ReactFunctions` and
+`AngularFunctions`):
+
+```ts
+// React
+import { createElement } from 'react';
+import { flushSync } from 'react-dom';
+import { createRoot } from 'react-dom/client';
+const react = reactAdapter({ createRoot, createElement, flushSync });
+
+// Angular (standalone component, zoneless so no zone.js)
+import { createComponent, provideZonelessChangeDetection } from '@angular/core';
+import { createApplication } from '@angular/platform-browser';
+const angular = angularAdapter({ createApplication, createComponent, provideZonelessChangeDetection });
+const m = await mountComponent(angular, CounterComponent, props); // props are set with ref.setInput
+```
+
+Without `provideZonelessChangeDetection` Angular needs zone.js; import it in the law's module. The adapters are thin: a framework
+that is not listed needs only an object with `render(container, component, props)` that returns an unmount function, or
+`{ update?, unmount? }` (it may return a promise).
+
+**Function-typed props.** A parameter or property whose type has a call signature is generated: `props: ButtonProps` with
+`onClick: () => void` just works. The function returns values generated from its return type (`void` gives `undefined`) and
+gives the same result for the same arguments, like `fc.func`; in a browser law it is rebuilt in the page. Such a function cannot
+be observed. To check that a callback was called, create it inside the law with `spy()`:
+
+```ts
+export async law clickCallsOnce(label: string) {
+  const onClick = spy();
+  const m = await mountComponent(react, Button, { label, onClick });
+  click(m.query.byRole('button'));
+  return onClick.count === 1;
+}
+```
+
+`spy(impl?)` returns a function with `calls` (the argument lists) and `count`.
+
+**`rendersSame(adapter, component, a, b)`** is the classic component law, rendering is a pure function of props: it renders with
+`a`, rerenders with `b`, and compares the markup with a fresh render of `b`, ignoring whitespace, comment nodes and framework
+bookkeeping attributes. A component that keeps stale state fails, with the two props as the counterexample.
+
+```ts
+export async law buttonRendersSame(a: ButtonProps, b: ButtonProps) {
+  return await rendersSame(react, Button, a, b);
+}
+```
+
+**Queries** look like Testing Library's, with no dependency: `byRole(role, { name?, pressed?, checked?, disabled? })`, `byText`,
+`byLabel`, `byTestId` (`data-testid`) and `allBy...` variants, on `m.query` or as `within(el)`; `text(el)` collapses whitespace.
+Roles are approximated from the tag (button, link, textbox, checkbox, heading, list, listitem, img, navigation, main, form, ...) or
+an explicit `role`; names come from `aria-labelledby`, `aria-label`, a `label`, `alt`, `value` or the content. A query that finds
+nothing, or several, throws an error that lists what exists, so a failing law says why.
+
+Component laws differ from end-to-end laws in what they pin down: the component alone gets generated props and a fresh
+container for every input, with nothing else of the app around it, so a failure points at that component and its props type.
 
 ### Accessibility laws
 
@@ -206,6 +301,12 @@ Supported keys: `jsx` (`react`, `react-jsx`, `react-jsxdev`, `preserve`), `jsxFa
 fixed defaults where they clash (`strict`). An unknown key is an error that lists these; nothing else reaches the compiler.
 `jsx: "preserve"` type-checks but emits `.jsx`, which the runner cannot load, so use `react` or `react-jsx` for laws.
 
+Plain JavaScript: set `allowJs` (and `checkJs` to type-check it). The compiler then emits the `.js` sources and a `.d.ts` for
+each, so laws, still written in TypeScript, import `.js` modules with typed generators; JSDoc `@param`, `@returns` and
+`@typedef` supply the types. `cover` globs match `.js` files only when `allowJs` is true (declarations, laws and
+`node_modules` stay excluded), and the prover reads the emitted JavaScript, so JS sources can be proved like TypeScript ones.
+Without `allowJs`, importing a `.js` file from a law is a compile error. See `examples/vanilla-js`.
+
 Laws stay in `*.browser.laws.ts` and import components from `.tsx` files; an exported function component that no law
 reaches is `uncovered` like any other function.
 
@@ -234,6 +335,109 @@ The law file is `.ts`, so it calls `createElement` rather than writing JSX; `Cou
 ```
 
 Bootstrap the component inside `mount(...)` as you do in your app; decorators and metadata are emitted by the compiler.
+
+## End-to-end laws
+
+There are three levels of law. All laws that need a browser share one suffix, `*.browser.laws.ts`; the import selects the level.
+
+|             | Node laws                       | Component laws                                 | End-to-end laws                                             |
+| ----------- | ------------------------------- | ---------------------------------------------- | ----------------------------------------------------------- |
+| File        | `*.laws.ts`                     | `*.browser.laws.ts` importing `tslaws/browser` | `*.browser.laws.ts` importing `tslaws/e2e`                  |
+| Runs        | in Node                         | inside one page of a real browser              | in Node, driving a real browser from outside                |
+| Sees        | functions and values            | one component and its DOM                      | the whole running app: pages, forms, network, cookies, tabs |
+| Speed       | fastest, thousands of inputs    | fast, tens of inputs                           | slowest; 10 inputs by default                               |
+| Typical use | logic, parsers, reducers        | a widget with generated props                  | a purchase flow, login, a form across pages                 |
+| Status      | `proved`, `bounded` or `tested` | `tested`                                       | `tested` (method `e2e`)                                     |
+
+A file that imports both `tslaws/browser` and `tslaws/e2e` is an `error`: it is either component level or end-to-end, not
+both. `*.e2e.laws.ts` is accepted as an alias that always means end-to-end.
+
+An end-to-end law starts from a running app and a Playwright `Page`. Inputs are generated from the parameter types and a
+failure is shrunk to a minimal counterexample, like every other law. Every generated input gets a fresh browser context
+and page, closed after it, so cookies and storage never leak between inputs.
+
+```ts
+// e2e/cart.browser.laws.ts
+import type { int } from 'tslaws';
+import { assume } from 'tslaws';
+import { open, page } from 'tslaws/e2e';
+
+export async law totalMatchesQuantity(qty: int) {
+  assume(qty >= 1 && qty <= 20);
+  await open('/');
+  await page().fill('#qty', String(qty));
+  await page().click('text=Add to cart');
+  await page().waitForURL('**/cart?items=*');
+  return (await page().textContent('#total')) === `Total: ${7 * qty}`;
+}
+```
+
+`tslaws/e2e` exports `page()` (the current page), `context()`, `baseURL()`, `open(path)` (goes to the base URL plus the path
+and waits for load), `newPage()` (a second tab in the same context), `route(pattern, handler)` (network mocking),
+`settle()` (network idle plus two animation frames) and `accessible()` / `a11y()` (axe-core, looked up in your project's
+`node_modules`: `npm i -D axe-core`). `Page`, `Locator`, `BrowserContext` and `Route` are re-exported as types from
+Playwright. A law returns `false` or throws to fail, as always.
+
+### Configuring the app
+
+The runner starts your dev server, waits for it, runs the laws and stops it. In `tslaws.json`:
+
+```json
+{
+  "e2e": {
+    "baseURL": "http://localhost:4173",
+    "server": {
+      "command": "npm run preview",
+      "url": "http://localhost:4173",
+      "timeoutMs": 60000,
+      "reuseExisting": true,
+      "cwd": "."
+    },
+    "runs": 10,
+    "timeoutMs": 120000
+  }
+}
+```
+
+- `server.command` runs through the shell, from `server.cwd` (default the project). `server.url` is polled until it answers
+  with any status below 500, or the check fails with an `error` that shows the server's last output.
+- `reuseExisting: true` uses a server that already answers at `server.url` and starts nothing. Without it, an answering URL is
+  an error rather than a silent test of the wrong server. A server the runner started is stopped after the check, on errors
+  and on Ctrl+C, with its whole process tree.
+- `baseURL` defaults to `server.url`. Leave out `server` to test an app you run yourself.
+- `runs` (default 10) and `timeoutMs` (default 120000 per law, reported as `error` past it) apply to end-to-end laws unless
+  `--runs` or `--property-timeout` is given. Unknown keys are an error.
+
+A Vite app (`vite build` first, then serve the build; or use `npm run dev` with `url` `http://localhost:5173`):
+
+```json
+{
+  "e2e": {
+    "server": {
+      "command": "npm run build && npm run preview -- --port 4173 --strictPort",
+      "url": "http://localhost:4173"
+    }
+  }
+}
+```
+
+An Angular app:
+
+```json
+{ "e2e": { "server": { "command": "npx ng serve --port 4200", "url": "http://localhost:4200", "timeoutMs": 180000 } } }
+```
+
+**Security.** `server.command` executes a command from your project's `tslaws.json`, exactly as `npm run` executes a script
+from `package.json`. Only run `tslaws check` on a project whose configuration you trust.
+
+### Screenshots and the live view
+
+When an end-to-end law fails, the shrunk counterexample is run once more with the page left open and photographed to
+`.tslaws/screenshots/<law>.png`; the report and the dashboard show it. While a law runs, `tslaws ui` shows the app live,
+refreshed about every 120 ms from the newest page, as for component laws. Counterexamples join the regression corpus and are
+replayed first on the next check. `--browser firefox|webkit` picks the engine.
+
+Not covered: file uploads, reusing a signed-in state across inputs, and running inputs in parallel (one browser, one input at a time).
 
 ## Stateful laws
 
@@ -301,12 +505,6 @@ export async law counterUiAgreesWithModel(ops: ('inc' | 'dec')[]) {
 `tslaws ui` opens a local dashboard: a sidebar tree of files and laws with status icons, filters
 (All, Failed, Open, Passed), search, and a detail pane with the report (message, counterexample, a copyable reproduce command,
 the next step), the law's source with its lines highlighted, and the compiler output. It reruns on save and has a Run all button
-Plain JavaScript: set `allowJs` (and `checkJs` to type-check it). The compiler then emits the `.js` sources and a `.d.ts` for
-each, so laws, still written in TypeScript, import `.js` modules with typed generators; JSDoc `@param`, `@returns` and
-`@typedef` supply the types. `cover` globs match `.js` files only when `allowJs` is true (declarations, laws and
-`node_modules` stay excluded), and the prover reads the emitted JavaScript, so JS sources can be proved like TypeScript ones.
-Without `allowJs`, importing a `.js` file from a law is a compile error. See `examples/vanilla-js`.
-
 (`r`; `/` focuses search; `Esc` clears the selection); hovering a file shows a button that reruns just that file. When a browser law fails, the page is photographed at the shrunk counterexample (`.tslaws/screenshots/`) and the image appears in the report. `--port N` picks the port (default 51205, another if busy);
 `--no-open` keeps it from opening a browser.
 
@@ -365,7 +563,19 @@ reported as `failed`.
   only on arrays no second name can reach.
 - **Strings** are SMT strings restricted to the BMP: `+`, templates, `length`, `charAt`, indexing, `slice`, `substring`,
   `includes`, `startsWith`, `endsWith`, `indexOf`, comparisons.
-- **Records**, `typeof`, `Math.abs/min/max/floor/ceil/trunc`, ternaries, `const`/`let`, `assume`.
+- **Records**, `typeof`, `Math.abs/sign/min/max/floor/ceil/trunc`, ternaries, `const`/`let`, `assume`. `Math.min` and
+  `Math.max` take any number of arguments.
+- **Integer division is exact.** For `int` operands, `Math.floor/ceil/trunc/round(a / b)`, `(a / b) | 0` (which also needs
+  the result in 32 bits) and `a % b` lower to exact integer arithmetic with JavaScript's meaning: floor, ceiling,
+  truncation toward zero, round half up, and a remainder with the sign of the dividend. The divisor must be a non-zero
+  literal or provably non-zero (`assume(b !== 0)`); otherwise the proof is not given and the reason says so. For the
+  rounded quotients `a` and `b` must stay within ±2^52, so the double JavaScript divides first cannot round across an
+  integer. A plain `a / b` that is not wrapped in one of these stays on the double path.
+- **Module constants.** `const NAME = <literal or arithmetic over other constants>` at file scope, `exports.NAME` in the
+  same file and `module_1.NAME` through an import read as values (an integer literal stays an `int`). Only `const`
+  declarations and exports assigned once count, and the initializer may not call anything.
+- **Number predicates:** `Number.isFinite`, `Number.isInteger` and `Number.isNaN` over `int` and doubles (`bigint` gives
+  `false`, as in JavaScript).
 - **Loop invariants** give a proof for every iteration count. Put `invariant(cond)` first in a loop body. The prover proves
   it on entry, assumes it at the top of an arbitrary iteration, proves it again at the end, and gives the code after the
   loop an arbitrary state where the invariant holds and the condition is false:
@@ -425,7 +635,7 @@ under `.tslaws/out/smt`.
 tslaws init [--force]
 tslaws accept [files...]
 tslaws regressions [list|clear]
-tslaws mutate [files...] [--max N] [--seed N] [--json]
+tslaws mutate [files...] [--max N] [--seed N] [--runs N] [--bound N] [--proof-timeout MS] [--property-timeout MS] [--json]
 tslaws check [files...] [--json] [--summary] [--watch] [--runs N] [--seed N] [--no-prove] [--no-regressions] [--bound N]
              [--proof-timeout MS] [--proposed] [--compiler PATH]
 ```
@@ -491,7 +701,7 @@ its example count per file; `tslaws regressions clear` deletes the directory.
 
 ## Mutation testing
 
-`tslaws mutate [files...] [--max N] [--seed N] [--json]` asks whether the laws are strong enough. It changes the covered
+`tslaws mutate [files...] [--max N] [--seed N] [--runs N] [--proof-timeout MS] [--property-timeout MS] [--json]` asks whether the laws are strong enough. It changes the covered
 source in small ways (relational, arithmetic and logical operators, `true`/`false`, numeric literals, negated `if`
 conditions, removed `!`), re-runs the laws against each mutant in a scratch copy under `.tslaws/mutants/`, and reports each
 mutant as killed (a law failed, errored or timed out) or survived (every law still held, so the laws cannot tell the change
@@ -501,8 +711,31 @@ Without arguments it uses every laws file and every covered module. `--max` (def
 It prints each survivor as `file:line  original  ->  mutated` with a hint, and the mutation score. Exit status is 0 only when
 every tried mutant is killed. It first checks the unmutated code and stops if the laws do not pass. Mutants that do not
 compile are skipped and not counted. Some survivors are equivalent mutants (for example `<` to `<=` where both sides are
-equal); strengthen a law only when the survivor is a real behaviour change. Each mutant runs 50 tests with a short proof
-timeout, and the lock is not enforced.
+equal); strengthen a law only when the survivor is a real behaviour change.
+
+`.tsx` and `.jsx` sources are copied and mutated too, through the same operators (`&&`, ternaries and comparisons inside JSX
+expressions); JSX text and tag names are never mutated. `tsc-laws.lock`, `tslaws.json` and `tsconfig.json` go into the
+scratch copy so the project is complete, but the lock is not enforced on mutants. When `*.laws.ts` files are named, only the
+sources those laws reach are mutated. Mutate takes the run settings of `check`: `--runs`, `--bound`, `--proof-timeout`,
+`--property-timeout` and `--browser`, then the [Settings](#settings) of `tslaws.json`, then its own defaults (30 runs; the
+`check` timeouts of 5000 ms for proofs and 30000 ms per property test). If the unmutated laws fail, the message names the
+first failing law; raise the timeouts when it timed out.
+
+## Settings
+
+`tslaws.json` takes optional run settings besides `cover`, `compilerOptions` and `e2e`:
+
+| Key                 | Meaning                                    | Default (`check`) |
+| ------------------- | ------------------------------------------ | ----------------- |
+| `runs`              | Property-test runs per law                 | 200 (mutate: 30)  |
+| `bound`             | Longest array, loop count, recursion depth | 4                 |
+| `proofTimeoutMs`    | Time limit of one proof                    | 5000              |
+| `propertyTimeoutMs` | Time limit of one law's property test      | 30000             |
+
+Each is an integer of at least 1; another type, a smaller value or an unknown top-level key is an error naming the key.
+Precedence is the command line flag (`--runs`, `--bound`, `--proof-timeout`, `--property-timeout`), then `tslaws.json`, then
+the built-in default. It applies to `check`, `ui`, `mutate` and `mcp`. End-to-end laws keep the `runs` and `timeoutMs` of the
+`e2e` section unless a flag is given.
 
 ## CI reporters
 
