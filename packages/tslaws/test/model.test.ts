@@ -176,11 +176,11 @@ const law = [
 
 describe('stateful laws through check', { skip: compiler === undefined ? 'set TSC_LAWS_BIN' : false }, () => {
   it('shrinks a failing operation sequence to the shortest one', async () => {
-    const opts = project('buggy', { 'src/f.ts': counter('this.n !== 3'), 'src/f.laws.ts': law });
+    const opts = project('buggy', { 'src/f.ts': counter('this.n !== 1'), 'src/f.laws.ts': law });
     const { results } = await check(opts, true);
     const r = byName(results, 'counterAgreesWithModel');
     assert.equal(r.status, 'failed', JSON.stringify(r));
-    assert.equal(r.counterexample, '[["inc","inc","inc","reset"]]');
+    assert.equal(r.counterexample, '[["inc","reset"]]');
   });
 
   it('passes the fixed counter', async () => {

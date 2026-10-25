@@ -16,3 +16,7 @@ next-env.d.ts
 .tmp-*/
 packages/tslaws/.tmp-*/
 .tslaws/
+*.vsix
+
+# example projects install their own dependencies; tslaws is not on npm yet, so no lockfile
+examples/*/package-lock.json

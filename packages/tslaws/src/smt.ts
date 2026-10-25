@@ -436,7 +436,8 @@ async function attempt(input: ProveInput, intLimit: bigint | undefined): Promise
     // A model may break only an obligation, or rest on float effects the replay does not share.
     if (input.holds(inputs)) {
       const why = `Z3 model ${show(inputs)} passes in JavaScript (an integer may leave the safe range, an index may leave its array, or the bound cut the code)`;
-      throw intLimit === undefined ? new SpuriousModel(why) : new Unsupported(why);
+      const advice = executor.hints.length === 0 ? '' : `; ${executor.hints.join('; ')}`;
+      throw intLimit === undefined ? new SpuriousModel(why + advice) : new Unsupported(why + advice);
     }
     return { kind: 'refuted', model: names.map((n, i) => `${n} = ${show(inputs[i])}`).join(', '), inputs };
   }

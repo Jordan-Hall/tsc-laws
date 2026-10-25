@@ -199,7 +199,7 @@ describe('loop invariants', { skip: compiler === undefined ? 'set TSC_LAWS_BIN' 
         '  let i = 0;',
         '  while (i < n) {',
         '    invariant(0 <= i && i <= n);',
-        '    if (i * i >= k) return i + 2;',
+        '    if (i * i >= k) return i + n;',
         '    i += 1;',
         '  }',
         '  return n;',

@@ -6,6 +6,7 @@ import { dirname, join, relative } from 'node:path';
 import ts from 'typescript';
 import { check } from './check.ts';
 import { coverFiles, readConfig } from './coverage.ts';
+import { mutateDefaults } from './settings.ts';
 import type { CheckOptions } from './types.ts';
 
 export interface Mutant {
@@ -33,10 +34,15 @@ export interface MutateOptions {
   targets?: string[];
   compiler: string;
   max: number;
+  /** True when the person named law files: only the sources those laws reach are mutated. */
+  lawsNamed?: boolean;
   seed?: number;
+  /** Run settings as `check` takes them; unset ones come from tslaws.json, then the mutate defaults (30 runs). */
   runs?: number;
+  bound?: number;
   proofTimeoutMs?: number;
   propertyTimeoutMs?: number;
+  browser?: CheckOptions['browser'];
   onProgress?: (line: string) => void;
 }
 
@@ -53,7 +59,8 @@ export interface MutateReport {
 }
 
 const ignoredDirs = new Set(['node_modules', '.tslaws', '.git']);
-const sourceExt = /\.(ts|mts|cts)$/;
+const sourceExt = /\.(ts|tsx|mts|cts)$/;
+const copiedExt = /\.(ts|tsx|mts|cts|js|jsx|mjs|cjs|json)$/;
 
 const relational: Record<number, string[]> = {
   [ts.SyntaxKind.LessThanToken]: ['<=', '>='],
@@ -73,11 +80,12 @@ const relational: Record<number, string[]> = {
 };
 
 /** The source files the laws cover: the `cover` globs, or every project module the laws import. */
-export function mutableFiles(cwd: string, lawFiles: string[]): string[] {
+export function mutableFiles(cwd: string, lawFiles: string[], reachOnly = false): string[] {
   const globs = readConfig(cwd).cover ?? [];
   const isLaws = (f: string): boolean => f.endsWith('.laws.ts');
   const found = new Set<string>();
-  if (globs.length > 0) for (const f of coverFiles(cwd, globs)) found.add(f);
+  const reached = new Set<string>();
+  if (globs.length > 0 && !reachOnly) for (const f of coverFiles(cwd, globs)) found.add(f);
   else {
     const seen = new Set<string>();
     const visit = (file: string): void => {
@@ -88,26 +96,40 @@ export function mutableFiles(cwd: string, lawFiles: string[]): string[] {
       for (const imp of ts.preProcessFile(readFileSync(full, 'utf8'), true, true).importedFiles) {
         if (!imp.fileName.startsWith('.')) continue;
         const base = join(dirname(file), imp.fileName).replaceAll('\\', '/');
-        const stem = base.replace(/\.(js|mjs|cjs|ts|mts|cts)$/, '');
-        const hit = [base, `${stem}.ts`, `${stem}.mts`, `${stem}.cts`, `${base}/index.ts`].find(
-          (c) => sourceExt.test(c) && existsSync(join(cwd, c)) && statSync(join(cwd, c)).isFile(),
-        );
+        const stem = base.replace(/\.(js|jsx|mjs|cjs|ts|tsx|mts|cts)$/, '');
+        const hit = [
+          base,
+          `${stem}.ts`,
+          `${stem}.tsx`,
+          `${stem}.mts`,
+          `${stem}.cts`,
+          `${base}/index.ts`,
+          `${base}/index.tsx`,
+        ].find((c) => sourceExt.test(c) && existsSync(join(cwd, c)) && statSync(join(cwd, c)).isFile());
         if (hit === undefined) continue;
         if (!isLaws(hit)) found.add(hit);
         visit(hit);
       }
     };
     for (const f of lawFiles) visit(f);
+    // Named laws with a `cover` list: mutate only the covered files those laws reach.
+    if (globs.length > 0) {
+      const covered = new Set(coverFiles(cwd, globs));
+      for (const f of found) if (covered.has(f)) reached.add(f);
+      found.clear();
+      for (const f of reached) found.add(f);
+    }
   }
   return [...found]
-    .filter((f) => !/\.d\.(ts|mts|cts)$/.test(f) && !isLaws(f) && !/\.(test|spec)\.(ts|mts|cts)$/.test(f))
+    .filter((f) => !/\.d\.(ts|mts|cts)$/.test(f) && !isLaws(f) && !/\.(test|spec)\.(ts|tsx|mts|cts)$/.test(f))
     .filter((f) => !f.split('/').some((p) => p === 'test' || p === 'tests' || p === '__tests__'))
     .sort();
 }
 
 /** Every mutation of one file, in source order. */
 export function mutantsOf(file: string, text: string): Mutant[] {
-  const source = ts.createSourceFile(file, text, ts.ScriptTarget.ES2022, true, ts.ScriptKind.TS);
+  const kind = file.endsWith('.tsx') ? ts.ScriptKind.TSX : file.endsWith('.jsx') ? ts.ScriptKind.JSX : ts.ScriptKind.TS;
+  const source = ts.createSourceFile(file, text, ts.ScriptTarget.ES2022, true, kind);
   const out: Mutant[] = [];
   const add = (node: ts.Node, start: number, end: number, replacement: string): void => {
     const ns = node.getStart(source);
@@ -185,7 +207,7 @@ function copyProject(cwd: string, to: string): void {
       if (ignoredDirs.has(entry)) continue;
       const full = join(dir, entry);
       if (statSync(full).isDirectory()) walk(full);
-      else if (/\.(ts|mts|cts|js|mjs|cjs|json)$/.test(entry)) {
+      else if (copiedExt.test(entry) || entry === 'tsc-laws.lock') {
         const dest = join(to, relative(cwd, full));
         mkdirSync(dirname(dest), { recursive: true });
         cpSync(full, dest);
@@ -199,17 +221,21 @@ export async function mutate(options: MutateOptions): Promise<MutateReport> {
   const { cwd } = options;
   const say = options.onProgress ?? (() => undefined);
   const scratchRoot = join(cwd, '.tslaws', 'mutants');
+  const config = readConfig(cwd);
   const checkOptions = (dir: string): CheckOptions => ({
     files: options.lawFiles,
     cwd: dir,
-    runs: options.runs ?? 50,
+    runs: options.runs ?? config.runs ?? mutateDefaults.runs,
     seed: options.seed,
     compiler: options.compiler,
     lockFile: join(dir, 'tsc-laws.lock'),
     noProve: false,
-    bound: 4,
-    proofTimeoutMs: options.proofTimeoutMs ?? 1500,
-    propertyTimeoutMs: options.propertyTimeoutMs ?? 5000,
+    bound: options.bound ?? config.bound ?? mutateDefaults.bound,
+    proofTimeoutMs: options.proofTimeoutMs ?? config.proofTimeoutMs ?? mutateDefaults.proofTimeoutMs,
+    propertyTimeoutMs: options.propertyTimeoutMs ?? config.propertyTimeoutMs ?? mutateDefaults.propertyTimeoutMs,
+    browser: options.browser,
+    // The lock is not enforced on mutants; it is copied so the scratch project is complete.
+    explicit: options.runs === undefined ? [] : ['runs'],
   });
   const empty = (baselineError?: string): MutateReport => ({
     results: [],
@@ -227,10 +253,24 @@ export async function mutate(options: MutateOptions): Promise<MutateReport> {
     copyProject(cwd, baseDir);
     const base = await check(checkOptions(baseDir), false);
     if (!base.compileOk) return empty(`the project does not compile:\n${base.compileDiagnostics}`);
-    if (!base.ok) return empty('the laws do not pass on the unmutated code; fix them before mutation testing');
+    if (!base.ok) {
+      const failing = base.results.find(
+        (r) => r.status !== 'proved' && r.status !== 'bounded' && r.status !== 'tested',
+      );
+      const first = failing?.message?.split(/\r?\n/)[0];
+      const which =
+        failing === undefined
+          ? 'unknown'
+          : `${failing.name} (${failing.file}:${failing.line}) is ${failing.status}${first === undefined ? '' : `: ${first}`}`;
+      return empty(
+        `the laws do not pass on the unmutated code; fix them before mutation testing. First failure: ${which}. If it timed out, raise --proof-timeout or --property-timeout (or set them in tslaws.json)`,
+      );
+    }
 
     const wanted = new Set((options.targets ?? []).map((t) => t.replaceAll('\\', '/')));
-    const files = mutableFiles(cwd, options.lawFiles).filter((f) => wanted.size === 0 || wanted.has(f));
+    const files = mutableFiles(cwd, options.lawFiles, options.lawsNamed === true).filter(
+      (f) => wanted.size === 0 || wanted.has(f),
+    );
     const originals = new Map(files.map((f) => [f, readFileSync(join(cwd, f), 'utf8')]));
     const all = files.flatMap((f) => mutantsOf(f, originals.get(f)!));
     const chosen = sample(all, options.max, options.seed ?? 1);

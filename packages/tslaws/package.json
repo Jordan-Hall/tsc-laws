@@ -1,6 +1,6 @@
 {
   "name": "tslaws",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Runs and checks `law` declarations compiled by tsc-laws: property tests, SMT proofs, tamper lock.",
   "bin": {
     "tslaws": "bin/tslaws.js"
@@ -21,6 +21,26 @@
     "./browser": {
       "types": "./dist/browserApi.d.ts",
       "default": "./dist/browserApi.js"
+    },
+    "./e2e": {
+      "types": "./dist/e2eApi.d.ts",
+      "default": "./dist/e2eApi.js"
+    },
+    "./adapters/react": {
+      "types": "./dist/adapters/react.d.ts",
+      "default": "./dist/adapters/react.js"
+    },
+    "./adapters/angular": {
+      "types": "./dist/adapters/angular.d.ts",
+      "default": "./dist/adapters/angular.js"
+    },
+    "./adapters/dom": {
+      "types": "./dist/adapters/dom.d.ts",
+      "default": "./dist/adapters/dom.js"
+    },
+    "./adapters/element": {
+      "types": "./dist/adapters/element.d.ts",
+      "default": "./dist/adapters/element.js"
     },
     "./package.json": "./package.json"
   },

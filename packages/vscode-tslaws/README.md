@@ -41,3 +41,7 @@ Or run VS Code with `--extensionDevelopmentPath` pointing at this directory.
 ## Test
 
 `npm install --no-save vscode-textmate vscode-oniguruma; node --test test/grammar.test.mjs`
+
+## Install
+
+Download `tslaws-vscode-<version>.vsix` from the [releases](https://github.com/Jordan-Hall/tsc-laws/releases) and run `code --install-extension tslaws-vscode-<version>.vsix`.

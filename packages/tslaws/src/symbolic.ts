@@ -60,6 +60,8 @@ type FunctionNode = ts.FunctionDeclaration | ts.ArrowFunction | ts.FunctionExpre
 interface FileIndex {
   functions: Map<string, FunctionNode>;
   imports: Map<string, string>;
+  /** Module-level `const NAME = ...` and `exports.NAME = ...` initializers, evaluated on demand. */
+  constants: Map<string, ts.Expression>;
 }
 
 class Frame {
@@ -140,6 +142,8 @@ export class Executor {
   readonly assumptions: string[] = [];
   readonly obligations: string[] = [];
   readonly bounded: string[] = [];
+  /** Advice for the reader when a proof fails on an obligation (a divisor that may be 0). */
+  readonly hints: string[] = [];
   private readonly files = new Map<string, FileIndex>();
 
   readonly bound: number;
@@ -159,7 +163,7 @@ export class Executor {
       true,
       ts.ScriptKind.JS,
     );
-    const index: FileIndex = { functions: new Map(), imports: new Map() };
+    const index: FileIndex = { functions: new Map(), imports: new Map(), constants: new Map() };
     this.files.set(file, index);
     for (const statement of source.statements) {
       if (ts.isFunctionDeclaration(statement) && statement.name !== undefined && statement.body !== undefined)
@@ -181,10 +185,110 @@ export class Executor {
             const base = resolve(dirname(file), specifier);
             index.imports.set(declaration.name.text, /\.[cm]?js$/.test(base) ? base : `${base}.js`);
           }
-        }
+        } else if ((declaration.parent.flags & ts.NodeFlags.Const) !== 0)
+          index.constants.set(declaration.name.text, init);
       }
     }
+    this.indexExports(source, index);
     return index;
+  }
+
+  /** `exports.NAME = value` assigned exactly once, at the top level, is a constant; any other assignment spoils it. */
+  private indexExports(source: ts.SourceFile, index: FileIndex): void {
+    const endsVoid = (e: ts.Expression): boolean => {
+      while (ts.isBinaryExpression(e) && e.operatorToken.kind === ts.SyntaxKind.EqualsToken) e = e.right;
+      return ts.isVoidExpression(e);
+    };
+    const exported = (e: ts.Node): string | undefined =>
+      ts.isPropertyAccessExpression(e) && ts.isIdentifier(e.expression) && e.expression.text === 'exports'
+        ? e.name.text
+        : undefined;
+    const writes = new Map<string, number>();
+    const visit = (n: ts.Node): void => {
+      if (ts.isBinaryExpression(n) && isAssignment(n.operatorToken.kind)) {
+        const name = exported(n.left);
+        if (name !== undefined && !endsVoid(n.right)) writes.set(name, (writes.get(name) ?? 0) + 1);
+      }
+      if (
+        (ts.isPrefixUnaryExpression(n) || ts.isPostfixUnaryExpression(n)) &&
+        (n.operator === ts.SyntaxKind.PlusPlusToken || n.operator === ts.SyntaxKind.MinusMinusToken)
+      ) {
+        const name = exported(n.operand);
+        if (name !== undefined) writes.set(name, 2);
+      }
+      ts.forEachChild(n, visit);
+    };
+    visit(source);
+    for (const statement of source.statements) {
+      if (!ts.isExpressionStatement(statement) || !ts.isBinaryExpression(statement.expression)) continue;
+      const e = statement.expression;
+      const name = exported(e.left);
+      if (e.operatorToken.kind !== ts.SyntaxKind.EqualsToken || name === undefined || endsVoid(e.right)) continue;
+      if (writes.get(name) === 1 && !index.constants.has(name)) index.constants.set(name, e.right);
+    }
+  }
+
+  private readonly constantValues = new Map<string, Value>();
+  private readonly resolving = new Set<string>();
+
+  /** The value of a module-level constant of `file` (a literal or arithmetic over other such constants). */
+  private constantValue(file: string, name: string): Value | undefined {
+    const init = this.index(file).constants.get(name);
+    if (init === undefined) return undefined;
+    const key = `${file}\0${name}`;
+    const known = this.constantValues.get(key);
+    if (known !== undefined) return known;
+    if (this.resolving.has(key)) throw new Unsupported(`constant ${name} refers to itself`);
+    this.simpleConstant(init, name);
+    this.resolving.add(key);
+    try {
+      const value = this.ev(init, new Frame(file, 0), 'true');
+      if (value.k === 'arr' || value.k === 'rec' || value.k === 'undef')
+        throw new Unsupported(`constant ${name} is not a number, string or boolean`);
+      this.constantValues.set(key, value);
+      return value;
+    } finally {
+      this.resolving.delete(key);
+    }
+  }
+
+  /** Only literals, names, property reads and operators: no calls, no functions, no object or array literals. */
+  private simpleConstant(node: ts.Node, name: string): void {
+    const ok =
+      (node.kind >= ts.SyntaxKind.FirstPunctuation && node.kind <= ts.SyntaxKind.LastPunctuation) ||
+      ts.isNumericLiteral(node) ||
+      ts.isBigIntLiteral(node) ||
+      ts.isStringLiteral(node) ||
+      ts.isNoSubstitutionTemplateLiteral(node) ||
+      ts.isTemplateExpression(node) ||
+      ts.isTemplateHead(node) ||
+      ts.isTemplateMiddle(node) ||
+      ts.isTemplateTail(node) ||
+      ts.isTemplateSpan(node) ||
+      node.kind === ts.SyntaxKind.TrueKeyword ||
+      node.kind === ts.SyntaxKind.FalseKeyword ||
+      ts.isIdentifier(node) ||
+      ts.isParenthesizedExpression(node) ||
+      ts.isConditionalExpression(node) ||
+      ts.isAsExpression(node) ||
+      ts.isNonNullExpression(node) ||
+      (ts.isPropertyAccessExpression(node) && ts.isIdentifier(node.expression)) ||
+      (ts.isPrefixUnaryExpression(node) &&
+        node.operator !== ts.SyntaxKind.PlusPlusToken &&
+        node.operator !== ts.SyntaxKind.MinusMinusToken) ||
+      (ts.isBinaryExpression(node) &&
+        !isAssignment(node.operatorToken.kind) &&
+        node.operatorToken.kind !== ts.SyntaxKind.CommaToken);
+    if (!ok) throw new Unsupported(`constant ${name} is not a simple constant expression`);
+    ts.forEachChild(node, (child) => this.simpleConstant(child, name));
+  }
+
+  /** `exports.NAME` in this file, or `module_1.NAME` for an import: a module constant, when there is one. */
+  private moduleConstant(owner: string, name: string, f: Frame): Value | undefined {
+    if (f.env.has(owner)) return undefined;
+    if (owner === 'exports') return this.constantValue(f.file, name);
+    const file = this.index(f.file).imports.get(owner);
+    return file === undefined ? undefined : this.constantValue(file, name);
   }
 
   // ---- entry --------------------------------------------------------------------------------------------------
@@ -672,7 +776,7 @@ export class Executor {
     if (node.kind === ts.SyntaxKind.FalseKeyword) return F;
     if (ts.isIdentifier(node)) {
       if (node.text === 'undefined') return { k: 'undef' };
-      const v = f.env.get(node.text);
+      const v = f.env.get(node.text) ?? this.constantValue(f.file, node.text);
       if (v === undefined) throw new Unsupported(`unknown name ${node.text}`);
       return v;
     }
@@ -797,6 +901,10 @@ export class Executor {
       if (name === 'PI') return { k: 'fp', t: '((_ to_fp 11 53) RNE 3.141592653589793)' };
       throw new Unsupported(`Math.${name} does not lower`);
     }
+    if (ts.isIdentifier(node.expression)) {
+      const constant = this.moduleConstant(node.expression.text, name, f);
+      if (constant !== undefined) return constant;
+    }
     const base = this.ev(node.expression, f, pc);
     if (name === 'length') {
       if (base.k === 'arr') return base.len;
@@ -903,6 +1011,7 @@ export class Executor {
           : undefined;
       return { k: 'big', t: c !== undefined ? intLit(c).t : `(${op} ${a.t} ${b.t})`, c };
     }
+    if (a.k === 'int' && b.k === 'int' && op === '%') return this.intDivide('mod', a, b, f, pc);
     if (a.k === 'int' && b.k === 'int' && op !== '/' && op !== '%') {
       if (a.c !== undefined && b.c !== undefined) {
         return this.exact(intLit(op === '+' ? a.c + b.c : op === '-' ? a.c - b.c : a.c * b.c), f, pc);
@@ -929,6 +1038,112 @@ export class Executor {
       }
     }
     throw new Unsupported(`operator ${op} on ${a.k} and ${b.k} does not lower`);
+  }
+
+  private hint(text: string): void {
+    if (!this.hints.includes(text)) this.hints.push(text);
+  }
+
+  /** `a / b` when `node` is one (through parentheses), the operand of a rounding that may make it integer division. */
+  private divisionOf(node: ts.Expression): ts.BinaryExpression | undefined {
+    let e = node;
+    while (ts.isParenthesizedExpression(e) || ts.isAsExpression(e) || ts.isNonNullExpression(e)) e = e.expression;
+    return ts.isBinaryExpression(e) && e.operatorToken.kind === ts.SyntaxKind.SlashToken ? e : undefined;
+  }
+
+  /** `Math.floor/ceil/trunc/round(a / b)`: exact integer division when both are `int`, else the double path. */
+  private roundedDivision(
+    mode: 'floor' | 'ceil' | 'trunc' | 'round',
+    node: ts.BinaryExpression,
+    f: Frame,
+    pc: string,
+  ): Value {
+    const a = this.ev(node.left, f, pc);
+    const b = this.ev(node.right, f, pc);
+    if (a.k === 'int' && b.k === 'int') return this.share(this.intDivide(mode, a, b, f, pc));
+    return this.math(mode, [this.arith('/', a, b, f, pc)], f, pc);
+  }
+
+  /** `x | 0` (ToInt32): exact when `x` is an int, or an integer division, that fits in 32 bits. */
+  private toInt32(node: ts.Expression, f: Frame, pc: string): Value {
+    const division = this.divisionOf(node);
+    let v: Value;
+    if (division !== undefined) {
+      const a = this.ev(division.left, f, pc);
+      const b = this.ev(division.right, f, pc);
+      if (a.k !== 'int' || b.k !== 'int') throw new Unsupported('| 0 of a division lowers only for int operands');
+      v = this.intDivide('trunc', a, b, f, pc);
+    } else v = this.ev(node, f, pc);
+    if (v.k !== 'int') throw new Unsupported(`| 0 of a ${v.k} does not lower`);
+    this.within(v, f, pc, 2n ** 31n - 1n, -(2n ** 31n));
+    return this.share(v);
+  }
+
+  /** An obligation that `v` lies in [lo, hi]. */
+  private within(v: Int, f: Frame, pc: string, hi: bigint, lo: bigint = -hi): void {
+    if (v.c !== undefined) {
+      if (v.c > hi || v.c < lo) this.oblige(f, pc, 'false');
+      return;
+    }
+    this.oblige(f, pc, `(and (<= ${intLit(lo).t} ${v.t}) (<= ${v.t} ${intLit(hi).t}))`);
+  }
+
+  /**
+   * Exact integer division with JavaScript's meaning: floor, ceil, truncation toward zero, half-up rounding of the real
+   * quotient, and `%` (the sign of the dividend). The divisor must be provably non-zero; for the quotients both sides
+   * stay within 2^52 so that the double quotient JavaScript computes first cannot round across an integer or a half.
+   */
+  private intDivide(mode: 'floor' | 'ceil' | 'trunc' | 'round' | 'mod', a: Int, b: Int, f: Frame, pc: string): Int {
+    if (b.c === 0n) throw new Unsupported('integer division by the literal 0 is NaN or Infinity in JavaScript');
+    if (b.c === undefined) {
+      this.oblige(f, pc, `(not (= ${b.t} 0))`);
+      this.hint(
+        'the divisor may be 0 (NaN or Infinity in JavaScript): add assume(divisor !== 0) or divide by a literal',
+      );
+    }
+    if (mode !== 'mod') {
+      const limit = 2n ** 52n;
+      this.within(a, f, pc, limit);
+      this.within(b, f, pc, limit);
+    }
+    if (a.c !== undefined && b.c !== undefined) return intLit(foldDivide(mode, a.c, b.c));
+    const neg = (t: string): string => `(- ${t})`;
+    const floorDiv = (x: string, y: string, yc?: bigint): string =>
+      yc !== undefined && yc > 0n ? `(div ${x} ${y})` : `(ite (> ${y} 0) (div ${x} ${y}) (div ${neg(x)} ${neg(y)}))`;
+    const abs = (t: string, c?: bigint): string =>
+      c !== undefined ? intLit(c < 0n ? -c : c).t : `(ite (< ${t} 0) ${neg(t)} ${t})`;
+    switch (mode) {
+      case 'floor':
+        return { k: 'int', t: floorDiv(a.t, b.t, b.c) };
+      case 'ceil':
+        return { k: 'int', t: neg(floorDiv(neg(a.t), b.t, b.c)) };
+      case 'round':
+        return {
+          k: 'int',
+          t: floorDiv(`(+ (* 2 ${a.t}) ${b.t})`, `(* 2 ${b.t})`, b.c === undefined ? undefined : 2n * b.c),
+        };
+      case 'trunc': {
+        const q = `(div ${abs(a.t, a.c)} ${abs(b.t, b.c)})`;
+        return { k: 'int', t: `(ite (= (< ${a.t} 0) (< ${b.t} 0)) ${q} ${neg(q)})` };
+      }
+      case 'mod': {
+        const m = abs(b.t, b.c);
+        return { k: 'int', t: `(ite (>= ${a.t} 0) (mod ${a.t} ${m}) ${neg(`(mod ${neg(a.t)} ${m})`)})` };
+      }
+    }
+  }
+
+  /** `Number.isFinite/isInteger/isNaN(x)`: no coercion, so only numbers can be true. */
+  private numberPredicate(name: string, args: readonly ts.Expression[], f: Frame, pc: string): Value {
+    if (args.length !== 1) throw new Unsupported(`Number.${name} takes one value here`);
+    const v = this.ev(args[0]!, f, pc);
+    if (v.k === 'big') return F;
+    if (v.k === 'int') return name === 'isNaN' ? F : T;
+    if (v.k !== 'fp') throw new Unsupported(`Number.${name} of a ${v.k} does not lower`);
+    const finite = and(not(`(fp.isNaN ${v.t})`), not(`(fp.isInfinite ${v.t})`));
+    if (name === 'isNaN') return bool(`(fp.isNaN ${v.t})`);
+    if (name === 'isFinite') return bool(finite);
+    return bool(and(finite, `(fp.eq (fp.roundToIntegral RTZ ${v.t}) ${v.t})`));
   }
 
   lt(a: Value, b: Value): Bool {
@@ -1000,6 +1215,8 @@ export class Executor {
       this.ev(node.left, f, pc, true);
       return this.ev(node.right, f, pc);
     }
+    if (kind === ts.SyntaxKind.BarToken && ts.isNumericLiteral(node.right) && node.right.text === '0')
+      return this.toInt32(node.left, f, pc);
     const a = this.ev(node.left, f, pc);
     const b = this.ev(node.right, f, pc);
     switch (kind) {
@@ -1383,6 +1600,13 @@ export class Executor {
     if (ts.isPropertyAccessExpression(callee)) {
       const owner = ts.isIdentifier(callee.expression) ? callee.expression.text : undefined;
       const name = callee.name.text;
+      if (owner === 'Math' && !f.env.has('Math') && ['floor', 'ceil', 'trunc', 'round'].includes(name)) {
+        const division = node.arguments.length === 1 ? this.divisionOf(node.arguments[0]!) : undefined;
+        if (division !== undefined)
+          return this.roundedDivision(name as 'floor' | 'ceil' | 'trunc' | 'round', division, f, pc);
+      }
+      if (owner === 'Number' && !f.env.has('Number') && ['isFinite', 'isInteger', 'isNaN'].includes(name))
+        return this.numberPredicate(name, node.arguments, f, pc);
       if (owner === 'Math')
         return this.math(
           name,
@@ -1469,6 +1693,20 @@ export class Executor {
             ? intLit(a.c < 0n ? -a.c : a.c)
             : { k: 'int', t: `(ite (< ${a.t} 0) (- ${a.t}) ${a.t})` };
         return { k: 'fp', t: `(fp.abs ${a.t})` };
+      case 'round':
+        if (a.k === 'int') return a;
+        throw new Unsupported('Math.round of a double does not lower (only of an int or an int quotient)');
+      case 'sign': {
+        if (a.k === 'int') {
+          if (a.c !== undefined) return intLit(a.c > 0n ? 1n : a.c < 0n ? -1n : 0n);
+          return { k: 'int', t: `(ite (> ${a.t} 0) 1 (ite (< ${a.t} 0) (- 1) 0))` };
+        }
+        const one = '((_ to_fp 11 53) RNE 1.0)';
+        return {
+          k: 'fp',
+          t: `(ite (or (fp.isNaN ${a.t}) (fp.isZero ${a.t})) ${a.t} (ite (fp.isNegative ${a.t}) (fp.neg ${one}) ${one}))`,
+        };
+      }
       case 'floor':
       case 'ceil':
       case 'trunc':
@@ -1476,8 +1714,13 @@ export class Executor {
         return { k: 'fp', t: `(fp.roundToIntegral ${{ floor: 'RTN', ceil: 'RTP', trunc: 'RTZ' }[name]} ${a.t})` };
       case 'min':
       case 'max': {
+        if (args.length < 2) throw new Unsupported(`Math.${name} takes at least two numbers here`);
+        if (args.length > 2) {
+          // Folding pairwise keeps NaN and the sign of zero as the specification has them.
+          const rest = this.mathRaw(name, args.slice(1), f, pc);
+          return this.mathRaw(name, [a, numeric(rest)], f, pc);
+        }
         const b = numeric(args[1]);
-        if (args.length !== 2) throw new Unsupported(`Math.${name} takes two numbers here`);
         if (a.k === 'int' && b.k === 'int') {
           const pick = name === 'min' ? this.compare('<', a, b) : this.compare('>', a, b);
           return this.merge(pick.t, a, b);
@@ -1496,6 +1739,25 @@ export class Executor {
     void f;
     void pc;
     throw new Unsupported(`Math.${name} does not lower`);
+  }
+}
+
+function foldDivide(mode: 'floor' | 'ceil' | 'trunc' | 'round' | 'mod', a: bigint, b: bigint): bigint {
+  const floorDiv = (x: bigint, y: bigint): bigint => {
+    const q = x / y;
+    return x % y !== 0n && x < 0n !== y < 0n ? q - 1n : q;
+  };
+  switch (mode) {
+    case 'floor':
+      return floorDiv(a, b);
+    case 'ceil':
+      return -floorDiv(-a, b);
+    case 'trunc':
+      return a / b;
+    case 'round':
+      return floorDiv(2n * a + b, 2n * b);
+    case 'mod':
+      return a % b;
   }
 }
 

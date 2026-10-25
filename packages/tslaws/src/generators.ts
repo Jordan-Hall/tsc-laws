@@ -24,6 +24,48 @@ arbitraryRegistry().set(
   ),
 );
 
+/** Marks a generated function on the wire: browser laws receive their arguments as structured data. */
+export const wireKey = '$tslawsFn';
+
+function pick(samples: unknown[], args: unknown[]): unknown {
+  let key = '';
+  try {
+    key = JSON.stringify(args) ?? '';
+  } catch {
+    // Arguments that are not JSON (a node, a cycle) all share the first sample.
+  }
+  let h = 5381;
+  for (let i = 0; i < key.length; i++) h = (Math.imul(h, 33) + key.charCodeAt(i)) | 0;
+  return samples[(h >>> 0) % samples.length];
+}
+
+/**
+ * A function of a type with one call signature: it returns one of a few values generated from the return type,
+ * chosen by its arguments (like `fc.func`: the same arguments give the same result, `void` gives `undefined`).
+ * `samples` rides along so a browser law can rebuild the function in the page.
+ */
+function generatedFunction(samples: unknown[]): unknown {
+  const fn = (...args: unknown[]): unknown => pick(samples, args);
+  Object.defineProperty(fn, wireKey, { value: samples, enumerable: false });
+  Object.defineProperty(fn, 'toString', { value: () => `[generated function]`, enumerable: false });
+  return fn;
+}
+
+/** Replaces generated functions inside arguments with a structured-clone-safe marker `{ $tslawsFn: samples }`. */
+export function toWire(value: unknown): unknown {
+  if (typeof value === 'function') {
+    const samples = (value as unknown as Record<string, unknown>)[wireKey];
+    return { [wireKey]: Array.isArray(samples) ? samples : [undefined] };
+  }
+  if (Array.isArray(value)) return value.map(toWire);
+  if (value !== null && typeof value === 'object') {
+    const proto = Object.getPrototypeOf(value);
+    if (proto === Object.prototype || proto === null)
+      return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, toWire(v)]));
+  }
+  return value;
+}
+
 export class GeneratorFactory {
   private readonly checker: ts.TypeChecker;
   private readonly active = new Set<ts.Type>();
@@ -109,7 +151,7 @@ export class GeneratorFactory {
     if (type.getCallSignatures().length > 0) {
       const signature = type.getCallSignatures()[0]!;
       const returns = this.of(checker.getReturnTypeOfSignature(signature), depth + 1);
-      return returns.map((value) => () => value);
+      return fc.array(returns, { minLength: 1, maxLength: 4 }).map(generatedFunction);
     }
     this.active.add(type);
     try {

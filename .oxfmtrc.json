@@ -11,6 +11,7 @@
     "**/.source/**",
     "**/next-env.d.ts",
     "upstream/**",
+    "examples/*/node_modules/**",
     "**/*.laws.ts",
     "**/.tslaws/**",
     "**/.tmp-*/**"

@@ -1,0 +1,15 @@
+{
+  "name": "tslaws-example-vanilla-js",
+  "version": "0.0.0",
+  "private": true,
+  "description": "A unit converter in plain JavaScript with JSDoc types, held to laws by tslaws.",
+  "type": "module",
+  "scripts": {
+    "check": "tslaws check",
+    "ui": "tslaws ui"
+  },
+  "devDependencies": {
+    "axe-core": "^4.0.0",
+    "tslaws": "*"
+  }
+}

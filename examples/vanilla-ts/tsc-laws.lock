@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "laws": {
+    "src/markdown.laws.ts::blankInputIsEmptyOutput": "4da0347e47828617014334aac1b39a76ba7b41a0c1d586fc7382ed5606c5376b",
+    "src/markdown.laws.ts::blocksConcatenate": "88fcb902aa53ba685e906a67694a94e9e9062ad480e15a8fedbc5b49dc3d9154",
+    "src/markdown.laws.ts::emphasisBecomesTags": "7e0490d5ac956083dbd0cb234b2ea6a99712bdf12b1b8545c68d23d8201c3717",
+    "src/markdown.laws.ts::escapedTextHasNoMarkup": "55a09d05971ea7246dfb67d68758b0bb426b3f9a1876d90572e542629b3a9bbd",
+    "src/markdown.laws.ts::headingLevelFollowsHashes": "93e4ae6215b1a464cd713dc759f3e94b56161432c87104248287b158172bb4b0",
+    "src/markdown.laws.ts::headingsStopAtLevelThree": "9111d4ec4acbd25e820fdd08a6f6003679dec18f001504a3fa07f1a10e0586c7",
+    "src/markdown.laws.ts::listItemsBecomeOneList": "4decff9d0bff17e258d446a0528aec4520eb9d2346647ff993e7de68b76831c2",
+    "src/markdown.laws.ts::markdownNeverEmitsScript": "b27e5f1f813ac43abbf5db1fa0ef7f40b21fb4840256a78cb81331cb43cd04dd",
+    "src/markdown.laws.ts::noEmptyHeadingsOrItems": "b296e10362f6dce7f22f332611125e848380cecc11258e31da4fad87ebed33f5",
+    "src/markdown.laws.ts::plainTextSurvivesAsAParagraph": "bf6888a2372f19085af10886a3215e7163971e81758f6992d61661fc5eaa5821",
+    "src/markdown.laws.ts::tagsStayBalanced": "e1f75a8a8a725d9e8e10ca0e4645c6743610eec6cb7fa27e09aebdc4f5caea2b",
+    "src/notes-store.laws.ts::addGrowsByOne": "916b25cfecf58b245acaa408480d0616aee0765b8d9d60afbbcaf390d5b40159",
+    "src/notes-store.laws.ts::deleteRemovesExactlyThatNote": "f019389e72dd4e3d7f6096831536046910507fc7e5585153f9a0df5142dbd662",
+    "src/notes-store.laws.ts::indexOfIdStaysInRange": "ec232164cfef6e8f8c91ecc941e10e01a8b6fd50f56dd5b4e342305e45b155dd",
+    "src/notes-store.laws.ts::searchFindsTheTitleItWasGiven": "d51af43a6eb833c799d15f3f074de3c74ae73eb9226ec34ee12776e1cee32864",
+    "src/notes-store.laws.ts::searchOnlyFiltersNotes": "f369c5bb5b19d9b3f97c57cef68f4f3793d66050cc2c7863b9bc59ec158d8994",
+    "src/notes-store.laws.ts::storeAgreesWithModel": "e023af05755d6658e35e9f48e9bb2c5a6e5cd11295ff438ccb7da7a61b47a15b",
+    "src/notes-store.laws.ts::wordCountIsBoundedByLength": "3f68baa7b8a0cf1db93a7ac66fc1e6278ab40b398dc9ce7800fdf588c5d20935",
+    "src/notes-store.laws.ts::wordsAreCountedBySplitting": "70c9aed47d18d6fe93810b26721ba929b4ff5ece692b32936123324b09cb817f",
+    "src/notes.browser.laws.ts::appAgreesWithModel": "c7b766a488511f46e02310c9dd7f2253098346d05b225bfffb534bbc25b14280",
+    "src/notes.browser.laws.ts::appIsAccessible": "6ea53c2b08431bdf9d6771a1d7ec439a31462a85e5004ceaf9e9c88e05c1299e",
+    "src/notes.browser.laws.ts::previewMatchesMarkdown": "3d62fe50f6ed9bfbe08b913043b247260422b9c8db6a52b533ad86541a6387ba",
+    "src/notes.browser.laws.ts::previewNeverRunsMarkup": "88c3035b9b5986e13edec4e63e87ae4e4258e0585d38edac18c033e2ec88b0ed",
+    "src/notes.browser.laws.ts::typingUpdatesTheCounterInTheEditor": "beb58c2cb6ff3b76a7428df8857f8d886cded22ce66d591f0d85a7f1e19b31af",
+    "src/notes.browser.laws.ts::wordCounterFollowsItsAttribute": "b8442c2bad2be97ad051d301f1508d2af092175cf8b15e9c22935bc8e90fd50e"
+  },
+  "exempt": []
+}

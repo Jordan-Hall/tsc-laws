@@ -7,10 +7,23 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import ts from 'typescript';
+import { parseE2eConfig, type E2eConfig } from './e2e.ts';
 
 export interface CoverageConfig {
   cover?: string[];
+  /** Compiler options the runner passes to tsc; see `compilerFlags` in compile.ts for the supported keys. */
+  compilerOptions?: Record<string, unknown>;
+  /** End-to-end laws: the app to drive; see `parseE2eConfig`. */
+  e2e?: E2eConfig;
+  /** Run settings; a command line flag beats them and they beat the built-in default. */
+  runs?: number;
+  propertyTimeoutMs?: number;
+  proofTimeoutMs?: number;
+  bound?: number;
 }
+
+const settingKeys = ['runs', 'propertyTimeoutMs', 'proofTimeoutMs', 'bound'] as const;
+const configKeys = ['cover', 'compilerOptions', 'e2e', ...settingKeys];
 
 export interface Uncovered {
   file: string;
@@ -36,9 +49,31 @@ interface Module {
   imports: Map<string, string>;
 }
 
+/** Validates the top level of tslaws.json: known keys only, and the run settings are integers of at least 1. */
+export function parseConfig(raw: unknown): CoverageConfig {
+  const fail = (message: string): never => {
+    throw new Error(`tslaws.json: ${message}`);
+  };
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return fail('must be a JSON object');
+  const object = raw as Record<string, unknown>;
+  for (const key of Object.keys(object)) {
+    if (key !== '$schema' && !configKeys.includes(key))
+      fail(`unknown option "${key}"; supported options are ${configKeys.join(', ')}`);
+  }
+  for (const key of settingKeys) {
+    const value = object[key];
+    if (value !== undefined && (typeof value !== 'number' || !Number.isInteger(value) || value < 1))
+      fail(`"${key}" must be an integer of at least 1, got ${JSON.stringify(value)}`);
+  }
+  return object as CoverageConfig;
+}
+
 export function readConfig(cwd: string): CoverageConfig {
   const path = join(cwd, 'tslaws.json');
-  return existsSync(path) ? (JSON.parse(readFileSync(path, 'utf8')) as CoverageConfig) : {};
+  if (!existsSync(path)) return {};
+  const config = parseConfig(JSON.parse(readFileSync(path, 'utf8')) as unknown);
+  if (config.e2e !== undefined) config.e2e = parseE2eConfig(config.e2e);
+  return config;
 }
 
 function globToRegExp(glob: string): RegExp {
@@ -57,6 +92,8 @@ function globToRegExp(glob: string): RegExp {
 
 /** Source files matching the `cover` globs (a leading `!` excludes), minus laws files and declarations. */
 export function coverFiles(cwd: string, globs: string[]): string[] {
+  // Plain JavaScript sources are covered only when the project compiles them (`allowJs`).
+  const js = readConfig(cwd).compilerOptions?.allowJs === true;
   const include = globs.filter((g) => !g.startsWith('!')).map(globToRegExp);
   const exclude = globs.filter((g) => g.startsWith('!')).map((g) => globToRegExp(g.slice(1)));
   const found: string[] = [];
@@ -67,7 +104,8 @@ export function coverFiles(cwd: string, globs: string[]): string[] {
       if (statSync(full).isDirectory()) walk(full);
       else {
         const file = relative(cwd, full).replaceAll('\\', '/');
-        if (!/\.(ts|mts|cts)$/.test(file) || /\.d\.(ts|mts|cts)$/.test(file) || /\.laws\.ts$/.test(file)) continue;
+        if (!(js ? /\.(ts|tsx|mts|cts|js)$/ : /\.(ts|tsx|mts|cts)$/).test(file)) continue;
+        if (/\.d\.(ts|mts|cts)$/.test(file) || /\.laws\.ts$/.test(file)) continue;
         if (include.some((r) => r.test(file)) && !exclude.some((r) => r.test(file))) found.push(file);
       }
     }
@@ -144,10 +182,16 @@ export interface CoverageInput {
   program: ts.Program;
 }
 
-const jsOf = (outDir: string, file: string): string => join(outDir, file.replace(/\.(ts|mts|cts)$/, '.js'));
-const dtsOf = (outDir: string, file: string): string => join(outDir, file.replace(/\.(ts|mts|cts)$/, '.d.ts'));
-const sourceOf = (outDir: string, cwd: string, js: string): string =>
-  relative(outDir, js).replaceAll('\\', '/').replace(/\.js$/, '.ts') || relative(cwd, js);
+const jsOf = (outDir: string, file: string): string => join(outDir, file.replace(/\.(ts|tsx|mts|cts)$/, '.js'));
+const dtsOf = (outDir: string, file: string): string => join(outDir, file.replace(/\.(ts|tsx|mts|cts|js)$/, '.d.ts'));
+/** The project source behind an emitted module: TypeScript, JSX or, with `allowJs`, JavaScript. */
+const sourceOf = (outDir: string, cwd: string, js: string): string => {
+  const rel = relative(outDir, js).replaceAll('\\', '/');
+  if (rel === '') return relative(cwd, js);
+  const base = rel.replace(/\.js$/, '');
+  const candidates = [`${base}.ts`, `${base}.tsx`, `${base}.js`];
+  return candidates.find((c) => existsSync(join(cwd, c))) ?? candidates[0]!;
+};
 
 export function analyzeCoverage(input: CoverageInput): CoverageReport {
   const modules = new Map<string, Module>();

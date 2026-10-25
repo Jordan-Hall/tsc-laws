@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "laws": {
+    "src/components/App.a11y.browser.laws.ts::boardIsAccessible": "164926ab4e45068dc3fd08755a8286096e7a94a28ff96bb9fa6753d7de057c52",
+    "src/components/App.a11y.browser.laws.ts::boardStaysAccessibleAfterAdding": "b5399b7dd96245fe4c59eb54e00ca7d6d30d41de6dfc28e071b87ae11966d305",
+    "src/components/App.browser.laws.ts::addingTitlesRendersTheNonBlankOnes": "dc71d0e5218167ec80a0a6ac2a074e838bc5e9e19404751007f8341e3c2e5eee",
+    "src/components/App.browser.laws.ts::boardAgreesWithModel": "101aca80bed330c41fd5f9bec1c1508991ce072e67cd3157a80cb12cc9696f04",
+    "src/components/FilterBar.browser.laws.ts::exactlyOneFilterIsPressed": "b5c2ae29a66f87684f7f90ce1ca6384c7fd078422633c00ec76fbb5b44e4ce08",
+    "src/model/tasks.laws.ts::addTrimsAndSkipsBlank": "9239cc945fc471a5c0a261dd12efad104eabc128543e4338c0e3b384cf658c17",
+    "src/model/tasks.laws.ts::clampIndexKeepsValidIndices": "393f635a9d2bafcd5e8d73c2c108f4c3e91f5fbfa5a5e39304f53769477bf78b",
+    "src/model/tasks.laws.ts::clampIndexStaysInList": "49f6a1bea67338975fe6298253aa761e2f70b7441ad0dce44f914597199d64d8",
+    "src/model/tasks.laws.ts::clearCompletedKeepsRemaining": "379fb41ecba141c7f1f89ed7f7494aee480053236f3c04fb2574943d41b0403d",
+    "src/model/tasks.laws.ts::clearCompletedLeavesNothingDone": "397dbeecd298329fca308c7c3e50416f8dae0c954894a16dae725e210dab0867",
+    "src/model/tasks.laws.ts::clearCompletedNeverGrows": "478f472cad5bb0ccc8c9680250f59705aebebf680a70f615e25a13fbcfa32f1b",
+    "src/model/tasks.laws.ts::filtersPartitionTasks": "c9b243d20dcdafc5b00cdce25f64a9dafe64c39ae663fa094281ed6bcf866d95",
+    "src/model/tasks.laws.ts::idsStayUnique": "4013ca69c292ea9f5eed141c73f391d4608ff90d09e06ef348a584b9ef9657d4",
+    "src/model/tasks.laws.ts::moveKeepsEveryTask": "02c83a0b17e5d124ba1648f99040abc004a812347b8ccef3f6e497240ebe1930",
+    "src/model/tasks.laws.ts::remainingMatchesActiveFilter": "13861ce0f453fb23ce32371fb615bc5a235a19d41ae9579dd5edefd993c2ce11",
+    "src/model/tasks.laws.ts::removeNeverGrows": "0f84eebd5afbf696eeae6417c84c6aa9cb6f47ee6db63cc2ebce98d068e999cd",
+    "src/model/tasks.laws.ts::renameTrimsAndKeepsOldTitleWhenBlank": "cf2ee0e9424a35b247e03221324cae58d4486bf1861d42af54768a1d0de75777",
+    "src/model/tasks.laws.ts::toggledAlwaysDiffers": "ca7d5401d4c4d0a1c9659e001e84088878d277c478a9c7b66b016e9619196d97",
+    "src/model/tasks.laws.ts::toggledTwiceIsTheSameTask": "d332628af01ac25cbfe196990a23dc6c56e5999bfb1c5672cc48618f624443bd",
+    "src/model/tasks.laws.ts::toggleKeepsLength": "ef596bb6d8848576d7730f8297cc90cc9f5d38a27ffbcb9deac1f76f85dc55f2",
+    "src/model/tasks.laws.ts::toggleTwiceRestoresFlags": "70624cc3891af469010469c70d6e7d1dc84de1f7cd666670361826a9e9cd1fe4"
+  },
+  "exempt": []
+}

@@ -1,0 +1,15 @@
+{
+  "name": "tslaws-example-vanilla-ts",
+  "version": "0.0.0",
+  "private": true,
+  "description": "A markdown-lite note editor in plain TypeScript, with no framework, held to laws by tslaws.",
+  "type": "module",
+  "scripts": {
+    "check": "tslaws check",
+    "ui": "tslaws ui"
+  },
+  "devDependencies": {
+    "axe-core": "^4.0.0",
+    "tslaws": "*"
+  }
+}

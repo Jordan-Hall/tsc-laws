@@ -1,0 +1,12 @@
+{
+  "name": "tslaws-example-basic",
+  "private": true,
+  "description": "A small project held to laws; one law fails on purpose.",
+  "scripts": {
+    "check": "tslaws check",
+    "ui": "tslaws ui"
+  },
+  "devDependencies": {
+    "tslaws": "*"
+  }
+}

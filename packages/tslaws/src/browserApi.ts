@@ -114,3 +114,28 @@ export async function a11y(
 export async function accessible(root?: Element, options?: A11yOptions): Promise<boolean> {
   return (await a11y(root, options)).ok;
 }
+
+// Component-level testing: isolated mounting with generated props, framework adapters and queries.
+export { mountComponent, rendersSame, spy } from './component.ts';
+export type { Adapter, Mounted, Rendered } from './component.ts';
+export {
+  allByRole,
+  allByText,
+  allByLabel,
+  allByTestId,
+  byRole,
+  byText,
+  byLabel,
+  byTestId,
+  text,
+  within,
+} from './queries.ts';
+export type { Matcher, Queries, RoleOptions } from './queries.ts';
+export { domAdapter } from './adapters/dom.ts';
+export type { DomComponent } from './adapters/dom.ts';
+export { elementAdapter } from './adapters/element.ts';
+export type { ElementAdapterOptions } from './adapters/element.ts';
+export { reactAdapter } from './adapters/react.ts';
+export type { ReactFunctions, ReactRootLike } from './adapters/react.ts';
+export { angularAdapter } from './adapters/angular.ts';
+export type { AngularAppRefLike, AngularComponentRefLike, AngularFunctions } from './adapters/angular.ts';

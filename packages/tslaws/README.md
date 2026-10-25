@@ -138,20 +138,28 @@ executable). Node generates and shrinks the inputs; each one is sent to a page w
 against a live DOM. The law may be `async`. `tslaws/browser` has `mount`, `settle`, `click`, `type` and `fire`, and works with
 any framework or none: `mount(el => render(el))` accepts whatever renders into an element and may return its unmount.
 `a11y` and `accessible` audit a mounted component with the optional `axe-core` peer dependency, and `--browser firefox|webkit` picks another engine (`npx playwright install firefox`).
+`mountComponent` with the React, Angular, DOM and custom-element adapters tests one component in isolation with props generated from its props type (function-typed props included), plus `spy`, `rendersSame` and Testing Library style queries.
 Browser laws are `tested`, never `proved`. See [docs/laws.md](../../docs/laws.md#browser-laws).
 
+A `*.browser.laws.ts` file that imports `tslaws/e2e` instead is an end-to-end law: it runs in Node and drives your whole running app through a real browser (`page()`, `open`, `newPage`, `route`, `settle`, `accessible`). Configure `e2e.server` in `tslaws.json` and the runner starts and stops your dev server. See [End-to-end laws](../../docs/laws.md#end-to-end-laws).
+
+- **Frameworks:** `tslaws.json` `compilerOptions` (`jsx`, `jsxFactory`, `jsxFragmentFactory`, `jsxImportSource`, `experimentalDecorators`,
+  `emitDecoratorMetadata`, `useDefineForClassFields`, `lib`, `types`, `strict`, ...) and `.tsx` sources let React, Angular and any DOM
+  library be tested. See [docs/laws.md](../../docs/laws.md#frameworks).
 - **Stateful laws:** a law over `ops: Op[]` (a union type) can use `runModel` or `runModelAsync` to apply the operations to the
   real thing and to a simple model and compare them after every step. Failing sequences shrink to the shortest one. See
   [docs/laws.md](../../docs/laws.md#stateful-laws).
 
 ## Dashboard
 
-`tslaws ui [files...] [--port N] [--no-open]` serves a local dashboard (127.0.0.1 only) like Vitest's UI: a tree of files and laws,
+`tslaws ui [files...] [--port N] [--no-open]` serves a local dashboard (127.0.0.1 only): a tree of files and laws,
 live progress, a live view of the browser page during browser laws, status filters, search, a report with a copyable reproduce command, the law's source, and live reruns on save.
 Laws are timed (the five slowest are listed), the last 20 runs show as a row of coloured squares, laws that flip between passing and failing are marked `flaky`, and any single law can be rerun.
 See [docs/laws.md](../../docs/laws.md#the-dashboard).
 
-`tslaws mutate [files...] [--max N] [--seed N] [--json]` mutation-tests the laws: it mutates the covered code, re-runs the laws against each mutant, and lists the survivors no law caught. See [docs/laws.md](../../docs/laws.md#mutation-testing).
+`tslaws mutate [files...] [--max N] [--seed N] [--json]` mutation-tests the laws: it mutates the covered code, re-runs the laws against each mutant, and lists the survivors no law caught. It handles `.tsx`/`.jsx` and projects with a lock, and takes the run flags of `check`. See [docs/laws.md](../../docs/laws.md#mutation-testing).
+
+- **Settings:** `tslaws.json` `runs`, `bound`, `proofTimeoutMs` and `propertyTimeoutMs` set the run defaults; a command line flag beats them. See [docs/laws.md](../../docs/laws.md#settings).
 
 ## Agents cannot move the goalposts
 
