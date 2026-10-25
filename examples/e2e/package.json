@@ -1,0 +1,16 @@
+{
+  "name": "tslaws-example-e2e",
+  "version": "0.0.0",
+  "private": true,
+  "description": "A small web app run as a whole, in a real browser, and held to end-to-end laws by tslaws.",
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs 4410",
+    "check": "tslaws check",
+    "ui": "tslaws ui"
+  },
+  "devDependencies": {
+    "axe-core": "^4.0.0",
+    "tslaws": "*"
+  }
+}

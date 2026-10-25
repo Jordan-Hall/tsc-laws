@@ -1,0 +1,7 @@
+{
+  "e2e": {
+    "server": { "command": "node server.mjs 4410", "url": "http://127.0.0.1:4410/", "timeoutMs": 20000 },
+    "runs": 8,
+    "timeoutMs": 60000
+  }
+}
