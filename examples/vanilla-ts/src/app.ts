@@ -2,6 +2,7 @@
 import type { int } from 'tslaws';
 import { NoteEditor } from './note-editor';
 import { NoteList } from './note-list';
+import { installStyles } from './styles';
 import { addNote, deleteNote, emptyStore, renameNote, searchNotes, setBody, type Store } from './notes-store';
 
 export class App {
@@ -14,6 +15,7 @@ export class App {
   private query = '';
 
   constructor(root: HTMLElement) {
+    installStyles(root);
     this.newNote.type = 'button';
     this.newNote.textContent = 'New note';
     this.count.setAttribute('role', 'status');
