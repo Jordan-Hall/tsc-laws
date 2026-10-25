@@ -1,12 +1,13 @@
 {
   "hook": "Your agent says it's done. How do you know it works?",
-  "idea": "T S laws lets you write the rules, in TypeScript. The agent writes the code. And nothing lands until your rules hold.",
-  "run": "Here are five laws, running against code an agent wrote.",
-  "catch": "One fails. The sort quietly drops duplicates. And you get the smallest input that breaks it, with a seed to replay it.",
-  "source": "A law is a few lines of plain TypeScript. The compiler understands it.",
-  "proved": "Some laws are not just tested. They are proved, for every number there is.",
-  "lock": "And the agent cannot water them down. Only you can accept a law.",
-  "browser": "It runs in a real browser too. Components, accessibility, speed. All live.",
+  "pain": "It passed its own tests. The ones it wrote, for itself.",
+  "idea": "T S laws flips that. You write the rules, in plain TypeScript. The agent writes the code. And nothing lands until your rules hold.",
+  "write": "A law is one line. Adding is the same either way around. Adding zero changes nothing. That's all you write.",
+  "run": "Now run it. Three laws are proved, for every number there is. Not sampled. Proved.",
+  "catch": "One fails. The agent's sort quietly drops duplicates. You get the smallest input that breaks it, and a seed to replay it.",
+  "lock": "And the agent can't water your laws down. Change one, and the check fails. Only you can accept it.",
+  "browser": "It works in a real browser too. Components, accessibility, speed. Live.",
   "e2e": "Even a whole app, server and all.",
+  "install": "One install. Then every change your agent makes has to pass.",
   "outro": "T S laws. Trust the code you did not write."
 }

@@ -826,4 +826,4 @@ On Windows the native build is `dist/tsc`; copy it to `tsc.exe` to run it.
 
 ## Intro video
 
-[docs/media/tslaws-intro.mp4](media/tslaws-intro.mp4) is a one-minute narrated recording of the real dashboard running the real laws in `examples/basic`, `examples/react` and `examples/e2e`. The voice is [Piper](https://github.com/rhasspy/piper) (`scripts/demo/voice.mjs`, offline neural text to speech); the music bed and sound cues are synthesised by `scripts/demo/mix.mjs`; `scripts/demo/record.mjs` records the screen.
+[docs/media/tslaws-intro.mp4](media/tslaws-intro.mp4) is a 79-second narrated recording: the law typed out, the real dashboard running the real laws in `examples/basic`, `examples/react` and `examples/e2e`, and the real `tslaws check` output, including the tamper failure after a law is edited. The voice is [Kokoro](https://huggingface.co/hexgrad/Kokoro-82M) (`scripts/demo/voice.mjs`, open neural text to speech, offline); the music bed and sound cues are synthesised by `scripts/demo/mix.mjs`; `scripts/demo/record.mjs` records the screen. `scripts/demo/captures/` holds the recorded command output.
