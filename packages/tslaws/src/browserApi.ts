@@ -139,3 +139,58 @@ export { reactAdapter } from './adapters/react.ts';
 export type { ReactFunctions, ReactRootLike } from './adapters/react.ts';
 export { angularAdapter } from './adapters/angular.ts';
 export type { AngularAppRefLike, AngularComponentRefLike, AngularFunctions } from './adapters/angular.ts';
+
+export interface Timing {
+  runs: number;
+  min: number;
+  median: number;
+  p95: number;
+  max: number;
+}
+
+/** Times `work` (sync or async) over `runs` runs after a warm-up, in milliseconds as the browser clock reads them. */
+export async function measure(work: () => unknown, runs = 7): Promise<Timing> {
+  await settle();
+  await work();
+  const times: number[] = [];
+  for (let i = 0; i < runs; i++) {
+    const start = performance.now();
+    await work();
+    await settle(1);
+    times.push(performance.now() - start);
+  }
+  times.sort((a, b) => a - b);
+  const at = (q: number): number => times[Math.min(times.length - 1, Math.floor(q * times.length))] ?? 0;
+  return { runs, min: times[0] ?? 0, median: at(0.5), p95: at(0.95), max: times[times.length - 1] ?? 0 };
+}
+
+/** True when `work` takes at most `budgetMs` at the median, so a law can `return await fast(() => click(add), 50)`. */
+export async function fast(work: () => unknown, budgetMs: number, runs = 7): Promise<boolean> {
+  return (await measure(work, runs)).median <= budgetMs;
+}
+
+/** Milliseconds the main thread was blocked by long tasks (over 50 ms) while `work` ran; 0 where the browser has no such API. */
+export async function blocking(work: () => unknown): Promise<number> {
+  let blocked = 0;
+  const add = (entries: PerformanceEntryList): void => {
+    for (const entry of entries) blocked += Math.max(0, entry.duration - 50);
+  };
+  let observer: PerformanceObserver | undefined;
+  try {
+    observer = new PerformanceObserver((list) => add(list.getEntries()));
+    observer.observe({ type: 'longtask' });
+  } catch {
+    observer = undefined;
+  }
+  // A task of its own, so that `work` is measured as a task and not as part of the caller's.
+  await new Promise<void>((done, fail) =>
+    setTimeout(() => {
+      Promise.resolve(work()).then(() => done(), fail);
+    }, 0),
+  );
+  await settle();
+  // takeRecords flushes the entries the browser has queued for the observer, so there is nothing to wait for.
+  if (observer !== undefined) add(observer.takeRecords());
+  observer?.disconnect();
+  return blocked;
+}
