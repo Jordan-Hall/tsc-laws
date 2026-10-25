@@ -1,14 +1,33 @@
-// Records the intro video from the real dashboard and real laws: start `tslaws ui --no-open --port 4803` in examples/basic and --port 4804 in examples/react, then run this. Output: video/*.webm (convert with ffmpeg).
+// Records the intro video from the real dashboard and real laws, paced by the narration. Start `tslaws ui --no-open --port 4803`
+// in examples/basic and `--port 4804` in examples/react, render the voice with voice.ps1 into <vo>, then:
+//   node record.mjs <vo-dir> <out-dir>
+// It writes <out-dir>/video/*.webm and <out-dir>/timings.json (when each line starts); mix.mjs lays the voice over it.
+import { spawnSync } from 'node:child_process';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { chromium } from 'playwright-core';
+
+const [voDir, outDir] = process.argv.slice(2);
+const lines = JSON.parse(readFileSync(new URL('narration.json', import.meta.url), 'utf8'));
+const seconds = (file) =>
+  Number(
+    spawnSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', file], {
+      encoding: 'utf8',
+    }).stdout,
+  );
+const lengths = Object.fromEntries(Object.keys(lines).map((key) => [key, seconds(join(voDir, `${key}.wav`))]));
 
 const W = 1360;
 const H = 800;
 const browser = await chromium.launch({ channel: 'chrome' }).catch(() => chromium.launch({ channel: 'msedge' }));
 const context = await browser.newContext({
   viewport: { width: W, height: H },
-  recordVideo: { dir: 'video', size: { width: W, height: H } },
+  recordVideo: { dir: join(outDir, 'video'), size: { width: W, height: H } },
 });
 const page = await context.newPage();
+const t0 = Date.now();
+const timings = {};
+let voiceEnd = 0;
 
 const overlay = `
 (() => {
@@ -30,11 +49,26 @@ const caption = async (text) => {
   }, text);
 };
 
-const card = async (title, lines, ms) => {
+/** Waits until the voice has finished the line it is on. */
+const finishVoice = async () => {
+  const left = voiceEnd - (Date.now() - t0);
+  if (left > 0) await page.waitForTimeout(left + 350);
+};
+
+/** Starts a line of narration now (after the previous one ends) with its words as the caption. The voice plays while the page keeps going. */
+const say = async (key, { subtitle = true } = {}) => {
+  await finishVoice();
+  timings[key] = (Date.now() - t0) / 1000;
+  voiceEnd = Date.now() - t0 + lengths[key] * 1000;
+  if (subtitle) await caption(lines[key]);
+};
+
+const card = async (key, title, sub) => {
+  await say(key, { subtitle: false });
   await page.setContent(`<!doctype html><meta charset=utf-8><body style="margin:0;height:100vh;display:grid;place-items:center;background:#0f1220;color:#fff;font-family:system-ui,Segoe UI,sans-serif">
     <div style="text-align:center;max-width:1100px;padding:0 40px"><div style="font-size:84px;font-weight:800;letter-spacing:-2px">${title}</div>
-    ${lines.map((l) => `<div style="font-size:30px;margin-top:22px;color:#b9c0d8">${l}</div>`).join('')}</div>`);
-  await page.waitForTimeout(ms);
+    ${sub.map((l) => `<div style="font-size:30px;margin-top:22px;color:#b9c0d8">${l}</div>`).join('')}</div>`);
+  await finishVoice();
 };
 
 const open = async (port) => {
@@ -46,81 +80,66 @@ const idle = async (timeout = 180000) => {
     timeout,
   });
 };
-const glide = async (locator) => {
+const click = async (locator) => {
   const box = await locator.boundingBox();
   await page.mouse.move(box.x + 30, box.y + box.height / 2, { steps: 25 });
-};
-const click = async (locator) => {
-  await glide(locator);
   await page.waitForTimeout(350);
   await locator.click();
 };
 
-// 1. Intro.
-await card(
-  'tslaws',
-  ['Write the laws. Let an agent write the code.', 'Every change is checked against the laws before it lands.'],
-  6500,
-);
+await card('intro', 'tslaws', [
+  'Write the laws. Let an agent write the code.',
+  'Every change is checked against the laws before it lands.',
+]);
 
-// 2. A project with a bug: laws find it.
 await open(4803);
 await page.mouse.move(700, 300);
-await caption('A project with five laws. tslaws is checking them now: proofs, property tests, counterexamples.');
+await say('basic');
 await idle();
-await page.waitForTimeout(2500);
-await caption('One law fails. The code drops duplicate numbers when sorting.');
+await say('fails');
 await click(page.getByText('sortKeepsLength').first());
-await page.waitForTimeout(5000);
-await caption('The counterexample is shrunk to the smallest input that breaks the law, so an agent can fix it.');
-await page.waitForTimeout(5500);
+await say('shrunk');
+await finishVoice();
+await say('proved');
 await click(page.getByText('addIdentity').first());
-await caption('"proved": a Z3 proof that holds for every number, not a sample.');
-await page.waitForTimeout(5000);
+await finishVoice();
+await say('tested');
 await click(page.getByText('addCommutes').first());
-await caption('"tested": 100s of generated inputs, with a recorded seed to replay any failure.');
-await page.waitForTimeout(5000);
+await finishVoice();
 
-// 3. Browser laws on a real React app.
 await caption('');
 await open(4804);
 await page.mouse.move(700, 300);
-await caption('Same dashboard for a React app. Component and end-to-end laws run in a real browser.');
-await page.waitForTimeout(3500);
-const browserRow = page.getByText('browser', { exact: true }).first();
-await browserRow.waitFor({ timeout: 60000 }).catch(() => undefined);
-await page.waitForTimeout(1000);
+await say('react');
+await finishVoice();
 await idle();
-await page.waitForTimeout(2000);
-await caption('Component laws, accessibility laws, speed laws and model laws: one dashboard, one run.');
-await page.waitForTimeout(4500);
+await say('all');
+await finishVoice();
+await say('a11y');
 await click(page.getByText('boardIsAccessible').first());
-await caption('Accessibility: axe-core audits the real rendered board for every generated state.');
-await page.waitForTimeout(5500);
+await finishVoice();
+await say('speed');
 await click(page.getByText('addingATaskIsFast').first());
-await caption('Speed: adding a task must stay under budget, timed in the browser on boards of up to 200 tasks.');
-await page.waitForTimeout(5500);
+await finishVoice();
+await say('block');
 await click(page.getByText('addingATaskDoesNotBlock').first());
-await caption('And it must not block the main thread: long tasks are measured in the page.');
-await page.waitForTimeout(5000);
+await finishVoice();
+await say('rerun');
 await click(page.locator('#run'));
-await caption('Run everything again: live frames of the real page under test, while each law runs.');
-await page.waitForTimeout(16000);
+await finishVoice();
+await page.waitForTimeout(8000);
 await idle();
-await caption('Edit a file and it reruns on its own.');
-await page.waitForTimeout(3000);
+await say('watch');
+await finishVoice();
 
-// 4. Outro.
 await caption('');
-await card(
-  'npm i -D tslaws',
-  [
-    'TypeScript stays TypeScript. Laws are checked by the compiler, the prover and a real browser.',
-    'github.com/Jordan-Hall/tsc-laws',
-  ],
-  7000,
-);
+await card('outro', 'npm i -D tslaws', [
+  'TypeScript stays TypeScript. Laws are checked by the compiler, the prover and a real browser.',
+  'github.com/Jordan-Hall/tsc-laws',
+]);
+await page.waitForTimeout(1500);
 
 await context.close();
 await browser.close();
-console.log('recorded');
+writeFileSync(join(outDir, 'timings.json'), JSON.stringify(timings, null, 2));
+console.log('recorded', timings);

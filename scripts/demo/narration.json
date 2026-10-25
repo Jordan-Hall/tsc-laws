@@ -1,0 +1,16 @@
+{
+  "intro": "This is tslaws. You write the laws in TypeScript, an agent writes the code, and every change is checked against your laws before it lands.",
+  "basic": "Here is a small project with five laws. tslaws is checking them now, with proofs, property tests and counterexamples.",
+  "fails": "One law fails. The sort function drops duplicate numbers.",
+  "shrunk": "The counterexample is shrunk to the smallest input that breaks the law, with a seed to reproduce it. An agent gets exactly what it needs to fix the code.",
+  "proved": "This law is proved. A Z3 proof says it holds for every number, not just a sample.",
+  "tested": "This one is tested: a couple of hundred generated inputs, and a recorded seed to replay any failure.",
+  "react": "Now a React app. Component laws and end-to-end laws run in a real browser.",
+  "all": "Component, accessibility, speed and model laws all report in one dashboard.",
+  "a11y": "Accessibility: axe-core audits the real rendered board, for every generated state.",
+  "speed": "Speed: adding a task has a time budget, measured in the browser, on boards of up to two hundred tasks.",
+  "block": "And it must not block the main thread. Long tasks are measured in the page.",
+  "rerun": "Run everything again, and watch the real page under test, live, while each law runs.",
+  "watch": "Edit a file, and the laws rerun on their own.",
+  "outro": "Install it with npm i dash D tslaws. TypeScript stays TypeScript, and the laws stay yours."
+}
