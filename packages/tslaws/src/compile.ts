@@ -51,6 +51,13 @@ function compilerEnv(cwd: string, compiler: string): NodeJS.ProcessEnv {
 }
 
 /** Lists the laws of `files` with the problems that stop them running. */
+/** Says what to do when the compiler cannot start, in particular when none was found at all. */
+function cannotRun(compiler: string, error: Error): string {
+  if ((error as NodeJS.ErrnoException).code === 'ENOENT')
+    return `no tsc-laws compiler found (${compiler}): install the tslaws-compiler package for this platform, or set TSC_LAWS_BIN / --compiler to the compiler executable`;
+  return `cannot run ${compiler}: ${error.message}`;
+}
+
 export function readManifest(compiler: string, files: string[], cwd: string): ManifestLaw[] {
   const run = launch(compiler, ['--laws-manifest', ...files], {
     cwd,
@@ -58,7 +65,7 @@ export function readManifest(compiler: string, files: string[], cwd: string): Ma
     maxBuffer: 64 << 20,
     env: compilerEnv(cwd, compiler),
   });
-  if (run.error !== undefined) throw new Error(`cannot run ${compiler}: ${run.error.message}`);
+  if (run.error !== undefined) throw new Error(cannotRun(compiler, run.error));
   const text = (run.stdout ?? '').trim();
   if (text === '') throw new Error(`${compiler} --laws-manifest printed nothing: ${run.stderr ?? ''}`);
   return (JSON.parse(text) as { laws: ManifestLaw[] }).laws;
@@ -146,6 +153,6 @@ export function build(compiler: string, files: string[], cwd: string): BuildResu
     attempt += 1
   )
     run = launch(compiler, args, { cwd, encoding: 'utf8', maxBuffer: 64 << 20, env: compilerEnv(cwd, compiler) });
-  if (run.error !== undefined) throw new Error(`cannot run ${compiler}: ${run.error.message}`);
+  if (run.error !== undefined) throw new Error(cannotRun(compiler, run.error));
   return { outDir, diagnostics: `${run.stdout ?? ''}${run.stderr ?? ''}`.trim(), ok: run.status === 0 };
 }
