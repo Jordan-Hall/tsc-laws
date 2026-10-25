@@ -1,0 +1,4 @@
+{
+  "cover": ["src/**/*.ts", "src/**/*.tsx", "!src/**/*.d.ts"],
+  "compilerOptions": { "jsx": "react-jsx", "lib": ["dom", "dom.iterable", "es2022"] }
+}

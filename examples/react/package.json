@@ -1,0 +1,19 @@
+{
+  "name": "tslaws-example-react",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "check": "tslaws check",
+    "ui": "tslaws ui"
+  },
+  "dependencies": {
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "axe-core": "^4.14.0",
+    "tslaws": "^0.2.0"
+  }
+}
