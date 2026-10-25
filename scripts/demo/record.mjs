@@ -1,9 +1,10 @@
-// Records the short intro video from the real dashboard and real laws, paced by the narration. Start `tslaws ui --no-open
-// --port 4803` in examples/basic, `--port 4804` in examples/react and `--port 4805` in examples/e2e, render the voice with
-// voice.mjs into <vo>, then:
+// Records the intro video from the real dashboard, the real laws and real command output, paced by the narration. Start
+// `tslaws ui --no-open --port 4803` in examples/basic, `--port 4804` in examples/react and `--port 4805` in examples/e2e,
+// render the voice with voice.mjs into <vo>, then:
 //   node record.mjs <vo-dir> <out-dir>
 // It writes <out-dir>/video/*.webm and <out-dir>/timings.json (when each line starts, and the sound cues); mix.mjs lays the sound over it.
-// There are no captions: the screen shows the product and the voice says what matters.
+// captures/ holds the output of `tslaws check` on examples/basic, as is and after an agent edits a law. There are no captions:
+// the screen shows the product and the voice says what matters.
 import { spawnSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -67,6 +68,60 @@ const card = async (key, title, sub = []) => {
   await finishVoice();
 };
 
+const esc = (t) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+const frame = (title) => `<!doctype html><meta charset=utf-8><body style="margin:0;height:100vh;display:grid;place-items:center;background:#0f1220;font-family:system-ui,Segoe UI,sans-serif">
+  <div style="width:1180px;background:#171b2e;border-radius:14px;box-shadow:0 30px 80px #0008;overflow:hidden">
+  <div style="padding:12px 18px;background:#1f2440;display:flex;gap:8px;align-items:center"><i style="width:12px;height:12px;border-radius:50%;background:#ff5f57"></i><i style="width:12px;height:12px;border-radius:50%;background:#febc2e"></i><i style="width:12px;height:12px;border-radius:50%;background:#28c840"></i><span style="color:#8a93b8;margin-left:12px;font:15px ui-monospace,Consolas,monospace">${title}</span></div>
+  <pre id="t" style="margin:0;padding:28px 34px;min-height:380px;color:#dfe5ff;font:24px/1.55 ui-monospace,Cascadia Code,Consolas,monospace;white-space:pre-wrap"></pre></div>`;
+const show = (html) => page.evaluate((h) => (document.getElementById('t').innerHTML = h), html);
+
+/** The real law source, typed out as if written live, over the length of the line being spoken. */
+const typeCode = async (key, file, code) => {
+  await say(key);
+  await page.setContent(frame(file));
+  const step = Math.max(2500, lengths[key] * 1000 - 1800) / code.length;
+  for (let i = 1; i <= code.length; i++) {
+    const html = esc(code.slice(0, i))
+      .replace(/\b(export|law|proved)\b/g, '<b style="color:#c792ea">$1</b>')
+      .replace(/\b(number|string|boolean)\b/g, '<span style="color:#ffcb6b">$1</span>');
+    await show(`${html}<span style="background:#dfe5ff"> </span>`);
+    await page.waitForTimeout(step);
+  }
+  await finishVoice();
+};
+
+/** A terminal that types the command and prints the real output captured from running it. */
+const terminal = async (key, command, output) => {
+  await say(key);
+  await page.setContent(frame('terminal'));
+  const color = (l) =>
+    esc(l)
+      .replace(/^(PROVED)/, '<b style="color:#4ade80">$1</b>')
+      .replace(/^(FAILED|TAMPERED)/, '<b style="color:#f87171">$1</b>')
+      .replace(/^(TESTED)/, '<b style="color:#fbbf24">$1</b>');
+  let typed = '';
+  for (const ch of `$ ${command}`) {
+    typed += ch;
+    await show(esc(typed));
+    await page.waitForTimeout(45);
+  }
+  await page.waitForTimeout(400);
+  cue('click');
+  const printed = [];
+  for (const l of output) {
+    printed.push(color(l));
+    if (/^(FAILED|TAMPERED)/.test(l)) cue('fail');
+    if (/^PROVED/.test(l)) cue('pass');
+    await show(`${esc(typed)}\n${printed.join('\n')}`);
+    await page.waitForTimeout(/^ /.test(l) ? 120 : 420);
+  }
+  await finishVoice();
+};
+const capture = (name) =>
+  readFileSync(new URL(`captures/${name}`, import.meta.url), 'utf8')
+    .split(/\r?\n/)
+    .filter((l) => l && !/^\s+hint:/.test(l));
+
 const open = async (port) => {
   await page.goto(`http://127.0.0.1:${port}/`);
   await page.waitForSelector('#status');
@@ -88,25 +143,26 @@ const click = async (locator) => {
 };
 
 await card('hook', 'Done?', ['Your agent says so.']);
+await card('pain', 'Its own tests', ['Written by the agent.', 'For the agent.']);
 await card('idea', 'You write the laws', ['The agent writes the code.', 'Nothing lands until they hold.']);
+
+await typeCode(
+  'write',
+  'src/math.laws.ts',
+  'export law addCommutes(a: number, b: number) => add(a, b) === add(b, a);\n\nexport law proved addIdentity(a: number) => add(a, 0) === a;\n',
+);
 
 await open(4803);
 await page.mouse.move(700, 300);
 await say('run');
 await idle();
+await click(page.getByText('addIdentity').first());
 await finishVoice();
 await say('catch');
 await click(page.getByText('sortKeepsLength').first());
 await finishVoice();
-await say('source');
-await click(page.getByText('Source', { exact: true }).first());
-await finishVoice();
-await say('proved');
-await click(page.getByText('addIdentity').first());
-await finishVoice();
-await say('lock');
-await page.waitForTimeout(500);
-await finishVoice();
+
+await terminal('lock', 'tslaws check   # after the agent edits addIdentity', capture('tamper.txt'));
 
 await open(4804);
 await page.mouse.move(700, 300);
@@ -122,6 +178,7 @@ await click(page.locator('#run'));
 await finishVoice();
 await page.waitForTimeout(5000);
 
+await terminal('install', 'npm i -D tslaws && npx tslaws check', capture('check.txt'));
 await card('outro', 'tslaws', ['Trust the code you did not write.', 'npm i -D tslaws']);
 await page.waitForTimeout(1200);
 

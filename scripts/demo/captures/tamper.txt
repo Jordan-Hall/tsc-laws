@@ -1,0 +1,15 @@
+TAMPERED addIdentity (src/math.laws.ts:6) [lock]
+         law changed since the lock was accepted
+         hint: A law or coverage exemption differs from tsc-laws.lock. Never edit laws or the lock, and never run `tslaws accept`. Undo any change you made to laws or exemptions; if the change is intended, tell the person to review it and run `tslaws accept`.
+PROVED   addCommutes (src/math.laws.ts:4) [smt]
+PROVED   clampWithinBounds (src/math.laws.ts:8) [smt]
+FAILED   sortKeepsLength (src/math.laws.ts:14) [property]
+         regression: a previously found counterexample still fails ([[0,0]]): returned false
+         counterexample: [[0,0]]
+         reproduce with --seed 563273275
+         hint: The code breaks this law. The counterexample is [[0,0]]. Fix the code, not the law, then rerun. Reproduce with `--seed 563273275`.
+TESTED   manhattanSymmetric (src/math.laws.ts:16) [property]
+         solver gave up within 5000 ms
+         hint: Only property-tested (200 runs), not proved: the prover did not lower this law. Passing; to get a proof, restrict the code to int/bigint/boolean/string and simple control flow. More inputs: `--runs N`.
+
+5 laws: 2 proved, 0 bounded, 1 tested, 0 open, 1 failed, 1 tampered, 0 errors
