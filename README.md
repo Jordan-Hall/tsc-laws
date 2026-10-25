@@ -40,7 +40,7 @@ What it offers:
   `--json` and `--summary` give compact output with a next-action hint per result; `--watch` re-checks on save.
 - **Browser laws.** Name a file `*.browser.laws.ts` and its laws run in a real Chrome, Edge or Chromium against a live DOM,
   with any framework or none. Inputs are still generated from your types and shrunk in Node.
-- **A dashboard.** `tslaws ui` opens a Vitest-style UI: tree, filters, search, counterexamples, source, live reruns.
+- **A dashboard.** `tslaws ui` opens a dashboard: tree, filters, search, counterexamples, source, live reruns.
 - **Are the laws strong enough?** `tslaws mutate` changes your code in small ways and reports every change no law notices.
 - **Counterexamples stay fixed.** Failures are saved and replayed first on every later run.
 - **For CI and editors.** JUnit and GitHub reporters; VS Code CodeLens, diagnostics and status bar.

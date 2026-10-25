@@ -156,11 +156,11 @@ jobs:
         run: |
           gh release create "$GITHUB_REF_NAME" release/* --title "$GITHUB_REF_NAME" --generate-notes
 
-  # Publishes to npm when the repository variable NPM_PUBLISH is 'true'. Authenticate with npm trusted publishing (give
-  # each package a trusted publisher for this workflow) or an NPM_TOKEN secret. See RELEASING-LAWS.md.
+  # Publishes to npm on a release tag, using the repository secret NPM_TOKEN (Settings > Secrets and variables > Actions),
+  # or npm trusted publishing if you set that up instead. See RELEASING-LAWS.md.
   npm:
     name: npm
-    if: startsWith(github.ref, 'refs/tags/laws-v') && vars.NPM_PUBLISH == 'true'
+    if: startsWith(github.ref, 'refs/tags/laws-v')
     needs: release
     runs-on: ubuntu-24.04
     permissions:

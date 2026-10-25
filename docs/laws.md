@@ -250,7 +250,7 @@ export async law counterUiAgreesWithModel(ops: ('inc' | 'dec')[]) {
 
 ## The dashboard
 
-`tslaws ui` opens a local dashboard in the manner of Vitest's UI: a sidebar tree of files and laws with status icons, filters
+`tslaws ui` opens a local dashboard: a sidebar tree of files and laws with status icons, filters
 (All, Failed, Open, Passed), search, and a detail pane with the report (message, counterexample, a copyable reproduce command,
 the next step), the law's source with its lines highlighted, and the compiler output. It reruns on save and has a Run all button
 (`r`; `/` focuses search; `Esc` clears the selection); hovering a file shows a button that reruns just that file. When a browser law fails, the page is photographed at the shrunk counterexample (`.tslaws/screenshots/`) and the image appears in the report. `--port N` picks the port (default 51205, another if busy);

@@ -1,4 +1,4 @@
-// `tslaws ui`: a local dashboard for the laws, in the manner of Vitest's UI. A sidebar tree of files and laws with
+// `tslaws ui`: a local dashboard for the laws,. A sidebar tree of files and laws with
 // status filters and search, a detail pane (report, source, diagnostics), and live reruns when a file changes.
 // It listens on 127.0.0.1 only and offers no way to accept laws: that stays a person's act at a terminal.
 import { spawn } from 'node:child_process';
