@@ -823,3 +823,7 @@ On Windows the native build is `dist/tsc`; copy it to `tsc.exe` to run it.
 - Browser and async laws are tested, not proved.
 - Browser laws need an installed browser: Chrome, Edge or Chromium by default, or Playwright's Firefox or WebKit with `--browser`.
 - The compiler needs a native toolchain to build; the `laws-v*` release workflow publishes builds for macOS, Linux and Windows.
+
+## Intro video
+
+[docs/media/tslaws-intro.mp4](media/tslaws-intro.mp4) is a recording of the real dashboard running the real laws in `examples/basic` and `examples/react`. `scripts/demo/record.mjs` makes it again.
