@@ -826,4 +826,4 @@ On Windows the native build is `dist/tsc`; copy it to `tsc.exe` to run it.
 
 ## Intro video
 
-[docs/media/tslaws-intro.mp4](media/tslaws-intro.mp4) is a narrated recording (a Windows voice and a synthesised music bed; `scripts/demo/voice.ps1` and `mix.mjs`) of the real dashboard running the real laws in `examples/basic` and `examples/react`. `scripts/demo/record.mjs` makes it again.
+[docs/media/tslaws-intro.mp4](media/tslaws-intro.mp4) is a narrated recording (a soft Windows voice, a synthesised music bed and sound cues; `scripts/demo/voice.ps1` and `mix.mjs`) of the real dashboard running the real laws in `examples/basic` and `examples/react`. `scripts/demo/record.mjs` makes it again.
