@@ -50,30 +50,32 @@ for (const [type, source] of Object.entries(sources)) {
   });
 }
 
-// Music: four chords of eight seconds each, swelling in and out, and a quiet bell every two seconds.
+// Music: a chord every eight seconds (A minor, F, C, G), each with a soft pad, a bass note and a plucked arpeggio of its notes
+// every 0.3 seconds. It is ducked under the voice, so it is clearly there between lines and out of the way during them.
 const chords = [
-  [110, 220, 261.63, 329.63], // A minor
+  [220, 261.63, 329.63, 392], // A minor
   [174.61, 220, 261.63, 349.23], // F
-  [130.81, 196, 261.63, 329.63], // C
-  [98, 196, 246.94, 293.66], // G
+  [196, 261.63, 329.63, 392], // C
+  [196, 246.94, 293.66, 392], // G
 ];
-const pad = chords
+const bass = [55, 43.65, 65.41, 49];
+const window = (i) => `lt(mod(t+32-${8 * i},32),8)`;
+const swell = (i) => `pow(sin(PI*mod(t+32-${8 * i},32)/8),2)`;
+const music = chords
   .map((notes, i) => {
-    const u = `mod(t+32-${8 * i},32)`;
-    const tone = notes.map((f) => `sin(2*PI*${f}*t)`).join('+');
-    return `if(lt(${u},8),pow(sin(PI*${u}/8),2),0)*(${tone})/4`;
+    const pad = notes.map((f) => `sin(2*PI*${f}*t)`).join('+');
+    const pluck = notes.map((f, j) => `eq(mod(floor(t/0.3),4),${j})*sin(2*PI*${f * 2}*t)`).join('+');
+    return `${window(i)}*(${swell(i)}*(0.07*(${pad})+0.2*sin(2*PI*${bass[i]}*t))+0.09*exp(-9*mod(t,0.3))*(${pluck}))`;
   })
   .join('+');
-const step = 'mod(floor(t/2),4)';
-const bellPitch = `if(eq(${step},0),659.25,if(eq(${step},1),783.99,if(eq(${step},2),880,783.99)))`;
-const bell = `sin(2*PI*${bellPitch}*t)*exp(-3*mod(t,2))*0.25`;
 
 const filter = [
   ...voice,
-  `${keys.map((_, i) => `[v${i}]`).join('')}amix=inputs=${keys.length}:normalize=0,lowpass=f=7500,aecho=0.8:0.55:70:0.18[vo]`,
-  `[vo]loudnorm=I=-16:TP=-2:LRA=7[von]`,
-  `aevalsrc='(${pad})*0.05+(${bell})*0.012':s=44100:d=${total.toFixed(2)}[m0]`,
-  `[m0]lowpass=f=2000,afade=t=in:d=3,afade=t=out:st=${(total - 4).toFixed(2)}:d=4[music]`,
+  `${keys.map((_, i) => `[v${i}]`).join('')}amix=inputs=${keys.length}:normalize=0,lowpass=f=9000[vo]`,
+  `[vo]loudnorm=I=-16:TP=-2:LRA=7,asplit=2[von][key]`,
+  `aevalsrc='${music}':s=44100:d=${total.toFixed(2)}[m0]`,
+  `[m0]lowpass=f=2600,afade=t=in:d=2,afade=t=out:st=${(total - 4).toFixed(2)}:d=4[m1]`,
+  `[m1][key]sidechaincompress=threshold=0.015:ratio=5:attack=30:release=500:makeup=1[music]`,
   ...cueFilters,
   `[von][music]${cueOutputs.join('')}amix=inputs=${2 + cueOutputs.length}:normalize=0:weights=${['1', '1', ...cueOutputs.map(() => '0.8')].join(' ')},alimiter=limit=0.95[a]`,
 ].join(';');
