@@ -187,6 +187,54 @@ instead. Install Playwright's build with `npx playwright install firefox` (or `w
 executable of that engine; with neither, the run fails naming that command. Chromium still uses `TSLAWS_BROWSER` or an installed
 Chrome, Edge or Chromium.
 
+### Frameworks
+
+Any DOM library works: the browser bundle resolves bare imports (`react`, `react/jsx-runtime`, a UI library) from your
+project's `node_modules`, and `.tsx` sources can be covered. The compiler runs with fixed flags; `tslaws.json` can change a
+few of them with `compilerOptions`:
+
+```json
+{
+  "cover": ["src/**/*.ts", "src/**/*.tsx"],
+  "compilerOptions": { "jsx": "react-jsx", "lib": ["es2022", "dom"] }
+}
+```
+
+Supported keys: `jsx` (`react`, `react-jsx`, `react-jsxdev`, `preserve`), `jsxFactory`, `jsxFragmentFactory`,
+`jsxImportSource`, `experimentalDecorators`, `emitDecoratorMetadata`, `useDefineForClassFields`, `strict`,
+`noUncheckedIndexedAccess`, `exactOptionalPropertyTypes` (booleans), `lib` and `types` (arrays of strings). Values replace the
+fixed defaults where they clash (`strict`). An unknown key is an error that lists these; nothing else reaches the compiler.
+`jsx: "preserve"` type-checks but emits `.jsx`, which the runner cannot load, so use `react` or `react-jsx` for laws.
+
+Laws stay in `*.browser.laws.ts` and import components from `.tsx` files; an exported function component that no law
+reaches is `uncovered` like any other function.
+
+React:
+
+```json
+{ "cover": ["src/**/*.tsx"], "compilerOptions": { "jsx": "react-jsx", "types": [] } }
+```
+
+```ts
+import { mount, click, settle } from 'tslaws/browser';
+import { createElement } from 'react';
+import { createRoot } from 'react-dom/client';
+import { Counter } from './Counter';
+export async law countsClicks(n: int) {
+  assume(n >= 0 && n <= 5);
+  const el = mount((root) => { const r = createRoot(root); r.render(createElement(Counter)); return () => r.unmount(); });
+  // ... click, await settle(), read el.textContent
+}
+```
+
+The law file is `.ts`, so it calls `createElement` rather than writing JSX; `Counter.tsx` can use JSX. Angular:
+
+```json
+{ "cover": ["src/**/*.ts"], "compilerOptions": { "experimentalDecorators": true, "useDefineForClassFields": false } }
+```
+
+Bootstrap the component inside `mount(...)` as you do in your app; decorators and metadata are emitted by the compiler.
+
 ## Stateful laws
 
 Stores, components and caches are tested by driving them with a sequence of operations and comparing them with a simple

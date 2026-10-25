@@ -10,6 +10,8 @@ import ts from 'typescript';
 
 export interface CoverageConfig {
   cover?: string[];
+  /** Compiler options the runner passes to tsc; see `compilerFlags` in compile.ts for the supported keys. */
+  compilerOptions?: Record<string, unknown>;
 }
 
 export interface Uncovered {
@@ -67,7 +69,7 @@ export function coverFiles(cwd: string, globs: string[]): string[] {
       if (statSync(full).isDirectory()) walk(full);
       else {
         const file = relative(cwd, full).replaceAll('\\', '/');
-        if (!/\.(ts|mts|cts)$/.test(file) || /\.d\.(ts|mts|cts)$/.test(file) || /\.laws\.ts$/.test(file)) continue;
+        if (!/\.(ts|tsx|mts|cts)$/.test(file) || /\.d\.(ts|mts|cts)$/.test(file) || /\.laws\.ts$/.test(file)) continue;
         if (include.some((r) => r.test(file)) && !exclude.some((r) => r.test(file))) found.push(file);
       }
     }
@@ -144,10 +146,13 @@ export interface CoverageInput {
   program: ts.Program;
 }
 
-const jsOf = (outDir: string, file: string): string => join(outDir, file.replace(/\.(ts|mts|cts)$/, '.js'));
-const dtsOf = (outDir: string, file: string): string => join(outDir, file.replace(/\.(ts|mts|cts)$/, '.d.ts'));
-const sourceOf = (outDir: string, cwd: string, js: string): string =>
-  relative(outDir, js).replaceAll('\\', '/').replace(/\.js$/, '.ts') || relative(cwd, js);
+const jsOf = (outDir: string, file: string): string => join(outDir, file.replace(/\.(ts|tsx|mts|cts)$/, '.js'));
+const dtsOf = (outDir: string, file: string): string => join(outDir, file.replace(/\.(ts|tsx|mts|cts)$/, '.d.ts'));
+const sourceOf = (outDir: string, cwd: string, js: string): string => {
+  const base = relative(outDir, js).replaceAll('\\', '/').replace(/\.js$/, '');
+  if (base === '') return relative(cwd, js);
+  return existsSync(join(cwd, `${base}.tsx`)) && !existsSync(join(cwd, `${base}.ts`)) ? `${base}.tsx` : `${base}.ts`;
+};
 
 export function analyzeCoverage(input: CoverageInput): CoverageReport {
   const modules = new Map<string, Module>();

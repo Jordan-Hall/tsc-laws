@@ -2,7 +2,6 @@
 // each input is sent to a page where the compiled law and the code it checks run against a live DOM.
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
-import { createRequire } from 'node:module';
 import { delimiter, join } from 'node:path';
 import { build as bundleWith, type Plugin } from 'esbuild';
 import { chromium, firefox, webkit, type Browser, type BrowserType, type Page } from 'playwright-core';
@@ -133,18 +132,20 @@ window.__runLaw = async (name, args, keep, pause) => {
   }
 };`;
 
-// axe-core is an optional peer dependency: bundle the project's copy when it has one, else leave the import for the page
-// to fail on (a11y() turns that into a clear message), so projects without it still bundle.
-function axePlugin(cwd: string): Plugin {
+// Bare imports resolve from the project's own node_modules first (a JSX runtime, a UI library, axe-core), then the
+// usual way. axe-core is an optional peer dependency: without a copy the import stays for the page to fail on (a11y()
+// turns that into a clear message), so projects without it still bundle.
+function projectModulesPlugin(cwd: string): Plugin {
   return {
-    name: 'tslaws-axe-core',
+    name: 'tslaws-project-modules',
     setup(build) {
-      build.onResolve({ filter: /^axe-core$/ }, () => {
-        try {
-          return { path: createRequire(join(cwd, 'package.json')).resolve('axe-core') };
-        } catch {
-          return { path: 'axe-core', external: true };
-        }
+      build.onResolve({ filter: /^[^./]/ }, async (args) => {
+        if (args.pluginData === 'tslaws' || args.kind === 'entry-point' || /^[a-zA-Z]:/.test(args.path))
+          return undefined;
+        const found = await build.resolve(args.path, { kind: args.kind, resolveDir: cwd, pluginData: 'tslaws' });
+        if (found.errors.length === 0)
+          return { path: found.path, external: found.external, sideEffects: found.sideEffects };
+        return args.path === 'axe-core' ? { path: 'axe-core', external: true } : undefined;
       });
     },
   };
@@ -152,7 +153,7 @@ function axePlugin(cwd: string): Plugin {
 
 async function bundleOf(jsFile: string, cwd: string): Promise<string> {
   const result = await bundleWith({
-    plugins: [axePlugin(cwd)],
+    plugins: [projectModulesPlugin(cwd)],
     entryPoints: [jsFile],
     bundle: true,
     write: false,
@@ -162,7 +163,7 @@ async function bundleOf(jsFile: string, cwd: string): Promise<string> {
     target: 'es2022',
     absWorkingDir: cwd,
     logLevel: 'silent',
-    define: { 'process.env.NODE_ENV': '"development"' },
+    define: { 'process.env.NODE_ENV': '"development"', global: 'globalThis' },
   });
   return result.outputFiles[0]!.text;
 }

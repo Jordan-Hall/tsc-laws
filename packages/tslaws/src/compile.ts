@@ -1,6 +1,7 @@
 import { spawnSync, type SpawnSyncOptionsWithStringEncoding, type SpawnSyncReturns } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { readConfig } from './coverage.ts';
 import type { ManifestLaw } from './types.ts';
 
 export interface BuildResult {
@@ -63,6 +64,48 @@ export function readManifest(compiler: string, files: string[], cwd: string): Ma
   return (JSON.parse(text) as { laws: ManifestLaw[] }).laws;
 }
 
+const stringOptions = ['jsx', 'jsxFactory', 'jsxFragmentFactory', 'jsxImportSource'];
+const booleanOptions = [
+  'experimentalDecorators',
+  'emitDecoratorMetadata',
+  'useDefineForClassFields',
+  'strict',
+  'noUncheckedIndexedAccess',
+  'exactOptionalPropertyTypes',
+];
+const listOptions = ['lib', 'types'];
+const jsxModes = ['react', 'react-jsx', 'react-jsxdev', 'preserve'];
+const supportedOptions = [...stringOptions, ...booleanOptions, ...listOptions];
+
+/**
+ * The compiler flags for the `compilerOptions` of tslaws.json. Only the supported keys pass; anything else is an
+ * error rather than an arbitrary flag handed to the compiler. `strict` is the one default these can override.
+ */
+export function compilerFlags(options: Record<string, unknown> | undefined): string[] {
+  const flags: string[] = [];
+  for (const [key, value] of Object.entries(options ?? {})) {
+    if (!supportedOptions.includes(key))
+      throw new Error(
+        `tslaws.json compilerOptions: unsupported option "${key}"; supported options are ${supportedOptions.join(', ')}`,
+      );
+    const bad = (expected: string): Error =>
+      new Error(`tslaws.json compilerOptions: "${key}" must be ${expected}, got ${JSON.stringify(value)}`);
+    if (stringOptions.includes(key)) {
+      if (typeof value !== 'string' || value === '') throw bad('a string');
+      if (key === 'jsx' && !jsxModes.includes(value)) throw bad(`one of ${jsxModes.join(', ')}`);
+      flags.push(`--${key}`, value);
+    } else if (booleanOptions.includes(key)) {
+      if (typeof value !== 'boolean') throw bad('true or false');
+      flags.push(`--${key}`);
+      if (!value) flags.push('false');
+    } else {
+      if (!Array.isArray(value) || value.some((v) => typeof v !== 'string')) throw bad('an array of strings');
+      flags.push(`--${key}`, value.join(','));
+    }
+  }
+  return flags;
+}
+
 /** Compiles `files` to CommonJS plus declarations in `.tslaws/out` under `cwd`, so `node_modules` still resolves. */
 export function build(compiler: string, files: string[], cwd: string): BuildResult {
   const outDir = join(cwd, '.tslaws', 'out');
@@ -70,6 +113,7 @@ export function build(compiler: string, files: string[], cwd: string): BuildResu
   mkdirSync(outDir, { recursive: true });
   // The output is CommonJS whatever the project's own package.json says.
   writeFileSync(join(outDir, 'package.json'), JSON.stringify({ type: 'commonjs' }));
+  const extra = compilerFlags(readConfig(cwd).compilerOptions);
   const args = [
     '--ignoreConfig',
     '--target',
@@ -78,7 +122,7 @@ export function build(compiler: string, files: string[], cwd: string): BuildResu
     'commonjs',
     '--moduleResolution',
     'bundler',
-    '--strict',
+    ...(extra.includes('--strict') ? [] : ['--strict']),
     '--skipLibCheck',
     '--esModuleInterop',
     '--declaration',
@@ -86,6 +130,7 @@ export function build(compiler: string, files: string[], cwd: string): BuildResu
     cwd,
     '--outDir',
     outDir,
+    ...extra,
     ...files,
   ];
   let run = launch(compiler, args, { cwd, encoding: 'utf8', maxBuffer: 64 << 20, env: compilerEnv(cwd, compiler) });

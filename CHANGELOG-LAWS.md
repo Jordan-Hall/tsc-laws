@@ -4,6 +4,7 @@ The upstream tsc-ts changelog is CHANGELOG.md. Releases of tsc-laws are tagged `
 
 ## Unreleased
 
+- **Frameworks:** `tslaws.json` `compilerOptions` (jsx, jsxFactory, jsxFragmentFactory, jsxImportSource, experimentalDecorators, emitDecoratorMetadata, useDefineForClassFields, lib, types, strict, noUncheckedIndexedAccess, exactOptionalPropertyTypes; unknown keys are an error), `.tsx` covered sources, and browser bundles that resolve bare imports from the project's `node_modules` (with `global` defined as `globalThis`).
 - **`tslaws ui`:** per-law durations and a list of the slowest laws, a history of the last 20 runs, `flaky` detection with a Flaky filter, and a rerun button for a single law (`only` in `CheckOptions`; `POST /api/run?file=&law=`).
 - **`law` declarations:** a contextual statement, `law [proved] name(params) { … }` or `=> expr;`, parsed as a flagged function
   declaration; `tsc-ts --laws-manifest` lists them.

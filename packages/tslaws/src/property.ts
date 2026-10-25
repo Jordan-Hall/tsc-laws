@@ -29,11 +29,11 @@ export function declarationFiles(outDir: string): string[] {
 }
 
 export function dtsPath(outDir: string, file: string): string {
-  return join(outDir, file.replace(/\.(ts|mts|cts)$/, '.d.ts'));
+  return join(outDir, file.replace(/\.(ts|tsx|mts|cts)$/, '.d.ts'));
 }
 
 export function jsPath(outDir: string, file: string): string {
-  return join(outDir, file.replace(/\.(ts|mts|cts)$/, '.js'));
+  return join(outDir, file.replace(/\.(ts|tsx|mts|cts)$/, '.js'));
 }
 
 /** What the prover models of `type`: numbers, `int`s, bigints, strings, booleans, arrays and records of them. */

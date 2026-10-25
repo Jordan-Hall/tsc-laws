@@ -140,6 +140,9 @@ any framework or none: `mount(el => render(el))` accepts whatever renders into a
 `a11y` and `accessible` audit a mounted component with the optional `axe-core` peer dependency, and `--browser firefox|webkit` picks another engine (`npx playwright install firefox`).
 Browser laws are `tested`, never `proved`. See [docs/laws.md](../../docs/laws.md#browser-laws).
 
+- **Frameworks:** `tslaws.json` `compilerOptions` (`jsx`, `jsxFactory`, `jsxFragmentFactory`, `jsxImportSource`, `experimentalDecorators`,
+  `emitDecoratorMetadata`, `useDefineForClassFields`, `lib`, `types`, `strict`, ...) and `.tsx` sources let React, Angular and any DOM
+  library be tested. See [docs/laws.md](../../docs/laws.md#frameworks).
 - **Stateful laws:** a law over `ops: Op[]` (a union type) can use `runModel` or `runModelAsync` to apply the operations to the
   real thing and to a simple model and compare them after every step. Failing sequences shrink to the shortest one. See
   [docs/laws.md](../../docs/laws.md#stateful-laws).
