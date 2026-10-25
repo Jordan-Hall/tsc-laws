@@ -2,6 +2,10 @@
 
 The upstream tsc-ts changelog is CHANGELOG.md. Releases of tsc-laws are tagged `laws-v<version>` (see RELEASING-LAWS.md).
 
+## 0.3.1
+
+- **Release:** the npm publish step passed compiler tarballs without `./`, which npm reads as a GitHub repository; fixed. Nothing else changed from 0.3.0.
+
 ## 0.3.0
 
 - **Prover:** exact integer division (`Math.floor/ceil/trunc/round(a / b)`, `(a / b) | 0`, `a % b` over `int`, with a provably non-zero divisor), module-level constants (`const NAME`, `exports.NAME`, `module_1.NAME`), `Number.isFinite/isInteger/isNaN`, `Math.sign` and `Math.min/max` with any number of arguments now lower, so laws over pricing-style code are `proved` instead of `tested`.

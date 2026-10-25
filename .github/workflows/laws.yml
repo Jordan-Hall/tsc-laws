@@ -202,10 +202,11 @@ jobs:
         run: |
           if [ -n "$NPM_TOKEN" ]; then echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" >> ~/.npmrc; fi
           # The compilers first, so tslaws never points at a package that is not there yet.
-          for package in compilers/*.tgz; do
-            npm publish "$package" --access public --provenance
+          # "./" matters: npm reads a bare "compilers/x.tgz" as the GitHub repository compilers/x.tgz.
+          for package in ./compilers/*.tgz; do
+            npm publish "$package" --access public --provenance --registry https://registry.npmjs.org
           done
-          npm publish packages/tslaws --access public --provenance
+          npm publish ./packages/tslaws --access public --provenance --registry https://registry.npmjs.org
 
   # Publishes the extension to the VS Code Marketplace and Open VSX when the repository variable VSCODE_PUBLISH is 'true'
   # and the matching secret exists: VSCE_PAT (Marketplace) and/or OVSX_PAT (Open VSX). See RELEASING-LAWS.md.
