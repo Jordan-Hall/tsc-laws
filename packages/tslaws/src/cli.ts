@@ -12,7 +12,9 @@ import { serveMcp } from './mcp.ts';
 import { promoteFiles } from './promote.ts';
 import { clearCorpus, listCorpus } from './regressions.ts';
 import { reporterNames, reportAs } from './reporters.ts';
+import { readConfig } from './coverage.ts';
 import { mutate, renderMutation } from './mutate.ts';
+import { mutateDefaults, resolveSettings } from './settings.ts';
 import { serveUi } from './ui.ts';
 import { writeLock } from './lock.ts';
 import type { CheckOptions, LawResult } from './types.ts';
@@ -20,7 +22,7 @@ import type { CheckOptions, LawResult } from './types.ts';
 const usage = `tslaws init [--force]       scaffold tslaws.json, .gitignore, AGENTS.md, Claude Code hooks and a starter law (never writes the lock)
 tslaws check [files...] [--reporter text|json|junit|github] [--json] [--summary] [--watch] [--runs N] [--seed N] [--no-prove] [--no-regressions] [--bound N] [--proof-timeout MS] [--property-timeout MS] [--proposed] [--compiler PATH] [--browser chromium|firefox|webkit]
 tslaws ui [files...] [--port N] [--no-open]   open a dashboard of the laws in a browser: tree, filters, search, source, live reruns on save
-tslaws mutate [files...] [--max N] [--seed N] [--json]   mutation-test the laws: mutate covered code, report mutants no law kills
+tslaws mutate [files...] [--max N] [--seed N] [--runs N] [--bound N] [--proof-timeout MS] [--property-timeout MS] [--browser ENGINE] [--json]   mutation-test the laws: mutate covered code, report mutants no law kills
 tslaws regressions [list|clear]   show or delete the stored counterexamples (.tslaws/regressions); check replays them first, --no-regressions skips them
 tslaws accept [files...]     record the current laws in tsc-laws.lock (people only: needs a terminal)
 tslaws promote [file] [--all]   move proposed laws (*.proposed.laws.ts) into the accepted *.laws.ts, asking per law (people only: needs a terminal; run accept afterwards)
@@ -140,19 +142,20 @@ function render(report: CheckReport, flags: Map<string, string | true>): string 
 }
 
 function options(cwd: string, flags: Map<string, string | true>, chosen: string[]): CheckOptions {
+  const settings = resolveSettings(flags, readConfig(cwd));
   return {
     files: chosen,
     cwd,
-    runs: Number(flags.get('runs') ?? 200),
+    runs: settings.runs,
     seed: flags.has('seed') ? Number(flags.get('seed')) : undefined,
     compiler: String(flags.get('compiler') ?? process.env.TSC_LAWS_BIN ?? bundledCompiler() ?? 'tsc-laws'),
     lockFile: join(cwd, 'tsc-laws.lock'),
     noProve: flags.has('no-prove'),
     noRegressions: flags.has('no-regressions'),
-    bound: Number(flags.get('bound') ?? 4),
-    proofTimeoutMs: Number(flags.get('proof-timeout') ?? 5000),
-    propertyTimeoutMs: Number(flags.get('property-timeout') ?? 30000),
-    explicit: (['runs', 'property-timeout'] as const).filter((name) => flags.has(name)),
+    bound: settings.bound,
+    proofTimeoutMs: settings.proofTimeoutMs,
+    propertyTimeoutMs: settings.propertyTimeoutMs,
+    explicit: settings.explicit,
     browser: flags.has('browser')
       ? (resolveEngine(String(flags.get('browser'))) as CheckOptions['browser'])
       : undefined,
@@ -320,9 +323,16 @@ export async function main(args: string[]): Promise<number> {
       process.stderr.write('no laws files found (looking for *.laws.ts)\n');
       return 1;
     }
+    const settings = resolveSettings(flags, readConfig(cwd), mutateDefaults);
     const report = await mutate({
       cwd,
       lawFiles: chosen,
+      lawsNamed: files.some((f) => f.endsWith('.laws.ts')),
+      runs: settings.runs,
+      bound: settings.bound,
+      proofTimeoutMs: settings.proofTimeoutMs,
+      propertyTimeoutMs: settings.propertyTimeoutMs,
+      browser: options(cwd, flags, chosen).browser,
       targets: files.filter((f) => !f.endsWith('.laws.ts')).map((f) => relative(cwd, resolve(cwd, f))),
       compiler: options(cwd, flags, chosen).compiler,
       max: Number(flags.get('max') ?? 50),
