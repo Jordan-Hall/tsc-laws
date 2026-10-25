@@ -1,0 +1,8 @@
+FAILED   totalNeverNegative (src/cart.laws.ts:6) [property]
+         returned false
+         counterexample: [0,1]
+         reproduce with --seed 141076374
+         hint: The code breaks this law. The counterexample is [0,1]. Fix the code, not the law, then rerun. Reproduce with `--seed 141076374`.
+PROVED   couponNeverRaisesTheTotal (src/cart.laws.ts:12) [smt]
+
+2 laws: 1 proved, 0 bounded, 0 tested, 0 open, 1 failed, 0 tampered, 0 errors

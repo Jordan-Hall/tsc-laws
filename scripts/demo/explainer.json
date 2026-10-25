@@ -1,0 +1,16 @@
+{
+  "title": "Why agents need laws.",
+  "stack": "Your agent just wrote three thousand lines of code.",
+  "read": "You're not going to read all of it. So how do you know it did what you asked?",
+  "rules": "You could put the rules in a file. But that's a request, not a guarantee.",
+  "tests": "You could trust its tests. But it wrote those too. And tests only check the cases someone thought of.",
+  "law": "T S laws is a different answer. You write the rule down, once, as a law. In plain TypeScript.",
+  "every": "Not for a few inputs. Hundreds of generated ones, hunting for the one that breaks it. And where the maths allows, proved for every input.",
+  "gate": "The agent writes the code. T S laws checks every change against your laws. If one fails, the change doesn't go in.",
+  "story1": "Say you ask for a coupon code at checkout. The agent writes it. The tests it wrote pass.",
+  "story2": "But a coupon bigger than the basket gives a negative total. Your law says a total is never below zero. The check fails, and shows the smallest case: an empty basket, and a coupon of one.",
+  "story3": "The agent fixes the code, not your law. Now the law is proved, for every price and every coupon.",
+  "lock": "And it can't water the law down. Laws are locked. Only you can accept a change to one.",
+  "where": "It runs in your terminal, in C I, in your editor, and as a Claude Code hook. For functions, for components in a real browser, and for whole apps.",
+  "outro": "T S laws. Trust the code you did not write."
+}

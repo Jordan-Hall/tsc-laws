@@ -1,0 +1,4 @@
+PROVED   totalNeverNegative (src/cart.laws.ts:6) [smt]
+PROVED   couponNeverRaisesTheTotal (src/cart.laws.ts:12) [smt]
+
+2 laws: 2 proved, 0 bounded, 0 tested, 0 open, 0 failed, 0 tampered, 0 errors

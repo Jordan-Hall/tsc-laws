@@ -1,0 +1,6 @@
+TAMPERED totalNeverNegative (src/cart.laws.ts:6) [lock]
+         law changed since the lock was accepted
+         hint: A law or coverage exemption differs from tsc-laws.lock. Never edit laws or the lock, and never run `tslaws accept`. Undo any change you made to laws or exemptions; if the change is intended, tell the person to review it and run `tslaws accept`.
+PROVED   couponNeverRaisesTheTotal (src/cart.laws.ts:12) [smt]
+
+2 laws: 1 proved, 0 bounded, 0 tested, 0 open, 0 failed, 1 tampered, 0 errors
