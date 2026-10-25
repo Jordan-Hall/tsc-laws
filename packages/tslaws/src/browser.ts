@@ -6,6 +6,7 @@ import { delimiter, join } from 'node:path';
 import { build as bundleWith, type Plugin } from 'esbuild';
 import { chromium, firefox, webkit, type Browser, type BrowserType, type Page } from 'playwright-core';
 import type * as fc from 'fast-check';
+import { toWire } from './generators.ts';
 import { runProperty, summarise, type PropertyOutcome } from './property.ts';
 import type { CheckOptions } from './types.ts';
 
@@ -86,7 +87,7 @@ export function engineExecutable(engine: BrowserEngine, env: NodeJS.ProcessEnv =
 
 const browsers = new Map<BrowserEngine, Promise<Browser>>();
 
-function launch(engine: BrowserEngine): Promise<Browser> {
+export function launch(engine: BrowserEngine): Promise<Browser> {
   let open = browsers.get(engine);
   if (open === undefined) {
     const type: BrowserType = { chromium, firefox, webkit }[engine];
@@ -116,9 +117,27 @@ window.__runLaw = async (name, args, keep, pause) => {
     for (const undo of (window.__tslawsCleanup || []).splice(0)) { try { undo(); } catch (e) {} }
     document.body.innerHTML = '';
   };
+  // Functions cannot cross into the page: generated ones arrive as { $tslawsFn: samples } and are rebuilt here.
+  const revive = (v) => {
+    if (Array.isArray(v)) return v.map(revive);
+    if (v && typeof v === 'object') {
+      if (Array.isArray(v.$tslawsFn)) {
+        const samples = v.$tslawsFn;
+        return (...a) => {
+          let key = '';
+          try { key = JSON.stringify(a) || ''; } catch (e) {}
+          let h = 5381;
+          for (let i = 0; i < key.length; i++) h = (Math.imul(h, 33) + key.charCodeAt(i)) | 0;
+          return samples[(h >>> 0) % samples.length];
+        };
+      }
+      return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, revive(x)]));
+    }
+    return v;
+  };
   clean();
   try {
-    const result = await window.__lawModule[name](...args);
+    const result = await window.__lawModule[name](...revive(args));
     return { ok: result !== false };
   } catch (error) {
     return { error: { name: error && error.name, message: error && error.message ? error.message : String(error) } };
@@ -195,7 +214,7 @@ async function capture(
           input as unknown[],
           true,
         ),
-      [law.name, args] as const,
+      [law.name, toWire(args)] as const,
     );
     const relative = `.tslaws/screenshots/${law.name.replace(/[^\w-]/g, '_')}.png`;
     mkdirSync(join(options.cwd, '.tslaws/screenshots'), { recursive: true });
@@ -248,7 +267,7 @@ export async function runBrowserLaw(law: BrowserLaw, options: CheckOptions): Pro
               __runLaw: (n: string, a: unknown[], keep: boolean, pause: number) => Promise<unknown>;
             }
           ).__runLaw(name as string, input as unknown[], false, pause as number),
-        [law.name, args, calls++ < 12 ? (options.browserPauseMs ?? 0) : 0] as const,
+        [law.name, toWire(args), calls++ < 12 ? (options.browserPauseMs ?? 0) : 0] as const,
       )) as PageOutcome;
       if (outcome.error !== undefined) {
         const error = new Error(outcome.error.message);
