@@ -1,0 +1,9 @@
+{
+  "cover": ["src/**/*.ts", "!src/**/*.d.ts"],
+  "compilerOptions": {
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": false,
+    "useDefineForClassFields": false,
+    "lib": ["dom", "dom.iterable", "es2022"]
+  }
+}
