@@ -72,6 +72,8 @@ const booleanOptions = [
   'strict',
   'noUncheckedIndexedAccess',
   'exactOptionalPropertyTypes',
+  'allowJs',
+  'checkJs',
 ];
 const listOptions = ['lib', 'types'];
 const jsxModes = ['react', 'react-jsx', 'react-jsxdev', 'preserve'];

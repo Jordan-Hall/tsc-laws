@@ -202,7 +202,7 @@ few of them with `compilerOptions`:
 
 Supported keys: `jsx` (`react`, `react-jsx`, `react-jsxdev`, `preserve`), `jsxFactory`, `jsxFragmentFactory`,
 `jsxImportSource`, `experimentalDecorators`, `emitDecoratorMetadata`, `useDefineForClassFields`, `strict`,
-`noUncheckedIndexedAccess`, `exactOptionalPropertyTypes` (booleans), `lib` and `types` (arrays of strings). Values replace the
+`noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `allowJs`, `checkJs` (booleans), `lib` and `types` (arrays of strings). Values replace the
 fixed defaults where they clash (`strict`). An unknown key is an error that lists these; nothing else reaches the compiler.
 `jsx: "preserve"` type-checks but emits `.jsx`, which the runner cannot load, so use `react` or `react-jsx` for laws.
 
@@ -301,6 +301,12 @@ export async law counterUiAgreesWithModel(ops: ('inc' | 'dec')[]) {
 `tslaws ui` opens a local dashboard: a sidebar tree of files and laws with status icons, filters
 (All, Failed, Open, Passed), search, and a detail pane with the report (message, counterexample, a copyable reproduce command,
 the next step), the law's source with its lines highlighted, and the compiler output. It reruns on save and has a Run all button
+Plain JavaScript: set `allowJs` (and `checkJs` to type-check it). The compiler then emits the `.js` sources and a `.d.ts` for
+each, so laws, still written in TypeScript, import `.js` modules with typed generators; JSDoc `@param`, `@returns` and
+`@typedef` supply the types. `cover` globs match `.js` files only when `allowJs` is true (declarations, laws and
+`node_modules` stay excluded), and the prover reads the emitted JavaScript, so JS sources can be proved like TypeScript ones.
+Without `allowJs`, importing a `.js` file from a law is a compile error. See `examples/vanilla-js`.
+
 (`r`; `/` focuses search; `Esc` clears the selection); hovering a file shows a button that reruns just that file. When a browser law fails, the page is photographed at the shrunk counterexample (`.tslaws/screenshots/`) and the image appears in the report. `--port N` picks the port (default 51205, another if busy);
 `--no-open` keeps it from opening a browser.
 

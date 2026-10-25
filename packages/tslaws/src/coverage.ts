@@ -65,11 +65,14 @@ export function coverFiles(cwd: string, globs: string[]): string[] {
   const walk = (dir: string): void => {
     for (const entry of readdirSync(dir)) {
       if (entry === 'node_modules' || entry === '.tslaws' || entry === '.git') continue;
+  // Plain JavaScript sources are covered only when the project compiles them (`allowJs`).
+  const js = readConfig(cwd).compilerOptions?.allowJs === true;
       const full = join(dir, entry);
       if (statSync(full).isDirectory()) walk(full);
       else {
         const file = relative(cwd, full).replaceAll('\\', '/');
-        if (!/\.(ts|tsx|mts|cts)$/.test(file) || /\.d\.(ts|mts|cts)$/.test(file) || /\.laws\.ts$/.test(file)) continue;
+        if (!(js ? /\.(ts|tsx|mts|cts|js)$/ : /\.(ts|tsx|mts|cts)$/).test(file)) continue;
+        if (/\.d\.(ts|mts|cts)$/.test(file) || /\.laws\.ts$/.test(file)) continue;
         if (include.some((r) => r.test(file)) && !exclude.some((r) => r.test(file))) found.push(file);
       }
     }
@@ -147,11 +150,14 @@ export interface CoverageInput {
 }
 
 const jsOf = (outDir: string, file: string): string => join(outDir, file.replace(/\.(ts|tsx|mts|cts)$/, '.js'));
-const dtsOf = (outDir: string, file: string): string => join(outDir, file.replace(/\.(ts|tsx|mts|cts)$/, '.d.ts'));
+const dtsOf = (outDir: string, file: string): string => join(outDir, file.replace(/\.(ts|tsx|mts|cts|js)$/, '.d.ts'));
+/** The project source behind an emitted module: TypeScript, JSX or, with `allowJs`, JavaScript. */
 const sourceOf = (outDir: string, cwd: string, js: string): string => {
-  const base = relative(outDir, js).replaceAll('\\', '/').replace(/\.js$/, '');
-  if (base === '') return relative(cwd, js);
-  return existsSync(join(cwd, `${base}.tsx`)) && !existsSync(join(cwd, `${base}.ts`)) ? `${base}.tsx` : `${base}.ts`;
+  const rel = relative(outDir, js).replaceAll('\\', '/');
+  if (rel === '') return relative(cwd, js);
+  const base = rel.replace(/\.js$/, '');
+  const candidates = [`${base}.ts`, `${base}.tsx`, `${base}.js`];
+  return candidates.find((c) => existsSync(join(cwd, c))) ?? candidates[0]!;
 };
 
 export function analyzeCoverage(input: CoverageInput): CoverageReport {

@@ -210,5 +210,50 @@ describe(
       });
       await assert.rejects(check(opts, true), /unsupported option "outFile".*jsxFactory.*experimentalDecorators/s);
     });
+
+    // A plain JavaScript module with JSDoc types, and a law (in TypeScript) that calls one of its two functions.
+    const plainJs = [
+      '/** @param {number} n @returns {number} */',
+      'export function double(n) { return n * 2; }',
+      '/** @param {number} n @returns {number} */',
+      'export function spare(n) { return n + 1; }',
+      '',
+    ].join('\n');
+    const plainJsLaws = [
+      "import { mount } from 'tslaws/browser';",
+      "import { double } from './util.js';",
+      'export async law doubleIsEven(n: number) {',
+      '  return mount().isConnected && double(n) === n * 2;',
+      '}',
+      '',
+    ].join('\n');
+
+    it('tests a plain JavaScript module with allowJs and reports its unreached function as uncovered', async () => {
+      const opts = project('allow-js', {
+        'tslaws.json': json({ cover: ['src/**/*.js'], compilerOptions: { allowJs: true, checkJs: true } }),
+        'src/util.js': plainJs,
+        'src/ui.browser.laws.ts': plainJsLaws,
+      });
+      const { results, compileDiagnostics } = await check(opts, true);
+      assert.equal(compileDiagnostics, '');
+      const r = byName(results, 'doubleIsEven');
+      assert.equal(r.status, 'tested', JSON.stringify(r));
+      assert.deepEqual(
+        results.filter((x) => x.status === 'uncovered').map((x) => `${x.file}:${x.name}`),
+        ['src/util.js:spare'],
+        JSON.stringify(results),
+      );
+    });
+
+    it('fails to compile a law that imports a JavaScript module without allowJs', async () => {
+      const opts = project('no-allow-js', {
+        'tslaws.json': json({ cover: ['src/**/*.js'] }),
+        'src/util.js': plainJs,
+        'src/ui.browser.laws.ts': plainJsLaws,
+      });
+      const { compileDiagnostics, compileOk } = await check(opts, true);
+      assert.match(compileDiagnostics, /util\.js/);
+      assert.equal(compileOk, false);
+    });
   },
 );
