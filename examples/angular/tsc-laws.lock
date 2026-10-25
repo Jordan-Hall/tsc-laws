@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "laws": {
+    "src/a11y.browser.laws.ts::shopHasNoAccessibilityViolations": "86b2376898d9da714b04ecac9b8c37748142789695289fcb267a741e50a3bbd1",
+    "src/cart.browser.laws.ts::cartUiAgreesWithModel": "2e088aeda653b437aeb96cead89a93d00a79e8c60eb504e95f329acf3ac5d99d",
+    "src/components.browser.laws.ts::cartListsServiceItemsAndRemovesThem": "a0ea1c844bc25f928bddfb980a763cf0137734dd9191117041f2431d366036a3",
+    "src/components.browser.laws.ts::productListAddsToCart": "985c8de34c74c2f3054e3149dc3cf0e029f9a44d241cf4d76364abee2b2f641d",
+    "src/components.browser.laws.ts::quantityInputEmitsClampedValue": "b0daa20bb2be61d28ce3e9f6633dcc467a3477395ee01937ff728a1b00173009",
+    "src/pricing.laws.ts::clampStaysInRange": "afe8595653e8b11490fe3764406bb0ac77cb0124484077ae7797a76332727c06",
+    "src/pricing.laws.ts::discountNeverExceedsSubtotal": "ec793c1788c679612ce66463e544e302f81ab011cd24b835d7cd666e129191dc",
+    "src/pricing.laws.ts::discountTierIsMonotonic": "6eb4a528cf4c2e95ec1c0c507c8a9955e93287c64ad8bc3f3eafef5f28c8713b",
+    "src/pricing.laws.ts::discountTierNeverExceedsWholePrice": "94426578bb08b3fb56074ede50a98b3976fcb5294f9b4fb419ecea53e0bb0d98",
+    "src/pricing.laws.ts::discountTiersStartExactlyAtTheirEdge": "884b1226266d8f8ff6d5096af7c412a97739d3096089801438bb7d8e18f7280e",
+    "src/pricing.laws.ts::formatCentsShowsDollarsAndCents": "59637591de5d6803f7d426d8319736018d7201c9409eb925c208a5f78859bc1c",
+    "src/pricing.laws.ts::lineTotalNeverNegative": "e6a6b12706617e267a5cc1f36c8df977b6488d6b5c14e96fb34d8c30da9c89b2",
+    "src/pricing.laws.ts::subtotalIsSumOfLines": "096f073b4644017e80f8df20dc6c0266d8a14a0fbca939bd0e5c65b651c2ebc4",
+    "src/pricing.laws.ts::summaryAddsUp": "dda41d81ff6c2e8ebe1e45f0f6cd0701ff8317c82f738d19ef7853521402d10b",
+    "src/pricing.laws.ts::taxIsRoundedHalfUp": "cd34ea31cd421f9fd22706ef60fad6f2b192584f2cb7c9cf4d16d1ec65541adb",
+    "src/quantity.browser.laws.ts::junkQuantityFallsBackToOne": "5b70233d26ab1aa92163feb052f02b0a7565362c8a2b9a59e8c4d11f03b8c810",
+    "src/quantity.browser.laws.ts::quantityStopsAtNinetyNine": "d0aa05d075ad22890f28f635259e44adb389af8e92c256d56ab62d8146276a8a",
+    "src/quantity.browser.laws.ts::typedQuantityScalesSubtotal": "4a3f5e92d70a044c38a116a293f709596a9d50ba44b652f023d67773b5f887b3"
+  },
+  "exempt": []
+}
