@@ -73,7 +73,11 @@ const codeHtml = (text) =>
 
 const stripes = (x, y, w, h) =>
   `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="#fffdf5" stroke="${ink}" stroke-width="4"/>` +
-  Array.from({ length: Math.floor(h / 22) }, (_, i) => `<line x1="${x + 14}" x2="${x + w - 14 - ((i * 37) % 90)}" y1="${y + 18 + i * 22}" y2="${y + 18 + i * 22}" stroke="${i % 6 === 3 ? '#c8372d' : '#6a6a80'}" stroke-width="3"/>`).join('');
+  Array.from(
+    { length: Math.floor(h / 22) },
+    (_, i) =>
+      `<line x1="${x + 14}" x2="${x + w - 14 - ((i * 37) % 90)}" y1="${y + 18 + i * 22}" y2="${y + 18 + i * 22}" stroke="${i % 6 === 3 ? '#c8372d' : '#6a6a80'}" stroke-width="3"/>`,
+  ).join('');
 
 const scenes = {
   title: () =>
