@@ -159,6 +159,7 @@ See [docs/laws.md](../../docs/laws.md#the-dashboard).
 
 `tslaws mutate [files...] [--max N] [--seed N] [--json]` mutation-tests the laws: it mutates the covered code, re-runs the laws against each mutant, and lists the survivors no law caught. It handles `.tsx`/`.jsx` and projects with a lock, and takes the run flags of `check`. See [docs/laws.md](../../docs/laws.md#mutation-testing).
 
+- **Other source formats:** `tslaws.json` `bundlerPlugins` lists esbuild plugin modules (paths relative to the file) that teach the browser bundler formats like `.tsrx`. See [docs/laws.md](../../docs/laws.md#bundler-plugins).
 - **Settings:** `tslaws.json` `runs`, `bound`, `proofTimeoutMs` and `propertyTimeoutMs` set the run defaults; a command line flag beats them. See [docs/laws.md](../../docs/laws.md#settings).
 
 ## Agents cannot move the goalposts

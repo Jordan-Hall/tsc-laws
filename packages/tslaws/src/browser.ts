@@ -2,8 +2,10 @@
 // each input is sent to a page where the compiled law and the code it checks run against a live DOM.
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
-import { delimiter, join } from 'node:path';
+import { delimiter, join, relative as pathRelative, resolve, sep } from 'node:path';
 import { build as bundleWith, type Plugin } from 'esbuild';
+import { explainBundleError, loadBundlerPlugins } from './bundlerPlugins.ts';
+import { readConfig } from './coverage.ts';
 import { chromium, firefox, webkit, type Browser, type BrowserType, type Page } from 'playwright-core';
 import type * as fc from 'fast-check';
 import { toWire } from './generators.ts';
@@ -170,21 +172,45 @@ function projectModulesPlugin(cwd: string): Plugin {
   };
 }
 
+// The compiler writes only what it compiles to .tslaws/out, so a relative import of any other source file (a `.tsrx`
+// template, a stylesheet, an image) would look for it there. Such an import resolves to the file beside the source.
+function sourceFilesPlugin(cwd: string): Plugin {
+  const out = join(cwd, '.tslaws', 'out');
+  return {
+    name: 'tslaws-source-files',
+    setup(build) {
+      build.onResolve({ filter: /^\.\.?\// }, (args) => {
+        if (args.resolveDir !== out && !args.resolveDir.startsWith(out + sep)) return undefined;
+        const inOut = resolve(args.resolveDir, args.path);
+        if (existsSync(inOut)) return undefined;
+        const source = join(cwd, pathRelative(out, inOut));
+        return existsSync(source) && !source.endsWith('.js') ? { path: source } : undefined;
+      });
+    },
+  };
+}
+
+/** The project's `bundlerPlugins` from tslaws.json come first, so they can claim a format before the built-in resolver. */
 async function bundleOf(jsFile: string, cwd: string): Promise<string> {
-  const result = await bundleWith({
-    plugins: [projectModulesPlugin(cwd)],
-    entryPoints: [jsFile],
-    bundle: true,
-    write: false,
-    format: 'iife',
-    globalName: '__lawModule',
-    platform: 'browser',
-    target: 'es2022',
-    absWorkingDir: cwd,
-    logLevel: 'silent',
-    define: { 'process.env.NODE_ENV': '"development"', global: 'globalThis' },
-  });
-  return result.outputFiles[0]!.text;
+  const projectPlugins = await loadBundlerPlugins(cwd, readConfig(cwd).bundlerPlugins);
+  try {
+    const result = await bundleWith({
+      plugins: [...projectPlugins, sourceFilesPlugin(cwd), projectModulesPlugin(cwd)],
+      entryPoints: [jsFile],
+      bundle: true,
+      write: false,
+      format: 'iife',
+      globalName: '__lawModule',
+      platform: 'browser',
+      target: 'es2022',
+      absWorkingDir: cwd,
+      logLevel: 'silent',
+      define: { 'process.env.NODE_ENV': '"development"', global: 'globalThis' },
+    });
+    return result.outputFiles[0]!.text;
+  } catch (error) {
+    throw explainBundleError(error as Error);
+  }
 }
 
 export interface BrowserLaw {
