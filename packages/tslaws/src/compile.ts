@@ -1,6 +1,7 @@
 import { spawnSync, type SpawnSyncOptionsWithStringEncoding, type SpawnSyncReturns } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
+import { transformSync } from 'esbuild';
 import ts from 'typescript';
 import { lowerLawFile, usesLegacySyntax, type Lowered } from './lower.ts';
 import { readConfig } from './coverage.ts';
@@ -194,10 +195,11 @@ export function build(compiler: string, files: string[], cwd: string): BuildResu
 function buildBuiltin(args: string[], files: string[], cwd: string, outDir: string): BuildResult {
   const at = args.indexOf('--moduleResolution');
   const parsed = ts.parseCommandLine(at < 0 ? args : [...args.slice(0, at), ...args.slice(at + 2)]);
-  // Stock TypeScript pairs `bundler` resolution only with ES modules; the CommonJS output resolves the node10 way.
+  // Types resolve the bundler way, so package `exports` (tslaws/browser) work; the ES output is made CommonJS below.
   const options: ts.CompilerOptions = {
     ...parsed.options,
-    moduleResolution: ts.ModuleResolutionKind.Node10,
+    module: ts.ModuleKind.ESNext,
+    moduleResolution: ts.ModuleResolutionKind.Bundler,
     noEmitOnError: false,
   };
   const overrides = new Map<string, string>();
@@ -212,7 +214,13 @@ function buildBuiltin(args: string[], files: string[], cwd: string, outDir: stri
       : ts.createSourceFile(name, text, languageVersion, true);
   };
   const program = ts.createProgram(parsed.fileNames.map((f) => resolve(cwd, f)), options, host);
-  program.emit();
+  program.emit(undefined, (name, text) => {
+    mkdirSync(dirname(name), { recursive: true });
+    const code = name.endsWith('.js')
+      ? transformSync(text, { format: 'cjs', target: 'es2022', sourcefile: name }).code
+      : text;
+    writeFileSync(name, code);
+  });
   const diagnostics = ts.getPreEmitDiagnostics(program);
   const text = ts.formatDiagnostics(diagnostics, {
     getCanonicalFileName: (f) => f,
