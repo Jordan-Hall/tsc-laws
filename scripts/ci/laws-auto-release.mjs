@@ -169,6 +169,17 @@ function setLockVersions(file, version) {
   writeFileSync(file, `${JSON.stringify(lock, null, 2)}\n`);
 }
 
+// Classifies the output of a failed `git push`: 'protected' (a repository rule or branch protection refused it), 'moved' (main
+// moved, so the push was not a fast-forward) or 'other' (auth, network, anything unknown). Protection is checked first: its
+// log also says "rejected" and "atomic transaction failed".
+export function classifyPushFailure(output) {
+  const text = String(output ?? '');
+  if (/GH013|Changes must be made through a pull request|protected branch|rule violations?/i.test(text))
+    return 'protected';
+  if (/non-fast-forward|fetch first|stale info|tip of your current branch is behind/i.test(text)) return 'moved';
+  return 'other';
+}
+
 function main(argv) {
   const [command, arg] = argv;
   if (command === 'plan') {
@@ -211,7 +222,16 @@ function main(argv) {
     else console.log(`no CHANGELOG-LAWS.md section for ${arg}`);
     return;
   }
-  throw new Error('usage: laws-auto-release.mjs plan | apply <version> | notes <version> <file>');
+  if (command === 'classify-push') {
+    // classify-push <file>: reads the captured git push output, prints the class and sets the `kind` output.
+    const kind = classifyPushFailure(readFileSync(arg ?? '', 'utf8'));
+    console.log(kind);
+    if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, `kind=${kind}\n`);
+    return;
+  }
+  throw new Error(
+    'usage: laws-auto-release.mjs plan | apply <version> | notes <version> <file> | classify-push <file>',
+  );
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) main(process.argv.slice(2));

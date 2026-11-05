@@ -45,6 +45,7 @@ jobs:
           REASON: ${{ steps.plan.outputs.reason }}
         run: echo "$REASON"
       - name: Bump, commit and tag
+        id: push
         if: steps.plan.outputs.release == 'true'
         env:
           VERSION: ${{ steps.plan.outputs.version }}
@@ -57,14 +58,36 @@ jobs:
           git add packages/tslaws/package.json packages/vscode-tslaws/package.json package-lock.json CHANGELOG-LAWS.md
           git commit -m "chore(release): tslaws $VERSION"
           git tag -a "$TAG" -m "tsc-laws $VERSION"
-          # Atomic: if main moved meanwhile (non-fast-forward), nothing is pushed. Fail loudly; the push that moved main has
-          # its own run, which plans again from the new head, and a manual re-run does the same.
-          if ! git push --atomic origin HEAD:main "$TAG"; then
-            echo "::error::main moved before the release push, so nothing was pushed. The newer push releases; or re-run this workflow."
-            exit 1
+          # Atomic: if main moved or is protected, nothing is pushed. The local commit and tag live only in this runner's
+          # checkout and nothing else pushes them; a re-run starts from a clean checkout and plans again from the current head.
+          if git push --atomic origin HEAD:main "$TAG" >"$RUNNER_TEMP/push.log" 2>&1; then
+            cat "$RUNNER_TEMP/push.log"
+            echo 'pushed=true' >>"$GITHUB_OUTPUT"
+            exit 0
           fi
+          cat "$RUNNER_TEMP/push.log"
+          echo 'pushed=false' >>"$GITHUB_OUTPUT"
+          kind=$(node scripts/ci/laws-auto-release.mjs classify-push "$RUNNER_TEMP/push.log")
+          case "$kind" in
+            moved)
+              echo "::notice::main moved before the release push, so nothing was pushed. The newer push releases."
+              ;;
+            protected)
+              msg="main is protected, so no release was made for tslaws $VERSION (nothing was pushed, no tag). To release automatically, allow the Actions bot to bypass the ruleset (Settings > Rules > the main ruleset > Bypass list > add the GitHub Actions app or a repository role), or release through a pull request. See RELEASING-LAWS.md."
+              echo "::warning::$msg"
+              {
+                echo '### Release not made: main is protected'
+                echo
+                echo "$msg"
+              } >>"$GITHUB_STEP_SUMMARY"
+              ;;
+            *)
+              echo "::error::The release push failed for a reason other than main moving or branch protection. See the git output above."
+              exit 1
+              ;;
+          esac
       - name: Start the release pipeline on the tag
-        if: steps.plan.outputs.release == 'true'
+        if: steps.plan.outputs.release == 'true' && steps.push.outputs.pushed == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.plan.outputs.tag }}

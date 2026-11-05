@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
   chooseBump,
+  classifyPushFailure,
   hasCodeChange,
   insertSection,
   nextVersion,
@@ -135,4 +136,42 @@ test('release notes are the version section without its heading', () => {
   assert.equal(releaseNotes(log, '0.3'), undefined);
   assert.equal(releaseNotes(log, '9.9.9'), undefined);
   assert.equal(releaseNotes('## 1.0.0\n\n## 0.9.0\n\n- x\n', '1.0.0'), undefined);
+});
+
+test('classifyPushFailure: a repository rule violation is protected', () => {
+  const log = [
+    'remote: error: GH013: Repository rule violations found for refs/heads/main.',
+    'remote: - Changes must be made through a pull request.',
+    'To https://github.com/Jordan-Hall/tsc-laws',
+    ' ! [remote rejected] HEAD -> main (push declined due to repository rule violations)',
+    ' ! [remote rejected] laws-v0.6.5 -> laws-v0.6.5 (atomic transaction failed)',
+    'error: failed to push some refs to https://github.com/Jordan-Hall/tsc-laws',
+  ].join('\n');
+  assert.equal(classifyPushFailure(log), 'protected');
+});
+
+test('classifyPushFailure: a non-fast-forward push means main moved', () => {
+  const log = [
+    'To https://github.com/Jordan-Hall/tsc-laws',
+    ' ! [rejected]        HEAD -> main (fetch first)',
+    ' ! [rejected]        laws-v0.6.5 -> laws-v0.6.5 (atomic push failed)',
+    'hint: Updates were rejected because the remote contains work that you do not have locally. (non-fast-forward)',
+  ].join('\n');
+  assert.equal(classifyPushFailure(log), 'moved');
+  assert.equal(classifyPushFailure(' ! [rejected] HEAD -> main (stale info)'), 'moved');
+});
+
+test('classifyPushFailure: a network or auth error is other', () => {
+  assert.equal(
+    classifyPushFailure(
+      "fatal: unable to access 'https://github.com/Jordan-Hall/tsc-laws/': Could not resolve host: github.com",
+    ),
+    'other',
+  );
+  assert.equal(classifyPushFailure('remote: Invalid username or password.\nfatal: Authentication failed'), 'other');
+});
+
+test('classifyPushFailure: empty or missing output is other', () => {
+  assert.equal(classifyPushFailure(''), 'other');
+  assert.equal(classifyPushFailure(undefined), 'other');
 });
