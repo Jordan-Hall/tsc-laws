@@ -4,6 +4,7 @@
 import * as fc from 'fast-check';
 import ts from 'typescript';
 import { arbitraryRegistry } from './api.ts';
+import { sequence } from './sequence.ts';
 
 export class UnsupportedType extends Error {}
 
@@ -136,7 +137,7 @@ export class GeneratorFactory {
     if (name === 'RegExp') return fc.constant(/x/);
     if (checker.isArrayType(type)) {
       const element = checker.getTypeArguments(type as ts.TypeReference)[0]!;
-      return fc.array(this.of(element, depth + 1), { maxLength: 8 });
+      return sequence(this.of(element, depth + 1), { maxLength: 8 });
     }
     if (checker.isTupleType(type)) {
       const target = (type as ts.TypeReference).target as ts.TupleType;
