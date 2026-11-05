@@ -50,31 +50,37 @@ Use this only if trusted publishing does not work. When the `VSCE_PAT` secret ex
 
 ## Open VSX: trusted publishing (recommended)
 
-Open VSX issues a publishing token of about five minutes to a workflow that matches a trusted publisher you have registered, so there is no secret to store. The workflow uses `ovsx@1.3.0 publish --trusted-publishing`, and the `marketplace` job already has `id-token: write`. See the [Open VSX trusted publishing wiki](https://github.com/eclipse-openvsx/openvsx/wiki/Trusted-Publishing).
+Per the [Open VSX Trusted Publishing guide](https://github.com/eclipse-openvsx/openvsx/wiki/Trusted-Publishing), the registry issues a short-lived publishing token (about five minutes) to a workflow that matches a trusted publisher you have registered, so there is no long-lived secret to store. The workflow runs `ovsx@1.3.0 publish --trusted-publishing`, and the `marketplace` job already has `id-token: write`.
 
 This has not been exercised by a real tag run yet. Check the first publish.
 
+The namespace must be exactly `TS-Laws`, the `publisher` in `packages/vscode-tslaws/package.json`. The guide lists this as a known limitation: the check that authorises a trusted-publishing token compares the namespace case-sensitively. A namespace created as `ts-laws` will not match.
+
 1. Sign in at <https://open-vsx.org> with your GitHub account.
 2. Accept the Eclipse publisher agreement from your profile page. Publishing is refused until you have.
-3. Create the namespace (user settings, Namespaces).
-4. Open the namespace page and click Claim Ownership. This opens a request that the Open VSX team approves. Until it is approved, extensions published there can stay inactive.
-5. In the sidebar open Trusted Publishers and add one with these fields:
+3. Create the namespace as `TS-Laws` (user settings, Namespaces). If you already created `ts-laws`, create `TS-Laws` as well, claim that one, and leave `ts-laws` alone or delete it. It cannot be used for this extension.
+4. Open the `TS-Laws` namespace page and click Claim Ownership. This opens a request that the Open VSX team approves. Until it is approved, extensions published there can stay inactive, and you cannot register a trusted publisher.
+5. One-time bootstrap: publish the first version with an access token. The guide says a trusted publisher can only be registered for an extension that already has an active version. Create a token at <https://open-vsx.org/user-settings/tokens>, then do either of these:
+   - Set the secret for exactly one release: `gh secret set OVSX_PAT -R Jordan-Hall/tsc-laws`, push the tag, and delete the secret afterwards.
+   - Or publish the `.vsix` from the GitHub release by hand, typing the token in your own terminal, never in chat: `npx ovsx@1.3.0 publish tslaws-vscode-<version>.vsix -p <token>`
+6. Open Trusted Publishers in the sidebar and add one with these fields:
    - Provider: GitHub Actions
    - Repository owner: `Jordan-Hall`
    - Repository: `tsc-laws`
    - Workflow: `laws.yml`
    - Environment: leave empty (the job uses no environment)
+7. Delete the `OVSX_PAT` secret if you set one. From the next release the workflow uses trusted publishing.
 
-The namespace must match the `publisher` in `packages/vscode-tslaws/package.json`, which is `TS-Laws`. If you created the namespace as `ts-laws`, Open VSX is believed to match namespaces without regard to case, but that is unverified. Check the first publish. If it is refused with an unknown-publisher message, create the namespace as `TS-Laws`.
+Keep at least one version of the extension active. If every version is deleted, the registration stops matching until a version is active again.
 
-If the publish fails because the namespace is not verified, or because no trusted publisher matches, the Open VSX step prints an error that says what to do. Only the Open VSX step fails; the Marketplace step is unaffected.
+If the publish fails with "no trusted publisher matches", the registry gives that one message for every mismatch: a missing first version, a namespace with the wrong casing, or wrong registration fields. The workflow prints an error listing each. If the namespace is not verified, it says to claim it. Only the Open VSX step fails; the Marketplace step is unaffected.
 
 ### Fallback: an access token
 
 If a repository secret `OVSX_PAT` exists, the step uses it instead of trusted publishing.
 
 1. Create a token at <https://open-vsx.org/user-settings/tokens>.
-2. Create the namespace once, if you have not. This puts the token on the command line for a moment, so run it from a private terminal:
+2. Create the namespace once as `TS-Laws`, if you have not. This puts the token on the command line for a moment, so run it from a private terminal:
 
    ```sh
    npx ovsx create-namespace TS-Laws -p <token>
