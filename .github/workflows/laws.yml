@@ -154,6 +154,13 @@ jobs:
         with:
           name: vscode-tslaws
           path: release
+      - name: tslaws matches the tag
+        run: |
+          version="${GITHUB_REF_NAME#laws-v}"
+          package=$(node -p "require('./packages/tslaws/package.json').version")
+          if [ "$version" != "$package" ]; then
+            echo "::error::tslaws is $package but the tag is $version"; exit 1
+          fi
       - name: The VS Code extension matches the tag
         run: |
           version="${GITHUB_REF_NAME#laws-v}"
