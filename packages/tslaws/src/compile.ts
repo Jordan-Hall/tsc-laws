@@ -94,9 +94,26 @@ export function usesBuiltin(compiler: string, files: string[], cwd: string): boo
   return !files.some((f) => isLawFile(f) && existsSync(join(cwd, f)) && usesLegacySyntax(readFileSync(join(cwd, f), 'utf8')));
 }
 
+/**
+ * The tsc-laws compiler runs a project that uses the keyword syntax (`export law name(...)`) and does not know
+ * `law('name', ...)` calls, so a project holding both would silently lose the calls. Say so instead.
+ */
+function assertOneSyntax(files: string[], cwd: string): void {
+  const present = files.filter((f) => isLawFile(f) && existsSync(join(cwd, f)));
+  const keyword = present.filter((f) => usesLegacySyntax(readFileSync(join(cwd, f), 'utf8')));
+  if (keyword.length === 0) return;
+  const calls = present.filter((f) => lowerFile(f, cwd).laws.length > 0);
+  if (calls.length === 0) return;
+  throw new Error(
+    `this project mixes the two ways of writing a law: ${keyword.join(', ')} use the keyword syntax (\`export law name(...)\`, which needs the tsc-laws compiler) and ${calls.join(', ')} call \`law('name', ...)\`. ` +
+      'Write every law one way: convert the keyword laws to calls to drop the custom compiler, or keep the keyword syntax throughout.',
+  );
+}
+
 export function readManifest(compiler: string, files: string[], cwd: string): ManifestLaw[] {
   if (usesBuiltin(compiler, files, cwd))
     return files.filter(isLawFile).flatMap((f) => (existsSync(join(cwd, f)) ? lowerFile(f, cwd).laws : []));
+  assertOneSyntax(files, cwd);
   const run = launch(compiler, ['--laws-manifest', ...files], {
     cwd,
     encoding: 'utf8',
