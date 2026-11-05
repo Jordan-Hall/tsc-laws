@@ -45,6 +45,7 @@ jobs:
           REASON: ${{ steps.plan.outputs.reason }}
         run: echo "$REASON"
       - name: Bump, commit and tag
+        id: push
         if: steps.plan.outputs.release == 'true'
         env:
           VERSION: ${{ steps.plan.outputs.version }}
@@ -57,14 +58,51 @@ jobs:
           git add packages/tslaws/package.json packages/vscode-tslaws/package.json package-lock.json CHANGELOG-LAWS.md
           git commit -m "chore(release): tslaws $VERSION"
           git tag -a "$TAG" -m "tsc-laws $VERSION"
-          # Atomic: if main moved meanwhile (non-fast-forward), nothing is pushed. Fail loudly; the push that moved main has
-          # its own run, which plans again from the new head, and a manual re-run does the same.
-          if ! git push --atomic origin HEAD:main "$TAG"; then
-            echo "::error::main moved before the release push, so nothing was pushed. The newer push releases; or re-run this workflow."
-            exit 1
+          # Atomic: if main moved or is protected, nothing is pushed. The local commit and tag live only in this runner's
+          # checkout and nothing else pushes them; a re-run starts from a clean checkout and plans again from the current head.
+          if git push --atomic origin HEAD:main "$TAG" >"$RUNNER_TEMP/push.log" 2>&1; then
+            cat "$RUNNER_TEMP/push.log"
+            echo 'pushed=true' >>"$GITHUB_OUTPUT"
+            exit 0
           fi
+          cat "$RUNNER_TEMP/push.log"
+          echo 'pushed=false' >>"$GITHUB_OUTPUT"
+          kind=$(node scripts/ci/laws-auto-release.mjs classify-push "$RUNNER_TEMP/push.log")
+          case "$kind" in
+            moved)
+              echo "::notice::main moved before the release push, so nothing was pushed. The newer push releases."
+              ;;
+            protected-*)
+              bypass='allow the Actions bot to bypass it (Settings > Rules > Rulesets > the ruleset > Bypass list > add the GitHub Actions app or a repository role)'
+              case "$kind" in
+                protected-branch)
+                  why="the ruleset on main rejected the release commit, so the main ruleset needs a bypass for the Actions bot (Settings > Rules > the main ruleset > Bypass list > add the GitHub Actions app or a repository role), or releases must go through a pull request."
+                  ;;
+                protected-tag)
+                  why="the ruleset on tags rejected $TAG, so the tag ruleset (Settings > Rules, the ruleset targeting tags matching laws-v*) needs a bypass for the Actions bot, or must not block creation of laws-v* tags."
+                  ;;
+                protected-both)
+                  why="rulesets rejected both the release commit on main and the tag $TAG. The main ruleset needs a bypass for the Actions bot (or releases must go through a pull request), and the tag ruleset (the one targeting tags matching laws-v*) needs a bypass for the Actions bot or must not block creation of laws-v* tags."
+                  ;;
+                *)
+                  why="a repository rule blocked the push, and the git output does not say which ref. Check the rulesets for main and for tags matching laws-v*, and $bypass."
+                  ;;
+              esac
+              msg="No release was made for tslaws $VERSION (nothing was pushed, no tag): $why See RELEASING-LAWS.md."
+              echo "::warning::$msg"
+              {
+                echo '### Release not made: a ruleset blocked the push'
+                echo
+                echo "$msg"
+              } >>"$GITHUB_STEP_SUMMARY"
+              ;;
+            *)
+              echo "::error::The release push failed for a reason other than main moving or branch protection. See the git output above."
+              exit 1
+              ;;
+          esac
       - name: Start the release pipeline on the tag
-        if: steps.plan.outputs.release == 'true'
+        if: steps.plan.outputs.release == 'true' && steps.push.outputs.pushed == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.plan.outputs.tag }}

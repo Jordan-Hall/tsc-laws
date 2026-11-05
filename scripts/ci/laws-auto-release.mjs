@@ -169,6 +169,35 @@ function setLockVersions(file, version) {
   writeFileSync(file, `${JSON.stringify(lock, null, 2)}\n`);
 }
 
+// Classifies the output of a failed `git push` of main and a tag, working out WHICH ref a repository rule rejected:
+// 'protected-branch' (main), 'protected-tag', 'protected-both', 'protected-unknown' (a rule blocked the push but the log does
+// not say which ref), 'moved' (main moved, not a fast-forward) or 'other' (auth, network, anything unknown).
+// A ref counts as rule-blocked only when its own per-ref line says so. "atomic transaction failed" is no reason of its own:
+// it only means another ref in the atomic push failed.
+export function classifyPushFailure(output) {
+  const text = String(output ?? '');
+  const ruleReason = /rule violations?|protected branch|GH013/i;
+  const isBranch = (ref) => /^(refs\/heads\/)?main$/.test(ref);
+  const blocked = new Set();
+  for (const m of text.matchAll(/^\s*!\s*\[remote rejected\]\s+\S+\s+->\s+(\S+)\s+\((.*)\)\s*$/gm)) {
+    if (ruleReason.test(m[2])) blocked.add(isBranch(m[1]) ? 'branch' : 'tag');
+  }
+  if (
+    blocked.size === 0 &&
+    /GH013|Changes must be made through a pull request|protected branch|rule violations?/i.test(text)
+  ) {
+    for (const m of text.matchAll(/rule violations found for (refs\/\S+?)\.?(?=\s|$)/gi)) {
+      blocked.add(/^refs\/tags\//.test(m[1]) ? 'tag' : 'branch');
+    }
+    if (blocked.size === 0) return /refs\/heads\/main/.test(text) ? 'protected-branch' : 'protected-unknown';
+  }
+  if (blocked.size === 2) return 'protected-both';
+  if (blocked.has('branch')) return 'protected-branch';
+  if (blocked.has('tag')) return 'protected-tag';
+  if (/non-fast-forward|fetch first|stale info|tip of your current branch is behind/i.test(text)) return 'moved';
+  return 'other';
+}
+
 function main(argv) {
   const [command, arg] = argv;
   if (command === 'plan') {
@@ -211,7 +240,16 @@ function main(argv) {
     else console.log(`no CHANGELOG-LAWS.md section for ${arg}`);
     return;
   }
-  throw new Error('usage: laws-auto-release.mjs plan | apply <version> | notes <version> <file>');
+  if (command === 'classify-push') {
+    // classify-push <file>: reads the captured git push output, prints the class and sets the `kind` output.
+    const kind = classifyPushFailure(readFileSync(arg ?? '', 'utf8'));
+    console.log(kind);
+    if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, `kind=${kind}\n`);
+    return;
+  }
+  throw new Error(
+    'usage: laws-auto-release.mjs plan | apply <version> | notes <version> <file> | classify-push <file>',
+  );
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) main(process.argv.slice(2));
