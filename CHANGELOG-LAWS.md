@@ -2,6 +2,15 @@
 
 The upstream tsc-ts changelog is CHANGELOG.md. Releases of tsc-laws are tagged `laws-v<version>` (see RELEASING-LAWS.md).
 
+## 0.7.0
+
+- feat: write laws as calls in stock TypeScript, keep the keyword syntax (#19)
+- feat(vscode): the editor understands law syntax, shows live results on every function, and jumps to laws (#17)
+- ci: publish to Open VSX with trusted publishing, under the ts-laws namespace (#20)
+- fix(tslaws): proposed browser and end-to-end laws keep their kind (#16)
+- ci: a blocked release push is a warning, not a failed run (#15)
+- ci: move every workflow action to a Node 24 release (#14)
+
 ## Unreleased
 
 - feat(vscode): a TypeScript server plugin so the editor understands `law` declarations: no red squiggles, with hover, definition, references, rename and completions mapped to the original text
