@@ -295,9 +295,9 @@ jobs:
           else
             cat store.log
             if grep -qiE "not verified|unverified|not (the )?owner|not a member|namespace.*(owner|verif)|owner.*namespace" store.log; then
-              echo "::error::Open VSX refused the publish because the TS-Laws namespace is not verified for this account. Sign in at https://open-vsx.org, open the namespace page and click Claim Ownership, then wait for the Open VSX team to approve it. See docs/publishing-the-extension.md."
+              echo "::error::Open VSX refused the publish because the TS-Laws namespace (the casing must match exactly) is not verified for this account. Sign in at https://open-vsx.org, open the namespace page and click Claim Ownership, then wait for the Open VSX team to approve it. See docs/publishing-the-extension.md."
             elif grep -qiE "trusted publisher|trusted publishing|oidc|id token" store.log; then
-              echo "::error::Open VSX found no trusted publisher for this workflow. At https://open-vsx.org/user-settings/namespaces open Trusted Publishers and add one: provider GitHub Actions, repository owner Jordan-Hall, repository tsc-laws, workflow laws.yml, environment empty. Or set an OVSX_PAT secret. See docs/publishing-the-extension.md."
+              echo "::error::Open VSX answered that no trusted publisher matches. The registry gives this one message for every mismatch, so check in order. (1) First publish: a trusted publisher can only be registered once the extension has an active version, so publish the first version with an access token (set the OVSX_PAT secret for one release, or run ovsx publish by hand), then register the trusted publisher. (2) The Open VSX namespace must be exactly TS-Laws, the publisher in packages/vscode-tslaws/package.json; the check is case-sensitive, so a namespace created as ts-laws will not match and TS-Laws must be created and claimed. (3) The trusted publisher fields: provider GitHub Actions, repository owner Jordan-Hall, repository tsc-laws, workflow laws.yml, environment empty. See the Open VSX section of docs/publishing-the-extension.md."
             fi
             echo "- Open VSX: FAILED" >> "$GITHUB_STEP_SUMMARY"
             exit 1
