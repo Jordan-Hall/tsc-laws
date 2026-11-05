@@ -62,7 +62,12 @@ export function moduleSpecifiers(text: string, fileName = 'laws.ts'): Specifier[
             bindings.elements.every((e) => e.isTypeOnly)));
       literal(node.moduleSpecifier, typeOnly);
     } else if (ts.isExportDeclaration(node)) {
-      literal(node.moduleSpecifier, node.isTypeOnly);
+      const clause = node.exportClause;
+      literal(
+        node.moduleSpecifier,
+        node.isTypeOnly ||
+          (clause !== undefined && ts.isNamedExports(clause) && clause.elements.length > 0 && clause.elements.every((e) => e.isTypeOnly)),
+      );
     } else if (ts.isImportEqualsDeclaration(node)) {
       if (ts.isExternalModuleReference(node.moduleReference)) literal(node.moduleReference.expression, node.isTypeOnly);
     } else if (ts.isCallExpression(node) && node.arguments.length >= 1) {

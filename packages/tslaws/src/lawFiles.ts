@@ -41,7 +41,7 @@ export function customLawFile(
   if (globs === undefined || globs.length === 0) return () => false;
   const matches = globMatcher(globs);
   return (file) => {
-    if (!/\.(ts|mts|cts)$/.test(file) || /\.d\.(ts|mts|cts)$/.test(file) || !matches(file)) return false;
+    if (!/\.(ts|tsx|mts|cts)$/.test(file) || /\.d\.(ts|mts|cts)$/.test(file) || !matches(file)) return false;
     try {
       return declaresLaw(readFileSync(join(cwd, file), 'utf8'));
     } catch {

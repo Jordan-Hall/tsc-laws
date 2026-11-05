@@ -7,6 +7,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  realpathSync,
   readdirSync,
   rmSync,
   symlinkSync,
@@ -28,7 +29,8 @@ import {
   toStoredImports,
 } from '../dist/proposals.js';
 
-const root = mkdtempSync(join(tmpdir(), 'tslaws-proposals-'));
+// The real path: the Windows runner's temp directory is an 8.3 short name that realpath expands.
+const root = realpathSync.native(mkdtempSync(join(tmpdir(), 'tslaws-proposals-')));
 after(() => rmSync(root, { recursive: true, force: true }));
 
 let n = 0;

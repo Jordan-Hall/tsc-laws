@@ -149,13 +149,15 @@ describe('runtime specifiers', () => {
       "import type { T } from './types';",
       "export * from './star';",
       "export type * from './only-types';",
+      "export { type Foo, type Bar } from './named-types';",
+      "export { type Foo, value } from './mixed';",
       "import eq = require('./eq');",
       "const l = await import('./lazy');",
       "const r = require('./req');",
     ].join('\n');
     assert.deepEqual(
       runtimeSpecifiers(text).map((s) => s.value),
-      ['./a', './side', './star', './eq', './lazy', './req'],
+      ['./a', './side', './star', './mixed', './eq', './lazy', './req'],
     );
   });
 });
@@ -187,6 +189,15 @@ describe('discovering laws files', () => {
     assert.equal(isLawsFile(cwd, 'specs/cart.ts'), true);
     assert.equal(isLawsFile(cwd, 'specs/helper.ts'), false);
     assert.equal(isLawsFile(cwd, 'src/other.ts'), false);
+  });
+
+  it('finds a .tsx file a laws glob names', () => {
+    const cwd = project({
+      'tslaws.json': JSON.stringify({ laws: ['views/**/*.tsx'] }),
+      'views/cart.tsx': law,
+      'views/plain.tsx': 'export const View = () => null;\n',
+    });
+    assert.deepEqual(discoverLaws(cwd), ['views/cart.tsx']);
   });
 
   it('keeps such files out of the covered sources', () => {
