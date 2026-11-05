@@ -228,6 +228,7 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       contents: read
+      id-token: write
     steps:
       - uses: actions/setup-node@v4
         with:
@@ -251,20 +252,25 @@ jobs:
       - name: Check which tokens exist
         id: tokens
         env:
-          HAS_VSCE: ${{ secrets.VSCE_PAT != '' }}
           HAS_OVSX: ${{ secrets.OVSX_PAT != '' }}
         run: |
-          echo "vsce=$HAS_VSCE" >> "$GITHUB_OUTPUT"
           echo "ovsx=$HAS_OVSX" >> "$GITHUB_OUTPUT"
       - name: Publish to the Visual Studio Marketplace
         id: vsce
-        if: steps.tokens.outputs.vsce == 'true'
         continue-on-error: true
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
         run: |
-          if npx --yes @vscode/vsce publish --packagePath vsix/tslaws-vscode.vsix ${{ steps.pkg.outputs.flag }} > store.log 2>&1; then
-            echo "- Visual Studio Marketplace: published" >> "$GITHUB_STEP_SUMMARY"
+          # A PAT is an explicit fallback: use it when present, trusted publishing (OIDC) otherwise.
+          auth="--oidc"
+          if [ -n "$VSCE_PAT" ]; then auth=""; fi
+          if npx --yes @vscode/vsce@4.1.0 publish $auth --packagePath vsix/tslaws-vscode.vsix --skip-duplicate ${{ steps.pkg.outputs.flag }} > store.log 2>&1; then
+            if grep -qi "already exists" store.log; then
+              echo "::notice::Visual Studio Marketplace already has this version; nothing to do"
+              echo "- Visual Studio Marketplace: already published" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "- Visual Studio Marketplace: published" >> "$GITHUB_STEP_SUMMARY"
+            fi
           elif grep -qi "already exists" store.log; then
             echo "::notice::Visual Studio Marketplace already has this version; nothing to do"
             echo "- Visual Studio Marketplace: already published" >> "$GITHUB_STEP_SUMMARY"
@@ -273,11 +279,6 @@ jobs:
             echo "- Visual Studio Marketplace: FAILED" >> "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
-      - name: Note a missing Marketplace token
-        if: steps.tokens.outputs.vsce != 'true'
-        run: |
-          echo "::notice::VSCE_PAT is not set, so the Visual Studio Marketplace was skipped"
-          echo "- Visual Studio Marketplace: skipped (no VSCE_PAT)" >> "$GITHUB_STEP_SUMMARY"
       - name: Publish to Open VSX
         id: ovsx
         if: steps.tokens.outputs.ovsx == 'true'
