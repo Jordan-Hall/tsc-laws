@@ -84,3 +84,31 @@ test('parses the dashboard URL', () => {
   assert.equal(parseUiUrl('tslaws ui: http://127.0.0.1:51234/  (Ctrl+C exits)\n'), 'http://127.0.0.1:51234/');
   assert.equal(parseUiUrl('starting'), null);
 });
+
+test('spaced law names match their lenses and diagnostics', () => {
+  const recs = parseReport(
+    JSON.stringify({
+      results: [
+        { file: 'src/math.laws.ts', name: 'add commutes', line: 4, status: 'proved', method: 'smt' },
+        { file: 'src/math.laws.ts', name: 'sort keeps length', line: 9, status: 'failed', counterexample: '[1]' },
+      ],
+    }),
+  ).records;
+  const laws = [
+    { name: 'add commutes', line: 3, column: 0, proved: false },
+    { name: 'sort keeps length', line: 8, column: 0, proved: true },
+    { name: 'never ran', line: 12, column: 0, proved: false },
+  ];
+  assert.deepEqual(
+    lensesFor(laws, recs).map((l) => [l.line, l.status]),
+    [
+      [3, 'proved'],
+      [8, 'failed'],
+      [8, 'counterexample'],
+      [12, 'not run'],
+    ],
+  );
+  const [d] = diagnosticsFor(recs, laws);
+  assert.equal(d.line, 8);
+  assert.match(d.message, /^law sort keeps length: failed/);
+});

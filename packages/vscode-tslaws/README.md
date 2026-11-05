@@ -20,7 +20,14 @@ Settings: `tslaws.runOnSave` (default `true`), `tslaws.executable` (default: `no
 The logic is in plain modules that do not load `vscode` (`src/parse-report.js`, `src/find-laws.js`, `src/summary.js`,
 `src/command.js`); `src/extension.js` is the only glue. There is no bundler and there are no runtime dependencies.
 
-## Dialect
+## Call-style laws
+
+Laws are ordinary TypeScript calls in `*.laws.ts`: `law('add commutes', (a: int, b: int) => a + b === b + a)` and
+`law.proved('name', (x: int) => ...)`. The name is a string or plain template literal and may contain spaces; the call may
+span lines and take an async arrow. CodeLens, problems and the status bar treat these exactly like keyword laws. They need no
+grammar, so highlighting comes from TypeScript itself.
+
+## Dialect (old `law` keyword syntax, still supported)
 
 `law` is a contextual keyword. It starts a declaration only when a name and a `(` or `<` follow on the same line:
 

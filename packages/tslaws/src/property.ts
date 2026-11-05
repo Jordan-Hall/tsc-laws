@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import * as fc from 'fast-check';
 import ts from 'typescript';
 import { GeneratorFactory, UnsupportedType } from './generators.ts';
+import { WorkerPool } from './pool.ts';
 import type { Shape } from './smt.ts';
 import { decodeExample, encodeExample } from './regressions.ts';
 import type { CheckOptions, ManifestLaw } from './types.ts';
@@ -166,31 +167,33 @@ export function summarise(details: fc.RunDetails<unknown[]>, options?: CheckOpti
   };
 }
 
-let worker: Worker | undefined;
+const workers = new WorkerPool(() => {
+  const ext = import.meta.url.endsWith('.ts') ? '.ts' : '.js';
+  const worker = new Worker(new URL(`./propertyWorker${ext}`, import.meta.url));
+  worker.unref();
+  return worker;
+});
 
-/** Runs the property test of `law` in a worker, giving up on it after `options.propertyTimeoutMs`. */
-export function runLawGuarded(
+/** Runs the property test of `law` in a pooled worker, giving up on it after `options.propertyTimeoutMs`. */
+export async function runLawGuarded(
   outDir: string,
   law: ManifestLaw,
   options: CheckOptions,
 ): Promise<PropertyOutcome | 'timeout'> {
-  const ext = import.meta.url.endsWith('.ts') ? '.ts' : '.js';
-  if (worker === undefined) {
-    worker = new Worker(new URL(`./propertyWorker${ext}`, import.meta.url));
-    worker.unref();
-  }
-  const current = worker;
+  const current = await workers.acquire();
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
-      if (worker === current) worker = undefined;
-      void current.terminate();
+      current.off('message', onMessage);
+      workers.discard(current);
       resolve('timeout');
     }, options.propertyTimeoutMs ?? 30000);
-    current.once('message', (message: { ok?: PropertyOutcome; error?: string }) => {
+    const onMessage = (message: { ok?: PropertyOutcome; error?: string }): void => {
       clearTimeout(timer);
+      workers.release(current);
       if (message.ok !== undefined) resolve(message.ok);
       else reject(new Error(message.error));
-    });
+    };
+    current.once('message', onMessage);
     // Functions cannot cross to the worker; it needs only the numbers.
     current.postMessage({ outDir, law, options: { ...options, onEvent: undefined } });
   });

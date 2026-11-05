@@ -69,7 +69,10 @@ function oneLine(s) {
 function lensesFor(laws, fileRecords) {
   const out = [];
   for (const law of laws) {
-    const rec = fileRecords.find((r) => r.name === law.name);
+    // Names may repeat or contain spaces; prefer the record on the law's own line.
+    const rec =
+      fileRecords.find((r) => r.name === law.name && r.line - 1 === law.line) ??
+      fileRecords.find((r) => r.name === law.name);
     const status = rec === undefined ? 'not run' : rec.status;
     out.push({ line: law.line, title: `${statusIcon(status)} ${status}`, command: 'tslaws.runFile', status });
     if (rec !== undefined && rec.status === 'failed' && rec.counterexample !== undefined) {
@@ -98,7 +101,7 @@ function diagnosticsFor(fileRecords, laws = []) {
   const out = [];
   for (const r of fileRecords) {
     if (!DIAGNOSTIC_STATUSES.has(r.status)) continue;
-    const decl = laws.find((l) => l.name === r.name);
+    const decl = laws.find((l) => l.name === r.name && r.line - 1 === l.line) ?? laws.find((l) => l.name === r.name);
     const line = decl !== undefined ? decl.line : Math.max(0, r.line - 1);
     const parts = [`law ${r.name}: ${r.status}`];
     if (r.message) parts[0] += ` - ${oneLine(r.message)}`;
