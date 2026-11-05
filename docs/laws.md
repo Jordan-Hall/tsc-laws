@@ -397,7 +397,7 @@ export default ({ cwd }) => ({
 
 The plugins run before the built-in resolver and apply to every browser law (`check`, `ui`, `mcp`), including the
 component laws that mount a component. End-to-end laws bundle nothing: they drive your running app. `mutate` copies only
-x the compiler does not emit (a template, a stylesheet) resolves to the file beside the source. Keep in mind that laws
+compiled output, so a file the compiler does not emit (a template, a stylesheet) resolves to the file beside the source. Keep in mind that laws
 are compiled to CommonJS, so a bare import reaches the bundler as `require()`: a package whose `exports` offer only the `import`
 condition needs the plugin to resolve it (`build.resolve(path, { kind: 'import-statement', resolveDir })`).
 
