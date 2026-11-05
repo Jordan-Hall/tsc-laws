@@ -1,0 +1,14 @@
+{
+  "d_title": "Laws, migration, and who gets to say yes.",
+  "d_picture": "T S laws puts a rule next to your code. A solver proves it for every input where it can; otherwise it is tested with generated inputs. Each law ends up proved, bounded, tested, open, or failed.",
+  "d_more": "The same laws run in a real browser. A coverage gate fails when an export has no law. A lock stops anyone weakening one. There is an editor extension, an M C P server, and bundler plugins for a framework's own templates.",
+  "d_pin": "That makes a migration safer. Start by writing laws that pin down what the code does today.",
+  "d_port": "Then let a person, or an agent, change or port the code. The laws say whether the behaviour survived. And the coverage gate shows what is still unprotected.",
+  "d_lock": "The lock stops the migration from quietly rewriting the safety net.",
+  "d_propose": "So who writes the laws? An agent can propose them, in a proposed laws file, and try them. A proposal protects nothing yet. A person decides.",
+  "d_refuse": "That decision is called accept. By default, accept refuses an agent. It needs a person at a terminal. And it never runs in C I.",
+  "d_grant": "Sometimes you want to hand that over for an afternoon. Delegate grant lends accept for a limited time, eight hours by default. The grant is a file in your home directory, outside the repository.",
+  "d_log": "While it is lent, every accept is written to a log, with the time and the lock before and after. Revoking is one command.",
+  "d_honest": "Be clear about the limit. An agent running as you could write that grant file itself. This is a decision, bounded in time and audited. It is not a sandbox.",
+  "d_outro": "T S laws. N P M install dash D tslaws. The code is on GitHub, at Jordan dash Hall slash T S C dash laws."
+}
