@@ -16,6 +16,17 @@ import { readConfig } from './coverage.ts';
 import { mutate, renderMutation } from './mutate.ts';
 import { mutateDefaults, resolveSettings } from './settings.ts';
 import { serveUi } from './ui.ts';
+import {
+  acceptGate,
+  defaultDuration,
+  describeGrants,
+  fileHash,
+  grantFor,
+  logDelegatedAccept,
+  parseDuration,
+  personOnly,
+  revokeFor,
+} from './delegation.ts';
 import { writeLock } from './lock.ts';
 import type { CheckOptions, LawResult } from './types.ts';
 
@@ -24,7 +35,10 @@ tslaws check [files...] [--reporter text|json|junit|github] [--json] [--summary]
 tslaws ui [files...] [--port N] [--no-open] [--tab]   open a dashboard of the laws in its own desktop window (--tab: a browser tab): tree, filters, search, source, live reruns on save
 tslaws mutate [files...] [--max N] [--seed N] [--runs N] [--bound N] [--proof-timeout MS] [--property-timeout MS] [--browser ENGINE] [--json]   mutation-test the laws: mutate covered code, report mutants no law kills
 tslaws regressions [list|clear]   show or delete the stored counterexamples (.tslaws/regressions); check replays them first, --no-regressions skips them
-tslaws accept [files...]     record the current laws in tsc-laws.lock (people only: needs a terminal)
+tslaws accept [files...]     record the current laws in tsc-laws.lock (people only: needs a terminal, or a live delegation; never under CI)
+tslaws delegate grant [--for 1h|8h|1d|7d] [--root DIR]   lend accept to an agent for a limited time (people only; default 8h, max 7d)
+tslaws delegate revoke [--root DIR]   withdraw the delegation for a project (people only)
+tslaws delegate status        list delegations and when they end
 tslaws promote [file] [--all]   move proposed laws (*.proposed.laws.ts) into the accepted *.laws.ts, asking per law (people only: needs a terminal; run accept afterwards)
 tslaws mcp [--compiler PATH]   serve check, check_proposed, explain and propose as Model Context Protocol tools on stdio (cannot accept or touch the lock)
 
@@ -68,6 +82,8 @@ function parse(args: string[]): { command: string; flags: Map<string, string | t
     'port',
     'reporter',
     'max',
+    'for',
+    'root',
   ]);
   for (let i = 0; i < args.length; i += 1) {
     const arg = args[i]!;
@@ -84,7 +100,8 @@ function parse(args: string[]): { command: string; flags: Map<string, string | t
         arg === 'mutate' ||
         arg === 'regressions' ||
         arg === 'mcp' ||
-        arg === 'promote')
+        arg === 'promote' ||
+        arg === 'delegate')
     )
       command = arg;
     else files.push(arg);
@@ -234,6 +251,113 @@ async function watchChecks(cwd: string, flags: Map<string, string | true>, files
   });
 }
 
+/** What a command needs from its caller. `home` is for unit tests; the CLI never sets it. */
+export interface CommandContext {
+  isTTY: boolean;
+  env: NodeJS.ProcessEnv;
+  home?: string;
+  now?: Date;
+  out?: (text: string) => void;
+  err?: (text: string) => void;
+}
+
+const stdoutWrite = (text: string): void => void process.stdout.write(text);
+const stderrWrite = (text: string): void => void process.stderr.write(text);
+
+export async function acceptCommand(
+  cwd: string,
+  flags: Map<string, string | true>,
+  files: string[],
+  ctx: CommandContext,
+): Promise<number> {
+  const out = ctx.out ?? stdoutWrite;
+  const err = ctx.err ?? stderrWrite;
+  const chosen = lawFiles(cwd, flags, files);
+  if (chosen.length === 0) {
+    err('no laws files found (looking for *.laws.ts)\n');
+    return 1;
+  }
+  const gate = acceptGate({ isTTY: ctx.isTTY, env: ctx.env, root: cwd, now: ctx.now, home: ctx.home });
+  if (!gate.ok) {
+    err(`${gate.message}\n`);
+    return 1;
+  }
+  const opts = options(cwd, flags, chosen);
+  const laws = readManifest(opts.compiler, opts.files, cwd);
+  out(
+    `${laws.length} laws in ${chosen.length} files:\n${laws.map((l) => `  ${l.file}:${l.line} ${l.name}`).join('\n')}\n`,
+  );
+  if (!gate.delegated) {
+    const rl = createInterface({ input: process.stdin, output: process.stdout });
+    const answer = await rl.question('Type ACCEPT to write tsc-laws.lock: ');
+    rl.close();
+    if (answer.trim() !== 'ACCEPT') return 1;
+  }
+  const before = fileHash(opts.lockFile);
+  const exempt = exemptionsOf(opts);
+  if (exempt.length > 0) out(`exempt from coverage:\n${exempt.map((e) => `  ${e}`).join('\n')}\n`);
+  writeLock(opts.lockFile, laws, exempt);
+  out('tsc-laws.lock written\n');
+  if (gate.delegated) {
+    logDelegatedAccept(cwd, gate.grant, before, fileHash(opts.lockFile), ctx.now ?? new Date());
+    out(`DELEGATED ACCEPT: a person lent this act until ${gate.grant.expires}; recorded in .tslaws/accept.log\n`);
+  }
+  return 0;
+}
+
+/** `tslaws delegate <action> [--for D] [--root DIR]`; `argv` is everything after `delegate`. */
+export function runDelegateCommand(argv: string[], cwd: string, ctx: CommandContext): number {
+  const { flags, files } = parse(['delegate', ...argv]);
+  return delegateCommand(cwd, files[0], flags, ctx);
+}
+
+function delegateCommand(
+  cwd: string,
+  action: string | undefined,
+  flags: Map<string, string | true>,
+  ctx: CommandContext,
+): number {
+  const out = ctx.out ?? stdoutWrite;
+  const err = ctx.err ?? stderrWrite;
+  const now = ctx.now ?? new Date();
+  if (action === 'status') {
+    out(`${describeGrants(now, ctx.home).join('\n')}\n`);
+    return 0;
+  }
+  if (action !== 'grant' && action !== 'revoke') {
+    err('usage: tslaws delegate grant|revoke|status\n');
+    return 1;
+  }
+  if (!personOnly({ isTTY: ctx.isTTY, env: ctx.env })) {
+    err(`delegate ${action} is a person's decision and needs a terminal; it will not run here\n`);
+    return 1;
+  }
+  const rootFlag = flags.get('root');
+  const target = rootFlag === undefined || rootFlag === true ? cwd : resolve(cwd, rootFlag);
+  if (action === 'revoke') {
+    const removed = revokeFor(target, ctx.home);
+    if (typeof removed === 'string') {
+      err(`${removed}\n`);
+      return 1;
+    }
+    out(`${removed} delegation${removed === 1 ? '' : 's'} revoked\n`);
+    return 0;
+  }
+  const lengthFlag = flags.get('for');
+  const ms = parseDuration(lengthFlag === undefined ? defaultDuration : String(lengthFlag));
+  if (ms === undefined) {
+    err('--for takes 1h, 8h, 1d or 7d (the most is 7d)\n');
+    return 1;
+  }
+  const granted = grantFor(target, ms, now, ctx.home);
+  if (typeof granted === 'string') {
+    err(`${granted}\n`);
+    return 1;
+  }
+  out(`accept is lent to agents for ${granted.root} until ${granted.expires}\n`);
+  return 0;
+}
+
 export async function main(args: string[]): Promise<number> {
   if (args.includes('--help') || args.includes('-h')) {
     process.stdout.write(`${usage}\n`);
@@ -247,31 +371,10 @@ export async function main(args: string[]): Promise<number> {
     return 0;
   }
 
-  if (command === 'accept') {
-    const chosen = lawFiles(cwd, flags, files);
-    if (chosen.length === 0) {
-      process.stderr.write('no laws files found (looking for *.laws.ts)\n');
-      return 1;
-    }
-    if (!process.stdin.isTTY || process.env.TSLAWS_AGENT !== undefined || process.env.CI !== undefined) {
-      process.stderr.write('accept records laws as correct and needs a person at a terminal; it will not run here\n');
-      return 1;
-    }
-    const opts = options(cwd, flags, chosen);
-    const laws = readManifest(opts.compiler, opts.files, cwd);
-    process.stdout.write(
-      `${laws.length} laws in ${chosen.length} files:\n${laws.map((l) => `  ${l.file}:${l.line} ${l.name}`).join('\n')}\n`,
-    );
-    const rl = createInterface({ input: process.stdin, output: process.stdout });
-    const answer = await rl.question('Type ACCEPT to write tsc-laws.lock: ');
-    rl.close();
-    if (answer.trim() !== 'ACCEPT') return 1;
-    const exempt = exemptionsOf(opts);
-    if (exempt.length > 0) process.stdout.write(`exempt from coverage:\n${exempt.map((e) => `  ${e}`).join('\n')}\n`);
-    writeLock(opts.lockFile, laws, exempt);
-    process.stdout.write('tsc-laws.lock written\n');
-    return 0;
-  }
+  if (command === 'accept')
+    return acceptCommand(cwd, flags, files, { isTTY: process.stdin.isTTY === true, env: process.env });
+  if (command === 'delegate')
+    return delegateCommand(cwd, files[0], flags, { isTTY: process.stdin.isTTY === true, env: process.env });
 
   if (command === 'mcp') return serveMcp({ cwd, compiler: options(cwd, flags, []).compiler });
 
