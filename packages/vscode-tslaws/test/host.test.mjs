@@ -267,7 +267,7 @@ test('lenses: state and counts above the law, the covering laws above the functi
     assert.equal(sourceLenses.length, 1);
     assert.equal(sourceLenses[0].command.title, '$(error) covered by 2 laws, 1 failing');
     assert.equal(sourceLenses[0].range.start.line, 1);
-    assert.equal(sourceLenses[0].command.command, 'tslaws.showLaws');
+    assert.equal(sourceLenses[0].command.command, 'tslaws.goToLaws');
 
     // Before any run a laws file says so.
     assert.deepEqual(lens.provideCodeLenses(s.fake.makeDoc(s.abs('src/other.ts'), 'export const x = 1;')), []);
@@ -337,13 +337,18 @@ test('the counterexample is shown after the failing line on both ends, and the c
     const errorIndex = s.fake.decorationTypes.findIndex((t) =>
       t.o.light?.gutterIconPath?.fsPath.endsWith('failed-light.svg'),
     );
-    const onSource = s.fake.decorationsOn(s.abs('src/cart.ts'), errorIndex);
+    // the failing function's status is the always-visible one (status-decor), not this decoration
+    assert.equal(s.fake.decorationsOn(s.abs('src/cart.ts'), errorIndex).length, 0);
+    const statusErrorIndex = s.fake.decorationTypes.findIndex(
+      (t) =>
+        t.o.after?.color.id === 'editorError.foreground' &&
+        t.o.light?.gutterIconPath?.fsPath.endsWith('failed-light.svg') &&
+        t !== s.fake.decorationTypes[errorIndex],
+    );
+    const onSource = s.fake.decorationsOn(s.abs('src/cart.ts'), statusErrorIndex);
     assert.equal(onSource.length, 1);
     assert.equal(onSource[0].range.start.line, 1);
-    assert.equal(
-      onSource[0].renderOptions.after.contentText,
-      '  fails law totalNeverNegative: counterexample price = 0, coupon = 1',
-    );
+    assert.equal(onSource[0].renderOptions.after.contentText, '  failing: counterexample (price=0, coupon=1)');
     s.fake.events.editors.fire([s.fake.show(law)]);
     const onLaw = s.fake.decorationsOn(s.abs('src/cart.laws.ts'), errorIndex);
     assert.equal(onLaw[0].renderOptions.after.contentText, '  failed: counterexample price = 0, coupon = 1');
@@ -463,12 +468,19 @@ test('accept only types the command, and the command list is the old one plus th
       'tslaws.cancel',
       'tslaws.check',
       'tslaws.copyReproduce',
+      'tslaws.goToFunction',
+      'tslaws.goToLaw',
+      'tslaws.goToLaws',
       'tslaws.openDashboard',
+      'tslaws.openFunction',
       'tslaws.openLaw',
       'tslaws.openSource',
+      'tslaws.pauseLive',
+      'tslaws.peekLaws',
       'tslaws.runFile',
       'tslaws.runLaw',
       'tslaws.showLaws',
+      'tslaws.writeLaw',
     ]);
     assert.ok(!s.calls.some((c) => c.args.includes('accept')), 'accept was never started as a process');
   } finally {

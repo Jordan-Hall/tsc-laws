@@ -16,9 +16,16 @@ const { planRun, isRunnable } = require('./plan.js');
 const { createScheduler } = require('./scheduler.js');
 const { startCheck, liveSupport, checkArguments } = require('./runner.js');
 const { createShadow } = require('./shadow.js');
-const { resolveRunMode, explicitValue, clampInt } = require('./settings.js');
+const { resolveRunMode, explicitValue, clampInt, liveEnabled } = require('./settings.js');
 const { createEditor } = require('./editor.js');
 const { createTesting } = require('./testing.js');
+const { createStatusDecorations } = require('./status-decor.js');
+const { createLawsTree } = require('./laws-tree.js');
+const { createLiveGuard, createCpuSampler } = require('./live-guard.js');
+const { saveCache, loadCache } = require('./live-cache.js');
+const { proposedPath, lawSkeleton, addToProposed } = require('./law-skeleton.js');
+const { findLaws } = require('./find-laws.js');
+const { createNavigation } = require('./navigation.js');
 const { ensurePlugin } = require('./plugin.js');
 const { compileDiagnostics } = require('./compile-diagnostics.js');
 
@@ -31,10 +38,11 @@ const key = (file, name) => `${file}::${name}`;
  */
 function activateExtension(vscode, context, io) {
   const { spawn, fs } = io;
+  const cpus = io.cpus ?? (() => []);
   const now = io.now ?? Date.now;
   const output = vscode.window.createOutputChannel('tslaws');
   const status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 50);
-  status.command = 'tslaws.openDashboard';
+  status.command = 'tslawsLaws.focus';
 
   /** @type {object[] | null} */
   let records = null;
@@ -43,6 +51,12 @@ function activateExtension(vscode, context, io) {
   /** @type {Map<string, number>} */
   const ranAt = new Map();
   let progress = null;
+  /** Laws of the run that is going and have not reported yet: `file::name`. */
+  const runningLaws = new Set();
+  /** When each project file was last edited in the editor (ms), for the `stale` status. */
+  const touched = new Map();
+  let cacheTimer = null;
+  let nav = null;
   let view = { records: null, ranAt, descs: new Map(), index: new Map(), coverage: new Map() };
   let lawFiles = [];
   let dashboard = null;
@@ -61,6 +75,27 @@ function activateExtension(vscode, context, io) {
       runOnSave: config().get('runOnSave', true),
     });
   const delayMs = () => clampInt(config().get('debounceMs', 600), 100, 10000, 600);
+  const hasConfig = () => {
+    const base = root();
+    return base !== undefined && fs.existsSync(nodePath.join(base, 'tslaws.json'));
+  };
+  const guard = createLiveGuard({
+    busy: (() => {
+      const sampler = createCpuSampler(cpus);
+      return () => sampler.read();
+    })(),
+    limit: () => clampInt(config().get('liveCpuLimit', 85), 10, 100, 85) / 100,
+    maxSeconds: () => clampInt(config().get('liveMaxSeconds', 30), 1, 3600, 30),
+  });
+  /** Live results: a run after you stop typing, on the text of the open buffers, held back by the guard. */
+  const liveOn = () =>
+    liveEnabled({
+      setting: config().get('liveBackground', 'auto'),
+      hasConfig: hasConfig(),
+      runExplicit: explicitValue(config().inspect?.('run')) !== undefined,
+      paused: guard.paused || guard.stoppedBySpeed !== null,
+    });
+  const effectiveMode = () => (liveOn() ? 'onType' : runMode());
   const userCommand = (sub) =>
     resolveCommand({ root: root(), executable: config().get('executable'), args: config().get('args') }, sub);
   const samePath = (a, b) => nodePath.normalize(a).toLowerCase() === nodePath.normalize(b).toLowerCase();
@@ -91,14 +126,46 @@ function activateExtension(vscode, context, io) {
     inlineEnabled: () => config().get('inlineCounterexample', true),
   });
 
+  const paramsOf = (file, name) => {
+    const text = readText(file);
+    return text === undefined ? [] : (findLaws(text).find((l) => l.name === name)?.params ?? []);
+  };
+  const statusContext = () => ({
+    recordOf: (file, name) => records?.find((r) => r.file === file && r.name === name),
+    paramsOf,
+    isRunning: (file, name) => runningLaws.has(key(file, name)),
+    ranAt: (file, name) => ranAt.get(key(file, name)),
+    touched: (file) => touched.get(file) ?? 0,
+    now: now(),
+  });
+  const statusDecor = createStatusDecorations(vscode, {
+    root,
+    view: () => view,
+    readText,
+    statusContext,
+    inlineEnabled: () => config().get('inlineCounterexample', true),
+    commandUri: (command, args) => `command:${command}?${encodeURIComponent(JSON.stringify(args))}`,
+  });
+  const lawsTree = createLawsTree(vscode, { records: () => records, ranAt: () => ranAt, now, paramsOf });
+
   const updateStatus = () => {
     const running = progress !== null;
     const text = summaryText(
       records,
       running ? { running, done: progress.done, total: progress.total, fresh: progress.fresh } : {},
     );
-    status.text = `${running ? '$(sync~spin) ' : ''}${text}`;
-    status.tooltip = running ? 'tslaws: a check is running. Click for the dashboard.' : 'tslaws: open the dashboard';
+    const paused = guard.paused || guard.stoppedBySpeed !== null;
+    const live = liveOn();
+    status.text = `${running ? '$(sync~spin) ' : paused ? '$(debug-pause) ' : ''}${text}`;
+    status.tooltip = running
+      ? 'tslaws: a check is running. Click to open the Laws view.'
+      : guard.stoppedBySpeed !== null
+        ? `tslaws: live results stopped, the last run took ${guard.stoppedBySpeed}s. Run "tslaws: pause/resume live results" to resume.`
+        : paused
+          ? 'tslaws: live results are paused. Click to open the Laws view.'
+          : live
+            ? 'tslaws: live results are on. Click to open the Laws view.'
+            : 'tslaws: open the Laws view';
     status.accessibilityInformation = { label: text, role: 'button' };
     status.backgroundColor =
       records !== null && !running && !allPass(records)
@@ -114,6 +181,11 @@ function activateExtension(vscode, context, io) {
     return descs;
   };
 
+  const failingSummary = () => {
+    const failed = (records ?? []).filter((r) => r.status === 'failed').length;
+    return failed > 0 ? `${failed} failing` : records === null ? '' : 'all passing';
+  };
+
   /** Rebuild everything shown from the records and the text as it is now. */
   const rebuild = () => {
     const memo = new Map();
@@ -125,7 +197,16 @@ function activateExtension(vscode, context, io) {
       index: records === null ? new Map() : functionIndex(records),
       coverage: records === null ? new Map() : coverageMap(records),
     };
+    nav?.invalidate();
     editor.refresh();
+    for (const e of vscode.window.visibleTextEditors) statusDecor.decorate(e);
+    lawsTree.refresh();
+    lawsTree.setSummary(failingSummary());
+    void vscode.commands.executeCommand(
+      'setContext',
+      'tslaws.hasLaws',
+      lawFiles.length > 0 || (records?.length ?? 0) > 0,
+    );
     updateStatus();
   };
   const rebuildSoon = () => {
@@ -158,6 +239,16 @@ function activateExtension(vscode, context, io) {
       );
     }
     return supportCache.get(id);
+  };
+
+  /** Keep the last report on disk so it survives a reload. */
+  const cacheSoon = () => {
+    if (cacheTimer !== null) clearTimeout(cacheTimer);
+    cacheTimer = setTimeout(() => {
+      cacheTimer = null;
+      if (root() !== undefined && records !== null)
+        saveCache({ fs, path: nodePath, root: root() }, { records, ranAt, compilerText });
+    }, 400);
   };
 
   /** Unsaved TypeScript buffers, keyed by project-relative path. */
@@ -210,7 +301,7 @@ function activateExtension(vscode, context, io) {
       const support = await probe(probing);
       if (cancelled) return { cancelled: true };
       let cwd = base;
-      const buffers = request.auto && runMode() === 'onType' ? overlays() : new Map();
+      const buffers = request.auto && effectiveMode() === 'onType' ? overlays() : new Map();
       if (buffers.size > 0) {
         if (!shadows.has(base)) shadows.set(base, createShadow({ root: base, fs }));
         const shadow = shadows.get(base);
@@ -235,9 +326,13 @@ function activateExtension(vscode, context, io) {
         streaming: support.streaming,
         onLog: (text) => output.appendLine(text),
         onEvent: (event) => {
-          if (event.type === 'plan')
+          if (event.type === 'plan') {
             progress.total = request.laws !== undefined ? request.laws.length : event.laws.length;
-          else if (event.type === 'result') {
+            runningLaws.clear();
+            for (const l of event.laws) runningLaws.add(key(l.file, l.name));
+            rebuildSoon();
+          } else if (event.type === 'result') {
+            runningLaws.delete(key(event.record.file, event.record.name));
             progress.done++;
             progress.fresh.push(event.record);
             records = [
@@ -256,8 +351,10 @@ function activateExtension(vscode, context, io) {
       if (cancelled) run.cancel();
       const outcome = await run.done;
       progress = null;
+      runningLaws.clear();
       if (outcome.report !== null && !outcome.cancelled) {
         compilerText = outcome.report.compileDiagnostics;
+        cacheSoon();
         records = merge(snapshot ?? [], outcome.report.records, { files: request.files, laws: request.laws ?? null });
         for (const r of outcome.report.records) ranAt.set(key(r.file, r.name), ranAt.get(key(r.file, r.name)) ?? now());
       } else if (outcome.error !== undefined) {
@@ -285,12 +382,43 @@ function activateExtension(vscode, context, io) {
 
   const scheduler = createScheduler({
     delayMs,
-    start: (request) => launch({ ...request, auto: true }),
+    start: (request) => {
+      const began = now();
+      const handle = launch({ ...request, auto: true });
+      guard.started();
+      void handle.done.then(
+        (outcome) => {
+          guard.finished(outcome?.cancelled ? 0 : now() - began);
+          if (guard.stoppedBySpeed !== null) {
+            output.appendLine(
+              `tslaws: live results stopped: the last run took ${guard.stoppedBySpeed}s. Resume them with "tslaws: pause/resume live results".`,
+            );
+            updateStatus();
+          }
+        },
+        () => guard.finished(0),
+      );
+      return handle;
+    },
   });
 
   /** A file changed: choose the laws that cover it and ask for a run. */
-  const changed = (doc) => {
+  let busyTimer = null;
+  const changed = (doc, live = false) => {
     if (doc.uri.scheme !== 'file' || root() === undefined) return;
+    if (live) {
+      const verdict = guard.check();
+      if (!verdict.ok && verdict.reason === 'busy') {
+        // The machine is busy: look again in a few seconds, once.
+        if (busyTimer === null)
+          busyTimer = setTimeout(() => {
+            busyTimer = null;
+            changed(doc, true);
+          }, 4000);
+        return;
+      }
+      if (!verdict.ok && verdict.reason !== 'running') return;
+    }
     const rel = relativeTo(doc.uri.fsPath, root());
     if (rel === doc.uri.fsPath.replaceAll('\\', '/')) return; // outside the workspace
     // The first search for laws files may still be going when the first edit arrives.
@@ -347,18 +475,57 @@ function activateExtension(vscode, context, io) {
     await vscode.env.clipboard.writeText(text);
     void vscode.window.showInformationMessage(`tslaws: copied \`${text}\``);
   };
-  const showLaws = async (file, fn) => {
-    const entry = view.index.get(key(file, fn));
-    if (entry === undefined) return;
-    const picked = await vscode.window.showQuickPick(
-      entry.laws.map((l) => ({
-        label: `${l.failing ? '$(error)' : '$(check)'} ${l.name}`,
-        description: `${l.status} - ${l.file}`,
-        law: l,
-      })),
-      { title: `Laws that reach ${fn}` },
+  nav = createNavigation(vscode, {
+    root,
+    records: () => records,
+    lawFiles: knownLawFiles,
+    readText,
+    exists: (rel) => {
+      const base = root();
+      return base !== undefined && fs.existsSync(nodePath.join(base, rel));
+    },
+    open,
+    paramsOf,
+  });
+  const openFunction = (file, name, line) => {
+    const text = readText(file) ?? '';
+    return open(file, declarationRange(text, { line: line ?? 1, column: 0 }, name));
+  };
+  /** Write a first, proposed law for a function: only in a `*.proposed.laws.ts` file, never in an accepted laws file or the lock. */
+  const writeLaw = async (file, name) => {
+    const target = proposedPath(file);
+    const base = root();
+    if (target === null || base === undefined) {
+      void vscode.window.showWarningMessage(
+        'tslaws: a law can be proposed for a function in a TypeScript source file.',
+      );
+      return;
+    }
+    const sourceText = readText(file);
+    if (sourceText === undefined) return;
+    const full = nodePath.join(base, target);
+    let existing = '';
+    try {
+      existing = fs.readFileSync(full, 'utf8');
+    } catch {
+      // a new file
+    }
+    const { text, added } = addToProposed(existing, name, lawSkeleton({ name, sourceRel: file, sourceText }));
+    if (added) fs.writeFileSync(full, text);
+    await open(target, lawRange(text, `${name}Holds`));
+    void vscode.window.showInformationMessage(
+      added
+        ? `tslaws: proposed a law for ${name} in ${target}. It is not accepted: check it with npx tslaws check --proposed.`
+        : `tslaws: ${target} already has a law for ${name}.`,
     );
-    if (picked !== undefined) await openLaw(picked.law.file, picked.law.name);
+  };
+  const toggleLive = () => {
+    const paused = guard.toggle();
+    if (!paused && guard.stoppedBySpeed === null) scheduler.cancel();
+    void vscode.window.showInformationMessage(
+      paused ? 'tslaws: live results are paused.' : 'tslaws: live results are on.',
+    );
+    rebuild();
   };
   const runFile = (uri) => {
     const target = uri instanceof vscode.Uri ? uri : vscode.window.activeTextEditor?.document.uri;
@@ -419,6 +586,9 @@ function activateExtension(vscode, context, io) {
     status,
     ...editor.disposables,
     ...testing.disposables,
+    ...statusDecor.disposables,
+    ...lawsTree.disposables,
+    ...nav.disposables,
     watcher,
     watcher.onDidCreate(() => void refreshLawFiles()),
     watcher.onDidDelete(() => void refreshLawFiles()),
@@ -429,21 +599,37 @@ function activateExtension(vscode, context, io) {
       scheduler.cancel();
       active?.cancel();
     }),
-    vscode.commands.registerCommand('tslaws.showLaws', showLaws),
+    vscode.commands.registerCommand('tslaws.showLaws', (file, name) => nav.goToLaws(file, name)),
+    vscode.commands.registerCommand('tslaws.goToLaws', (file, name) => nav.goToLaws(file, name)),
+    vscode.commands.registerCommand('tslaws.peekLaws', (file, name) => nav.peekLaws(file, name)),
+    vscode.commands.registerCommand('tslaws.goToFunction', (file, name) => nav.goToFunction(file, name)),
+    vscode.commands.registerCommand('tslaws.goToLaw', () => nav.goToLaw()),
     vscode.commands.registerCommand('tslaws.openLaw', openLaw),
     vscode.commands.registerCommand('tslaws.openSource', openSource),
     vscode.commands.registerCommand('tslaws.copyReproduce', copyReproduce),
     vscode.commands.registerCommand('tslaws.openDashboard', openDashboard),
     vscode.commands.registerCommand('tslaws.accept', accept),
+    vscode.commands.registerCommand('tslaws.writeLaw', writeLaw),
+    vscode.commands.registerCommand('tslaws.openFunction', openFunction),
+    vscode.commands.registerCommand('tslaws.pauseLive', toggleLive),
     vscode.workspace.onDidChangeTextDocument((e) => {
       if (e.document.uri.scheme !== 'file' || !/\.[cm]?tsx?$/.test(e.document.uri.fsPath)) return;
+      if (e.contentChanges.length > 0 && root() !== undefined) {
+        const rel = relativeTo(e.document.uri.fsPath, root());
+        if (rel !== e.document.uri.fsPath.replaceAll(String.fromCharCode(92), '/')) touched.set(rel, now());
+      }
       rebuildSoon(); // the marks follow the edit
-      if (runMode() === 'onType' && e.contentChanges.length > 0) changed(e.document);
+      if (effectiveMode() === 'onType' && e.contentChanges.length > 0) changed(e.document, liveOn());
     }),
     vscode.workspace.onDidSaveTextDocument((doc) => {
-      if (runMode() !== 'manual' && /\.[cm]?tsx?$/.test(doc.uri.fsPath)) changed(doc);
+      if (effectiveMode() !== 'manual' && /\.[cm]?tsx?$/.test(doc.uri.fsPath)) changed(doc);
     }),
-    vscode.window.onDidChangeVisibleTextEditors((editors) => editors.forEach((e) => editor.decorate(e))),
+    vscode.window.onDidChangeVisibleTextEditors((editors) =>
+      editors.forEach((e) => {
+        editor.decorate(e);
+        statusDecor.decorate(e);
+      }),
+    ),
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration('tslaws')) rebuild();
     }),
@@ -452,6 +638,8 @@ function activateExtension(vscode, context, io) {
         scheduler.cancel();
         active?.cancel();
         if (rebuildTimer !== null) clearTimeout(rebuildTimer);
+        if (busyTimer !== null) clearTimeout(busyTimer);
+        if (cacheTimer !== null) clearTimeout(cacheTimer);
         if (dashboard !== null) dashboard.child.kill();
       },
     },
@@ -465,10 +653,30 @@ function activateExtension(vscode, context, io) {
     else if (plugin.changed) void vscode.commands.executeCommand('typescript.restartTsServer');
   }
 
+  // The last report survives a reload; a file edited since it was saved is `stale` until a run covers it.
+  if (root() !== undefined) {
+    const cached = loadCache({ fs, path: nodePath, root: root() });
+    if (cached !== null) {
+      records = cached.records;
+      for (const [k, at] of cached.ranAt) ranAt.set(k, at);
+      compilerText = cached.compilerText;
+      const files = new Set(records.flatMap((r) => [r.file, ...(r.exercises ?? []).map((e) => e.declaration.file)]));
+      for (const f of files) {
+        try {
+          const m = fs.statSync(nodePath.join(root(), f)).mtimeMs;
+          if (m > cached.savedAt) touched.set(f, m);
+        } catch {
+          // a file that is gone has nothing to mark
+        }
+      }
+      rebuild();
+    }
+  }
+
   updateStatus();
   ready = refreshLawFiles();
   void ready.then(() => {
-    if (config().get('runOnOpen', false) && runMode() !== 'manual' && lawFiles.length > 0)
+    if (config().get('runOnOpen', false) && effectiveMode() !== 'manual' && lawFiles.length > 0)
       void runNow({ files: null, auto: true });
   });
 

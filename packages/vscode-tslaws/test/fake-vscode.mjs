@@ -80,6 +80,26 @@ class ThemeColor {
     this.id = id;
   }
 }
+class TreeItem {
+  constructor(label, collapsibleState) {
+    Object.assign(this, { label, collapsibleState });
+  }
+}
+class ThemeIcon {
+  constructor(id, color) {
+    Object.assign(this, { id, color });
+  }
+}
+class DocumentSymbol {
+  constructor(name, detail, kind, range, selectionRange) {
+    Object.assign(this, { name, detail, kind, range, selectionRange });
+  }
+}
+class SymbolInformation {
+  constructor(name, kind, containerName, location) {
+    Object.assign(this, { name, kind, containerName, location });
+  }
+}
 class TestMessage {
   constructor(message) {
     this.message = message;
@@ -119,8 +139,19 @@ function items() {
 export function makeFake({ root, settings = {}, trusted = true, lawFiles = [] } = {}) {
   const commands = new Map();
   const executed = [];
+  const treeViews = [];
+  const quickPicks = [];
   const collections = [];
-  const providers = { lens: [], hover: [], actions: [] };
+  const providers = {
+    lens: [],
+    hover: [],
+    actions: [],
+    implementation: [],
+    reference: [],
+    definition: [],
+    documentSymbol: [],
+    workspaceSymbol: [],
+  };
   const terminals = [];
   const statuses = [];
   const decorationTypes = [];
@@ -156,7 +187,13 @@ export function makeFake({ root, settings = {}, trusted = true, lawFiles = [] } 
     ThemeColor,
     TestMessage,
     EventEmitter: VEventEmitter,
-    DiagnosticSeverity: { Error: 0, Warning: 1 },
+    DiagnosticSeverity: { Error: 0, Warning: 1, Hint: 3 },
+    TreeItem,
+    DocumentSymbol,
+    SymbolInformation,
+    SymbolKind: { Function: 11 },
+    TreeItemCollapsibleState: { None: 0, Collapsed: 1, Expanded: 2 },
+    ThemeIcon,
     StatusBarAlignment: { Left: 1 },
     OverviewRulerLane: { Right: 4 },
     TextEditorRevealType: { InCenterIfOutsideViewport: 2 },
@@ -176,8 +213,18 @@ export function makeFake({ root, settings = {}, trusted = true, lawFiles = [] } 
       registerCodeLensProvider: (sel, p) => (providers.lens.push(p), { dispose() {} }),
       registerHoverProvider: (sel, p) => (providers.hover.push(p), { dispose() {} }),
       registerCodeActionsProvider: (sel, p) => (providers.actions.push(p), { dispose() {} }),
+      registerImplementationProvider: (sel, p) => (providers.implementation.push(p), { dispose() {} }),
+      registerReferenceProvider: (sel, p) => (providers.reference.push(p), { dispose() {} }),
+      registerDefinitionProvider: (sel, p) => (providers.definition.push(p), { dispose() {} }),
+      registerDocumentSymbolProvider: (sel, p) => (providers.documentSymbol.push(p), { dispose() {} }),
+      registerWorkspaceSymbolProvider: (p) => (providers.workspaceSymbol.push(p), { dispose() {} }),
     },
     window: {
+      createTreeView: (id, options) => {
+        const view = { id, options, description: undefined, dispose() {} };
+        treeViews.push(view);
+        return view;
+      },
       createOutputChannel: () => ({ appendLine: (l) => output.push(l), append: (l) => output.push(l), dispose() {} }),
       createStatusBarItem: () => {
         const s = { show() {}, dispose() {} };
@@ -197,7 +244,10 @@ export function makeFake({ root, settings = {}, trusted = true, lawFiles = [] } 
       showWarningMessage: async (m) => void messages.warning.push(m),
       showErrorMessage: async (m) => void messages.error.push(m),
       showInformationMessage: async (m) => void messages.info.push(m),
-      showQuickPick: async (list) => list[0],
+      showQuickPick: async (list, options) => {
+        quickPicks.push({ list, options });
+        return state.pick === undefined ? list[0] : state.pick(list);
+      },
       showTextDocument: async (doc) => {
         const editor = { document: doc, selection: undefined, revealRange() {} };
         opened.push(editor);
@@ -292,6 +342,8 @@ export function makeFake({ root, settings = {}, trusted = true, lawFiles = [] } 
     vscode,
     commands,
     executed,
+    treeViews,
+    quickPicks,
     collections,
     providers,
     terminals,
