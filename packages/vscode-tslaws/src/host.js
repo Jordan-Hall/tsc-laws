@@ -326,7 +326,9 @@ function activateExtension(vscode, context, io) {
         streaming: support.streaming,
         onLog: (text) => output.appendLine(text),
         onEvent: (event) => {
-          if (event.type === 'plan') {
+          if (progress === null) {
+            // The run was stopped; what it still says is of no interest.
+          } else if (event.type === 'plan') {
             progress.total = request.laws !== undefined ? request.laws.length : event.laws.length;
             runningLaws.clear();
             for (const l of event.laws) runningLaws.add(key(l.file, l.name));

@@ -83,7 +83,7 @@ const stream = (results) => {
 };
 
 /** A project on disk, the extension under the fake, and a `tslaws` that answers `check` with `answer(call)`. */
-function scenario({ settings = {}, help = HELP, answer, trusted = true } = {}) {
+function scenario({ settings = {}, help = HELP, answer, trusted = true, before, cpus, extraLawFiles = [] } = {}) {
   const root = fs.realpathSync(mkdtempSync(path.join(tmpdir(), 'tslaws-host-')));
   const put = (rel, text) => {
     mkdirSync(path.dirname(path.join(root, rel)), { recursive: true });
@@ -93,11 +93,12 @@ function scenario({ settings = {}, help = HELP, answer, trusted = true } = {}) {
   put('src/cart.laws.ts', LAWS);
   put('node_modules/tslaws/bin/tslaws.js', '');
   put('tsc-laws.lock', '{}');
+  before?.(put, root);
   const fake = makeFake({
     root,
     settings: { debounceMs: 100, ...settings },
     trusted,
-    lawFiles: [path.join(root, 'src/cart.laws.ts')],
+    lawFiles: [path.join(root, 'src/cart.laws.ts'), ...extraLawFiles.map((f) => path.join(root, f))],
   });
   const checks = [];
   const { spawn, calls } = makeSpawn((call) => {
@@ -109,7 +110,7 @@ function scenario({ settings = {}, help = HELP, answer, trusted = true } = {}) {
     answer?.(call, checks.length);
   });
   const context = { subscriptions: [] };
-  const api = activateExtension(fake.vscode, context, { spawn, fs });
+  const api = activateExtension(fake.vscode, context, { spawn, fs, cpus });
   const abs = (rel) => path.join(root, rel);
   return {
     root,
@@ -574,6 +575,439 @@ test('Test Explorer: excluding a law from a selected file runs only the others, 
     // Every law excluded: nothing is asked of tslaws.
     await controller.profiles[0].handler({ include: [file], exclude: [...file.children].map((i) => i) }, token);
     assert.equal(s.checks.length, 2);
+  } finally {
+    s.finish();
+  }
+});
+
+// ---- live results, the Laws view, writing a law, and navigation ----
+
+const hang = () => {};
+const edit = (s, rel, text = CART) => {
+  const doc = s.fake.open(s.abs(rel), text, true);
+  s.fake.events.change.fire({ document: doc, contentChanges: [{ text: ' ' }] });
+  return doc;
+};
+/** Every always-visible text decoration set on a file, whatever its colour. */
+const shownOn = (s, rel) => {
+  const out = [];
+  s.fake.decorationTypes.forEach((_, i) => {
+    for (const d of s.fake.decorationsOn(s.abs(rel), i)) out.push(d.renderOptions.after.contentText.trim());
+  });
+  return out;
+};
+const show = (s, rel) => s.fake.events.editors.fire([s.fake.show(s.fake.makeDoc(s.abs(rel)))]);
+const statusLine = (s) => s.fake.statuses[0].text;
+
+test('live results: typing in a function runs its laws in the background and its status follows', async () => {
+  const s = scenario({ settings: { liveBackground: 'on' }, answer: emitAll([failedResult, otherResult]) });
+  try {
+    edit(s, 'src/cart.ts');
+    await until(() => s.diag('src/cart.ts') !== undefined, 'the background run to finish');
+    assert.equal(s.checks.length, 1);
+    show(s, 'src/cart.ts');
+    assert.deepEqual(
+      shownOn(s, 'src/cart.ts').filter((t) => t.startsWith('failing')),
+      ['failing: counterexample (price=0, coupon=1)'],
+    );
+    assert.match(s.fake.treeViews[0].description, /1 failing/);
+  } finally {
+    s.finish();
+  }
+});
+
+test('the status after a function says tested with its runs, bounded, and stale after an edit', async () => {
+  const tested = { ...provedResult('totalNeverNegative', 3), status: 'tested', runs: 24 };
+  const s = scenario({
+    settings: { liveBackground: 'off' },
+    answer: emitAll([tested, { ...otherResult, status: 'tested', runs: 6 }], 0),
+  });
+  try {
+    s.save('src/cart.ts');
+    await until(() => s.fake.statuses[0].text.includes('tested'), 'results');
+    await settle(150);
+    show(s, 'src/cart.ts');
+    assert.deepEqual(shownOn(s, 'src/cart.ts'), ['tested 30 runs']);
+    edit(s, 'src/cart.ts');
+    await settle(200);
+    show(s, 'src/cart.ts');
+    assert.deepEqual(shownOn(s, 'src/cart.ts'), ['stale · ran just now']);
+  } finally {
+    s.finish();
+  }
+  const bounded = scenario({
+    settings: { liveBackground: 'off' },
+    answer: emitAll([provedResult('totalNeverNegative', 3), { ...otherResult, status: 'bounded' }], 0),
+  });
+  try {
+    bounded.save('src/cart.ts');
+    await until(() => bounded.fake.statuses[0].text.includes('bounded'), 'results');
+    await settle(150);
+    show(bounded, 'src/cart.ts');
+    assert.deepEqual(shownOn(bounded, 'src/cart.ts'), ['bounded']);
+  } finally {
+    bounded.finish();
+  }
+});
+
+test('an exported function no law reaches is a hint with a one-click law, written only to a proposed file', async () => {
+  const uncovered = {
+    file: 'src/cart.ts',
+    name: 'total',
+    line: 2,
+    status: 'uncovered',
+    method: 'coverage',
+    message: 'no law',
+    exercises: [],
+  };
+  const s = scenario({ answer: emitAll([uncovered], 1) });
+  try {
+    void s.fake.commands.get('tslaws.check')();
+    await until(() => s.diag('src/cart.ts') !== undefined, 'the hint');
+    const [d] = s.diag('src/cart.ts');
+    assert.equal(d.severity, 3, 'a hint, not an error or a warning');
+    show(s, 'src/cart.ts');
+    assert.deepEqual(shownOn(s, 'src/cart.ts'), ['uncovered: no law reaches this function']);
+    const [actions] = s.fake.providers.actions;
+    const fixes = actions.provideCodeActions(s.fake.makeDoc(s.abs('src/cart.ts')), d.range, { diagnostics: [d] });
+    assert.deepEqual(
+      fixes.map((f) => [f.title, f.command.command, f.command.arguments]),
+      [['tslaws: Write a law for this function', 'tslaws.writeLaw', ['src/cart.ts', 'total']]],
+    );
+
+    const acceptedBefore = fs.readFileSync(s.abs('src/cart.laws.ts'), 'utf8');
+    await s.fake.commands.get('tslaws.writeLaw')('src/cart.ts', 'total');
+    const proposed = fs.readFileSync(s.abs('src/cart.proposed.laws.ts'), 'utf8');
+    assert.match(proposed, /import \{ total \} from '\.\/cart';/);
+    assert.match(proposed, /export law totalHolds\(price: number, coupon: number\) \{/);
+    assert.equal(
+      fs.readFileSync(s.abs('src/cart.laws.ts'), 'utf8'),
+      acceptedBefore,
+      'an accepted laws file is never written',
+    );
+    assert.equal(fs.readFileSync(s.abs('tsc-laws.lock'), 'utf8'), '{}', 'the lock is never written');
+    assert.ok(s.fake.opened.length > 0, 'the new law is shown');
+    await s.fake.commands.get('tslaws.writeLaw')('src/cart.ts', 'total');
+    assert.equal(fs.readFileSync(s.abs('src/cart.proposed.laws.ts'), 'utf8'), proposed, 'nothing is added twice');
+    await s.fake.commands.get('tslaws.writeLaw')('src/cart.laws.ts', 'totalNeverNegative');
+    assert.ok(!fs.existsSync(s.abs('src/cart.laws.proposed.laws.ts')));
+    assert.match(s.fake.messages.warning.join('\n'), /TypeScript source file/);
+  } finally {
+    s.finish();
+  }
+});
+
+test('the last report survives a reload, and a file edited since is stale', async () => {
+  const s = scenario({ settings: { liveBackground: 'off' }, answer: emitAll([failedResult, otherResult]) });
+  try {
+    s.save('src/cart.ts');
+    await until(() => fs.existsSync(path.join(s.root, '.tslaws', 'last-report.json')), 'the cache to be written', 4000);
+    s.context.subscriptions.forEach((x) => x.dispose?.());
+    const open = () =>
+      makeFake({ root: s.root, settings: { liveBackground: 'off' }, lawFiles: [s.abs('src/cart.laws.ts')] });
+    const { spawn } = makeSpawn(() => {});
+    const reopened = open();
+    activateExtension(reopened.vscode, { subscriptions: [] }, { spawn, fs });
+    assert.equal(
+      reopened.collections[0].store.get(s.abs('src/cart.ts')).length,
+      1,
+      'the failure is marked without a run',
+    );
+    assert.match(reopened.statuses[0].text, /1 failed/);
+    assert.equal(reopened.treeViews.length, 1);
+
+    const later = new Date(Date.now() + 60_000);
+    fs.utimesSync(s.abs('src/cart.ts'), later, later);
+    const third = open();
+    activateExtension(third.vscode, { subscriptions: [] }, { spawn, fs });
+    third.events.editors.fire([third.show(third.makeDoc(s.abs('src/cart.ts')))]);
+    const texts = [];
+    third.decorationTypes.forEach((_, i) =>
+      third.decorationsOn(s.abs('src/cart.ts'), i).forEach((d) => texts.push(d.renderOptions.after.contentText.trim())),
+    );
+    assert.equal(texts.length, 1, texts.join('|'));
+    assert.ok(texts[0].startsWith('stale'), texts[0]);
+  } finally {
+    s.finish();
+  }
+});
+
+test('the Laws view groups by status with the failing first, and a click reveals the law', async () => {
+  const s = scenario({ answer: emitAll([failedResult, otherResult]) });
+  try {
+    s.save('src/cart.ts');
+    await until(() => s.diag('src/cart.ts') !== undefined, 'results');
+    const provider = s.fake.treeViews[0].options.treeDataProvider;
+    const groups = provider.getChildren(undefined);
+    assert.deepEqual(
+      groups.map((g) => g.label),
+      ['Failing (1)', 'Proved (1)'],
+    );
+    const [law] = provider.getChildren(groups[0]);
+    const item = provider.getTreeItem(law);
+    assert.equal(item.label, 'totalNeverNegative');
+    assert.match(item.description, /^src\/cart\.laws\.ts · /);
+    assert.match(item.tooltip, /counterexample price = 0, coupon = 1/);
+    assert.deepEqual(
+      [item.command.command, item.command.arguments],
+      ['tslaws.openLaw', ['src/cart.laws.ts', 'totalNeverNegative']],
+    );
+    assert.equal(s.fake.statuses[0].command, 'tslawsLaws.focus');
+  } finally {
+    s.finish();
+  }
+});
+
+test('pausing live results stops background runs until they are resumed', async () => {
+  const s = scenario({ settings: { liveBackground: 'on' }, answer: emitAll([otherResult], 0) });
+  try {
+    await s.fake.commands.get('tslaws.pauseLive')();
+    assert.ok(statusLine(s).startsWith('$(debug-pause)'), statusLine(s));
+    edit(s, 'src/cart.ts');
+    await settle(400);
+    assert.equal(s.checks.length, 0, 'no run while paused');
+    await s.fake.commands.get('tslaws.pauseLive')();
+    edit(s, 'src/cart.ts');
+    await until(() => s.checks.length === 1, 'a run after resuming');
+  } finally {
+    s.finish();
+  }
+});
+
+test('live results wait while the machine is busy', async () => {
+  let t = 0;
+  const busy = () => [{ times: { user: (t += 1000), nice: 0, sys: 0, idle: t / 1000, irq: 0 } }];
+  const s = scenario({ settings: { liveBackground: 'on' }, cpus: busy, answer: emitAll([otherResult], 0) });
+  try {
+    edit(s, 'src/cart.ts');
+    await settle(400);
+    assert.equal(s.checks.length, 0, 'the machine is busy, so nothing started');
+  } finally {
+    s.finish();
+  }
+});
+
+test('live results stop by themselves when a run is slower than the limit', async () => {
+  const s = scenario({
+    settings: { liveBackground: 'on', liveMaxSeconds: 1 },
+    answer: (call) => setTimeout(() => emitAll([otherResult], 0)(call), 1100),
+  });
+  try {
+    edit(s, 'src/cart.ts');
+    await until(() => s.checks.length === 1, 'the run');
+    await until(() => statusLine(s).startsWith('$(debug-pause)'), 'live results to stop', 4000);
+    assert.match(s.fake.output.join('\n'), /live results stopped: the last run took \d+s/);
+    edit(s, 'src/cart.ts');
+    await settle(400);
+    assert.equal(s.checks.length, 1, 'no second run');
+    await s.fake.commands.get('tslaws.pauseLive')();
+    edit(s, 'src/cart.ts');
+    await until(() => s.checks.length === 2, 'a run after resuming', 4000);
+  } finally {
+    s.finish();
+  }
+});
+
+test('a newer edit cancels the background run that is going: one check at a time', async () => {
+  const s = scenario({
+    settings: { liveBackground: 'on' },
+    answer: (call, n) => (n === 1 ? hang() : emitAll([otherResult], 0)(call)),
+  });
+  try {
+    edit(s, 'src/cart.ts');
+    await until(() => s.checks.length === 1, 'the first run');
+    edit(s, 'src/cart.ts', `${CART}\n`);
+    await until(() => s.checks.length === 2, 'the second run');
+    assert.equal(s.checks[0].child.killed, true, 'the first was stopped before the second began');
+  } finally {
+    s.finish();
+  }
+});
+
+test('live results are on by default for a project with tslaws.json, unless the person chose when to run', async () => {
+  const withConfig = scenario({ before: (put) => put('tslaws.json', '{}'), answer: emitAll([otherResult], 0) });
+  try {
+    edit(withConfig, 'src/cart.ts');
+    await until(() => withConfig.checks.length === 1, 'a background run with no setting at all');
+  } finally {
+    withConfig.finish();
+  }
+  const chosen = scenario({
+    before: (put) => put('tslaws.json', '{}'),
+    settings: { run: 'onSave' },
+    answer: emitAll([otherResult], 0),
+  });
+  try {
+    edit(chosen, 'src/cart.ts');
+    await settle(400);
+    assert.equal(chosen.checks.length, 0, 'tslaws.run was chosen, so typing runs nothing');
+  } finally {
+    chosen.finish();
+  }
+  const without = scenario({ answer: emitAll([otherResult], 0) });
+  try {
+    edit(without, 'src/cart.ts');
+    await settle(400);
+    assert.equal(without.checks.length, 0, 'no tslaws.json, so on save only');
+  } finally {
+    without.finish();
+  }
+});
+
+function navigation(extra = {}) {
+  return scenario({
+    extraLawFiles: ['src/cart.proposed.laws.ts', 'src/cart.browser.laws.ts', 'src/cart.e2e.laws.ts'],
+    before: (put) => {
+      for (const variant of ['proposed', 'browser', 'e2e'])
+        put(
+          `src/cart.${variant}.laws.ts`,
+          `import { total } from './cart';\nexport law ${variant}Law(a: number) { return total(a, 0) >= 0; }\n`,
+        );
+    },
+    answer: emitAll([failedResult, otherResult]),
+    ...extra,
+  });
+}
+const lawLines = (locations) => locations.map((l) => `${path.basename(l.uri.fsPath)}:${l.range.start.line}`).sort();
+
+test('go to implementation and find all references on a function list its laws, before any run (imports) and after one', async () => {
+  const s = navigation();
+  try {
+    await settle(50);
+    const doc = s.fake.makeDoc(s.abs('src/cart.ts'));
+    const at = new s.fake.vscode.Position(1, 18);
+    const [impl] = s.fake.providers.implementation;
+    const [refs] = s.fake.providers.reference;
+    const expected = [
+      'cart.browser.laws.ts:1',
+      'cart.e2e.laws.ts:1',
+      'cart.laws.ts:2',
+      'cart.laws.ts:5',
+      'cart.proposed.laws.ts:1',
+    ];
+    assert.deepEqual(lawLines(impl.provideImplementation(doc, at)), expected);
+    assert.deepEqual(lawLines(refs.provideReferences(doc, at, {})), expected);
+    const lawDoc = s.fake.makeDoc(s.abs('src/cart.laws.ts'));
+    assert.equal(impl.provideImplementation(lawDoc, new s.fake.vscode.Position(3, 10)).length, 5);
+    assert.deepEqual(impl.provideImplementation(doc, new s.fake.vscode.Position(2, 4)), []);
+
+    s.save('src/cart.ts');
+    await until(() => s.diag('src/cart.ts') !== undefined, 'a run');
+    assert.deepEqual(
+      lawLines(impl.provideImplementation(doc, at)),
+      expected,
+      'the report adds nothing and loses nothing',
+    );
+  } finally {
+    s.finish();
+  }
+});
+
+test('definition on a law name is the function it exercises', async () => {
+  const s = navigation();
+  try {
+    await settle(50);
+    const [def] = s.fake.providers.definition;
+    const lawDoc = s.fake.makeDoc(s.abs('src/cart.laws.ts'));
+    const onName = def.provideDefinition(lawDoc, new s.fake.vscode.Position(2, 15));
+    assert.equal(onName.length, 1);
+    assert.equal(path.basename(onName[0].uri.fsPath), 'cart.ts');
+    assert.equal(onName[0].range.start.line, 1);
+    assert.deepEqual(def.provideDefinition(lawDoc, new s.fake.vscode.Position(3, 4)), [], 'left to TypeScript');
+  } finally {
+    s.finish();
+  }
+});
+
+test('the outline and Ctrl+T list every law with its status, in every laws file variant', async () => {
+  const s = navigation();
+  try {
+    s.save('src/cart.ts');
+    await until(() => s.diag('src/cart.ts') !== undefined, 'a run');
+    const [symbols] = s.fake.providers.documentSymbol;
+    const found = symbols.provideDocumentSymbols(s.fake.makeDoc(s.abs('src/cart.laws.ts')));
+    assert.deepEqual(
+      found.map((x) => [x.name, x.detail]),
+      [
+        ['totalNeverNegative', 'failed: price = 0, coupon = 1'],
+        ['couponNeverRaisesTheTotal', 'proved'],
+      ],
+    );
+    assert.equal(found[0].selectionRange.start.line, 2);
+    assert.equal(found[0].range.end.line, 4);
+    const [workspace] = s.fake.providers.workspaceSymbol;
+    const names = (q) => workspace.provideWorkspaceSymbols(q).map((x) => x.name);
+    assert.deepEqual(names('law:').sort(), [
+      'law:browserLaw',
+      'law:couponNeverRaisesTheTotal',
+      'law:e2eLaw',
+      'law:proposedLaw',
+      'law:totalNeverNegative',
+    ]);
+    assert.deepEqual(names('law:neg'), ['law:totalNeverNegative']);
+    assert.deepEqual(names('tnn'), ['law:totalNeverNegative'], 'fuzzy');
+    assert.deepEqual(names('zzzz'), []);
+    const [first] = workspace.provideWorkspaceSymbols('law:');
+    assert.equal(first.containerName, 'failed: price = 0, coupon = 1 · src/cart.laws.ts');
+    assert.equal(first.location.range.start.line, 2);
+  } finally {
+    s.finish();
+  }
+});
+
+test('go to laws: several ask with status icons, none says so', async () => {
+  const s = navigation();
+  try {
+    s.save('src/cart.ts');
+    await until(() => s.diag('src/cart.ts') !== undefined, 'a run');
+    const go = s.fake.commands.get('tslaws.goToLaws');
+    await go('src/cart.ts', 'total');
+    const pick = s.fake.quickPicks.at(-1);
+    assert.deepEqual(
+      pick.list.map((i) => `${i.label} | ${i.description}`),
+      [
+        '$(error) totalNeverNegative | failed',
+        '$(circle-outline) browserLaw | not run',
+        '$(circle-outline) e2eLaw | not run',
+        '$(circle-outline) proposedLaw | not run',
+        '$(check) couponNeverRaisesTheTotal | proved',
+      ],
+    );
+    assert.match(pick.list[0].detail, /counterexample price = 0, coupon = 1/);
+    assert.equal(s.fake.opened.at(-1).document.uri.fsPath, s.abs('src/cart.laws.ts'));
+    const before = s.fake.quickPicks.length;
+    await go('src/cart.proposed.laws.ts', 'proposedLaw');
+    assert.equal(s.fake.quickPicks.length, before);
+    assert.match(s.fake.messages.info.at(-1), /no law exercises proposedLaw yet/);
+  } finally {
+    s.finish();
+  }
+});
+
+test('go to the function a law exercises, peek the laws, and go to any law', async () => {
+  const s = navigation();
+  try {
+    s.save('src/cart.ts');
+    await until(() => s.diag('src/cart.ts') !== undefined, 'a run');
+    await s.fake.commands.get('tslaws.goToFunction')('src/cart.laws.ts', 'totalNeverNegative');
+    assert.equal(s.fake.opened.at(-1).document.uri.fsPath, s.abs('src/cart.ts'));
+    assert.equal(s.fake.quickPicks.length, 0, 'one function: no question');
+
+    const doc = s.fake.makeDoc(s.abs('src/cart.ts'));
+    s.fake.state.activeTextEditor = { document: doc, selection: { active: new s.fake.vscode.Position(1, 18) } };
+    await s.fake.commands.get('tslaws.peekLaws')();
+    const [id, uri, position, locations, mode] = s.fake.executed.find(([c]) => c === 'editor.action.peekLocations');
+    assert.equal(id, 'editor.action.peekLocations');
+    assert.equal(uri.fsPath, s.abs('src/cart.ts'));
+    assert.equal(position.line, 1);
+    assert.equal(locations.length, 5);
+    assert.equal(mode, 'peek');
+
+    await s.fake.commands.get('tslaws.goToLaw')();
+    const all = s.fake.quickPicks.at(-1);
+    assert.equal(all.list.length, 5);
+    assert.equal(all.list[0].label, '$(error) totalNeverNegative', 'failing laws first');
+    assert.equal(all.options.matchOnDescription, true);
   } finally {
     s.finish();
   }

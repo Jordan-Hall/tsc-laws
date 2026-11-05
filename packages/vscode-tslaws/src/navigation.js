@@ -242,7 +242,10 @@ function createNavigation(vscode, host) {
         .replace(/^\s*law\s*:\s*/i, '')
         .trim();
       return sorted(index().laws)
-        .filter((law) => q === '' || fuzzy(q, law.name) || fuzzy(q, `${law.file} ${law.name}`))
+        .filter(
+          (law) =>
+            q === '' || fuzzy(q, law.name) || (/[/.]/.test(q) && law.file.toLowerCase().includes(q.toLowerCase())),
+        )
         .map(
           (law) =>
             new vscode.SymbolInformation(
