@@ -12,10 +12,15 @@
   "keywords": [
     "accessibility",
     "ai agents",
+    "codelens",
+    "counterexample",
+    "law",
     "laws",
     "proof",
     "property testing",
+    "test explorer",
     "testing",
+    "tslaws",
     "typescript",
     "z3"
   ],
@@ -29,6 +34,7 @@
     "url": "https://github.com/Jordan-Hall/tsc-laws.git",
     "directory": "packages/vscode-tslaws"
   },
+  "qna": "marketplace",
   "publisher": "TS-Laws",
   "main": "./src/extension.js",
   "scripts": {
@@ -183,6 +189,7 @@
     "color": "#0f1220",
     "theme": "dark"
   },
+  "markdown": "github",
   "engines": {
     "vscode": "^1.80.0"
   },
@@ -195,5 +202,6 @@
         "tslaws.args"
       ]
     }
-  }
+  },
+  "pricing": "Free"
 }
