@@ -29,10 +29,10 @@ jobs:
       native-shards: ${{ steps.select.outputs.native-shards }}
       docs: ${{ steps.select.outputs.docs }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
@@ -53,8 +53,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
@@ -69,16 +69,16 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version: '1.27'
           cache-dependency-path: packages/tsc-ts/tests/xxh3-vectors/go.sum
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: upstream
           key: upstream-${{ hashFiles('upstream.json') }}
@@ -86,7 +86,7 @@ jobs:
       # task hashes also cover the dependencies resolved in the lockfile, turbo.json and the packages' package.json,
       # so the key does too: otherwise a dependency bump keeps restoring entries for the old hashes and never saves
       # new ones.
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: .turbo/cache
           key: turbo-oracles-${{ hashFiles('upstream.json', 'packages/tsgo/oracles/**', 'packages/tsgo/checkhost/**', 'packages/tsgo/scripts/build-oracle.mjs', 'package-lock.json', 'turbo.json', 'packages/tsgo/package.json') }}
@@ -96,7 +96,7 @@ jobs:
       - run: node scripts/ci/compile-tests.mjs packages/tsc-ts/dist/test-build
       # A tar keeps the executable bits that artifacts drop.
       - run: tar -cf build.tar packages/tsc-ts/dist packages/tsgo/dist
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: build
           path: build.tar
@@ -113,18 +113,18 @@ jobs:
       matrix:
         shard: ${{ fromJSON(needs.plan.outputs.shards) }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
-      - uses: actions/cache/restore@v4
+      - uses: actions/cache/restore@v6
         with:
           path: upstream
           key: upstream-${{ hashFiles('upstream.json') }}
       - run: npm ci
       - run: npm run fetch:upstream
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: build
       - run: tar -xf build.tar && rm build.tar
@@ -135,7 +135,7 @@ jobs:
         run: |
           printf '%s' "$PLAN" > "$RUNNER_TEMP/plan.json"
           node scripts/ci/run-tests.mjs --plan "$RUNNER_TEMP/plan.json" --set node --shard ${{ matrix.shard }} --report "$RUNNER_TEMP/report.json"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: test-report-${{ strategy.job-index }}
@@ -151,8 +151,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
@@ -160,7 +160,7 @@ jobs:
       - id: scriptc
         run: echo "version=$(node -p "require('./package.json').devDependencies.scriptc")" >> "$GITHUB_OUTPUT"
       # scriptc's precompiled runtime families, which depend only on the scriptc version.
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: ~/.cache/scriptc
           key: scriptc-${{ runner.os }}-${{ steps.scriptc.outputs.version }}
@@ -176,7 +176,7 @@ jobs:
           wait $cli || { status=1; cat "$RUNNER_TEMP/cli.log"; }
           exit $status
       - run: tar -cf native.tar packages/tsc-ts/dist/tsc packages/tsc-ts/dist/cli
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: native
           path: native.tar
@@ -194,21 +194,21 @@ jobs:
       matrix:
         shard: ${{ fromJSON(needs.plan.outputs.native-shards) }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
-      - uses: actions/cache/restore@v4
+      - uses: actions/cache/restore@v6
         with:
           path: upstream
           key: upstream-${{ hashFiles('upstream.json') }}
       - run: npm ci
       - run: npm run fetch:upstream
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: build
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: native
       - run: tar -xf build.tar && tar -xf native.tar && rm build.tar native.tar
@@ -219,7 +219,7 @@ jobs:
         run: |
           printf '%s' "$PLAN" > "$RUNNER_TEMP/plan.json"
           node scripts/ci/run-tests.mjs --plan "$RUNNER_TEMP/plan.json" --set native --shard ${{ matrix.shard }} --report "$RUNNER_TEMP/report.json"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: test-report-native-${{ strategy.job-index }}
@@ -235,8 +235,8 @@ jobs:
     runs-on: windows-2025
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
@@ -266,8 +266,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
@@ -286,13 +286,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
       # pack.mjs takes the lib files from the pinned upstream.
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: upstream
           key: upstream-${{ hashFiles('upstream.json') }}
