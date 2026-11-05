@@ -14,6 +14,10 @@ The `tsc-laws` workflow then:
 3. publishes a GitHub release with those builds and the `tslaws` tarball,
 4. publishes to npm, if enabled (below).
 
+The GitHub release, the npm packages (`tslaws` and the compilers) and the VS Code extension are released together from one tag
+and share its version. The release notes are the version's section of `CHANGELOG-LAWS.md` (generated notes when the tag has
+no section).
+
 ## Automatic releases
 
 Every push to `main` runs `.github/workflows/laws-auto-release.yml`. When the commits since the latest `laws-v*` tag change

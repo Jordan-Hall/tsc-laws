@@ -6,6 +6,8 @@
 //   node scripts/ci/laws-auto-release.mjs apply <version>
 //       Sets <version> in packages/tslaws and packages/vscode-tslaws (and the lockfile entries) and adds the section
 //       for it to CHANGELOG-LAWS.md.
+//   node scripts/ci/laws-auto-release.mjs notes <version> <file>
+//       Writes that version's CHANGELOG-LAWS.md section to <file> (nothing when the section is missing).
 //
 // The decision logic is in pure functions, tested by laws-auto-release.test.mjs.
 import { execFileSync } from 'node:child_process';
@@ -104,6 +106,19 @@ export function insertSection(changelog, section) {
   return `${changelog.slice(0, at)}${section}\n${changelog.slice(at)}`;
 }
 
+/** The `## <version>` section of a changelog without its heading, or undefined when there is none (or it is empty). */
+export function releaseNotes(changelog, version) {
+  const lines = changelog.replace(/\r\n/g, '\n').split('\n');
+  const start = lines.findIndex((line) => line.trim() === `## ${version}`);
+  if (start === -1) return undefined;
+  const end = lines.findIndex((line, i) => i > start && line.startsWith('## '));
+  const body = lines
+    .slice(start + 1, end === -1 ? undefined : end)
+    .join('\n')
+    .trim();
+  return body ? `${body}\n` : undefined;
+}
+
 /** The whole decision, from plain data. */
 export function plan({ currentVersion, head, trigger, commits, paths, tagExists }) {
   const skip = skipReason(head, trigger);
@@ -189,7 +204,14 @@ function main(argv) {
     writeFileSync('CHANGELOG-LAWS.md', insertSection(changelog, renderSection(arg, commits)));
     return;
   }
-  throw new Error('usage: laws-auto-release.mjs plan | apply <version>');
+  if (command === 'notes') {
+    // notes <version> <file>: writes the changelog section to <file>; writes nothing when there is none.
+    const notes = releaseNotes(readFileSync('CHANGELOG-LAWS.md', 'utf8'), arg ?? '');
+    if (notes) writeFileSync(argv[2], notes);
+    else console.log(`no CHANGELOG-LAWS.md section for ${arg}`);
+    return;
+  }
+  throw new Error('usage: laws-auto-release.mjs plan | apply <version> | notes <version> <file>');
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) main(process.argv.slice(2));
