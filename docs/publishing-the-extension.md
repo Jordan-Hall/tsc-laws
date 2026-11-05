@@ -54,7 +54,7 @@ Per the [Open VSX Trusted Publishing guide](https://github.com/eclipse-openvsx/o
 
 This has not been exercised by a real tag run yet. Check the first publish.
 
-The namespace must be exactly `ts-laws`, the `publisher` in `packages/vscode-tslaws/package.json`. The guide lists this as a known limitation: the check that authorises a trusted-publishing token compares the namespace case-sensitively.  The Marketplace publisher ID and the Open VSX namespace are both `ts-laws`.
+The namespace must be exactly `ts-laws`, the `publisher` in `packages/vscode-tslaws/package.json`. The guide lists this as a known limitation: the check that authorises a trusted-publishing token compares the namespace case-sensitively. The Marketplace publisher ID and the Open VSX namespace are both `ts-laws`.
 
 1. Sign in at <https://open-vsx.org> with your GitHub account.
 2. Accept the Eclipse publisher agreement from your profile page. Publishing is refused until you have.
