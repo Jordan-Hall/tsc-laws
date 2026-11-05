@@ -9,14 +9,8 @@ import { readConfig } from './coverage.ts';
 import { chromium, firefox, webkit, type Browser, type BrowserType, type Page } from 'playwright-core';
 import type * as fc from 'fast-check';
 import { toWire } from './generators.ts';
-import { acceptedLawName } from './lawNames.ts';
 import { runProperty, summarise, type PropertyOutcome } from './property.ts';
 import type { CheckOptions } from './types.ts';
-
-/** `a.browser.laws.ts` and its proposal `a.browser.proposed.laws.ts` run in a browser. */
-export function isBrowserLawFile(file: string): boolean {
-  return /\.browser\.laws\.[cm]?ts$/.test(acceptedLawName(file));
-}
 
 function findBrowser(): string | undefined {
   const fromEnv = process.env.TSLAWS_BROWSER;

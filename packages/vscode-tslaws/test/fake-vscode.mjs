@@ -75,6 +75,11 @@ class Hover {
     Object.assign(this, { contents, range });
   }
 }
+class FileDecoration {
+  constructor(badge, tooltip, color) {
+    Object.assign(this, { badge, tooltip, color });
+  }
+}
 class ThemeColor {
   constructor(id) {
     this.id = id;
@@ -155,6 +160,7 @@ export function makeFake({ root, settings = {}, trusted = true, lawFiles = [] } 
   const terminals = [];
   const statuses = [];
   const decorationTypes = [];
+  const fileDecorators = [];
   const decorations = new Map();
   const messages = { warning: [], error: [], info: [] };
   const clipboard = [];
@@ -185,6 +191,7 @@ export function makeFake({ root, settings = {}, trusted = true, lawFiles = [] } 
     MarkdownString,
     Hover,
     ThemeColor,
+    FileDecoration,
     TestMessage,
     EventEmitter: VEventEmitter,
     DiagnosticSeverity: { Error: 0, Warning: 1, Hint: 3 },
@@ -241,6 +248,10 @@ export function makeFake({ root, settings = {}, trusted = true, lawFiles = [] } 
         decorationTypes.push(t);
         return t;
       },
+      registerFileDecorationProvider: (provider) => {
+        fileDecorators.push(provider);
+        return { dispose() {} };
+      },
       showWarningMessage: async (m) => void messages.warning.push(m),
       showErrorMessage: async (m) => void messages.error.push(m),
       showInformationMessage: async (m) => void messages.info.push(m),
@@ -274,6 +285,7 @@ export function makeFake({ root, settings = {}, trusted = true, lawFiles = [] } 
       createFileSystemWatcher: () => ({
         onDidCreate: watchers.create.on,
         onDidDelete: watchers.delete.on,
+        onDidChange: () => ({ dispose() {} }),
         dispose() {},
       }),
       openTextDocument: async (uri) => makeDoc(uri.fsPath),
@@ -349,6 +361,7 @@ export function makeFake({ root, settings = {}, trusted = true, lawFiles = [] } 
     terminals,
     statuses,
     decorationTypes,
+    fileDecorators,
     messages,
     clipboard,
     opened,

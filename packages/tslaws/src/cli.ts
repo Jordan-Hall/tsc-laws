@@ -1,5 +1,5 @@
 import { createInterface } from 'node:readline/promises';
-import { readdirSync, statSync, watch } from 'node:fs';
+import { readFileSync, watch } from 'node:fs';
 import { join, relative, resolve, sep } from 'node:path';
 import { resolveEngine } from './browser.ts';
 import { bundledCompiler, checkoutCompiler } from './bundled.ts';
@@ -7,10 +7,13 @@ import { check, exemptionsOf } from './check.ts';
 import type { CheckReport } from './check.ts';
 import { readManifest } from './compile.ts';
 import { hintFor } from './hints.ts';
+import { discoverLaws, discoverProposals, ignoredDirs } from './lawFiles.ts';
 import { isProposedLawFile } from './lawNames.ts';
 import { init, nextStep } from './init.ts';
+import { listLawFiles, renderList } from './list.ts';
 import { serveMcp } from './mcp.ts';
-import { promoteFiles } from './promote.ts';
+import { promoteFiles, promoteProposal } from './promote.ts';
+import { addProposal, ProposalError } from './proposals.ts';
 import { clearCorpus, listCorpus } from './regressions.ts';
 import { reporterNames, reportAs } from './reporters.ts';
 import { readConfig } from './coverage.ts';
@@ -40,10 +43,13 @@ tslaws accept [files...]     record the current laws in tsc-laws.lock (people on
 tslaws delegate grant [--for 1h|8h|1d|7d] [--root DIR]   lend accept to an agent for a limited time (people only; default 8h, max 7d)
 tslaws delegate revoke [--root DIR]   withdraw the delegation for a project (people only)
 tslaws delegate status        list delegations and when they end
-tslaws promote [file] [--all]   move proposed laws (*.proposed.laws.ts, *.browser.proposed.laws.ts, *.e2e.proposed.laws.ts) into the accepted file of the same kind, asking per law (people only: needs a terminal; run accept afterwards)
-tslaws mcp [--compiler PATH]   serve check, check_proposed, explain and propose as Model Context Protocol tools on stdio (cannot accept or touch the lock)
+tslaws propose <file.ts> [--from PATH]   write a proposal into .tslaws/proposals/ from PATH or stdin (outside the tree, git-ignored; never touches the lock or any other file)
+tslaws promote <proposal> [--to PATH]   move a proposal from .tslaws/proposals/ into the tree at a path you confirm (people only: needs a terminal; run accept afterwards). Older in-tree *.proposed.laws.ts files still promote with --all or by name (deprecated)
+tslaws list [--json]   the laws files and proposals of the project: the level each runs at (from its imports) and whether it is accepted, unaccepted or proposed (reads files and the lock; runs nothing)
+tslaws mcp [--compiler PATH]   serve check, check_proposed, explain and propose as Model Context Protocol tools on stdio (cannot accept, promote or touch the lock)
 
-Without files, every *.laws.ts under the current directory is checked (*.proposed.laws.ts, *.browser.proposed.laws.ts and *.e2e.proposed.laws.ts only with --proposed).
+Without files, every *.laws.ts under the current directory (and every file the "laws" globs of tslaws.json pick that declares a law) is checked; with --proposed, the proposals in .tslaws/proposals/ are (and the deprecated in-tree *.proposed.laws.ts files), with no lock and no coverage gate.
+A laws file is a browser law when it imports the browser API (tslaws/browser, tslaws/adapters/*), directly or through its own modules, and an end-to-end law when it imports tslaws/e2e; the .browser.laws.ts and .e2e.laws.ts names are only hints.
 Exit status is 0 only when every law is proved, bounded or tested and nothing is open, failed, uncovered or tampered with.
   --json      machine-readable report; each result carries a hint with the next action (same as --reporter json)
   --reporter  text (default), json, junit (JUnit XML), github (workflow annotations; appends a table to $GITHUB_STEP_SUMMARY) or ndjson (one JSON event per line as the check proceeds, then the report; for editors)
@@ -52,21 +58,10 @@ Exit status is 0 only when every law is proved, bounded or tested and nothing is
   --watch     rerun the check when a .ts file under the current directory changes (Ctrl+C exits)
   --force     init: overwrite tslaws.json and replace the AGENTS.md section`;
 
-const ignoredDirs = new Set(['node_modules', '.tslaws', '.git']);
 const passing = new Set(['proved', 'bounded', 'tested']);
 
 function discover(cwd: string, proposed: boolean): string[] {
-  const found: string[] = [];
-  const walk = (dir: string): void => {
-    for (const entry of readdirSync(dir)) {
-      if (ignoredDirs.has(entry)) continue;
-      const full = join(dir, entry);
-      if (statSync(full).isDirectory()) walk(full);
-      else if (entry.endsWith('.laws.ts') && isProposedLawFile(entry) === proposed) found.push(full);
-    }
-  };
-  walk(cwd);
-  return found.map((f) => relative(cwd, f).replace(/\\/g, '/')).sort();
+  return proposed ? [...discoverLaws(cwd, true), ...discoverProposals(cwd)] : discoverLaws(cwd, false);
 }
 
 function parse(args: string[]): { command: string; flags: Map<string, string | true>; files: string[] } {
@@ -87,6 +82,8 @@ function parse(args: string[]): { command: string; flags: Map<string, string | t
     'max',
     'for',
     'root',
+    'to',
+    'from',
   ]);
   for (let i = 0; i < args.length; i += 1) {
     const arg = args[i]!;
@@ -104,6 +101,8 @@ function parse(args: string[]): { command: string; flags: Map<string, string | t
         arg === 'regressions' ||
         arg === 'mcp' ||
         arg === 'promote' ||
+        arg === 'propose' ||
+        arg === 'list' ||
         arg === 'delegate')
     )
       command = arg;
@@ -156,6 +155,8 @@ function render(report: CheckReport, flags: Map<string, string | true>): string 
   let text = '';
   if (report.compileDiagnostics !== '') text += `${report.compileDiagnostics}\n\n`;
   if (report.lockMissing) text += 'tsc-laws.lock is missing: a person must run `tslaws accept`\n\n';
+  for (const notice of report.notices) text += `notice: ${notice}\n`;
+  if (report.notices.length > 0) text += '\n';
   if (flags.has('summary')) {
     for (const result of report.results) if (!passing.has(result.status)) text += `${summarise(result)}\n`;
     return `${text}${totals(report)}\n`;
@@ -372,6 +373,129 @@ function delegateCommand(
   return 0;
 }
 
+/** What `promote` and `propose` ask of their surroundings, beyond the context every command has. `ask`, `stdin` and `checkFile` are for unit tests; the CLI never sets them. */
+export interface ProposalContext extends CommandContext {
+  ask?: (question: string) => Promise<string>;
+  stdin?: () => Promise<string>;
+  checkFile?: (file: string) => Promise<Map<string, string>>;
+}
+
+const readStdin = async (): Promise<string> => {
+  let text = '';
+  for await (const chunk of process.stdin) text += String(chunk);
+  return text;
+};
+
+/**
+ * `tslaws propose <file> [--from PATH]`: writes a proposal into `.tslaws/proposals/` from `--from PATH` or from stdin.
+ * Anyone may run it, agents included: it writes only that directory and never touches the lock or the tree.
+ */
+export async function proposeCommand(
+  cwd: string,
+  flags: Map<string, string | true>,
+  files: string[],
+  ctx: ProposalContext,
+): Promise<number> {
+  const out = ctx.out ?? stdoutWrite;
+  const err = ctx.err ?? stderrWrite;
+  const [file] = files;
+  if (file === undefined || files.length > 1) {
+    err('usage: tslaws propose <file.ts> [--from PATH]   (the proposal comes from PATH, or from stdin)\n');
+    return 1;
+  }
+  const from = flags.get('from');
+  if (from === true || from === '') {
+    err('--from takes a path\n');
+    return 1;
+  }
+  if (from === undefined && ctx.isTTY && ctx.stdin === undefined) {
+    err('pipe the proposal in on stdin, or name a file with --from PATH\n');
+    return 1;
+  }
+  try {
+    const source = from === undefined ? await (ctx.stdin ?? readStdin)() : readFileSync(resolve(cwd, from), 'utf8');
+    const written = addProposal(cwd, file, source);
+    out(
+      `${written.file}: ${written.laws.length} law${written.laws.length === 1 ? '' : 's'} (${written.laws.join(', ')})\n` +
+        `Try it with \`tslaws check --proposed\`. A proposal protects nothing: a person promotes it with \`tslaws promote ${written.file}\`.\n`,
+    );
+    return 0;
+  } catch (error) {
+    if (error instanceof ProposalError || (error as NodeJS.ErrnoException).code === 'ENOENT') {
+      err(`${error instanceof Error ? error.message : String(error)}\n`);
+      return 1;
+    }
+    throw error;
+  }
+}
+
+/**
+ * `tslaws promote <proposal> [--to PATH]`: a person moves a proposal out of `.tslaws/proposals/` into the tree. Refused
+ * without a terminal, under CI, as an agent and with TSLAWS_AGENT set; a delegation does not cover it. Never writes the
+ * lock. The older in-tree `*.proposed.laws.ts` names still promote, per law, into the file of the same kind (deprecated).
+ */
+export async function promoteCommand(
+  cwd: string,
+  flags: Map<string, string | true>,
+  files: string[],
+  ctx: ProposalContext,
+): Promise<number> {
+  const out = ctx.out ?? stdoutWrite;
+  const err = ctx.err ?? stderrWrite;
+  if (!personOnly({ isTTY: ctx.isTTY, env: ctx.env })) {
+    err('promote moves laws into the tree and needs a person at a terminal; it will not run here\n');
+    return 1;
+  }
+  const older = discoverLaws(cwd, true);
+  const known = [...discoverProposals(cwd), ...older];
+  const chosen = files.length > 0 ? files : flags.has('all') ? older : [];
+  if (chosen.length === 0) {
+    err(
+      known.length === 0
+        ? 'no proposals found (they live in .tslaws/proposals/)\n'
+        : `name a proposal to promote:\n${known.map((f) => `  ${f}`).join('\n')}\n`,
+    );
+    return 1;
+  }
+  const to = flags.get('to');
+  if (to === true || to === '' || (to !== undefined && chosen.length > 1)) {
+    err('--to takes one path, for one proposal\n');
+    return 1;
+  }
+  const rl = ctx.ask === undefined ? createInterface({ input: process.stdin, output: process.stdout }) : undefined;
+  const ask = ctx.ask ?? ((question: string) => rl!.question(question));
+  const checkFile =
+    ctx.checkFile ??
+    (async (file: string): Promise<Map<string, string>> => {
+      const report = await check(options(cwd, flags, [file]), false);
+      const brief = (r: LawResult): string =>
+        r.message === undefined ? r.status : `${r.status}: ${r.message.split('\n')[0]}`;
+      return new Map(report.results.map((r) => [r.name, brief(r)]));
+    });
+  try {
+    for (const file of chosen) {
+      const rel = relative(cwd, resolve(cwd, file)).replaceAll('\\', '/');
+      if (isProposedLawFile(rel) && !file.startsWith('.tslaws')) {
+        out(
+          `${rel}: in-tree *.proposed.laws.ts names are deprecated; new proposals go to .tslaws/proposals/ (tslaws propose)\n`,
+        );
+        await promoteFiles({ cwd, ask, out, checkFile }, [rel]);
+        continue;
+      }
+      try {
+        await promoteProposal({ cwd, ask, out, checkFile }, file, to);
+      } catch (error) {
+        if (!(error instanceof ProposalError)) throw error;
+        err(`${error.message}\n`);
+        return 1;
+      }
+    }
+  } finally {
+    rl?.close();
+  }
+  return 0;
+}
+
 export async function main(args: string[]): Promise<number> {
   if (args.includes('--help') || args.includes('-h')) {
     process.stdout.write(`${usage}\n`);
@@ -392,44 +516,15 @@ export async function main(args: string[]): Promise<number> {
 
   if (command === 'mcp') return serveMcp({ cwd, compiler: options(cwd, flags, []).compiler });
 
-  if (command === 'promote') {
-    if (!process.stdin.isTTY || process.env.TSLAWS_AGENT !== undefined || process.env.CI !== undefined) {
-      process.stderr.write(
-        'promote moves laws into the accepted set and needs a person at a terminal; it will not run here\n',
-      );
-      return 1;
-    }
-    const proposedFiles = files.length > 0 ? lawFiles(cwd, flags, files) : flags.has('all') ? discover(cwd, true) : [];
-    if (proposedFiles.length === 0) {
-      const known = discover(cwd, true).map((f) => `  ${f}`);
-      process.stderr.write(
-        files.length > 0 || flags.has('all')
-          ? 'no proposed laws files found (looking for *.proposed.laws.ts)\n'
-          : `name a proposed file or pass --all:\n${known.join('\n')}\n`,
-      );
-      return 1;
-    }
-    const rl = createInterface({ input: process.stdin, output: process.stdout });
-    try {
-      await promoteFiles(
-        {
-          cwd,
-          ask: (question) => rl.question(question),
-          out: (text) => process.stdout.write(text),
-          checkFile: async (file) => {
-            const report = await check(options(cwd, flags, [file]), false);
-            const brief = (r: LawResult): string =>
-              r.message === undefined ? r.status : `${r.status}: ${r.message.split('\n')[0]}`;
-            return new Map(report.results.map((r) => [r.name, brief(r)]));
-          },
-        },
-        proposedFiles,
-      );
-    } finally {
-      rl.close();
-    }
+  if (command === 'promote')
+    return promoteCommand(cwd, flags, files, { isTTY: process.stdin.isTTY === true, env: process.env });
+  if (command === 'list') {
+    const listed = listLawFiles(cwd);
+    process.stdout.write(flags.has('json') ? `${JSON.stringify({ files: listed }, null, 2)}\n` : renderList(listed));
     return 0;
   }
+  if (command === 'propose')
+    return proposeCommand(cwd, flags, files, { isTTY: process.stdin.isTTY === true, env: process.env });
 
   if (command === 'mutate') {
     // *.laws.ts arguments choose the laws; other files restrict which covered sources are mutated.
