@@ -1,0 +1,73 @@
+name: tslaws auto release
+
+# Every merge to main that changes code releases a new tslaws version: it bumps the version, tags `laws-v<version>` and starts
+# the `tsc-laws` workflow (laws.yml) on that tag, which tests, builds, publishes the GitHub release and publishes to npm.
+# Docs-only merges, and a triggering commit with `[skip release]`, do nothing. See RELEASING-LAWS.md.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: laws-auto-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: release
+    if: github.repository == 'Jordan-Hall/tsc-laws' && !startsWith(github.event.head_commit.message, 'chore(release):')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      actions: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          fetch-tags: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Decide
+        id: plan
+        env:
+          # The triggering commit's message (empty on workflow_dispatch). Passed as data, never interpolated into the script.
+          TRIGGER_MESSAGE: ${{ github.event.head_commit.message }}
+        run: node scripts/ci/laws-auto-release.mjs plan
+      - name: Nothing to release
+        if: steps.plan.outputs.release != 'true'
+        env:
+          REASON: ${{ steps.plan.outputs.reason }}
+        run: echo "$REASON"
+      - name: Bump, commit and tag
+        if: steps.plan.outputs.release == 'true'
+        env:
+          VERSION: ${{ steps.plan.outputs.version }}
+          TAG: ${{ steps.plan.outputs.tag }}
+        run: |
+          set -euo pipefail
+          node scripts/ci/laws-auto-release.mjs apply "$VERSION"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add packages/tslaws/package.json packages/vscode-tslaws/package.json package-lock.json CHANGELOG-LAWS.md
+          git commit -m "chore(release): tslaws $VERSION"
+          git tag -a "$TAG" -m "tsc-laws $VERSION"
+          # Atomic: if main moved meanwhile (non-fast-forward), nothing is pushed. Fail loudly; the push that moved main has
+          # its own run, which plans again from the new head, and a manual re-run does the same.
+          if ! git push --atomic origin HEAD:main "$TAG"; then
+            echo "::error::main moved before the release push, so nothing was pushed. The newer push releases; or re-run this workflow."
+            exit 1
+          fi
+      - name: Start the release pipeline on the tag
+        if: steps.plan.outputs.release == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.plan.outputs.tag }}
+        # A tag pushed with GITHUB_TOKEN triggers no workflow, so run laws.yml on it explicitly. Its build, release and npm
+        # jobs run because github.ref is the tag.
+        run: gh workflow run laws.yml --ref "$TAG"
