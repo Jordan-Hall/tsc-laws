@@ -1,5 +1,6 @@
 // The regression corpus: every counterexample a property test finds is kept under `.tslaws/regressions` and replayed
 // before the random search on later runs, so a bug that was found once cannot silently come back.
+import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -81,7 +82,17 @@ const root = (cwd: string): string => join(cwd, '.tslaws', 'regressions');
 
 /** `.tslaws/regressions/<law file with / as __>/<law>.json` */
 export function regressionFile(cwd: string, file: string, name: string): string {
-  return join(root(cwd), file.replace(/[\\/]/g, '__'), `${name}.json`);
+  return join(root(cwd), file.replace(/[\\/]/g, '__'), `${safeName(name)}.json`);
+}
+
+/** A law name as a file name on every platform: characters Windows refuses become `_`, and a hash keeps two names apart. */
+function safeName(name: string): string {
+  const safe = [...name]
+    .map((ch) => (ch.charCodeAt(0) < 32 || '<>:"/\\|?*'.includes(ch) ? '_' : ch))
+    .join('')
+    .replace(/[. ]+$/, '');
+  if (safe === name) return name;
+  return `${safe}-${createHash('sha256').update(name).digest('hex').slice(0, 8)}`;
 }
 
 interface Corpus {

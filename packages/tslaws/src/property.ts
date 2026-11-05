@@ -101,9 +101,11 @@ export async function runProperty(
   generators: fc.Arbitrary<unknown>[],
   options: CheckOptions,
 ): Promise<fc.RunDetails<unknown[]>> {
-  const property = fc.asyncProperty(...(generators as [fc.Arbitrary<unknown>]), async (...args: unknown[]) => {
+  // fast-check needs at least one arbitrary: a law without parameters gets a stand-in and runs once.
+  const none = generators.length === 0;
+  const property = fc.asyncProperty(...((none ? [fc.constant(undefined)] : generators) as [fc.Arbitrary<unknown>]), async (...args: unknown[]) => {
     try {
-      return (await call(...args)) !== false;
+      return (await call(...(none ? [] : args))) !== false;
     } catch (error) {
       if (isDiscard(error)) {
         fc.pre(false);
@@ -113,10 +115,10 @@ export async function runProperty(
     }
   });
   return (await fc.check(property as unknown as fc.IAsyncProperty<unknown[]>, {
-    numRuns: options.runs,
+    numRuns: none ? 1 : options.runs,
     seed: options.seed,
     maxSkipsPerRun: 100,
-    ...(options.regressionExamples?.length ? { examples: options.regressionExamples.map(decodeExample) } : {}),
+    ...(!none && options.regressionExamples?.length ? { examples: options.regressionExamples.map(decodeExample) } : {}),
   })) as fc.RunDetails<unknown[]>;
 }
 
