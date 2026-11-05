@@ -190,8 +190,24 @@ function sourceFilesPlugin(cwd: string): Plugin {
   };
 }
 
+const assetExtensions = [
+  '.png',
+  '.jpg',
+  '.jpeg',
+  '.gif',
+  '.webp',
+  '.avif',
+  '.svg',
+  '.ico',
+  '.woff',
+  '.woff2',
+  '.ttf',
+  '.otf',
+  '.eot',
+];
+
 /** The project's `bundlerPlugins` from tslaws.json come first, so they can claim a format before the built-in resolver. */
-async function bundleOf(jsFile: string, cwd: string): Promise<string> {
+async function bundleOf(jsFile: string, cwd: string): Promise<{ js: string; css: string }> {
   const projectPlugins = await loadBundlerPlugins(cwd, readConfig(cwd).bundlerPlugins);
   try {
     const result = await bundleWith({
@@ -199,6 +215,10 @@ async function bundleOf(jsFile: string, cwd: string): Promise<string> {
       entryPoints: [jsFile],
       bundle: true,
       write: false,
+      // Stylesheets a law imports come out as a separate .css file, which needs an output directory to be named.
+      outdir: join(cwd, '.tslaws', 'bundle'),
+      // Images and fonts become data URLs, so a url() in the CSS or an import in the JavaScript needs no file server.
+      loader: Object.fromEntries(assetExtensions.map((extension) => [extension, 'dataurl' as const])),
       format: 'iife',
       globalName: '__lawModule',
       platform: 'browser',
@@ -207,7 +227,12 @@ async function bundleOf(jsFile: string, cwd: string): Promise<string> {
       logLevel: 'silent',
       define: { 'process.env.NODE_ENV': '"development"', global: 'globalThis' },
     });
-    return result.outputFiles[0]!.text;
+    const emitted = (extension: string): string =>
+      result.outputFiles
+        .filter((file) => file.path.endsWith(extension))
+        .map((file) => file.text)
+        .join('\n');
+    return { js: emitted('.js'), css: emitted('.css') };
   } catch (error) {
     throw explainBundleError(error as Error);
   }
@@ -253,7 +278,7 @@ async function capture(
 
 /** Property-tests one law in a page; `'timeout'` when it does not finish within `options.propertyTimeoutMs`. */
 export async function runBrowserLaw(law: BrowserLaw, options: CheckOptions): Promise<PropertyOutcome | 'timeout'> {
-  const code = await bundleOf(law.jsFile, options.cwd);
+  const { js: code, css } = await bundleOf(law.jsFile, options.cwd);
   const page: Page = await (await launch(resolveEngine(options.browser))).newPage();
   // A watcher needs only the first few runs to linger; the rest should not eat the time limit.
   let calls = 0;
@@ -283,6 +308,8 @@ export async function runBrowserLaw(law: BrowserLaw, options: CheckOptions): Pro
     : undefined;
   try {
     await page.setContent('<!doctype html><html><head><meta charset="utf-8"></head><body></body></html>');
+    // The stylesheet goes in before the script runs, as a linked one would.
+    if (css !== '') await page.addStyleTag({ content: css });
     await page.addScriptTag({ content: code });
     await page.addScriptTag({ content: harness });
     const call = async (...args: unknown[]): Promise<unknown> => {

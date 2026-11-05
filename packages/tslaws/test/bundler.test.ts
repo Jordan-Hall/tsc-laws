@@ -40,7 +40,7 @@ function hasBrowser(): boolean {
   );
 }
 
-function write(dir: string, files: Record<string, string>): void {
+function write(dir: string, files: Record<string, string | Buffer>): void {
   for (const [file, text] of Object.entries(files)) {
     mkdirSync(dirname(join(dir, file)), { recursive: true });
     writeFileSync(join(dir, file), text);
@@ -134,16 +134,30 @@ function project(name: string, config: Record<string, unknown> | undefined): Che
   const cwd = join(root, name);
   write(cwd, {
     'src/Badge.tsrx': readFileSync(join(fixtures, 'Badge.tsrx'), 'utf8'),
+    'src/Styled.tsrx': readFileSync(join(fixtures, 'Styled.tsrx'), 'utf8'),
+    'src/styled.css': readFileSync(join(fixtures, 'styled.css'), 'utf8'),
+    'src/dot.png': readFileSync(join(fixtures, 'dot.png')),
     'src/badge.browser.laws.ts': [
       "import { mount as render, flushSync } from '@crown/framework/dom';",
       "import { mount } from 'tslaws/browser';",
       "import Badge from './Badge.tsrx';",
+      "import Styled from './Styled.tsrx';",
       'export law badgeShowsItsLabel(label: string) {',
       '  const holder = mount();',
       "  render(Badge({ classes: 'badge', label }), holder);",
       '  flushSync();',
       "  const span = holder.querySelector('span');",
       "  return span !== null && span.className === 'badge' && span.textContent === label;",
+      '}',
+      'export async law styledBadgeKeepsItsCssAndImage(label: string) {',
+      '  const holder = mount();',
+      '  render(Styled({ label }), holder);',
+      '  flushSync();',
+      "  const span = holder.querySelector('span');",
+      "  const img = holder.querySelector('img');",
+      '  if (span === null || img === null) return false;',
+      '  await img.decode();',
+      "  return getComputedStyle(span).color === 'rgb(255, 0, 0)' && img.naturalWidth === 1;",
       '}',
       'export law badgeShowsTheWrongText(label: string) {',
       '  const holder = mount();',
@@ -184,6 +198,12 @@ describe('browser laws over .tsrx templates', { skip }, () => {
 
   it('run in Chromium and pass when tslaws.json configures the plugin', async () => {
     const r = byName(await withPlugin(), 'badgeShowsItsLabel');
+    assert.equal(r.status, 'tested', JSON.stringify(r));
+    assert.equal(r.method, 'browser');
+  });
+
+  it('load the stylesheet and the image a template imports', async () => {
+    const r = byName(await withPlugin(), 'styledBadgeKeepsItsCssAndImage');
     assert.equal(r.status, 'tested', JSON.stringify(r));
     assert.equal(r.method, 'browser');
   });
