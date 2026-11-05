@@ -1,0 +1,8 @@
+{
+  "name": "tslaws-ts-plugin",
+  "version": "0.6.4",
+  "private": true,
+  "description": "tsserver plugin: lets the TypeScript language service understand law declarations",
+  "license": "Apache-2.0",
+  "main": "index.js"
+}
