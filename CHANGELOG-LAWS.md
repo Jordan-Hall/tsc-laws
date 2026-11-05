@@ -6,6 +6,9 @@ The upstream tsc-ts changelog is CHANGELOG.md. Releases of tsc-laws are tagged `
 
 - feat(vscode): a TypeScript server plugin so the editor understands `law` declarations: no red squiggles, with hover, definition, references, rename and completions mapped to the original text
 - feat(vscode): the compiler's law rules (TS9101 to TS9106) are shown as diagnostics after a run
+- feat(vscode): live results in the background with a status after each function, a Laws view, cached results, a CPU and run-time guard, and `tslaws.liveBackground`
+- feat(vscode): an uncovered function is a hint with _Write a law for this function_ (a proposed laws file only)
+- feat(vscode): Go to Laws, Peek Laws, Go to Implementation and Find All References from a function to its laws, laws as document and workspace symbols, _Go to law..._
 - docs: how the editor and the `law` keyword fit together (docs/editor-law-syntax.md)
 
 ## 0.6.4

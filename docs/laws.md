@@ -626,7 +626,16 @@ law and on the code the law exercises.
 - **Commands.** `tslaws.check`, `tslaws.runFile`, `tslaws.cancel`, `tslaws.openDashboard` (runs `tslaws ui --no-open --port 0`), and
   `tslaws.accept`, which only types `npx tslaws accept` into a terminal; a person presses Enter. The extension never accepts laws.
 
-Settings: `tslaws.run`, `tslaws.debounceMs`, `tslaws.runOnOpen`, `tslaws.inlineCounterexample`, `tslaws.executable` and
+- **Live results.** `tslaws.liveBackground` (default `auto`: on when the project has a `tslaws.json`) runs the covering laws in the
+  background as you type, with a status after each function (`proved`, `tested 24 runs`, `failing: counterexample (price=0, coupon=1)`,
+  `stale`), a Laws view in the Explorer, a status bar count, a CPU and run-time guard and _pause/resume live results_. The last report
+  is cached in `.tslaws/last-report.json`. An exported function no law reaches shows `uncovered` as a hint with _Write a law for this
+  function_, which only ever writes a `*.proposed.laws.ts` file.
+- **Navigation.** _Go to Laws_, _Peek Laws_ (suggested Alt+L and Alt+Shift+L), Go to Implementation and Find All References on a function
+  (they list its laws, from the report or from imports), F12 on a law name, laws in the Outline and in Ctrl+T as `law:<name>`, and
+  _Go to law..._.
+
+Settings: `tslaws.liveBackground`, `tslaws.liveCpuLimit`, `tslaws.liveMaxSeconds`, `tslaws.run`, `tslaws.debounceMs`, `tslaws.runOnOpen`, `tslaws.inlineCounterexample`, `tslaws.executable` and
 `tslaws.args`. `tslaws.runOnSave` is deprecated and counts only while `tslaws.run` is not set (`false` means `manual`). The extension
 runs `node_modules/tslaws/bin/tslaws.js` (or `tslaws.executable`) with `check --reporter ndjson`, and `--json` for an older
 `tslaws`. See `packages/vscode-tslaws/README.md`.

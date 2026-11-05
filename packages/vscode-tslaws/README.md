@@ -95,6 +95,39 @@ in the `tslaws` output. Runs started by a command, a CodeLens, a quick fix or th
 A subset run reads only part of the project, so its `uncovered` results and its "law was removed" tampering results are
 dropped; the last full run's stay.
 
+## Live results
+
+With `tslaws.liveBackground` on, the laws that cover the code you are editing run in the background after you stop typing, on the
+text of your open buffers (a copy under `.tslaws/shadow`; your files are not written). A run never blocks typing: it is debounced,
+a newer edit stops the one that is going, only one check runs at a time, and results stream in as they arrive.
+
+- **Status after each function.** A theme-coloured line after the signature, with a gutter icon: `proved`, `bounded`,
+  `tested 24 runs`, `failing: counterexample (price=0, coupon=1)`, `running…`, or `stale · ran 3m ago` once you have edited since the
+  last run. It shows without hovering; the hover links to the laws.
+- **Uncovered functions.** An exported function no law reaches shows `uncovered` as a hint, not an error. The hover, the quick fix and
+  the Problems entry offer _Write a law for this function_, which writes a first law into `<file>.proposed.laws.ts`. It never writes an
+  accepted laws file or the lock; you check it with `tslaws check --proposed` and promote it yourself.
+- **Laws view.** In the Explorer: every law and uncovered function grouped by status (failing first), with its file and the age of its
+  last run. A click opens it. The status bar item shows the live counts and opens this view.
+- **Guard.** Background runs wait while the machine is busy (`tslaws.liveCpuLimit`), stop by themselves when a run took longer than
+  `tslaws.liveMaxSeconds`, and can be paused: _tslaws: pause/resume live results_.
+- **Reload.** The last report is kept in `.tslaws/last-report.json` (git ignores `.tslaws/`), so results show at once when the folder
+  opens; files edited since are marked stale.
+
+## Navigation
+
+- **Go to Laws** (`tslaws.goToLaws`, in the editor context menu and the CodeLens click) on a function: opens its law, or a Quick Pick
+  with each law's status icon and counterexample when there are several. **Peek Laws** (`tslaws.peekLaws`) shows them in the peek
+  widget without leaving the file. Suggested keys, which the extension does not bind for you:
+  `{ "key": "alt+l", "command": "tslaws.goToLaws", "when": "editorTextFocus" }` and
+  `{ "key": "alt+shift+l", "command": "tslaws.peekLaws", "when": "editorTextFocus" }`.
+- **Go to Implementation** (Ctrl+F12) and **Find All References** on a function list the laws that exercise it. They come from the last
+  report, and from the laws file's imports when no run has covered a law yet.
+- **From a law**, F12 on its name, or _tslaws: Go to the function this law exercises_, goes to the function under test.
+- **Outline and Ctrl+T.** Laws are document symbols (status in the detail) and workspace symbols named `law:<name>`, so `law:` lists every
+  law and a fuzzy name finds one. _tslaws: Go to law..._ is the same list in a Quick Pick.
+- All of it works in `.laws.ts` and its `.proposed`, `.browser` and `.e2e` variants, with the positions the law-syntax plugin maps.
+
 ## Settings
 
 | Setting                       | Default  | Meaning                                                                                                                            |
@@ -105,6 +138,9 @@ dropped; the last full run's stay.
 | `tslaws.runOnOpen`            | `false`  | Run every law once when the folder opens, so failures show before the first edit.                                                  |
 | `tslaws.inlineCounterexample` | `true`   | Show the counterexample after the failing line. The Problems panel and the hover carry the same text.                              |
 | `tslaws.executable`           | empty    | Path of `tslaws.js` or a native executable (`.cmd`/`.bat` shims are refused). Empty uses `node_modules/tslaws`. A machine setting. |
+| `tslaws.liveBackground`       | `auto`   | `auto` (on for a project with a `tslaws.json`, unless you chose `tslaws.run`), `on` or `off`. See [Live results](#live-results).   |
+| `tslaws.liveCpuLimit`         | `85`     | Live results wait while the machine is busier than this many percent.                                                              |
+| `tslaws.liveMaxSeconds`       | `30`     | Live results stop by themselves when a run takes longer than this many seconds.                                                    |
 | `tslaws.args`                 | `[]`     | Extra arguments for every `tslaws` call, such as `["--compiler", "path/to/tsc"]`. A machine setting.                               |
 
 The extension runs the workspace's code, so it does not run in an untrusted workspace.
