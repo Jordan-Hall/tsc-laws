@@ -2,6 +2,13 @@
 
 The upstream tsc-ts changelog is CHANGELOG.md. Releases of tsc-laws are tagged `laws-v<version>` (see RELEASING-LAWS.md).
 
+## 0.6.3
+
+- Merge pull request #10 from Jordan-Hall/ci/extension-publish
+- fix(vscode): the publisher is TS-Laws, as created on the Marketplace
+- ci: publish to the Marketplace with trusted publishing, keeping a PAT as fallback
+- ci: publish the extension to each store only when its token exists, and a guide to switching it on
+
 ## 0.6.2
 
 - Merge pull request #9 from Jordan-Hall/feat/brand-icons
