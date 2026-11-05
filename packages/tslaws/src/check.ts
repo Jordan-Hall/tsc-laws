@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import ts from 'typescript';
 import { build, readManifest } from './compile.ts';
 import {
@@ -139,7 +139,8 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
   // What the type checker works out is kept with the build it came from, so an unchanged project skips the checker.
   const derived = derivedStore(options.cwd, built.key);
   let programOf: ts.Program | undefined;
-  const program = (): ts.Program => (programOf ??= ts.createProgram(declarationFiles(built.outDir), compilerOptions));
+  const program = (): ts.Program => (programOf ??= built.program ?? ts.createProgram(declarationFiles(built.outDir), compilerOptions));
+  const sourceCwd = built.program === undefined ? undefined : options.cwd;
   const require = createRequire(import.meta.url);
 
   const runOne = async (law: ManifestLaw, index: number): Promise<void> => {
@@ -159,7 +160,7 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
     options.onEvent?.({ type: 'start', file: law.file, name: law.name });
     let types: LawTypes;
     try {
-      types = derived.law(law, () => typesOf(program(), built.outDir, law));
+      types = derived.law(law, () => typesOf(program(), built.outDir, law, sourceCwd));
     } catch (error) {
       add(law, 'error', 'generators', { message: (error as Error).message });
       return;
@@ -337,6 +338,7 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
         lawFiles: options.files,
         coverFiles: covered,
         program: program(),
+        moduleOf: sourceCwd === undefined ? undefined : (file) => resolve(sourceCwd, file),
       }),
     );
     for (const { file, name } of coverage.uncovered) {

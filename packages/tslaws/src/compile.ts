@@ -15,6 +15,8 @@ export interface BuildResult {
   ok: boolean;
   /** Names this exact build (laws, options, every file read); set when the compiler ran in-process, so derived results can be kept. */
   key?: string;
+  /** The program the in-process compiler built, still holding its type checker; not stored with the build cache. */
+  program?: ts.Program;
 }
 
 /**
@@ -197,6 +199,13 @@ export function build(compiler: string, files: string[], cwd: string): BuildResu
   return { outDir, diagnostics: `${run.stdout ?? ''}${run.stderr ?? ''}`.trim(), ok: run.status === 0 };
 }
 
+function nodeTypesPresent(cwd: string): boolean {
+  for (let dir = resolve(cwd); ; dir = dirname(dir)) {
+    if (existsSync(join(dir, 'node_modules', '@types', 'node'))) return true;
+    if (dirname(dir) === dir) return false;
+  }
+}
+
 /** Compiles in-process with stock TypeScript: law files are lowered in memory, nothing is written next to them. */
 function buildBuiltin(args: string[], files: string[], cwd: string, outDir: string): BuildResult {
   const at = args.indexOf('--moduleResolution');
@@ -207,6 +216,13 @@ function buildBuiltin(args: string[], files: string[], cwd: string, outDir: stri
     module: ts.ModuleKind.ESNext,
     moduleResolution: ts.ModuleResolutionKind.Bundler,
     noEmitOnError: false,
+    // Every @types package in the tree is a parse the laws rarely need; none is read unless `types` says so or the laws fail
+    // to compile without node's (below).
+    ...(parsed.options.types === undefined ? { types: [] } : {}),
+    // The DOM declarations are a megabyte to parse; only laws that run in a page (or an `lib` setting) ask for them.
+    ...(parsed.options.lib === undefined && !files.some((f) => /\.(browser|e2e)\.laws\.[cm]?ts$/.test(f))
+      ? { lib: ['lib.es2022.d.ts'] }
+      : {}),
   };
   const overrides = new Map<string, string>();
   for (const file of files)
@@ -219,7 +235,19 @@ function buildBuiltin(args: string[], files: string[], cwd: string, outDir: stri
       ? getSourceFile(name, languageVersion, onError, shouldCreate)
       : ts.createSourceFile(name, text, languageVersion, true);
   };
-  const program = ts.createProgram(parsed.fileNames.map((f) => resolve(cwd, f)), options, host);
+  const roots = parsed.fileNames.map((f) => resolve(cwd, f));
+  let program = ts.createProgram(roots, options, host);
+  let diagnostics = ts.getPreEmitDiagnostics(program);
+  // An error may only be a missing `process` or `node:fs`: try again with node's types before reporting it.
+  if (
+    parsed.options.types === undefined &&
+    diagnostics.some((d) => d.category === ts.DiagnosticCategory.Error) &&
+    nodeTypesPresent(cwd)
+  ) {
+    const withNode = ts.createProgram(roots, { ...options, types: ['node'] }, host);
+    program = withNode;
+    diagnostics = ts.getPreEmitDiagnostics(program);
+  }
   program.emit(undefined, (name, text) => {
     mkdirSync(dirname(name), { recursive: true });
     const code = name.endsWith('.js')
@@ -227,7 +255,6 @@ function buildBuiltin(args: string[], files: string[], cwd: string, outDir: stri
       : text;
     writeFileSync(name, code);
   });
-  const diagnostics = ts.getPreEmitDiagnostics(program);
   const text = ts.formatDiagnostics(diagnostics, {
     getCanonicalFileName: (f) => f,
     getCurrentDirectory: () => cwd,
@@ -238,6 +265,7 @@ function buildBuiltin(args: string[], files: string[], cwd: string, outDir: stri
     diagnostics: text.trim(),
     ok: diagnostics.every((d) => d.category !== ts.DiagnosticCategory.Error),
   };
+  Object.defineProperty(result, 'program', { value: program, enumerable: false });
   saveBuildCache(args, files, cwd, result, program.getSourceFiles().map((f) => f.fileName).filter((f) => !overrides.has(slash(resolve(f)))));
   return result;
 }

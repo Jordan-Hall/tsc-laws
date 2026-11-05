@@ -63,6 +63,21 @@ describe('build cache', () => {
     assert.match(readFileSync(join(dir, '.tslaws', 'out', 'a.laws.js'), 'utf8'), /!== 1/);
   });
 
+  it('gives a law that uses node modules and globals node types without asking for them', () => {
+    const dir = join(root, 'node');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      join(dir, 'a.laws.ts'),
+      "import { basename } from 'node:path';
+import { law } from 'tslaws';
+law('names are stable', (s: string) => basename(s) === basename(s) && typeof process.platform === 'string');
+",
+    );
+    const built = build('builtin', ['a.laws.ts'], dir);
+    assert.equal(built.diagnostics, '');
+    assert.equal(built.ok, true);
+  });
+
   it('still reports a type error on the second run', () => {
     const dir = project('error');
     writeFileSync(join(dir, 'dep.ts'), "export const double = (n: number): number => 'x';\n");

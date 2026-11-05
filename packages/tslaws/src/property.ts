@@ -1,6 +1,6 @@
 import { Worker } from 'node:worker_threads';
 import { readdirSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import type * as fc from 'fast-check';
 import ts from 'typescript';
 import { GeneratorFactory } from './generators.ts';
@@ -66,9 +66,11 @@ export function shapeOf(checker: ts.TypeChecker, type: ts.Type): Shape {
   return { fields };
 }
 
-export function typesOf(program: ts.Program, outDir: string, law: ManifestLaw): LawTypes {
+/** `cwd` is given when `program` is the one that compiled the laws, whose source files hold the types the declarations would. */
+export function typesOf(program: ts.Program, outDir: string, law: ManifestLaw, cwd?: string): LawTypes {
   const checker = program.getTypeChecker();
-  const source = program.getSourceFile(dtsPath(outDir, law.file));
+  const source =
+    cwd === undefined ? program.getSourceFile(dtsPath(outDir, law.file)) : program.getSourceFile(resolve(cwd, law.file));
   if (source === undefined) throw new UnsupportedType(`no declaration output for ${law.file}`);
   const moduleSymbol = checker.getSymbolAtLocation(source);
   const exported =
