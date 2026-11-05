@@ -1,6 +1,6 @@
 {
   "name": "tslaws",
-  "version": "0.3.2",
+  "version": "0.5.0",
   "description": "Runs and checks `law` declarations compiled by tsc-laws: property tests, SMT proofs, tamper lock.",
   "bin": {
     "tslaws": "bin/tslaws.js"
@@ -58,7 +58,9 @@
     "z3-solver": "^4.15.0"
   },
   "devDependencies": {
-    "@types/node": "^24.0.0"
+    "@tsrx/ripple": "0.2.11",
+    "@types/node": "^24.0.0",
+    "ripple": "0.6.1"
   },
   "peerDependencies": {
     "axe-core": "^4.0.0"

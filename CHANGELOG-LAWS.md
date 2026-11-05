@@ -2,6 +2,34 @@
 
 The upstream tsc-ts changelog is CHANGELOG.md. Releases of tsc-laws are tagged `laws-v<version>` (see RELEASING-LAWS.md).
 
+## 0.5.0
+
+- Merge pull request #4 from Jordan-Hall/feat/delegated-accept
+- fix(tslaws): delegation reads the home directory from the user database
+- fix(tslaws): delegation always reads the real home directory
+- feat(tslaws): a person can lend accept to an agent for a limited time
+
+## 0.4.0
+
+- Merge pull request #3 from Jordan-Hall/feat/auto-release
+- fix(ci): honour the triggering commit's skip marker, and harden the release push
+- Merge pull request #2 from Jordan-Hall/feat/bundler-plugins
+- test(tslaws): use the public TSRX compiler for the bundler fixtures
+- docs(tslaws): finish the bundler plugins sentence about files the compiler does not emit
+- fix(tslaws): load the CSS and assets a bundle emits
+- ci: release tslaws automatically when a merge to main changes code
+- Merge pull request #1 from Jordan-Hall/fix/format-demo-scripts
+- style(demo): format the demo scripts with oxfmt
+- feat(tslaws): bundlerPlugins setting teaches the browser bundler new source formats
+- Merge branch 'laws': playable audio
+- fix(demo): mix the soundtrack as 44.1 kHz stereo so every player plays it
+- Merge branch 'laws': illustrated explainer, checkout example
+- docs: the illustrated explainer, and the intro video in a British voice
+- feat(demo): an illustrated explainer of what tslaws is, with the checkout example's real output
+- feat(examples): a checkout example held to a law, a total is never below zero
+- Merge branch 'laws': new intro video
+- docs: a 79-second intro video with a natural Kokoro voice, a live law, and real tslaws check and tamper output
+
 ## 0.3.2
 
 - **Speed laws in the browser:** `measure`, `fast` and `blocking` in `tslaws/browser` (timings and main-thread blocking of component work); `vitals`, `speed` and `fast` in `tslaws/e2e` (FCP, LCP, CLS, blocking time, load, DOM size and bytes against a budget).
