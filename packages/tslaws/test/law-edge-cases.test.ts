@@ -23,3 +23,11 @@ test('a law name with characters Windows refuses still gets a corpus file', asyn
   assert.notEqual(odd, regressionFile('/p', 'a.laws.ts', 'describe _ test_ _x__'));
   assert.match(regressionFile('/p', 'a.laws.ts', 'plain name'), /plain name\.json$/);
 });
+
+test('a stored object keeps a key named __proto__', async () => {
+  const { decodeExample, encodeExample } = await import('../dist/regressions.js');
+  const value = JSON.parse('{"__proto__":1,"a":2}');
+  const back = decodeExample(encodeExample([value]))[0] as Record<string, unknown>;
+  assert.deepEqual(Object.keys(back), ['__proto__', 'a']);
+  assert.equal(Object.getPrototypeOf(back), Object.prototype);
+});

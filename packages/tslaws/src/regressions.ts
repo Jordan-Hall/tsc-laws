@@ -33,7 +33,13 @@ export function encodeValue(value: unknown): Json {
     const proto = Object.getPrototypeOf(value);
     if (proto !== Object.prototype && proto !== null) throw new Error('cannot store a non-plain object');
     const fields: { [key: string]: Json } = {};
-    for (const key of Object.keys(value)) fields[key] = encodeValue((value as Record<string, unknown>)[key]);
+    for (const key of Object.keys(value))
+      Object.defineProperty(fields, key, {
+        value: encodeValue((value as Record<string, unknown>)[key]),
+        enumerable: true,
+        writable: true,
+        configurable: true,
+      });
     return { $t: 'object', v: fields };
   }
   throw new Error(`cannot store a ${typeof value}`);
