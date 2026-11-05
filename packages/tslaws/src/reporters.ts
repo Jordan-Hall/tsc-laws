@@ -3,8 +3,8 @@ import type { CheckReport } from './check.ts';
 import { hintFor } from './hints.ts';
 import type { LawResult } from './types.ts';
 
-/** The values of `tslaws check --reporter`. `text` and `json` are rendered by the CLI itself. */
-export const reporterNames = ['text', 'json', 'junit', 'github'] as const;
+/** The values of `tslaws check --reporter`. `text`, `json` and `ndjson` are rendered by the CLI itself. */
+export const reporterNames = ['text', 'json', 'junit', 'github', 'ndjson'] as const;
 export type ReporterName = (typeof reporterNames)[number];
 
 const passing = new Set(['proved', 'bounded', 'tested']);

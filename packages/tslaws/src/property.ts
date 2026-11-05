@@ -138,6 +138,8 @@ export interface PropertyOutcome {
   /** Absent when the law failed because `assume` discarded nearly every input. */
   counterexample?: string;
   message?: string;
+  /** The stack of the error the law threw, to say which function threw. */
+  stack?: string;
   screenshot?: string;
   /** The counterexample in the regression corpus's encoding; absent when it cannot be stored. */
   encoded?: string;
@@ -163,6 +165,7 @@ export function summarise(details: fc.RunDetails<unknown[]>, options?: CheckOpti
     seed: details.seed,
     counterexample: details.counterexample === null ? undefined : fc.stringify(details.counterexample),
     message,
+    stack: details.errorInstance instanceof Error ? details.errorInstance.stack : undefined,
   };
 }
 
