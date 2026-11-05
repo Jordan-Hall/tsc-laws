@@ -166,7 +166,14 @@ bundler and there are no runtime dependencies.
 declaration and the call as ranges, and `failing` when a stack names the function) are what this extension reads. They are in
 `tslaws` releases after 0.5.1; an older `tslaws` works with `--json` and shows only the law end.
 
-## Dialect
+## Call-style laws
+
+Laws are ordinary TypeScript calls in `*.laws.ts`: `law('add commutes', (a: int, b: int) => a + b === b + a)` and
+`law.proved('name', (x: int) => ...)`. The name is a string or plain template literal and may contain spaces; the call may
+span lines and take an async arrow. CodeLens, problems and the status bar treat these exactly like keyword laws. They need no
+grammar, so highlighting comes from TypeScript itself.
+
+## Dialect (old `law` keyword syntax, still supported)
 
 `law` is a contextual keyword. It starts a declaration only when a name and a `(` or `<` follow on the same line:
 

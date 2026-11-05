@@ -128,3 +128,22 @@ export function arbitraryRegistry(): Registry {
 export function arbitrary<T>(typeName: string, generator: fc.Arbitrary<T>): void {
   arbitraryRegistry().set(typeName, generator as fc.Arbitrary<unknown>);
 }
+
+/** What a law may return: `false` fails it, anything else holds. A law may be async (browser laws wait for the page). */
+export type LawBody = (...args: any[]) => boolean | void | Promise<boolean | void>;
+
+export interface LawDeclare {
+  /** Declares a law: `law('name', (x: int) => holds(x))`. Parameters need type annotations, inputs are generated from them. */
+  (name: string, body: LawBody): void;
+  /** A law the prover must prove for every input; `open` when it cannot. */
+  proved(name: string, body: LawBody): void;
+}
+
+function notRun(): never {
+  throw new Error('law() declares a specification and is run by `tslaws check`, not called at runtime');
+}
+
+/** Declares a law. `tslaws` lowers these calls to checked functions before it runs them; they never run as written. */
+export const law: LawDeclare = Object.assign((_name: string, _body: LawBody): void => notRun(), {
+  proved: (_name: string, _body: LawBody): void => notRun(),
+});

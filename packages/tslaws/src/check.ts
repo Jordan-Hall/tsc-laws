@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import ts from 'typescript';
 import { build, readManifest } from './compile.ts';
 import {
@@ -9,11 +9,14 @@ import {
   isDiscard,
   jsPath,
   runLawGuarded,
+  warmWorkers,
   typesOf,
   type LawTypes,
   type PropertyOutcome,
 } from './property.ts';
 import { analyzeCoverage, coverFiles, readConfig } from './coverage.ts';
+import { derivedStore } from './derived.ts';
+import { jobs } from './pool.ts';
 import { compareLock, lawKey, readLock, type Lock } from './lock.ts';
 import { proveLaw } from './smt.ts';
 import { decodeExample, loadExamples, regressionMessage, saveExample } from './regressions.ts';
@@ -21,6 +24,39 @@ import { closeBrowser, runBrowserLaw } from './browser.ts';
 import { ensureServer, importsBoth, lawMode, runE2eLaw, stopServer } from './e2e.ts';
 import { declarationOf, exercisesOf, markFailing, Sources, type Exercised } from './exercises.ts';
 import type { CheckOptions, LawResult, ManifestLaw } from './types.ts';
+
+type Add = (law: ManifestLaw, status: LawResult['status'], method: string, extra?: Partial<LawResult>) => void;
+
+/** Runs at most `limit` tasks at once. */
+class Semaphore {
+  private free: number;
+  private readonly queue: (() => void)[] = [];
+
+  constructor(limit: number) {
+    this.free = limit;
+  }
+
+  async run<T>(task: () => Promise<T>): Promise<T> {
+    if (this.free > 0) this.free -= 1;
+    else await new Promise<void>((resolve) => this.queue.push(resolve));
+    try {
+      return await task();
+    } finally {
+      const next = this.queue.shift();
+      if (next === undefined) this.free += 1;
+      else next();
+    }
+  }
+}
+
+/** Whether the law runs in a browser or against an app: those share one page and one server. */
+function isPageLaw(cwd: string, law: ManifestLaw): boolean {
+  try {
+    return lawMode(law.file, readFileSync(join(cwd, law.file), 'utf8')) !== 'node';
+  } catch {
+    return false;
+  }
+}
 
 export interface CheckReport {
   results: LawResult[];
@@ -112,20 +148,44 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
 
   const covered = coverFiles(options.cwd, readConfig(options.cwd).cover ?? []);
   const compiled = [...new Set([...options.files, ...covered])];
+  const texts = new Map<string, string>();
+  const readSource = (file: string): string => {
+    if (!texts.has(file)) texts.set(file, readFileSync(join(options.cwd, file), 'utf8'));
+    return texts.get(file)!;
+  };
+  warmWorkers(
+    laws.filter((law) => law.problems.length === 0 && lawMode(law.file, readSource(law.file)) === 'node').length,
+  );
   const built = build(options.compiler, compiled, options.cwd);
-  const program = ts.createProgram(declarationFiles(built.outDir), compilerOptions);
+  // What the type checker works out is kept with the build it came from, so an unchanged project skips the checker.
+  const derived = derivedStore(options.cwd, built.key);
+  let programOf: ts.Program | undefined;
+  const program = (): ts.Program =>
+    (programOf ??= built.program ?? ts.createProgram(declarationFiles(built.outDir), compilerOptions));
+  const sourceCwd = built.program === undefined ? undefined : options.cwd;
   const require = createRequire(import.meta.url);
 
-  for (const law of laws) {
-    if (options.only !== undefined && !options.only.includes(law.name)) continue;
-    if (blocked.has(lawKey(law.file, law.name))) continue;
+  const runOne = async (law: ManifestLaw, index: number): Promise<void> => {
+    const buffered: (() => void)[] = [];
+    try {
+      await runBody(law, (l, status, method, extra = {}) => {
+        buffered.push(() => add(l, status, method, extra));
+      });
+    } finally {
+      finished.set(index, buffered);
+      flush();
+    }
+  };
+  const runBody = async (law: ManifestLaw, add: Add): Promise<void> => {
+    if (options.only !== undefined && !options.only.includes(law.name)) return;
+    if (blocked.has(lawKey(law.file, law.name))) return;
     options.onEvent?.({ type: 'start', file: law.file, name: law.name });
     let types: LawTypes;
     try {
-      types = typesOf(program, built.outDir, law);
+      types = derived.law(law, () => typesOf(program(), built.outDir, law, sourceCwd));
     } catch (error) {
       add(law, 'error', 'generators', { message: (error as Error).message });
-      continue;
+      return;
     }
     let source = '';
     try {
@@ -137,7 +197,7 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
       add(law, 'error', 'manifest', {
         message: `${law.file}: a browser laws file is either component level (tslaws/browser) or end-to-end (tslaws/e2e), not both`,
       });
-      continue;
+      return;
     }
     const mode = lawMode(law.file, source);
     const browser = mode === 'component';
@@ -147,14 +207,16 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
     // A browser law touches the DOM when it loads, so only the browser loads it.
     if (!browser) {
       try {
-        fn = (require(jsPath(built.outDir, law.file)) as Record<string, (...args: unknown[]) => unknown>)[law.name];
+        fn = (require(jsPath(built.outDir, law.file)) as Record<string, (...args: unknown[]) => unknown>)[
+          law.symbol ?? law.name
+        ];
       } catch (error) {
         add(law, 'error', 'load', { message: `cannot load compiled law: ${(error as Error).message}` });
-        continue;
+        return;
       }
       if (typeof fn !== 'function') {
         add(law, 'error', 'load', { message: 'compiled module does not export the law' });
-        continue;
+        return;
       }
     }
     let details: PropertyOutcome | 'timeout';
@@ -179,19 +241,25 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
           )
         : browser
           ? await runBrowserLaw(
-              { file: law.file, name: law.name, jsFile: jsPath(built.outDir, law.file), generators: types.generators },
+              {
+                file: law.file,
+                name: law.name,
+                symbol: law.symbol,
+                jsFile: jsPath(built.outDir, law.file),
+                generators: types.generators,
+              },
               lawOptions,
             )
-          : await runLawGuarded(built.outDir, law, lawOptions);
+          : await runLawGuarded(built.outDir, law, lawOptions, types.plans);
     } catch (error) {
       add(law, 'error', method, { message: (error as Error).message });
-      continue;
+      return;
     }
     if (details === 'timeout') {
       add(law, 'error', method, {
         message: `property test ran longer than ${limitMs / 1000}s; the law or the code it calls may not terminate`,
       });
-      continue;
+      return;
     }
     if (details.failed) {
       if (details.counterexample === undefined) {
@@ -216,7 +284,7 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
           message: details.regression ? `${regressionMessage} (${details.counterexample}): ${reason}` : reason,
         });
       }
-      continue;
+      return;
     }
     // Browser and async laws are tested, never proved: the prover cannot model a DOM or an await.
     const unprovable =
@@ -231,7 +299,7 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
             : 'marked proved but proving is disabled'
           : undefined,
       });
-      continue;
+      return;
     }
     const holds = (inputs: unknown[]): boolean => {
       try {
@@ -268,16 +336,43 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
         message: `marked proved but not proved: ${proof.reason}`,
       });
     else add(law, 'tested', 'property', { runs: details.numRuns, seed: details.seed, message: proof.reason });
-  }
+  };
+  const finished = new Map<number, (() => void)[]>();
+  let nextToFlush = 0;
+  const flush = (): void => {
+    for (let ready = finished.get(nextToFlush); ready !== undefined; ready = finished.get(nextToFlush)) {
+      for (const emit of ready) emit();
+      finished.delete(nextToFlush);
+      nextToFlush += 1;
+    }
+  };
+  // Property laws and proofs share the cores; browser and end-to-end laws share one page and one server, so they queue.
+  const lanes = { cpu: new Semaphore(jobs()), page: new Semaphore(1) };
+  await Promise.all(
+    laws.map(async (law, index) => {
+      const skipped =
+        (options.only !== undefined && !options.only.includes(law.name)) || blocked.has(lawKey(law.file, law.name));
+      if (skipped) {
+        finished.set(index, []);
+        flush();
+        return;
+      }
+      const lane = isPageLaw(options.cwd, law) ? lanes.page : lanes.cpu;
+      await lane.run(() => runOne(law, index));
+    }),
+  );
 
   if (enforceLock) {
-    const coverage = analyzeCoverage({
-      cwd: options.cwd,
-      outDir: built.outDir,
-      lawFiles: options.files,
-      coverFiles: covered,
-      program,
-    });
+    const coverage = derived.coverage(() =>
+      analyzeCoverage({
+        cwd: options.cwd,
+        outDir: built.outDir,
+        lawFiles: options.files,
+        coverFiles: covered,
+        program: program(),
+        moduleOf: sourceCwd === undefined ? undefined : (file) => resolve(sourceCwd, file),
+      }),
+    );
     for (const { file, name } of coverage.uncovered) {
       results.push({
         file,

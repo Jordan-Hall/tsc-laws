@@ -113,9 +113,9 @@ const terminal = async (key, command, output) => {
   for (const l of output) {
     printed.push(color(l));
     if (/^(FAILED|TAMPERED)/.test(l)) cue('fail');
-    if (/^PROVED/.test(l)) cue('pass');
+    if (l.startsWith('PROVED')) cue('pass');
     await show(`${esc(typed)}\n${printed.join('\n')}`);
-    await page.waitForTimeout(/^ /.test(l) ? 120 : 420);
+    await page.waitForTimeout(l.startsWith(' ') ? 120 : 420);
   }
   await finishVoice();
 };
@@ -151,7 +151,7 @@ await card('idea', 'You write the laws', ['The agent writes the code.', 'Nothing
 await typeCode(
   'write',
   'src/math.laws.ts',
-  'export law addCommutes(a: number, b: number) => add(a, b) === add(b, a);\n\nexport law proved addIdentity(a: number) => add(a, 0) === a;\n',
+  "law('addCommutes', (a: number, b: number) => add(a, b) === add(b, a));\n\nlaw.proved('addIdentity', (a: number) => add(a, 0) === a);\n\n// or with the tsc-laws compiler, as a keyword:\n// export law proved addIdentity(a: number) => add(a, 0) === a;\n",
 );
 
 await open(4803);

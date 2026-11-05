@@ -14,6 +14,7 @@ import { promoteFiles } from './promote.ts';
 import { clearCorpus, listCorpus } from './regressions.ts';
 import { reporterNames, reportAs } from './reporters.ts';
 import { readConfig } from './coverage.ts';
+import { migrateCommand, migrateUsage } from './migrate/index.ts';
 import { mutate, renderMutation } from './mutate.ts';
 import { mutateDefaults, resolveSettings } from './settings.ts';
 import { serveUi } from './ui.ts';
@@ -42,6 +43,7 @@ tslaws delegate revoke [--root DIR]   withdraw the delegation for a project (peo
 tslaws delegate status        list delegations and when they end
 tslaws promote [file] [--all]   move proposed laws (*.proposed.laws.ts, *.browser.proposed.laws.ts, *.e2e.proposed.laws.ts) into the accepted file of the same kind, asking per law (people only: needs a terminal; run accept afterwards)
 tslaws mcp [--compiler PATH]   serve check, check_proposed, explain and propose as Model Context Protocol tools on stdio (cannot accept or touch the lock)
+${migrateUsage}
 
 Without files, every *.laws.ts under the current directory is checked (*.proposed.laws.ts, *.browser.proposed.laws.ts and *.e2e.proposed.laws.ts only with --proposed).
 Exit status is 0 only when every law is proved, bounded or tested and nothing is open, failed, uncovered or tampered with.
@@ -87,6 +89,7 @@ function parse(args: string[]): { command: string; flags: Map<string, string | t
     'max',
     'for',
     'root',
+    'out',
   ]);
   for (let i = 0; i < args.length; i += 1) {
     const arg = args[i]!;
@@ -104,6 +107,7 @@ function parse(args: string[]): { command: string; flags: Map<string, string | t
         arg === 'regressions' ||
         arg === 'mcp' ||
         arg === 'promote' ||
+        arg === 'migrate' ||
         arg === 'delegate')
     )
       command = arg;
@@ -303,9 +307,12 @@ export async function acceptCommand(
   );
   if (!gate.delegated) {
     const rl = createInterface({ input: process.stdin, output: process.stdout });
-    const answer = await rl.question('Type ACCEPT to write tsc-laws.lock: ');
+    const answer = await rl.question('Write tsc-laws.lock? Type accept, yes or y to confirm: ');
     rl.close();
-    if (answer.trim() !== 'ACCEPT') return 1;
+    if (!['accept', 'yes', 'y'].includes(answer.trim().toLowerCase())) {
+      out('Nothing written: the answer was not accept, yes or y. Run `tslaws accept` again to retry.\n');
+      return 1;
+    }
   }
   const before = fileHash(opts.lockFile);
   const exempt = exemptionsOf(opts);
@@ -389,6 +396,9 @@ export async function main(args: string[]): Promise<number> {
     return acceptCommand(cwd, flags, files, { isTTY: process.stdin.isTTY === true, env: process.env });
   if (command === 'delegate')
     return delegateCommand(cwd, files[0], flags, { isTTY: process.stdin.isTTY === true, env: process.env });
+
+  if (command === 'migrate')
+    return migrateCommand(cwd, files[0], files.slice(1), flags, (text) => process.stdout.write(text));
 
   if (command === 'mcp') return serveMcp({ cwd, compiler: options(cwd, flags, []).compiler });
 

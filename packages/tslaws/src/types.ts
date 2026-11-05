@@ -3,6 +3,8 @@ export type LawStatus = 'proved' | 'bounded' | 'tested' | 'open' | 'failed' | 't
 export interface ManifestLaw {
   file: string;
   name: string;
+  /** The exported function the law lowers to, when its name is not itself an identifier. Defaults to `name`. */
+  symbol?: string;
   exported: boolean;
   proved: boolean;
   line: number;
