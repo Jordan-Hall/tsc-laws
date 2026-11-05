@@ -2,6 +2,12 @@
 
 The upstream tsc-ts changelog is CHANGELOG.md. Releases of tsc-laws are tagged `laws-v<version>` (see RELEASING-LAWS.md).
 
+## 0.6.1
+
+- Merge pull request #8 from Jordan-Hall/docs/delegation-explainer
+- docs: show both explainer videos in the README
+- docs: an explainer video on laws, migration and delegated accept
+
 ## 0.6.0
 
 - Merge pull request #7 from Jordan-Hall/feat/vscode-live-laws

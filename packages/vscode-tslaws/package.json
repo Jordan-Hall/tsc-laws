@@ -1,7 +1,7 @@
 {
   "name": "vscode-tslaws",
   "displayName": "tsc-laws",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "private": true,
   "description": "tsc-laws for VS Code: law failures show live on the law and on the code it exercises, with CodeLens, Test Explorer and commands",
   "categories": [
