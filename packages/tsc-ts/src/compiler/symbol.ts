@@ -124,22 +124,26 @@ export const enum CheckFlags {
   ContainsPublic = 1 << 8,
   ContainsProtected = 1 << 9,
   ContainsPrivate = 1 << 10,
-  ContainsStatic = 1 << 11,
+  /** A synthetic property with public, protected or private write access in a constituent. */
+  ContainsWritePublic = 1 << 11,
+  ContainsWriteProtected = 1 << 12,
+  ContainsWritePrivate = 1 << 13,
+  ContainsStatic = 1 << 14,
   /** Late-bound from a computed property name. */
-  Late = 1 << 12,
-  ReverseMapped = 1 << 13,
-  OptionalParameter = 1 << 14,
-  RestParameter = 1 << 15,
+  Late = 1 << 15,
+  ReverseMapped = 1 << 16,
+  OptionalParameter = 1 << 17,
+  RestParameter = 1 << 18,
   /** The type is computed on demand. */
-  DeferredType = 1 << 16,
-  HasNeverType = 1 << 17,
-  Mapped = 1 << 18,
-  StripOptional = 1 << 19,
-  Unresolved = 1 << 20,
-  IsDiscriminantComputed = 1 << 21,
-  IsDiscriminant = 1 << 22,
+  DeferredType = 1 << 19,
+  HasNeverType = 1 << 20,
+  Mapped = 1 << 21,
+  StripOptional = 1 << 22,
+  Unresolved = 1 << 23,
+  IsDiscriminantComputed = 1 << 24,
+  IsDiscriminant = 1 << 25,
   /** Created from an index signature. */
-  IndexSymbol = 1 << 23,
+  IndexSymbol = 1 << 26,
   Synthetic = SyntheticProperty | SyntheticMethod,
   NonUniformAndLiteral = HasNonUniformType | HasLiteralType,
   Partial = ReadPartial | WritePartial,
@@ -156,12 +160,17 @@ export class SymbolRareFields implements ProgramLifetime {
   valueDeclaration: Node | undefined = undefined;
 }
 
-/** In `Symbol.bits`, above the check flags: the value declaration is the first declaration. */
-const valueDeclarationIsFirst = 1 << 30;
+/**
+ * In `Symbol.bits`, above the check flags: the value declaration is the first declaration. A const enum
+ * member, so that native builds read it as a constant rather than as a module variable.
+ */
+const enum SymbolBits {
+  ValueDeclarationIsFirst = 1 << 30,
+}
 
 export class Symbol implements ProgramLifetime {
   flags: SymbolFlags;
-  /** The check flags, and `valueDeclarationIsFirst`. */
+  /** The check flags, and `SymbolBits.ValueDeclarationIsFirst`. */
   private bits: number;
   readonly name: string;
   /**
@@ -186,19 +195,19 @@ export class Symbol implements ProgramLifetime {
   }
 
   get checkFlags(): CheckFlags {
-    return (this.bits & ~valueDeclarationIsFirst) as CheckFlags;
+    return (this.bits & ~SymbolBits.ValueDeclarationIsFirst) as CheckFlags;
   }
 
   set checkFlags(flags: CheckFlags) {
-    this.bits = (this.bits & valueDeclarationIsFirst) | flags;
+    this.bits = (this.bits & SymbolBits.ValueDeclarationIsFirst) | flags;
   }
 
   /** Makes `node` the first declaration, keeping the value declaration. */
   setFirst(node: Node | undefined): void {
-    if ((this.bits & valueDeclarationIsFirst) !== 0 && node !== this.declaration) {
+    if ((this.bits & SymbolBits.ValueDeclarationIsFirst) !== 0 && node !== this.declaration) {
       // The value declaration stays what it was.
       this.rareFieldsOrNew().valueDeclaration = this.declaration;
-      this.bits &= ~valueDeclarationIsFirst;
+      this.bits &= ~SymbolBits.ValueDeclarationIsFirst;
     }
     this.declaration = node;
   }
@@ -208,7 +217,7 @@ export class Symbol implements ProgramLifetime {
    * says; any other is kept in the rare fields.
    */
   get valueDeclaration(): Node | undefined {
-    if ((this.bits & valueDeclarationIsFirst) !== 0) return this.declaration;
+    if ((this.bits & SymbolBits.ValueDeclarationIsFirst) !== 0) return this.declaration;
     const group = this.rareFields;
     return group === undefined ? undefined : group.valueDeclaration;
   }
@@ -216,11 +225,11 @@ export class Symbol implements ProgramLifetime {
   set valueDeclaration(node: Node | undefined) {
     const group = this.rareFields;
     if (node !== undefined && node === this.declaration) {
-      this.bits |= valueDeclarationIsFirst;
+      this.bits |= SymbolBits.ValueDeclarationIsFirst;
       if (group !== undefined) group.valueDeclaration = undefined;
       return;
     }
-    this.bits &= ~valueDeclarationIsFirst;
+    this.bits &= ~SymbolBits.ValueDeclarationIsFirst;
     if (node !== undefined || group !== undefined) this.rareFieldsOrNew().valueDeclaration = node;
   }
 
@@ -315,7 +324,7 @@ export class Symbol implements ProgramLifetime {
 
   /** Whether this is the symbol of an external module, named by its quoted path. */
   isExternalModule(): boolean {
-    return (this.flags & SymbolFlags.Module) !== 0 && this.name.charCodeAt(0) === 0x22;
+    return (this.flags & SymbolFlags.Module) !== 0 && tryGetAmbientModuleNameFromSymbolName(this.name) !== undefined;
   }
 
   /** The flags of this symbol and its export symbol. */
@@ -498,6 +507,19 @@ export function getMembers(symbol: Symbol): SymbolTable {
  * vanishingly unlikely in a string-literal property name.
  */
 export const internalSymbolNamePrefix = '￾';
+
+/**
+ * The module name of an ambient module symbol's name: `"name"`, or for a pattern module with import
+ * attributes, the internal symbol name prefix, `"name"pattern@` and the id of the attributes node.
+ */
+export function tryGetAmbientModuleNameFromSymbolName(name: string): string | undefined {
+  if (name.length >= 2 && name.charCodeAt(0) === 0x22 && name.charCodeAt(name.length - 1) === 0x22)
+    return name.substring(1, name.length - 1);
+  if (!name.startsWith(internalSymbolNamePrefix + '"')) return undefined;
+  const markerIndex = name.lastIndexOf('"pattern@');
+  if (markerIndex < internalSymbolNamePrefix.length + 2) return undefined;
+  return name.substring(internalSymbolNamePrefix.length + 1, markerIndex);
+}
 
 export const enum InternalSymbolName {
   /** Call signatures. */

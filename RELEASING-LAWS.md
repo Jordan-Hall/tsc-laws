@@ -67,3 +67,43 @@ Every workflow run tests the extension (`npm test -w vscode-tslaws`), packages i
 
 To publish it to the Marketplace and Open VSX, set the repository variable `VSCODE_PUBLISH` to `true` and add a
 `VSCE_PAT` secret (an Azure DevOps token for the `tsc-laws` publisher) and/or an `OVSX_PAT` secret (an Open VSX token).
+
+## Syncing with upstream
+
+This fork tracks [vercel-labs/tsc-ts](https://github.com/vercel-labs/tsc-ts). The `sync-upstream` workflow runs every Monday
+(and on demand from the Actions tab) and only on `Jordan-Hall/tsc-laws`. `scripts/ci/sync-upstream.mjs` does the work:
+
+- If upstream `main` has no commits that `main` lacks, it does nothing.
+- If an open pull request from a `sync/upstream-*` branch exists, it does nothing. Only an open pull request blocks a run.
+- Otherwise it merges `upstream/main` into a new branch `sync/upstream-<date>`, pushes it with the default token and opens a
+  pull request into `main` that lists the new upstream commits.
+- A `sync/upstream-*` branch on origin with no open pull request (the pull request was closed unmerged, or a run pushed the
+  branch and failed before opening one) does not block anything. The job deletes such a branch when `main` already contains it
+  or it lacks the current upstream head. A complete one that `main` lacks is reused: the job resets it to the fresh merge with
+  `--force-with-lease` on that branch only, then opens the pull request. It never force-pushes `main`.
+- If the merge conflicts, it opens one issue labelled `upstream-sync` that lists the conflicting files, and no pull request.
+  While that issue is open, later runs open no second one.
+
+It never pushes to `main` and never publishes. Merge the pull request with a **merge commit**, not a squash or a rebase, so the
+next sync sees those upstream commits as merged. Upstream commits in `packages/tsc-ts` count as code for the release
+workflow, which is fine. The versions of `tslaws` and `vscode-tslaws` are this fork's: never copy upstream's version bumps over
+them. If upstream moves the pin in `upstream.json`, take upstream's.
+
+GitHub starts no workflows for a pull request opened with the default token, so close and reopen the pull request to run its
+checks. The default token also cannot push a branch that changes `.github/workflows`: the job then opens the `upstream-sync`
+issue and you do the merge yourself.
+
+To merge by hand, after a conflict or a refused push:
+
+```sh
+git fetch https://github.com/vercel-labs/tsc-ts.git main:refs/remotes/upstream/main
+git switch -c chore/sync-upstream origin/main
+git merge upstream/main
+```
+
+Resolve the conflicts. Take upstream's side for its own files and keep both sides where they touch different things. The law
+syntax lives in `packages/tsc-ts/src/laws`, `checker-laws.ts` and the places that call them (checker, parser, `main.ts`). The
+diagnostic tables are generated: take upstream's `diagnostic-messages.ts` and `locales/*.ts`, run `npm run fetch:upstream`, then
+`node scripts/generate-diagnostics.mjs` in `packages/tsc-ts` (and `npx oxfmt` on the files it wrote, if the script's own format
+step fails) to bring the law messages back. Then run what `laws.yml` runs: build the compiler, `node --test
+packages/tsc-ts/tests/laws.test.mjs`, `npm test -w tslaws` and `npm test -w vscode-tslaws`.

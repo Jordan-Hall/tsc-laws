@@ -42,9 +42,11 @@ import {
   NodeVisitor,
   type ObjectLiteralExpression,
   type ParameterDeclaration,
+  type LiteralTypeNode,
   type PrefixUnaryExpression,
   type PropertyAccessExpression,
   type PropertyDeclaration,
+  type PropertySignatureDeclaration,
   type ShorthandPropertyAssignment,
   type SourceFile,
   StringLiteral,
@@ -52,6 +54,7 @@ import {
   type TaggedTemplateExpression,
   type ThrowStatement,
   type TupleTypeNode,
+  type TypeLiteralNode,
   type TypeOperatorNode,
   type TypeParameterDeclaration,
   type TypeReferenceNode,
@@ -91,7 +94,11 @@ import {
   isAmbientModule,
   isFunctionLike,
   isFunctionLikeDeclarationKind,
+  isImportDeferMetaProperty,
+  isImportPhaseMetaProperty,
+  isImportSourceMetaProperty,
   isModifierKind,
+  isSourcePhaseImportCall,
   isStringLiteralLike,
   modifierToFlag,
   nodeIsPresent,
@@ -128,22 +135,64 @@ import { getPropertyNameFromType, isTypeUsableAsPropertyName, isValidIndexKeyTyp
 import { getSymbolOfDeclaration, resolveAlias } from './checker-symbols.js';
 import { Diagnostics } from './diagnostic-messages.js';
 import { Diagnostic, DiagnosticCategory, type DiagnosticMessage, messageCategory } from './diagnostics.js';
-import { ModuleKind, ScriptTarget, getEmitModuleKind } from './options.js';
+import {
+  type CompilerOptions,
+  ModuleKind,
+  ScriptTarget,
+  getEmitModuleKind,
+  getEmitScriptTarget,
+  supportsDeferredImports,
+  supportsSourcePhaseImports,
+} from './options.js';
+import { getEmitSyntaxForModuleSpecifierExpression } from './checker-modules.js';
 import { fileExtensionIsOneOf, isExternalModuleNameRelative } from './path.js';
-import { SourceFileMetadata, getEmitModuleFormatOfFile, getImpliedNodeFormatForEmit } from './program-utilities.js';
+import {
+  SourceFileMetadata,
+  getEmitModuleFormatOfFile,
+  getImpliedNodeFormatForEmit,
+  resolutionModeAttribute,
+} from './program-utilities.js';
 import { CharacterCodes } from './character-codes.js';
 import { Scanner, ScannerErrorReporter, skipTrivia, tokenToString } from './scanner.js';
 import { typeToString } from './type-printer.js';
 import type { ScriptTarget as LanguageTarget } from './types.js';
 import { SyntaxKind } from './syntax-kind.js';
-import { findMismatchedAugmentsTag } from './checker-jsdoc.js';
 import { getDeclarations, SymbolFlags } from './symbol.js';
 
 /** Runs the grammar checks of every node of `file`. */
 export function checkGrammarSourceFile(c: Checker, file: SourceFile): void {
+  const diagnostics = file.grammarDiagnostics;
+  const residualNodes = file.grammarResidualNodes;
+  // A parse thread walked the file: it reported the checks that don't need the checker, and left the
+  // nodes of the checks that do (checkGrammarSourceFileInParseThread).
+  if (diagnostics !== undefined && residualNodes !== undefined) {
+    for (const diagnostic of diagnostics) c.addDiagnostic(diagnostic);
+    if (residualNodes.length === 0) return;
+    const g = new GrammarChecker(c, file, undefined, undefined, file.grammarAmbientReports);
+    for (const node of residualNodes) g.visitNode(node);
+    return;
+  }
   const g = new GrammarChecker(c, file);
   if ((file.flags & NodeFlags.Ambient) !== 0) checkGrammarTopLevelElementsForRequiredDeclareModifier(g, file);
   file.forEachChild(g);
+}
+
+/**
+ * Runs the grammar checks of `file` in a parse thread, before the file is published: the checks that
+ * don't need the checker report now, and the nodes of those that do are kept for the checker, which
+ * runs them in the same tree order (`checkGrammarSourceFile`).
+ */
+export function checkGrammarSourceFileInParseThread(
+  file: SourceFile,
+  options: CompilerOptions,
+  metadata: SourceFileMetadata,
+): void {
+  const g = new GrammarChecker(undefined, file, options, metadata);
+  if ((file.flags & NodeFlags.Ambient) !== 0) checkGrammarTopLevelElementsForRequiredDeclareModifier(g, file);
+  file.forEachChild(g);
+  file.grammarDiagnostics = g.diagnostics!;
+  file.grammarResidualNodes = g.residualNodes!;
+  file.grammarAmbientReports = [...g.reportedAmbientStatements];
 }
 
 /** The grammar checker of the file of `node`, for grammar checks run while checking expressions. */
@@ -193,7 +242,10 @@ export function checkGrammarYieldOfExpression(c: Checker, node: Node): void {
 
 /** Per-file state of the grammar walk. */
 export class GrammarChecker extends NodeVisitor {
-  readonly c: Checker;
+  /** The checker of a walk in the checker thread; undefined for a walk in a parse thread. */
+  readonly c: Checker | undefined;
+  readonly compilerOptions: CompilerOptions;
+  readonly languageVersion: number;
   readonly file: SourceFile;
   /** Grammar errors are only reported in files without parse errors. */
   readonly hasParseErrors: boolean;
@@ -201,22 +253,98 @@ export class GrammarChecker extends NodeVisitor {
   readonly metadata: SourceFileMetadata;
   readonly legacyDecorators: boolean;
   /** Blocks and statements that already reported a statement in an ambient context. */
-  readonly reportedAmbientStatements = new Set<number>();
+  reportedAmbientStatements: Set<number>;
+  /**
+   * The IDs `reportedAmbientStatements` gained in a parse thread's walk, in the order it gained them, so
+   * that the reports of a node whose check the checker runs are undone without copying the set.
+   * Undefined in the checker thread, where no check is undone.
+   */
+  private readonly ambientReportLog: number[] | undefined;
+  /**
+   * The diagnostics of a walk in a parse thread, which has no checker, for the checker to add to its
+   * collection; undefined in the checker thread, where they are reported as they are found.
+   */
+  readonly diagnostics: Diagnostic[] | undefined;
+  /** The nodes of a parse thread's walk whose check needs the checker, in tree order. */
+  readonly residualNodes: Node[] | undefined;
+  /** Set when the check of a parse thread's walk needs the checker: the checker runs that node. */
+  needsChecker = false;
   private scanner: Scanner | undefined = undefined;
 
-  constructor(c: Checker, file: SourceFile) {
+  constructor(
+    c: Checker | undefined,
+    file: SourceFile,
+    options: CompilerOptions = c!.compilerOptions,
+    metadata?: SourceFileMetadata,
+    /** `file.grammarAmbientReports`: what a parse thread's walk already reported. */
+    ambientReports?: readonly number[],
+  ) {
     super();
     this.c = c;
+    this.compilerOptions = options;
+    this.languageVersion = getEmitScriptTarget(options);
     this.file = file;
     this.hasParseErrors = file.diagnostics.length > 0;
-    this.moduleKind = getEmitModuleKind(c.compilerOptions);
-    this.metadata = c.host.getSourceFileMetadata(file) ?? new SourceFileMetadata('', '', ModuleKind.None);
-    this.legacyDecorators = c.compilerOptions.experimentalDecorators === true;
+    this.moduleKind = getEmitModuleKind(options);
+    this.metadata = metadata ?? c!.host.getSourceFileMetadata(file) ?? new SourceFileMetadata('', '', ModuleKind.None);
+    this.legacyDecorators = options.experimentalDecorators === true;
+    this.reportedAmbientStatements = new Set(ambientReports);
+    this.ambientReportLog = c === undefined ? [] : undefined;
+    this.diagnostics = c === undefined ? [] : undefined;
+    this.residualNodes = c === undefined ? [] : undefined;
   }
 
   visitNode(node: Node): boolean {
-    if (checkGrammarNode(this, node)) node.forEachChild(this);
+    const diagnostics = this.diagnostics;
+    if (diagnostics === undefined) {
+      if (checkGrammarNode(this, node)) node.forEachChild(this);
+      return false;
+    }
+    // A parse thread has no checker: a node whose check needs it is recorded for the checker, with the
+    // diagnostics and the ambient-context reports it made undone, and its children are left to the
+    // checker as well.
+    const start = diagnostics.length;
+    const reportsMark = this.ambientReportLog!.length;
+    const descend = checkGrammarNode(this, node);
+    if (this.needsChecker) {
+      this.needsChecker = false;
+      diagnostics.length = start;
+      this.undoAmbientReports(reportsMark);
+      this.residualNodes!.push(node);
+      return false;
+    }
+    if (descend) node.forEachChild(this);
     return false;
+  }
+
+  /** Records that `id` reported a statement in an ambient context. */
+  reportAmbientStatement(id: number): void {
+    if (this.reportedAmbientStatements.has(id)) return;
+    this.reportedAmbientStatements.add(id);
+    this.ambientReportLog?.push(id);
+  }
+
+  /** Undoes the ambient-context reports added since the log had `mark` entries. */
+  private undoAmbientReports(mark: number): void {
+    const log = this.ambientReportLog!;
+    for (let i = mark; i < log.length; i++) this.reportedAmbientStatements.delete(log[i]!);
+    log.length = mark;
+  }
+
+  /** Reports an error at `node`, as `Checker.error`; returns the diagnostic. */
+  error(node: Node | undefined, message: DiagnosticMessage, ...args: string[]): Diagnostic {
+    const c = this.c;
+    if (c !== undefined) return c.error(node, message, ...args);
+    const diagnostic = createDiagnosticForNode(node, message, args);
+    this.diagnostics!.push(diagnostic);
+    return diagnostic;
+  }
+
+  /** Reports `diagnostic`, as `Checker.addDiagnostic`. */
+  report(diagnostic: Diagnostic): void {
+    const c = this.c;
+    if (c !== undefined) c.addDiagnostic(diagnostic);
+    else this.diagnostics!.push(diagnostic);
   }
 
   /** A scanner over the file's text, for rescanning tokens. */
@@ -226,7 +354,7 @@ export class GrammarChecker extends NodeVisitor {
       scanner = new Scanner(this.file.text);
       scanner.setLanguageVariant(this.file.languageVariant);
       // The scanner's target enum has the same values as the option's.
-      scanner.setScriptTarget(this.c.languageVersion as number as LanguageTarget);
+      scanner.setScriptTarget(this.languageVersion as number as LanguageTarget);
       this.scanner = scanner;
     }
     return scanner;
@@ -237,7 +365,7 @@ export class GrammarChecker extends NodeVisitor {
 
 function grammarErrorOnNode(g: GrammarChecker, node: Node, message: DiagnosticMessage, ...args: string[]): boolean {
   if (g.hasParseErrors) return false;
-  g.c.error(node, message, ...args);
+  g.error(node, message, ...args);
   return true;
 }
 
@@ -249,7 +377,7 @@ function grammarErrorOnFirstToken(
 ): boolean {
   if (g.hasParseErrors) return false;
   const range = getRangeOfTokenAtPosition(g.file, node.pos);
-  g.c.addDiagnostic(new Diagnostic(g.file.diagnosticFile(), range.pos, range.end, message, args));
+  g.report(new Diagnostic(g.file.diagnosticFile(), range.pos, range.end, message, args));
   return true;
 }
 
@@ -261,7 +389,7 @@ function grammarErrorAtPos(
   ...args: string[]
 ): boolean {
   if (g.hasParseErrors) return false;
-  g.c.addDiagnostic(new Diagnostic(g.file.diagnosticFile(), start, start + length, message, args));
+  g.report(new Diagnostic(g.file.diagnosticFile(), start, start + length, message, args));
   return true;
 }
 
@@ -443,7 +571,8 @@ function checkGrammarNode(g: GrammarChecker, node: Node): boolean {
       return true;
     case SyntaxKind.ImportType: {
       const attributes = (node as ImportTypeNode).attributes;
-      if (attributes !== undefined) getResolutionModeOverride(g, attributes, true);
+      if (attributes !== undefined) checkGrammarImportAttributeValues(g, attributes);
+      checkGrammarImportAttributes(g, node);
       return true;
     }
     case SyntaxKind.TupleType:
@@ -553,20 +682,25 @@ function checkGrammarModifiers(g: GrammarChecker, node: Node): boolean {
           );
         return grammarErrorOnFirstToken(g, node, Diagnostics.Decorators_are_not_valid_here);
       } else if (g.legacyDecorators && (node.kind === SyntaxKind.GetAccessor || node.kind === SyntaxKind.SetAccessor)) {
-        const first = getFirstAccessorOfPair(g.c, node);
-        if (first !== node && hasDecorators(first))
-          return grammarErrorOnFirstToken(
-            g,
-            node,
-            Diagnostics.Decorators_cannot_be_applied_to_multiple_get_Slashset_accessors_of_the_same_name,
-          );
+        const c = g.c;
+        // Which accessor comes first is a symbol question; a parse thread leaves the node to the checker.
+        if (c === undefined) g.needsChecker = true;
+        else {
+          const first = getFirstAccessorOfPair(c, node);
+          if (first !== node && hasDecorators(first))
+            return grammarErrorOnFirstToken(
+              g,
+              node,
+              Diagnostics.Decorators_cannot_be_applied_to_multiple_get_Slashset_accessors_of_the_same_name,
+            );
+        }
       }
       // Decorators can only follow `export` and `default`.
       if ((flags & ~(ModifierFlags.ExportDefault | ModifierFlags.Decorator)) !== 0)
         return grammarErrorOnNode(g, modifier, Diagnostics.Decorators_are_not_valid_here);
       if (hasLeadingDecorators && (flags & ModifierFlags.Modifier) !== 0) {
         if (g.hasParseErrors) return false;
-        const diagnostic = g.c.error(
+        const diagnostic = g.error(
           modifier,
           Diagnostics.Decorators_may_not_appear_after_export_or_export_default_if_they_also_appear_before_export,
         );
@@ -800,7 +934,7 @@ function checkGrammarModifiers(g: GrammarChecker, node: Node): boolean {
         break;
       case SyntaxKind.ExportKeyword:
         if (
-          g.c.compilerOptions.verbatimModuleSyntax === true &&
+          g.compilerOptions.verbatimModuleSyntax === true &&
           (node.flags & NodeFlags.Ambient) === 0 &&
           node.kind !== SyntaxKind.TypeAliasDeclaration &&
           node.kind !== SyntaxKind.InterfaceDeclaration &&
@@ -1316,7 +1450,7 @@ function checkGrammarDecorator(g: GrammarChecker, decorator: Decorator): boolean
     break;
   }
   if (errorNode === undefined) return false;
-  const diagnostic = g.c.error(
+  const diagnostic = g.error(
     decorator.expression,
     Diagnostics.Expression_must_be_enclosed_in_parentheses_to_be_used_as_a_decorator,
   );
@@ -1391,7 +1525,7 @@ function checkGrammarParameterList(g: GrammarChecker, parameters: NodeList): boo
 }
 
 function checkGrammarForUseStrictSimpleParameterList(g: GrammarChecker, node: Node): boolean {
-  if (g.c.languageVersion < ScriptTarget.ES2016) return false;
+  if (g.languageVersion < ScriptTarget.ES2016) return false;
   const body = getBody(node);
   if (body === undefined || body.kind !== SyntaxKind.Block) return false;
   const useStrictDirective = findUseStrictPrologue(g.file, getStatements(body)!.nodes);
@@ -1404,10 +1538,10 @@ function checkGrammarForUseStrictSimpleParameterList(g: GrammarChecker, node: No
   }
   if (nonSimpleParameters.length === 0) return false;
   for (const parameter of nonSimpleParameters) {
-    const diagnostic = g.c.error(parameter, Diagnostics.This_parameter_is_not_allowed_with_use_strict_directive);
+    const diagnostic = g.error(parameter, Diagnostics.This_parameter_is_not_allowed_with_use_strict_directive);
     addRelated(diagnostic, useStrictDirective, Diagnostics.X_use_strict_directive_used_here);
   }
-  const diagnostic = g.c.error(
+  const diagnostic = g.error(
     useStrictDirective,
     Diagnostics.X_use_strict_directive_cannot_be_used_with_non_simple_parameter_list,
   );
@@ -1520,14 +1654,20 @@ function checkGrammarIndexSignatureParameters(g: GrammarChecker, node: IndexSign
     return grammarErrorOnNode(g, parameter.name, Diagnostics.An_index_signature_parameter_cannot_have_an_initializer);
   if (parameter.type === undefined)
     return grammarErrorOnNode(g, parameter.name, Diagnostics.An_index_signature_parameter_must_have_a_type_annotation);
-  const t = getTypeFromTypeNode(g.c, parameter.type);
-  if (someTypeHasFlags(t, TypeFlags.StringOrNumberLiteralOrUnique) || isGenericType(g.c, t))
+  const c = g.c;
+  if (c === undefined) {
+    // The parameter's type decides; a parse thread leaves the node to the checker.
+    g.needsChecker = true;
+    return false;
+  }
+  const t = getTypeFromTypeNode(c, parameter.type);
+  if (someTypeHasFlags(t, TypeFlags.StringOrNumberLiteralOrUnique) || isGenericType(c, t))
     return grammarErrorOnNode(
       g,
       parameter.name,
       Diagnostics.An_index_signature_parameter_type_cannot_be_a_literal_type_or_generic_type_Consider_using_a_mapped_object_type_instead,
     );
-  if (!everyTypeIsValidIndexKey(g.c, t))
+  if (!everyTypeIsValidIndexKey(c, t))
     return grammarErrorOnNode(
       g,
       parameter.name,
@@ -1631,18 +1771,6 @@ function checkGrammarClassDeclarationHeritageClauses(g: GrammarChecker, node: No
         return grammarErrorOnFirstToken(g, clause, Diagnostics.X_extends_clause_must_precede_implements_clause);
       if (clause.types.nodes.length > 1)
         return grammarErrorOnFirstToken(g, clause.types.nodes[1]!, Diagnostics.Classes_can_only_extend_a_single_class);
-      if (clause.types.nodes.length > 0) {
-        const mismatch = findMismatchedAugmentsTag(node, clause.types.nodes[0]! as ExpressionWithTypeArguments);
-        if (mismatch !== undefined)
-          return grammarErrorOnNode(
-            g,
-            mismatch.name,
-            Diagnostics.JSDoc_0_1_does_not_match_the_extends_2_clause,
-            mismatch.tagName,
-            mismatch.className,
-            mismatch.extendsName,
-          );
-      }
       seenExtendsClause = true;
     } else {
       if (seenImplementsClause)
@@ -1717,12 +1845,18 @@ function checkGrammarForInvalidExclamationToken(
 }
 
 /** Whether a name is dynamic and can't be late bound: its type isn't a literal or unique symbol. */
-function isNonBindableDynamicName(c: Checker, node: Node): boolean {
+function isNonBindableDynamicName(g: GrammarChecker, node: Node): boolean {
   if (!isDynamicName(node)) return false;
   let expression: Node | undefined;
   if (node.kind === SyntaxKind.ComputedPropertyName) expression = getExpression(node);
   else if (node instanceof ElementAccessExpression) expression = node.argumentExpression;
   if (expression === undefined || !isEntityNameExpression(expression, false)) return true;
+  const c = g.c;
+  if (c === undefined) {
+    // The name's type decides; a parse thread leaves the node to the checker.
+    g.needsChecker = true;
+    return false;
+  }
   const t =
     node.kind === SyntaxKind.ComputedPropertyName
       ? checkComputedPropertyName(c, node)
@@ -1731,7 +1865,7 @@ function isNonBindableDynamicName(c: Checker, node: Node): boolean {
 }
 
 function checkGrammarForInvalidDynamicName(g: GrammarChecker, node: Node, message: DiagnosticMessage): boolean {
-  if (!isNonBindableDynamicName(g.c, node)) return false;
+  if (!isNonBindableDynamicName(g, node)) return false;
   const expression =
     node instanceof ElementAccessExpression ? skipParentheses(node.argumentExpression) : getExpression(node)!;
   return !isEntityNameExpression(expression, false) && grammarErrorOnNode(g, node, message);
@@ -1748,11 +1882,11 @@ function checkGrammarMethodDeclaration(g: GrammarChecker, node: Node): void {
   if (!checkGrammarMethod(g, node)) {
     checkGrammarComputedPropertyName(g, name);
     if (getAsteriskToken(node) !== undefined && name instanceof Identifier && name.text === 'constructor')
-      g.c.error(name, Diagnostics.Class_constructor_may_not_be_a_generator);
+      g.error(name, Diagnostics.Class_constructor_may_not_be_a_generator);
   }
   checkGrammarDecorators(g, node);
   if (name.kind === SyntaxKind.PrivateIdentifier && getContainingClass(node) === undefined)
-    g.c.error(node, Diagnostics.Private_identifiers_are_not_allowed_outside_class_bodies);
+    g.error(node, Diagnostics.Private_identifiers_are_not_allowed_outside_class_bodies);
 }
 
 function checkGrammarMethod(g: GrammarChecker, node: Node): boolean {
@@ -1982,7 +2116,7 @@ function checkAmbientInitializer(g: GrammarChecker, node: Node): boolean {
   if (initializer === undefined) return false;
   const isInvalidInitializer = !(
     isInitializerStringOrNumberLiteralExpression(initializer) ||
-    isInitializerSimpleLiteralEnumReference(g.c, initializer) ||
+    isInitializerSimpleLiteralEnumReference(g, initializer) ||
     initializer.kind === SyntaxKind.TrueKeyword ||
     initializer.kind === SyntaxKind.FalseKeyword ||
     isInitializerBigIntLiteralExpression(initializer)
@@ -2035,16 +2169,22 @@ function isInitializerBigIntLiteralExpression(expression: Node): boolean {
   return unary.operator === SyntaxKind.MinusToken && unary.operand.kind === SyntaxKind.BigIntLiteral;
 }
 
-function isInitializerSimpleLiteralEnumReference(c: Checker, expression: Node): boolean {
-  if (expression.kind === SyntaxKind.PropertyAccessExpression)
-    return (checkExpressionCached(c, expression).flags & TypeFlags.EnumLike) !== 0;
-  if (expression instanceof ElementAccessExpression)
-    return (
+function isInitializerSimpleLiteralEnumReference(g: GrammarChecker, expression: Node): boolean {
+  let accessesEnum: boolean;
+  if (expression.kind === SyntaxKind.PropertyAccessExpression) accessesEnum = true;
+  else if (expression instanceof ElementAccessExpression)
+    accessesEnum =
       isInitializerStringOrNumberLiteralExpression(expression.argumentExpression) &&
-      isEntityNameExpression(expression.expression, false) &&
-      (checkExpressionCached(c, expression).flags & TypeFlags.EnumLike) !== 0
-    );
-  return false;
+      isEntityNameExpression(expression.expression, false);
+  else return false;
+  if (!accessesEnum) return false;
+  // Whether the reference is to an enum is a type question.
+  const c = g.c;
+  if (c === undefined) {
+    g.needsChecker = true;
+    return false;
+  }
+  return (checkExpressionCached(c, expression).flags & TypeFlags.EnumLike) !== 0;
 }
 
 // ---- Statements
@@ -2059,7 +2199,7 @@ function checkGrammarStatementInAmbientContext(g: GrammarChecker, node: Node): b
       node,
       Diagnostics.An_implementation_cannot_be_declared_in_ambient_contexts,
     );
-    if (reported) g.reportedAmbientStatements.add(id);
+    if (reported) g.reportAmbientStatement(id);
     return reported;
   }
   // Report once per block; statements nested in other statements are covered by their parent.
@@ -2071,7 +2211,7 @@ function checkGrammarStatementInAmbientContext(g: GrammarChecker, node: Node): b
     const parentId = getNodeId(parent);
     if (!g.reportedAmbientStatements.has(parentId)) {
       const reported = grammarErrorOnFirstToken(g, node, Diagnostics.Statements_are_not_allowed_in_ambient_contexts);
-      if (reported) g.reportedAmbientStatements.add(parentId);
+      if (reported) g.reportAmbientStatement(parentId);
       return reported;
     }
   }
@@ -2096,7 +2236,7 @@ function checkGrammarForDisallowedBlockScopedVariableStatement(g: GrammarChecker
   else if (blockScopeKind === NodeFlags.Const) keyword = 'const';
   else if (blockScopeKind === NodeFlags.Using) keyword = 'using';
   else keyword = 'await using';
-  g.c.error(node, Diagnostics.X_0_declarations_can_only_be_declared_inside_a_block, keyword);
+  g.error(node, Diagnostics.X_0_declarations_can_only_be_declared_inside_a_block, keyword);
 }
 
 function containerAllowsBlockScopedVariable(parent: Node): boolean {
@@ -2288,7 +2428,7 @@ function checkGrammarForInOrForOfStatementWorker(g: GrammarChecker, node: ForInO
     if (isInTopLevelContext(node)) {
       if (!g.hasParseErrors) {
         if (!isEffectiveExternalModule(g))
-          g.c.addDiagnostic(
+          g.report(
             createDiagnosticForNode(
               awaitModifier,
               Diagnostics.X_for_await_loops_are_only_allowed_at_the_top_level_of_a_file_when_that_file_is_a_module_but_this_file_has_no_imports_or_exports_Consider_adding_an_empty_export_to_make_this_file_a_module,
@@ -2297,7 +2437,7 @@ function checkGrammarForInOrForOfStatementWorker(g: GrammarChecker, node: ForInO
           );
         const kind = checkTopLevelAwaitModule(g);
         if (kind === TopLevelAwaitSupport.CommonJS)
-          g.c.addDiagnostic(
+          g.report(
             createDiagnosticForNode(
               awaitModifier,
               Diagnostics.The_current_file_is_a_CommonJS_module_and_cannot_use_await_at_the_top_level,
@@ -2305,7 +2445,7 @@ function checkGrammarForInOrForOfStatementWorker(g: GrammarChecker, node: ForInO
             ),
           );
         else if (kind === TopLevelAwaitSupport.Unsupported)
-          g.c.addDiagnostic(
+          g.report(
             createDiagnosticForNode(
               awaitModifier,
               Diagnostics.Top_level_for_await_loops_are_only_allowed_when_the_module_option_is_set_to_es2022_esnext_system_node16_node18_node20_nodenext_or_preserve_and_the_target_option_is_set_to_es2017_or_higher,
@@ -2323,7 +2463,7 @@ function checkGrammarForInOrForOfStatementWorker(g: GrammarChecker, node: ForInO
       const containingFunction = getContainingFunction(node);
       if (containingFunction !== undefined && containingFunction.kind !== SyntaxKind.Constructor)
         addRelated(diagnostic, containingFunction, Diagnostics.Did_you_mean_to_mark_this_function_as_async);
-      g.c.addDiagnostic(diagnostic);
+      g.report(diagnostic);
       return true;
     }
   }
@@ -2390,7 +2530,7 @@ function checkTopLevelAwaitModule(g: GrammarChecker): TopLevelAwaitSupport {
     moduleKind !== ModuleKind.System
   )
     return TopLevelAwaitSupport.Unsupported;
-  return g.c.languageVersion >= ScriptTarget.ES2017 ? TopLevelAwaitSupport.Supported : TopLevelAwaitSupport.Unsupported;
+  return g.languageVersion >= ScriptTarget.ES2017 ? TopLevelAwaitSupport.Supported : TopLevelAwaitSupport.Unsupported;
 }
 
 function checkGrammarBreakOrContinueStatement(g: GrammarChecker, node: Node): boolean {
@@ -2505,7 +2645,13 @@ function checkGrammarCatchClause(g: GrammarChecker, node: CatchClause): void {
   if (declaration === undefined) return;
   const typeNode = declaration.type;
   if (typeNode !== undefined) {
-    const t = getTypeFromTypeNode(g.c, typeNode);
+    // The annotation's type decides; a parse thread leaves the node to the checker.
+    const c = g.c;
+    if (c === undefined) {
+      g.needsChecker = true;
+      return;
+    }
+    const t = getTypeFromTypeNode(c, typeNode);
     if ((t.flags & TypeFlags.AnyOrUnknown) === 0)
       grammarErrorOnFirstToken(
         g,
@@ -2588,7 +2734,51 @@ function checkGrammarModuleElementContext(g: GrammarChecker, node: Node, message
   return !isInAppropriateContext;
 }
 
+/** An ambient module's import attributes type: property signatures with string literal types, each required,
+ * not readonly, named by an identifier or a string other than `resolution-mode`. */
+function checkGrammarImportAttributesType(g: GrammarChecker, attributes: TypeLiteralNode): boolean {
+  for (const member of attributes.members.nodes) {
+    if (member.kind !== SyntaxKind.PropertySignature)
+      return grammarErrorOnNode(g, member, Diagnostics.An_import_attributes_type_may_only_contain_property_signatures);
+    const property = member as PropertySignatureDeclaration;
+    for (const modifier of property.modifiers?.nodes ?? [])
+      if (modifier.kind === SyntaxKind.ReadonlyKeyword)
+        return grammarErrorOnNode(
+          g,
+          modifier,
+          Diagnostics.An_import_attributes_property_cannot_have_a_readonly_modifier,
+        );
+    if (property.type === undefined)
+      return grammarErrorOnNode(g, member, Diagnostics.An_import_attributes_property_must_have_a_type_annotation);
+    if (property.postfixToken?.kind === SyntaxKind.QuestionToken)
+      return grammarErrorOnNode(g, member, Diagnostics.An_import_attributes_property_cannot_be_optional);
+    const name = property.name;
+    if (!isStringLiteralLike(name) && name.kind !== SyntaxKind.Identifier)
+      return grammarErrorOnNode(
+        g,
+        name,
+        Diagnostics.An_import_attributes_property_must_have_a_string_literal_or_identifier_name,
+      );
+    if (getText(name) === 'resolution-mode')
+      return grammarErrorOnNode(
+        g,
+        name,
+        Diagnostics.X_0_is_not_a_valid_key_for_an_import_attributes_type,
+        getText(name),
+      );
+    const type = property.type;
+    if (type.kind !== SyntaxKind.LiteralType || (type as LiteralTypeNode).literal.kind !== SyntaxKind.StringLiteral)
+      return grammarErrorOnNode(
+        g,
+        type,
+        Diagnostics.An_import_attributes_property_must_have_a_string_literal_type_annotation,
+      );
+  }
+  return false;
+}
+
 function checkGrammarModuleDeclaration(g: GrammarChecker, node: ModuleDeclaration): boolean {
+  if (node.attributes !== undefined) checkGrammarImportAttributesType(g, node.attributes);
   // The declaration check reports an illegal context and skips the rest.
   const parent = node.parent!.kind;
   if (parent !== SyntaxKind.SourceFile && parent !== SyntaxKind.ModuleBlock && parent !== SyntaxKind.ModuleDeclaration)
@@ -2608,13 +2798,13 @@ function checkExternalImportOrExportDeclaration(g: GrammarChecker, node: Node): 
   // A missing name is a parse error.
   if (moduleName === undefined || moduleName.pos === moduleName.end) return false;
   if (moduleName.kind !== SyntaxKind.StringLiteral) {
-    g.c.error(moduleName, Diagnostics.String_literal_expected);
+    g.error(moduleName, Diagnostics.String_literal_expected);
     return false;
   }
   const parent = node.parent!;
   const inAmbientExternalModule = parent.kind === SyntaxKind.ModuleBlock && isAmbientModule(parent.parent!);
   if (parent.kind !== SyntaxKind.SourceFile && !inAmbientExternalModule) {
-    g.c.error(
+    g.error(
       moduleName,
       node.kind === SyntaxKind.ExportDeclaration
         ? Diagnostics.Export_declarations_are_not_permitted_in_a_namespace
@@ -2628,7 +2818,7 @@ function checkExternalImportOrExportDeclaration(g: GrammarChecker, node: Node): 
     !isModuleAugmentationExternal(parent.parent!)
   ) {
     // Module augmentations report relative names when checking the augmentation.
-    g.c.error(
+    g.error(
       node,
       Diagnostics.Import_or_export_declaration_in_an_ambient_module_declaration_cannot_reference_module_through_relative_module_name,
     );
@@ -2636,22 +2826,27 @@ function checkExternalImportOrExportDeclaration(g: GrammarChecker, node: Node): 
   }
   if (node.kind === SyntaxKind.ImportEqualsDeclaration) return true;
   const attributes = getImportAttributes(node);
-  if (attributes === undefined) return true;
+  return attributes === undefined || !checkGrammarImportAttributeValues(g, attributes);
+}
+
+/** Reports attribute values that are not string literals, and returns whether there are any. */
+function checkGrammarImportAttributeValues(g: GrammarChecker, node: ImportAttributes): boolean {
   let hasError = false;
-  for (const attribute of attributes.attributes.nodes) {
+  for (const attribute of node.attributes.nodes) {
     const value = (attribute as ImportAttribute).value;
     if (value.kind !== SyntaxKind.StringLiteral) {
       hasError = true;
-      g.c.error(value, Diagnostics.Import_attribute_values_must_be_string_literal_expressions);
+      g.error(value, Diagnostics.Import_attribute_values_must_be_string_literal_expressions);
     }
   }
-  return !hasError;
+  return hasError;
 }
 
 function getImportAttributes(node: Node): ImportAttributes | undefined {
   if (node.kind === SyntaxKind.ImportDeclaration || node.kind === SyntaxKind.JSImportDeclaration)
     return (node as ImportDeclaration).attributes;
   if (node.kind === SyntaxKind.ExportDeclaration) return (node as ExportDeclaration).attributes;
+  if (node.kind === SyntaxKind.ImportType) return (node as ImportTypeNode).attributes;
   return undefined;
 }
 
@@ -2687,14 +2882,42 @@ function checkGrammarImportClause(g: GrammarChecker, node: ImportClause): boolea
   } else if (node.phaseModifier === SyntaxKind.DeferKeyword) {
     if (node.name !== undefined)
       return grammarErrorOnNode(g, node, Diagnostics.Default_imports_are_not_allowed_in_a_deferred_import);
-    if (namedBindings !== undefined && namedBindings.kind === SyntaxKind.NamedImports)
+    if (namedBindings === undefined)
+      return grammarErrorOnNode(g, node, Diagnostics.A_deferred_import_must_specify_a_namespace_binding);
+    if (namedBindings.kind === SyntaxKind.NamedImports)
       return grammarErrorOnNode(g, node, Diagnostics.Named_imports_are_not_allowed_in_a_deferred_import);
-    if (g.moduleKind !== ModuleKind.ESNext && g.moduleKind !== ModuleKind.Preserve)
+    if (!supportsDeferredImports(g.moduleKind))
       return grammarErrorOnNode(
         g,
         node,
         Diagnostics.Deferred_imports_are_only_supported_when_the_module_flag_is_set_to_esnext_or_preserve,
       );
+  } else if (node.phaseModifier === SyntaxKind.SourceKeyword) {
+    if (namedBindings !== undefined)
+      return grammarErrorOnNode(
+        g,
+        node,
+        Diagnostics.Named_and_namespace_imports_are_not_allowed_in_a_source_phase_import,
+      );
+    if (node.name === undefined)
+      return grammarErrorOnNode(g, node, Diagnostics.A_source_phase_import_must_specify_a_local_binding);
+    if (!supportsSourcePhaseImports(g.moduleKind))
+      return grammarErrorOnNode(
+        g,
+        node,
+        Diagnostics.Source_phase_imports_are_only_supported_when_the_module_option_is_set_to_esnext_nodenext_or_preserve,
+      );
+    const moduleSpecifier = (node.parent as ImportDeclaration).moduleSpecifier;
+    const c = g.c;
+    // The specifier's emit syntax comes from the module resolution; a parse thread leaves it to the checker.
+    if (c !== undefined) {
+      if (getEmitSyntaxForModuleSpecifierExpression(c, moduleSpecifier) === ModuleKind.CommonJS)
+        return grammarErrorOnNode(
+          g,
+          node,
+          Diagnostics.Source_phase_imports_are_not_allowed_on_statements_that_compile_to_CommonJS_require_calls,
+        );
+    } else g.needsChecker = true;
   }
   return false;
 }
@@ -2728,9 +2951,14 @@ function checkGrammarImportEqualsDeclaration(g: GrammarChecker, node: ImportEqua
   const isExternal = node.moduleReference.kind === SyntaxKind.ExternalModuleReference;
   if (!isExternal) {
     if (node.isTypeOnly) {
-      const symbol = getSymbolOfDeclaration(g.c, node);
-      if (symbol !== undefined && resolveAlias(g.c, symbol) !== g.c.unknownSymbol)
-        grammarErrorOnNode(g, node, Diagnostics.An_import_alias_cannot_use_import_type);
+      const c = g.c;
+      // Whether the alias resolves is a symbol question; a parse thread leaves the node to the checker.
+      if (c === undefined) g.needsChecker = true;
+      else {
+        const symbol = getSymbolOfDeclaration(c, node);
+        if (symbol !== undefined && resolveAlias(c, symbol) !== c.unknownSymbol)
+          grammarErrorOnNode(g, node, Diagnostics.An_import_alias_cannot_use_import_type);
+      }
     }
     return;
   }
@@ -2781,7 +3009,7 @@ function checkGrammarExportDeclaration(g: GrammarChecker, node: ExportDeclaratio
       !hasModuleSpecifier &&
       (node.flags & NodeFlags.Ambient) !== 0;
     if (parent.kind !== SyntaxKind.SourceFile && !inAmbientExternalModule && !inAmbientNamespaceDeclaration)
-      g.c.error(node, Diagnostics.Export_declarations_are_not_permitted_in_a_namespace);
+      g.error(node, Diagnostics.Export_declarations_are_not_permitted_in_a_namespace);
   }
   checkGrammarImportAttributes(g, node);
 }
@@ -2813,7 +3041,7 @@ function checkGrammarExportAssignment(g: GrammarChecker, node: ExportAssignment)
   const parent = node.parent!;
   const container = parent.kind === SyntaxKind.SourceFile ? parent : parent.parent!;
   if (container.kind === SyntaxKind.ModuleDeclaration && !isAmbientModule(container)) {
-    g.c.error(
+    g.error(
       node,
       isExportEquals
         ? Diagnostics.An_export_assignment_cannot_be_used_in_a_namespace
@@ -2850,7 +3078,7 @@ function checkGrammarExportAssignment(g: GrammarChecker, node: ExportAssignment)
 }
 
 function getEmitModuleFormat(g: GrammarChecker): ModuleKind {
-  return getEmitModuleFormatOfFile(g.file.fileName, g.c.compilerOptions, g.metadata);
+  return getEmitModuleFormatOfFile(g.file.fileName, g.compilerOptions, g.metadata);
 }
 
 function isEffectiveExternalModule(g: GrammarChecker): boolean {
@@ -2971,12 +3199,18 @@ function checkGrammarTupleType(g: GrammarChecker, node: TupleTypeNode): void {
   let seenOptionalElement = false;
   let seenRestElement = false;
   for (const element of node.elements.nodes) {
-    let flags = getTupleElementFlags(g.c, element);
+    let flags = getTupleElementFlags(element);
     if ((flags & ElementFlags.Variadic) !== 0) {
-      const t = getTypeFromTypeNode(g.c, getType(element)!);
+      const c = g.c;
+      // The element type decides whether a variadic element is a rest element.
+      if (c === undefined) {
+        g.needsChecker = true;
+        return;
+      }
+      const t = getTypeFromTypeNode(c, getType(element)!);
       // `checkTupleType` reports non-array rest types and stops.
-      if (!isArrayLikeType(g.c, t)) break;
-      if (isArrayType(g.c, t) || (isTupleType(t) && (tupleTargetOf(t).combinedFlags & ElementFlags.Rest) !== 0))
+      if (!isArrayLikeType(c, t)) break;
+      if (isArrayType(c, t) || (isTupleType(t) && (tupleTargetOf(t).combinedFlags & ElementFlags.Rest) !== 0))
         flags |= ElementFlags.Rest;
     }
     if ((flags & ElementFlags.Rest) !== 0) {
@@ -3025,9 +3259,15 @@ function checkGrammarJSDocTypeInTypeScript(g: GrammarChecker, node: Node): void 
   const isNullable = node.kind === SyntaxKind.JSDocNullableType;
   const typeNode = getType(node)!;
   const postfix = node.pos === typeNode.pos;
-  let t = getTypeFromTypeNode(g.c, typeNode);
-  if (isNullable && t !== g.c.neverType && t !== g.c.voidType)
-    t = getNullableType(g.c, t, postfix ? TypeFlags.Undefined : TypeFlags.Nullable);
+  const c = g.c;
+  // The error names the type's printed form; a parse thread leaves the node to the checker.
+  if (c === undefined) {
+    g.needsChecker = true;
+    return;
+  }
+  let t = getTypeFromTypeNode(c, typeNode);
+  if (isNullable && t !== c.neverType && t !== c.voidType)
+    t = getNullableType(c, t, postfix ? TypeFlags.Undefined : TypeFlags.Nullable);
   grammarErrorOnNode(
     g,
     node,
@@ -3035,30 +3275,14 @@ function checkGrammarJSDocTypeInTypeScript(g: GrammarChecker, node: Node): void 
       ? Diagnostics.X_0_at_the_end_of_a_type_is_not_valid_TypeScript_syntax_Did_you_mean_to_write_1
       : Diagnostics.X_0_at_the_start_of_a_type_is_not_valid_TypeScript_syntax_Did_you_mean_to_write_1,
     isNullable ? '?' : '!',
-    typeToString(g.c, t),
+    typeToString(c, t),
   );
 }
 
-/** The `resolution-mode` of import type attributes, as tsgo's `getResolutionModeOverride`. */
+/** The `resolution-mode` of import type attributes, as tsgo's `GetResolutionModeOverride`. */
 function getResolutionModeOverride(g: GrammarChecker, node: ImportAttributes, reportErrors: boolean): ModuleKind {
-  const attributes = node.attributes.nodes;
-  if (attributes.length !== 1) {
-    if (reportErrors)
-      grammarErrorOnNode(
-        g,
-        node,
-        Diagnostics.Type_import_attributes_should_have_exactly_one_key_resolution_mode_with_value_import_or_require,
-      );
-    return ModuleKind.None;
-  }
-  const attribute = attributes[0]! as ImportAttribute;
-  const name = attribute.name;
-  if (name === undefined || !isStringLiteralLike(name)) return ModuleKind.None;
-  if (getText(name) !== 'resolution-mode') {
-    if (reportErrors)
-      grammarErrorOnNode(g, name, Diagnostics.X_resolution_mode_is_the_only_valid_key_for_type_import_attributes);
-    return ModuleKind.None;
-  }
+  const attribute = resolutionModeAttribute(node);
+  if (attribute === undefined) return ModuleKind.None;
   const value = attribute.value;
   if (!isStringLiteralLike(value)) return ModuleKind.None;
   const text = getText(value);
@@ -3072,10 +3296,10 @@ function getResolutionModeOverride(g: GrammarChecker, node: ImportAttributes, re
 function checkGrammarImportAttributes(g: GrammarChecker, declaration: Node): void {
   const node = getImportAttributes(declaration);
   if (node === undefined) return;
-  const isTypeOnly = isExclusivelyTypeOnlyImportOrExport(declaration);
+  const isTypeOnly = isExclusivelyTypeOnlyImportOrExport(declaration) || declaration.kind === SyntaxKind.ImportType;
   const override = getResolutionModeOverride(g, node, isTypeOnly);
-  // Other checks don't apply to type-only imports with a resolution mode.
-  if (isTypeOnly && override !== ModuleKind.None) return;
+  // Other checks don't apply to type-only imports and import types.
+  if (isTypeOnly) return;
   const moduleKind = g.moduleKind;
   if (
     !(
@@ -3102,10 +3326,6 @@ function checkGrammarImportAttributes(g: GrammarChecker, declaration: Node): voi
       node,
       Diagnostics.Import_attributes_are_not_allowed_on_statements_that_compile_to_CommonJS_require_calls,
     );
-    return;
-  }
-  if (isTypeOnly) {
-    grammarErrorOnNode(g, node, Diagnostics.Import_attributes_cannot_be_used_with_type_only_imports_or_exports);
     return;
   }
   if (override !== ModuleKind.None)
@@ -3143,7 +3363,8 @@ function checkGrammarObjectLiteralExpression(
   node: ObjectLiteralExpression,
   inDestructuring: boolean,
 ): boolean {
-  const seen = new Map<string, DeclarationMeaning>();
+  // An object literal with one property can't repeat a name, so it needs no table of names.
+  const seen = node.properties.nodes.length > 1 ? new Map<string, DeclarationMeaning>() : undefined;
   for (const property of node.properties.nodes) {
     if (property.kind === SyntaxKind.SpreadAssignment) {
       if (inDestructuring) {
@@ -3204,9 +3425,7 @@ function checkGrammarObjectLiteralExpression(
         );
         checkGrammarForInvalidQuestionMark(g, postfixToken, Diagnostics.An_object_member_cannot_be_declared_optional);
         if (name.kind === SyntaxKind.BigIntLiteral)
-          g.c.addDiagnostic(
-            createDiagnosticForNode(name, Diagnostics.A_bigint_literal_cannot_be_used_as_a_property_name, []),
-          );
+          g.report(createDiagnosticForNode(name, Diagnostics.A_bigint_literal_cannot_be_used_as_a_property_name, []));
         currentKind = DeclarationMeaning.PropertyAssignment;
         break;
       }
@@ -3221,8 +3440,9 @@ function checkGrammarObjectLiteralExpression(
         break;
     }
     if (inDestructuring) continue;
-    const effectiveName = getEffectivePropertyNameForPropertyNameNode(g.c, name);
-    if (effectiveName === undefined) continue;
+    // Object literals are checked with the checker, when the expression is checked.
+    const effectiveName = getEffectivePropertyNameForPropertyNameNode(g.c!, name);
+    if (effectiveName === undefined || seen === undefined) continue;
     const existingKind = seen.get(effectiveName);
     if (existingKind === undefined) {
       seen.set(effectiveName, currentKind);
@@ -3301,18 +3521,14 @@ function getEffectivePropertyNameForPropertyNameNode(c: Checker, name: Node): st
 
 function checkGrammarCallExpression(g: GrammarChecker, node: CallExpression): void {
   const callee = node.expression;
-  const isImportCall =
-    callee.kind === SyntaxKind.ImportKeyword ||
-    (callee.kind === SyntaxKind.MetaProperty &&
-      (callee as MetaProperty).keywordToken === SyntaxKind.ImportKeyword &&
-      (callee as MetaProperty).name.text === 'defer');
-  if (isImportCall) checkGrammarImportCallExpression(g, node);
+  if (callee.kind === SyntaxKind.ImportKeyword || isImportPhaseMetaProperty(callee))
+    checkGrammarImportCallExpression(g, node);
   else checkGrammarTypeArguments(g, callTypeArguments(node));
 }
 
 function checkGrammarImportCallExpression(g: GrammarChecker, node: CallExpression): boolean {
   const moduleKind = g.moduleKind;
-  if (g.c.compilerOptions.verbatimModuleSyntax === true && moduleKind === ModuleKind.CommonJS)
+  if (g.compilerOptions.verbatimModuleSyntax === true && moduleKind === ModuleKind.CommonJS)
     return grammarErrorOnNode(
       g,
       node,
@@ -3320,8 +3536,15 @@ function checkGrammarImportCallExpression(g: GrammarChecker, node: CallExpressio
         ? Diagnostics.ECMAScript_imports_and_exports_cannot_be_written_in_a_CommonJS_file_under_verbatimModuleSyntax
         : Diagnostics.ECMAScript_imports_and_exports_cannot_be_written_in_a_CommonJS_file_under_verbatimModuleSyntax_Adjust_the_type_field_in_the_nearest_package_json_to_make_this_file_an_ECMAScript_module_or_adjust_your_verbatimModuleSyntax_module_and_moduleResolution_settings_in_TypeScript,
     );
-  if (node.expression.kind === SyntaxKind.MetaProperty) {
-    if (moduleKind !== ModuleKind.ESNext && moduleKind !== ModuleKind.Preserve)
+  if (isImportSourceMetaProperty(node.expression)) {
+    if (!supportsSourcePhaseImports(moduleKind))
+      return grammarErrorOnNode(
+        g,
+        node,
+        Diagnostics.Source_phase_imports_are_only_supported_when_the_module_option_is_set_to_esnext_nodenext_or_preserve,
+      );
+  } else if (isImportDeferMetaProperty(node.expression)) {
+    if (!supportsDeferredImports(moduleKind))
       return grammarErrorOnNode(
         g,
         node,
@@ -3333,6 +3556,9 @@ function checkGrammarImportCallExpression(g: GrammarChecker, node: CallExpressio
       node,
       Diagnostics.Dynamic_imports_are_only_supported_when_the_module_flag_is_set_to_es2020_es2022_esnext_commonjs_amd_system_umd_node16_node18_node20_or_nodenext,
     );
+  const questionDotToken = callQuestionDotToken(node);
+  if (questionDotToken !== undefined && isSourcePhaseImportCall(node))
+    return grammarErrorOnNode(g, questionDotToken, Diagnostics.Optional_chaining_cannot_be_used_with_import_source);
   if (callTypeArguments(node) !== undefined)
     return grammarErrorOnNode(
       g,
@@ -3393,14 +3619,14 @@ function checkGrammarMetaProperty(g: GrammarChecker, node: MetaProperty): boolea
   } else if (node.keywordToken === SyntaxKind.ImportKeyword && nameText !== 'meta') {
     const parent = node.parent!;
     const isCallee = parent.kind === SyntaxKind.CallExpression && (parent as CallExpression).expression === node;
-    if (nameText === 'defer') {
+    if (isImportPhaseMetaProperty(node)) {
       if (!isCallee) return grammarErrorAtPos(g, node.end, 0, Diagnostics.X_0_expected, '(');
     } else {
       if (isCallee)
         return grammarErrorOnNode(
           g,
           name,
-          Diagnostics.X_0_is_not_a_valid_meta_property_for_keyword_import_Did_you_mean_meta_or_defer,
+          Diagnostics.X_0_is_not_a_valid_meta_property_for_keyword_import_Did_you_mean_meta_defer_or_source,
           nameText,
         );
       return grammarErrorOnNode(
@@ -3422,7 +3648,7 @@ function checkGrammarAwaitOrAwaitUsing(g: GrammarChecker, node: Node): boolean {
   const container = getContainingFunctionOrClassStaticBlock(node);
   if (container !== undefined && container.kind === SyntaxKind.ClassStaticBlockDeclaration) {
     // Reported even with parse errors.
-    g.c.error(
+    g.error(
       node,
       isAwaitExpression
         ? Diagnostics.X_await_expression_cannot_be_used_inside_a_class_static_block
@@ -3433,7 +3659,7 @@ function checkGrammarAwaitOrAwaitUsing(g: GrammarChecker, node: Node): boolean {
     if (isInTopLevelContext(node)) {
       if (!g.hasParseErrors) {
         if (!isEffectiveExternalModule(g)) {
-          g.c.addDiagnostic(
+          g.report(
             diagnosticAtFirstToken(
               g,
               node,
@@ -3446,7 +3672,7 @@ function checkGrammarAwaitOrAwaitUsing(g: GrammarChecker, node: Node): boolean {
         }
         const support = checkTopLevelAwaitModule(g);
         if (support === TopLevelAwaitSupport.CommonJS) {
-          g.c.addDiagnostic(
+          g.report(
             diagnosticAtFirstToken(
               g,
               node,
@@ -3455,7 +3681,7 @@ function checkGrammarAwaitOrAwaitUsing(g: GrammarChecker, node: Node): boolean {
           );
           hasError = true;
         } else if (support === TopLevelAwaitSupport.Unsupported) {
-          g.c.addDiagnostic(
+          g.report(
             diagnosticAtFirstToken(
               g,
               node,
@@ -3482,13 +3708,13 @@ function checkGrammarAwaitOrAwaitUsing(g: GrammarChecker, node: Node): boolean {
         !hasSyntacticModifier(container, ModifierFlags.Async)
       )
         addRelated(diagnostic, container, Diagnostics.Did_you_mean_to_mark_this_function_as_async);
-      g.c.addDiagnostic(diagnostic);
+      g.report(diagnostic);
       hasError = true;
     }
   }
   if (isAwaitExpression && isInParameterInitializerBeforeContainingFunction(node)) {
     // Reported even with parse errors.
-    g.c.error(node, Diagnostics.X_await_expressions_cannot_be_used_in_a_parameter_initializer);
+    g.error(node, Diagnostics.X_await_expressions_cannot_be_used_in_a_parameter_initializer);
     hasError = true;
   }
   return hasError;
@@ -3501,13 +3727,13 @@ function checkGrammarYieldExpression(g: GrammarChecker, node: Node): boolean {
     hasError = true;
   }
   if (isInParameterInitializerBeforeContainingFunction(node)) {
-    g.c.error(node, Diagnostics.X_yield_expressions_cannot_be_used_in_a_parameter_initializer);
+    g.error(node, Diagnostics.X_yield_expressions_cannot_be_used_in_a_parameter_initializer);
     hasError = true;
   }
   return hasError;
 }
 
-function isInParameterInitializerBeforeContainingFunction(node: Node): boolean {
+export function isInParameterInitializerBeforeContainingFunction(node: Node): boolean {
   let inBindingInitializer = false;
   let current = node;
   while (current.parent !== undefined && !isFunctionLike(current.parent)) {
@@ -3523,8 +3749,15 @@ function isInParameterInitializerBeforeContainingFunction(node: Node): boolean {
 /** A private name in an expression, which is only valid as `#x in obj`. */
 function checkGrammarPrivateIdentifierExpression(g: GrammarChecker, node: Node): boolean {
   const parent = node.parent!;
-  // Names of members and property accesses aren't expressions.
-  if (parent.kind === SyntaxKind.PropertyAccessExpression || getName(parent) === node) return false;
+  // Names of members, property accesses, qualified names (`typeof this.#x`) and destructured properties aren't
+  // expressions.
+  if (
+    parent.kind === SyntaxKind.PropertyAccessExpression ||
+    parent.kind === SyntaxKind.QualifiedName ||
+    getName(parent) === node ||
+    (parent.kind === SyntaxKind.BindingElement && (parent as BindingElement).propertyName === node)
+  )
+    return false;
   const isForIn = parent.kind === SyntaxKind.ForInStatement;
   if (getContainingClass(node) === undefined)
     return grammarErrorOnNode(g, node, Diagnostics.Private_identifiers_are_not_allowed_outside_class_bodies);
@@ -3553,7 +3786,7 @@ function checkGrammarBigIntLiteral(g: GrammarChecker, node: Node): boolean {
   return (
     !isLiteralType &&
     (node.flags & NodeFlags.Ambient) === 0 &&
-    g.c.languageVersion < ScriptTarget.ES2020 &&
+    g.languageVersion < ScriptTarget.ES2020 &&
     grammarErrorOnNode(g, node, Diagnostics.BigInt_literals_are_not_available_when_targeting_lower_than_ES2020)
   );
 }
@@ -3580,7 +3813,7 @@ class RegularExpressionErrorReporter extends ScannerErrorReporter {
     } else if (lastError === undefined || start !== lastError.pos) {
       const diagnostic = new Diagnostic(this.g.file.diagnosticFile(), start, start + length, message, args);
       this.lastError = diagnostic;
-      this.g.c.addDiagnostic(diagnostic);
+      this.g.report(diagnostic);
     }
   }
 }

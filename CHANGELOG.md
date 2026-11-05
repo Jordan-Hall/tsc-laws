@@ -4,6 +4,89 @@
 
 <!-- release:start -->
 
+## 0.1.2
+
+### Highlights
+
+- **Faster checking:** the grammar checks that need no types run in each file's parse thread, and the checking thread replays the recorded nodes in tree order with the same diagnostics. An intersection finds duplicate types by scanning its list and builds a set only past eight types, and the cross product of an intersection's constituents is no longer copied for each combination. Three checker collections are created only when they get their first entry. On Linux the release build checks 1.2% faster than 0.1.1 at `--checkers 1` and `--checkers 4` and 0.9% faster at `--checkers 16`, measured over nine projects; at `--checkers 1` the T3 server project checks 3.5% faster and VS Code 2.4% faster.
+- **macOS and Windows profiles:** `build:native` uses the two-phase profile when the installed scriptc is the version `profiles/tsc-ts.cs.json` records, so macOS and Windows builds are optimized with the same profile as Linux builds instead of the older one-phase profile.
+- **`--extendedDiagnostics` counts:** the types, instantiations and transient symbols of every checker thread are added to the main thread's counts, and the resident set is reported as `Memory used`.
+
+### Behavior changes
+
+- `@scriptc/threads` is an optional peer dependency: the command line installs without it, and `tsc-ts/api` needs it installed.
+
+<!-- release:end -->
+
+## 0.1.1
+
+### Highlights
+
+- **scriptc 0.4.8:** tsc-ts now builds with scriptc 0.4.8 and the two-phase profile collected with it; the build checks 1.6% faster on VS Code and 3.3% faster on the T3 web project at `--checkers 1`.
+- **Faster checking:** on Linux the optimized build passes `--exceptions=rare` to scriptc, so the check's recursive functions propagate an exception by native unwinding instead of testing a status after each of their calls, and the profile is collected from builds with the same option. The union a list of types was reduced to is looked up instead of created again on every call, which makes a Sentry check 2.6% faster at `--checkers 1`. An expression check that repeats a node and mode with no contextual type returns the type its completed check produced, which makes checking tsc-ts itself 2.1% faster at `--checkers 1`. Matching a wildcard module pattern computes the pattern's prefix and suffix once instead of on every call. An identifier refers to an interned name instead of holding its text, so identifiers with the same text share one name and one string.
+- **Run configuration:** a run's checker count, result sharing, parse threads and bounded sharing are recorded in one configuration with the source of each value. `--extendedDiagnostics` prints a `Suggestions:` section after the statistics table with each value, where it came from (`pinned: --checkers`, `default`, `automatic: ...`, `learned: check 14% faster over 3 runs`, `exploring`, `control`) and how to pin it, and `--build` prints one section per project. Every count a run decides comes from the whole CPUs the process's cgroup CPU quota allows, so a container is configured as the machine it is.
+- **Run records:** a run that checks a program writes one JSON file per project under `~/.cache/tsc-ts/runs-v1/` (`TSC_TS_CACHE_DIR` sets the directory, `TSC_TS_CACHE=0` turns records off) with the program's shape, the configuration the run chose, and the run's parse, check and wall time, CPU time, peak memory and load; the section names the file under `Records:`. A later run adopts a configuration its record's samples show faster than the static choice: by 3% or twice the standard error of the gains each sample makes against the nearest run of the other arm, on three samples of each taken while the machine was not busy. It re-measures the static choice as a control every sixteenth run and in the first run after two weeks, and reverts an adopted configuration whose last three samples all fall behind the controls. A program whose shape changed by more than 15% discards the record's samples.
+- **`tsc-ts doctor`:** `tsc-ts doctor [-p <tsconfig>] [--runs N] [--budget SECONDS] [--emit] [--json] [--no-save]` runs the project's check as a child process under the default configuration, with sharing on, with up to 16 checkers, with both, and with half the parse threads, compares the phase times by the rule automatic selection uses, and prints what it recommends with the evidence for it. A configuration that prints other diagnostics or exits otherwise ends the run with status 2 and the first differing lines. Each measured run is a child process and writes what it measured to the file named by `TSC_TS_DOCTOR_REPORT`; unless `--no-save` is given, its samples go into the project's record with role `doctor`. The command is experimental.
+- **Automatic result sharing:** at 12 or more checkers a run turns sharing on by itself when 40% of the program's files are declarations or come from `node_modules`, the checkers' ranges mostly resolve the same large libraries, and the count fits memory with the peak sharing adds. A sharing run reads its checkers' counters 300 ms in and stops posting, or posting and translating, when sharing saved less than 1.5 times what it cost or took almost none of the posted results; a stopped run computes what it did not take, so its diagnostics do not change. A checker thread writes a result's records into a shared store and publishes the cursor, and another thread reads a result in place, translating the records it needs, rather than building a record graph on both sides. The heavy cut that feeds the shared queue takes a 128th of the program's estimated cost at every checker count, so at 16 checkers the files that cost between a 32nd and an eighth of a share are checked by whichever checker frees up first.
+- **`TSC_TS_SHARE_PRICE`:** `TSC_TS_SHARE_PRICE=<prefix>` writes one log per checker thread with the results it computed, took or could have taken, its translations, the uncached type-operator evaluations a shared evaluation cache would cover, and the interval it checked in; `TSC_TS_SHARE_SUMMARY=1` adds per-kind counters to the summary line. `build-native.mjs --with-share-price` writes the log's code into a copy of the sources and builds that copy; a build without the flag compiles the sources as they are.
+
+### Behavior changes
+
+- `--extendedDiagnostics` prints a `Suggestions:` section after the statistics table, and names the run's record under `Records:`.
+- A run keeps no record in watch mode, in a `--build` of several projects at once, with `--singleThreaded`, under Node.js, and with `TSC_TS_AUTO=0` or `static`; with `CI` set it reads and adopts a record but never explores.
+- `TSC_TS_AUTO=explore` adds an experimental alternative in which one run in eight tries a setting the signals leave uncertain; such a run is slower than the configuration it would have used.
+
+## 0.1.0
+
+### Highlights
+
+- **TypeScript 7.1.0-beta:** tsc-ts now follows TypeScript 7.1.0-beta instead of 7.0.2, and `tsc-ts --version` reports 7.1.0-beta. The port covers the checker (relations, inference, types, statements, grammar, JSDoc and JavaScript), the parser, scanner, binder and program loading, the command line, tsconfig, paths and incremental builds, JavaScript and declaration emit, and the node builder, which now reports cycles and truncation as TypeScript 7.1 does.
+- **Faster checking:** tsc-ts is now built with scriptc 0.4.7 and a profile collected in two phases with it. TypeScript 7.1's narrowing fast paths for unions of unrelated primitives and the 7.1 way of inferring alias and reference type arguments once are ported. Repeated contextual return type inference for the same generic call is memoized, and the checker's resolved types, signatures and symbol links are kept in compact pages. Compared with 0.0.10, check-only builds of five of the benchmark projects are 1.16 to 1.21x faster at `--checkers 1` (VS Code 33.2 s to 28.6 s) and 1.08 to 1.19x faster at `--checkers 16` (VS Code 4.30 s to 3.60 s), and peak RSS is the same or up to 0.05 GB lower.
+- **Text on 2 MiB pages:** on Linux, the first run of the launcher writes the installed executable again with one write. On file systems with large folios (XFS, and ext4 from Linux 6.16) its code is then mapped with 2 MiB pages, which package managers' chunked writes prevent until the file is read from disk again. The copy is created with mode 0600 under a new name and never opens an existing path, and the executable keeps its mode.
+- **Shared checking (experimental):** with `TSC_TS_SHARE=1` and `--checkers` above 1, checker threads share the types of declared variables and properties and the return types of declared functions. A checker that needs a type another checker has computed translates it instead of computing it again. On the T3 server project `--checkers 16` checks 27% faster (3.77 s to 2.77 s); on the other benchmark projects it is within a few percent. Output is the same as with one checker. It is off by default and costs nothing when off.
+- **`--watch`:** the first build loads the program on parse threads as a compile does, reads the build info while they parse, and checks what changed on checker threads where that is enough files.
+- **API:**
+  - `tsc-ts --api` serves TypeScript 7.1's API protocol and encodes source files in its binary AST format.
+  - Completions offer auto-imports from the project's files and from packages in `node_modules`, and complete the cases of an exhaustive `switch` over an enum.
+  - `getImportAdderEdits` returns the edits that add imports to a file.
+  - A client that asks for object references at initialize gets the types, symbols and signatures an earlier reply carried as their ids.
+
+### Fixes
+
+- A watch rebuild after a file was written in place no longer fails with "Cannot assign to read only property 'shared'" when the last build checked on checker threads.
+- A value import type query with type arguments, such as `typeof import("./factory").fn<string>`, is instantiated with them, and wrong type arguments are reported.
+- Calling the `resolve` parameter of a `new Promise` executor without an argument reports TS2794 in TypeScript files and TS2810 in JavaScript files, as tsgo does.
+- A type reference directive such as `/// <reference types="./css" />` resolves against its type root as tsgo does, so `.tsbuildinfo` lists missing `package.json` files in tsgo's order.
+- Unused locals after a top-level `return` are reported.
+- The printer prints a mapped type written without a type (`{ [K in keyof T] }`) as tsgo 7.1 does instead of failing.
+- Completions:
+  - Completions and auto-import fixes no longer insert declaration or package text as code: exports whose names are not identifiers are not imported, and the exhaustive `switch` snippet is not offered for such names.
+  - An opening tag's completions list only names that can be written as tag names.
+  - Wildcard export targets of a package are not searched outside it.
+
+## 0.0.10
+
+### Highlights
+
+- **Faster builds with less memory:** compared with 0.0.9, full builds of VS Code at `--checkers 1` are 1.66x faster with `-p` (41.3 s to 24.5 s) and with `-b` (42.7 s to 25.7 s), and peak RSS drops from 4.18 GB to 3.28 GB. Every check, emit and `-b` build of the nine benchmark projects is faster at `--checkers 1` and 16 and uses less peak memory. Output is the same, including every emitted file.
+- **Emit on threads at `--checkers 1`:** threads emit JavaScript, and a declaration thread emits declarations, while the main thread checks. This applies to `-p` builds, to incremental programs without build info, and to `-b` projects that emit every file. Files with decorator metadata are emitted on the emit threads with type serialization answers recorded by the checker. Outputs, `.tsbuildinfo` files and diagnostics are the same as with one thread.
+- **Declaration thread at 2 to 8 checkers:** with declarations on, the checker threads emit JavaScript and the declaration thread emits declarations while the program is checked, so 2 to 8 checkers take 5 to 7% less wall time. It runs only with a CPU to spare, and 16 checkers run as before.
+- **Faster checking:** tsc-ts is now built with scriptc 0.4.5 and a profile collected with it on the current sources. Hot checker paths also skip work whose result is already known: identity checks of types that may simplify compare their normal forms first, and one-property object literals get no name table. Compared with 0.0.9, check-only builds are 7 to 10% faster at `--checkers 1` on four of the nine benchmark projects and at least 10% faster on the other five, and at least 10% faster on seven of them at `--checkers 16`. Output is the same.
+- **Shorter work around checker threads:** the main thread plans the check from the imports the loader recorded, and sorts diagnostics by file rank. Checker threads send their diagnostics already formatted. A Sentry check at `--checkers 16` takes 1.8% less wall time. Parse threads publish each file right after binding it, and chunks of files for parse threads are bounded by their text.
+- **Faster emit:** the printer skips comment lookups in source ranges that hold no comment, and returns an identifier's text without slicing the source when the two are equal. Output files are written before their directory is created. VS Code's full build at `--checkers 16` takes 2% less wall time, with 11% less emit CPU.
+- **API:**
+  - `tsc-ts --api --listen <path>` on Linux and macOS serves the API to one client at a time on a Unix socket (mode 0600) and keeps parsed files between clients. Parsed files' encodings are also kept between clients.
+  - The server exits after `--idle-exit` seconds without a client (default 60), or when its memory grows past `TSC_TS_LISTEN_MEMORY` megabytes or 2.5 times its size after the first client.
+  - `--default-libraries-from-disk` reads the default library files from the server's library directory instead of through `--callbacks`.
+
+### Behavior changes
+
+- `--checkers` counts only the checkers that check. The declaration thread is added to them where it runs.
+
+### Fixes
+
+- With checker threads, global diagnostics found while emitting declarations, such as TS2589 from serializing a type, are no longer reported, as with one checker. Global diagnostics found while checking files are still reported.
+
 ## 0.0.9
 
 ### Highlights
@@ -12,8 +95,6 @@
 - **Less memory:** speculative parses check tokens instead of building nodes they discard, and parse and loader tasks create their lists on first use. Peak RSS on VS Code is about 120 MB lower with `--checkers 1`, with wall time unchanged.
 - **Faster symbol lookups:** the checker probes its merged-symbol map only for symbols that were merged, about 1% faster on VS Code with `--checkers 1`.
 - **API:** nine methods answer a batch of locations, signatures, types or symbols in one request, and `getDiagnosticsOfCheckedFiles` checks only the listed files and answers their diagnostics and the global ones.
-
-<!-- release:end -->
 
 ## 0.0.8
 

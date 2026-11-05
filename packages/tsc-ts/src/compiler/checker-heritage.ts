@@ -17,6 +17,7 @@ import {
   getType,
   getTypeParameters,
   getTypeArguments,
+  type ExpressionWithTypeArguments,
 } from './ast.js';
 import {
   findConstructorDeclaration,
@@ -33,6 +34,7 @@ import { type Diagnostic, type DiagnosticMessage, Diagnostics, chainDiagnostic }
 import { getUseDefineForClassFields } from './options.js';
 import { SyntaxKind } from './syntax-kind.js';
 import { type Checker, createDiagnosticForNode } from './checker.js';
+import { checkJSDocAugmentsTagMatchesExtends } from './checker-jsdoc.js';
 import {
   type IndexInfo,
   type InterfaceType,
@@ -113,7 +115,7 @@ import {
 import { Ternary } from './checker-types.js';
 import { symbolToString, typeToString } from './type-printer.js';
 import { checkFunctionOrConstructorSymbol } from './checker-overloads.js';
-import { isPropertyInitializedInConstructor } from './checker-classes.js';
+import { getConstructorAccessibilityError, isPropertyInitializedInConstructor } from './checker-classes.js';
 import {
   CheckFlags,
   declarationCount,
@@ -144,12 +146,15 @@ export function checkClassHeritage(c: Checker, node: Node): void {
   }
   checkMembersForOverrideModifier(c, node, classType, typeWithThis, staticType);
   for (const typeRefNode of getImplementsHeritageClauseElements(node)) {
-    const expr = getExpression(typeRefNode)!;
-    if (!isEntityNameExpression(expr) || isOptionalChain(expr))
-      c.error(
-        expr,
-        Diagnostics.A_class_can_only_implement_an_identifier_Slashqualified_name_with_optional_type_arguments,
-      );
+    // The parser makes an entity name element a type reference; anything else stays an expression.
+    if (typeRefNode.kind === SyntaxKind.ExpressionWithTypeArguments) {
+      const expr = getExpression(typeRefNode)!;
+      if (!isEntityNameExpression(expr) || isOptionalChain(expr))
+        c.error(
+          expr,
+          Diagnostics.A_class_can_only_implement_an_identifier_Slashqualified_name_with_optional_type_arguments,
+        );
+    }
     const t = getReducedType(c, getTypeFromTypeNode(c, typeRefNode));
     if (isErrorType(c, t)) continue;
     if (!isValidBaseType(c, t)) {
@@ -181,8 +186,9 @@ function checkBaseClass(
   baseType: Type,
 ): void {
   const baseConstructorType = getBaseConstructorTypeOfClass(c, classType);
-  const staticBaseType = getApparentType(c, baseConstructorType);
   const baseTypeNode = getExtendsHeritageClauseElement(node)!;
+  checkJSDocAugmentsTagMatchesExtends(c, node, baseTypeNode as ExpressionWithTypeArguments, baseType);
+  const staticBaseType = getApparentType(c, baseConstructorType);
   checkBaseTypeAccessibility(c, staticBaseType, baseTypeNode);
   const typeArgumentNodes = getTypeArguments(baseTypeNode);
   if (typeArgumentNodes !== undefined && typeArgumentNodes.nodes.length !== 0) {
@@ -304,21 +310,13 @@ function getImplementsHeritageClauseElements(node: Node): Node[] {
 
 function checkBaseTypeAccessibility(c: Checker, t: Type, node: Node): void {
   const signatures = getSignaturesOfType(c, t, SignatureKind.Construct);
-  if (signatures.length === 0) return;
-  const declaration = signatures[0]!.declaration;
-  if (declaration === undefined || !hasSyntacticModifier(declaration, ModifierFlags.Private)) return;
-  const typeClassDeclaration = t.symbol !== undefined ? getClassLikeDeclarationOfSymbol(t.symbol) : undefined;
-  if (!isNodeWithinClass(node, typeClassDeclaration))
+  const error = getConstructorAccessibilityError(c, node, signatures, ModifierFlags.Private);
+  if (error !== undefined)
     c.error(
       node,
       Diagnostics.Cannot_extend_a_class_0_Class_constructor_is_marked_as_private,
-      getFullyQualifiedName(c, t.symbol!),
+      getFullyQualifiedName(c, error.declaringClass.symbol!),
     );
-}
-
-function isNodeWithinClass(node: Node, classDeclaration: Node | undefined): boolean {
-  for (let n: Node | undefined = node; n !== undefined; n = n.parent) if (n === classDeclaration) return true;
-  return false;
 }
 
 /** Reports each incompatible member, or the class as a whole when no member is to blame. */
@@ -784,17 +782,19 @@ export function checkInterfaceHeritage(c: Checker, node: Node): void {
   const links = c.symbolLinks(symbol);
   if (!links.interfaceChecked) {
     links.interfaceChecked = true;
+    // Reported on the first interface declaration, whichever declaration is checked first.
+    const firstName = getName(getDeclarationOfKind(symbol, SyntaxKind.InterfaceDeclaration)!)!;
     const t = getDeclaredTypeOfSymbol(c, symbol) as InterfaceType;
     if ((t.flags & TypeFlags.Object) !== 0) {
       const typeWithThis = getTypeWithThisArgument(c, t, undefined, false);
       // Later checks run only when inherited properties agree.
-      if (checkInheritedPropertiesAreIdentical(c, t, getName(node)!)) {
+      if (checkInheritedPropertiesAreIdentical(c, t, firstName)) {
         for (const baseType of getBaseTypes(c, t))
           checkTypeAssignableTo(
             c,
             typeWithThis,
             getTypeWithThisArgument(c, baseType, t.thisType, false),
-            getName(node),
+            firstName,
             Diagnostics.Interface_0_incorrectly_extends_interface_1,
           );
         checkIndexConstraints(c, t, symbol, false);
@@ -803,6 +803,7 @@ export function checkInterfaceHeritage(c: Checker, node: Node): void {
   }
   checkObjectTypeForDuplicateDeclarations(c, node, false);
   for (const element of getExtendsHeritageClauseElements(node)) {
+    if (element.kind !== SyntaxKind.ExpressionWithTypeArguments) continue;
     const expr = getExpression(element)!;
     if (!isEntityNameExpression(expr) || isOptionalChain(expr))
       c.error(
@@ -964,16 +965,25 @@ const enum MemberKind {
  * (with `checkPrivateNames`) private names shared by static and instance members.
  */
 export function checkObjectTypeForDuplicateDeclarations(c: Checker, node: Node, checkPrivateNames: boolean): void {
-  const instanceNames = new Map<string, MemberKind>();
-  const staticNames = new Map<string, MemberKind>();
-  const privateNames = new Map<string, number>();
+  // Only a symbol with several declarations can be a duplicate, so the maps are created for the first one.
+  let instanceNames: Map<string, MemberKind> | undefined;
+  let staticNames: Map<string, MemberKind> | undefined;
+  let privateNames: Map<string, number> | undefined;
   const nodeInAmbientContext = (node.flags & NodeFlags.Ambient) !== 0;
   for (const member of getMembers(node)!.nodes) {
     if (member.kind === SyntaxKind.Constructor) {
       for (const param of getParameters(member)!.nodes)
         if (isParameterPropertyDeclaration(param, member) && !isBindingPattern(getName(param))) {
           const symbol = getSymbolOfDeclaration(c, param);
-          if (symbol !== undefined) checkPropertyOrAccessor(c, node, instanceNames, symbol, MemberKind.Property, false);
+          if (symbol !== undefined && declarationCount(symbol) > 1)
+            checkPropertyOrAccessor(
+              c,
+              node,
+              (instanceNames ??= new Map<string, MemberKind>()),
+              symbol,
+              MemberKind.Property,
+              false,
+            );
         }
       continue;
     }
@@ -987,21 +997,26 @@ export function checkObjectTypeForDuplicateDeclarations(c: Checker, node: Node, 
         symbol.name,
         symbolToString(c, getSymbolOfDeclaration(c, node)!),
       );
-    const names = memberIsStatic ? staticNames : instanceNames;
-    const hasAccessorModifier = hasSyntacticModifier(member, ModifierFlags.Accessor);
-    if (
-      (member.kind === SyntaxKind.PropertyDeclaration && !hasAccessorModifier) ||
-      member.kind === SyntaxKind.PropertySignature
-    )
-      checkPropertyOrAccessor(c, node, names, symbol, MemberKind.Property, memberIsStatic);
-    else if (
-      member.kind === SyntaxKind.GetAccessor ||
-      member.kind === SyntaxKind.SetAccessor ||
-      (member.kind === SyntaxKind.PropertyDeclaration && hasAccessorModifier)
-    )
-      checkPropertyOrAccessor(c, node, names, symbol, MemberKind.Accessor, memberIsStatic);
+    if (declarationCount(symbol) > 1) {
+      const names = memberIsStatic
+        ? (staticNames ??= new Map<string, MemberKind>())
+        : (instanceNames ??= new Map<string, MemberKind>());
+      const hasAccessorModifier = hasSyntacticModifier(member, ModifierFlags.Accessor);
+      if (
+        (member.kind === SyntaxKind.PropertyDeclaration && !hasAccessorModifier) ||
+        member.kind === SyntaxKind.PropertySignature
+      )
+        checkPropertyOrAccessor(c, node, names, symbol, MemberKind.Property, memberIsStatic);
+      else if (
+        member.kind === SyntaxKind.GetAccessor ||
+        member.kind === SyntaxKind.SetAccessor ||
+        (member.kind === SyntaxKind.PropertyDeclaration && hasAccessorModifier)
+      )
+        checkPropertyOrAccessor(c, node, names, symbol, MemberKind.Accessor, memberIsStatic);
+    }
     const name = getName(member);
     if (checkPrivateNames && name !== undefined && name.kind === SyntaxKind.PrivateIdentifier) {
+      privateNames ??= new Map<string, number>();
       let flags = privateNames.get(symbol.name) ?? 0;
       if (flags === 3) continue;
       flags |= isStatic(member) ? 2 : 1;

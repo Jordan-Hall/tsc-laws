@@ -15,13 +15,27 @@ export interface SessionOptions {
   currentDirectory: string;
   defaultLibraryPath: string;
   useCaseSensitiveFileNames: boolean;
+  // Keep each source file's encoding after the first getSourceFile, for the clients that follow (`--listen`,
+  // where parsed files outlive a client).
+  keepEncodings?: boolean;
 }
 
-// A loaded tsconfig.json. Snapshots share it until its files change.
+// A project as one snapshot has it. Snapshots share it until it changes, which makes a new one.
 interface LoadedProject {
   id: string;
+  // The config file, or the inferred project's name.
   configFileName: string;
+  inferred: boolean;
   project: Project;
+  // The program does not have the changes reported since it was made (fileNotifications), or the inferred project's
+  // new roots. A snapshot keeps the old program until a request ensures it (ensurePrograms, or opening the project
+  // or one of its files), as tsc 7.1 does.
+  dirty: boolean;
+  // The paths of those changes, and whether they need the config read again.
+  pendingPaths: readonly string[];
+  reloadConfig: boolean;
+  // The inferred project's roots, when they changed and its program has not yet.
+  roots: readonly string[] | undefined;
 }
 
 interface OpenFile {
@@ -36,18 +50,28 @@ const inferredProjectName = '/dev/null/inferred';
 interface Registry {
   types: Map<number, Type>;
   signatures: Map<number, Signature>;
+  // The types and signatures replies have carried (proto.TypeReply).
+  sentTypes: Set<number>;
+  sentSignatures: Set<number>;
 }
 
 class SnapshotData {
+  // The symbols the snapshot owns (symbolOwnerFile has none) that were returned, and the project each came from first.
   readonly symbols = new Map<number, Symbol>();
-  // The project each symbol was first returned from.
   readonly symbolProjects = new Map<number, string>();
   readonly registries = new Map<string, Registry>();
+  // The symbols replies have carried (proto.SymbolReply).
+  readonly sentSymbols = new Set<number>();
 
   constructor(
     readonly id: number,
-    // Sorted by config file name.
-    readonly projects: LoadedProject[],
+    // The session's files, which name parsed files by their node IDs.
+    readonly files: backend.SessionFiles,
+    // Configured projects sorted by config file name, then the inferred project.
+    readonly projects: readonly LoadedProject[],
+    // Config paths the client opened, and the files it opened by path.
+    readonly openProjects: ReadonlySet<string>,
+    readonly openFiles: ReadonlyMap<string, OpenFile>,
   ) {}
 
   project(id: string | undefined): LoadedProject {
@@ -58,10 +82,48 @@ class SnapshotData {
   registry(projectId: string): Registry {
     let registry = this.registries.get(projectId);
     if (registry === undefined) {
-      registry = { types: new Map(), signatures: new Map() };
+      registry = { types: new Map(), signatures: new Map(), sentTypes: new Set(), sentSignatures: new Set() };
       this.registries.set(projectId, registry);
     }
     return registry;
+  }
+}
+
+// The projects and open files of a snapshot being made, starting from its base snapshot's.
+class SnapshotState {
+  readonly loaded = new Map<string, LoadedProject>();
+  inferred: LoadedProject | undefined = undefined;
+  readonly openProjects: Set<string>;
+  readonly openFiles: Map<string, OpenFile>;
+
+  constructor(base: SnapshotData | undefined) {
+    this.openProjects = new Set(base?.openProjects ?? []);
+    this.openFiles = new Map(base?.openFiles ?? []);
+    for (const p of base?.projects ?? []) {
+      if (p.inferred) this.inferred = p;
+      else this.loaded.set(p.id, p);
+    }
+  }
+
+  get(id: string): LoadedProject | undefined {
+    return id === inferredProjectName ? this.inferred : this.loaded.get(id);
+  }
+
+  set(p: LoadedProject): void {
+    if (p.inferred) this.inferred = p;
+    else this.loaded.set(p.id, p);
+  }
+
+  all(): LoadedProject[] {
+    const projects = [...this.loaded.values()];
+    if (this.inferred !== undefined) projects.push(this.inferred);
+    return projects;
+  }
+
+  projects(): LoadedProject[] {
+    const projects = [...this.loaded.values()].sort((a, b) => compareStrings(a.configFileName, b.configFileName));
+    if (this.inferred !== undefined) projects.push(this.inferred);
+    return projects;
   }
 }
 
@@ -121,8 +183,29 @@ class Query {
     return resolveType(this.snapshot, this.projectId, id);
   }
 
-  symbol(id: number | undefined): Symbol {
-    return resolveSymbol(this.snapshot, id);
+  /**
+   * The symbol a reference names, in this query's checker: a symbol of this snapshot, or of one of the program's
+   * source files, which the descriptor must name exactly.
+   */
+  symbol(ref: proto.SymbolReference | null | undefined): Symbol {
+    const reference = ref ?? {};
+    const kind = reference.kind ?? 0;
+    if (kind === SymbolOwnerKind.Snapshot) {
+      if (reference.snapshot !== this.snapshot.id || hasFile(reference)) {
+        throw new ClientError('snapshot symbol reference does not match the requested checker');
+      }
+      return resolveSnapshotSymbol(this.snapshot, reference.id);
+    }
+    if (kind !== SymbolOwnerKind.File) throw new ClientError(`invalid symbol reference kind ${kind}`);
+    const descriptor = reference.file;
+    if (!isFileReference(reference) || descriptor === undefined || descriptor === null) {
+      throw new ClientError('invalid file symbol reference');
+    }
+    const file = this.project.sourceFileByPath(descriptor.path ?? '');
+    if (file === undefined || !sameDescriptor(sourceFileDescriptor(this.snapshot.files, file), descriptor)) {
+      throw new ClientError('source file is not part of the requested program');
+    }
+    return resolveFileSymbol(file, reference.id, 'symbol handle %d not found in source file');
   }
 
   signature(id: number | undefined): Signature {
@@ -133,23 +216,28 @@ class Query {
     return resolveNode(this.project, handle ?? '');
   }
 
-  typeResponse(type: Type | undefined): proto.TypeResponse | null {
+  typeResponse(type: Type | undefined): proto.TypeReply | null {
     return type === undefined ? null : typeResponse(this.snapshot, this.projectId, type);
   }
 
-  typeResponses(types: Type[]): proto.TypeResponse[] {
+  typeResponses(types: Type[]): proto.TypeReply[] {
     return types.map((t) => typeResponse(this.snapshot, this.projectId, t));
   }
 
-  symbolResponse(symbol: Symbol | undefined): proto.SymbolResponse | null {
+  symbolResponse(symbol: Symbol | undefined): proto.SymbolReply | null {
     return symbol === undefined ? null : symbolResponse(this.snapshot, symbol, this.projectId);
   }
 
-  symbolResponses(symbols: Symbol[]): proto.SymbolResponse[] {
+  symbolResponses(symbols: Symbol[]): proto.SymbolReply[] {
     return symbols.map((s) => symbolResponse(this.snapshot, s, this.projectId));
   }
 
-  signatureResponse(signature: Signature | undefined): proto.SignatureResponse | null {
+  // A symbol inside another response object, which is never a bare id.
+  symbolData(symbol: Symbol): proto.SymbolResponse {
+    return symbolData(this.snapshot, symbol, this.projectId);
+  }
+
+  signatureResponse(signature: Signature | undefined): proto.SignatureReply | null {
     return signature === undefined ? null : signatureResponse(this.snapshot, this.projectId, signature);
   }
 
@@ -158,25 +246,17 @@ class Query {
     if (sourceFile === undefined) throw new ClientError(`source file not found: ${documentString(file)}`);
     return sourceFile;
   }
-
-  optionalSourceFile(file: proto.DocumentIdentifier | null | undefined): SourceFile | undefined {
-    return file === undefined || file === null ? undefined : this.sourceFile(file);
-  }
 }
 
 export class Session {
   private readonly snapshots = new Map<number, SnapshotData>();
-  private latestSnapshot = 0;
   private nextSnapshotId = 1;
-  // Loaded configured projects, by config path.
-  private readonly loaded = new Map<string, LoadedProject>();
-  // Config paths the client opened.
-  private readonly openProjects = new Set<string>();
-  // Files the client opened, by path, with the config path of their project;
-  // undefined puts the file in the inferred project.
-  private readonly openFiles = new Map<string, OpenFile>();
-  private inferred: LoadedProject | undefined;
+  // Files the client retained (retainSourceFile), by lease.
+  private readonly leases = new Map<number, SourceFile>();
+  private nextLeaseId = 1;
   private timing: ServerTiming | undefined;
+  // Whether replies name objects the client holds by their ids (proto.InitializeParams).
+  private objectReferences = false;
   // File contents and parsed files kept across snapshots.
   private readonly files: backend.SessionFiles;
 
@@ -190,6 +270,19 @@ export class Session {
     }
   }
 
+  // Ends a client's session (`--listen`): drops its snapshots and timing, and forgets the file contents and real
+  // paths it read, so the next client sees what a new server would. Parsed files stay, and a later project reuses
+  // one whose text is unchanged.
+  reset(): void {
+    this.snapshots.clear();
+    this.nextSnapshotId = 1;
+    this.leases.clear();
+    this.nextLeaseId = 1;
+    this.objectReferences = false;
+    this.files.reset();
+    this.resetServerTiming();
+  }
+
   // Handles a request whose payload is its JSON params, or for `echo`, any bytes.
   handle(method: string, payload: Uint8Array): Response {
     if (method === 'getServerTiming') return { ok: true, reply: JSON.stringify(this.serverTiming()) };
@@ -201,8 +294,10 @@ export class Session {
     try {
       // As tsgo, echo returns the payload's bytes as they are, which need not be UTF-8 text.
       if (method === 'echo') return { ok: true, reply: payload.slice() };
+      sending = this.objectReferences ? new SentIds() : null;
       return { ok: true, reply: this.dispatch(method, decodeText(payload)) };
     } catch (e) {
+      sending?.unmark();
       // Classified here: natively, a caught value passed on loses its class.
       // Compiler failures read like Go panics.
       if (e instanceof ApiError) return { ok: false, error: e.message };
@@ -214,6 +309,7 @@ export class Session {
       }
       return { ok: false, error: backend.panicMessage(e) };
     } finally {
+      sending = null;
       if (this.timing !== undefined) this.record(method, Date.now() - start);
     }
   }
@@ -223,9 +319,17 @@ export class Session {
       case 'ping':
         return '"pong"';
       case 'initialize':
-        return JSON.stringify(this.initialize());
+        return JSON.stringify(
+          this.initialize(params === '' ? null : (JSON.parse(params) as proto.InitializeParams | null)),
+        );
+      case 'createSnapshot':
+        return JSON.stringify(this.createSnapshot(JSON.parse(params) as proto.SnapshotChangesParams | null));
       case 'updateSnapshot':
         return JSON.stringify(this.updateSnapshot(JSON.parse(params) as proto.UpdateSnapshotParams | null));
+      case 'retainSourceFile':
+        return JSON.stringify(this.retainSourceFile(JSON.parse(params) as proto.RetainSourceFileParams | null));
+      case 'releaseSourceFile':
+        return JSON.stringify(this.releaseSourceFile(JSON.parse(params) as proto.ReleaseSourceFileParams | null));
       case 'release':
         return JSON.stringify(this.release(JSON.parse(params) as proto.ReleaseParams | null));
       case 'parseConfigFile':
@@ -274,10 +378,10 @@ export class Session {
         return JSON.stringify(this.typesAtPositions(JSON.parse(params) as proto.PositionsParams));
       case 'getParentOfSymbol':
       case 'getExportSymbolOfSymbol':
-        return JSON.stringify(this.symbolOfSymbol(method, JSON.parse(params) as proto.ObjectParams));
+        return JSON.stringify(this.symbolOfSymbol(method, JSON.parse(params) as proto.SymbolPropertyParams));
       case 'getMembersOfSymbol':
       case 'getExportsOfSymbol':
-        return JSON.stringify(this.symbolTableOfSymbol(method, JSON.parse(params) as proto.ObjectParams));
+        return JSON.stringify(this.symbolTableOfSymbol(method, JSON.parse(params) as proto.SymbolPropertyParams));
       case 'getSymbolOfType':
       case 'getAliasSymbolOfType':
         return JSON.stringify(this.symbolOfType(method, JSON.parse(params) as proto.ObjectParams));
@@ -310,23 +414,20 @@ export class Session {
       case 'getBaseTypesOfLiteralTypes':
         return JSON.stringify(this.baseTypesOfLiteralTypes(JSON.parse(params) as proto.TypesParams));
       case 'getBaseTypeOfLiteralType':
-      case 'getNonNullableType':
       case 'getWidenedType':
-      case 'getApparentType':
-      case 'getConstraintOfTypeParameter':
       case 'getBaseConstraintOfType':
         return JSON.stringify(this.checkerTypeOfType(method, JSON.parse(params) as proto.TypeParams));
+      case 'getNonNullableType':
+      case 'getApparentType':
+      case 'getConstraintOfTypeParameter':
+        return JSON.stringify(this.checkerTypeOfObject(method, JSON.parse(params) as proto.ObjectParams));
       case 'getTypeFromTypeNode':
         return JSON.stringify(this.typeFromTypeNode(JSON.parse(params) as proto.LocationParams));
       case 'getParameterType':
         return JSON.stringify(this.parameterType(JSON.parse(params) as proto.ParameterTypeParams));
       case 'isArrayLikeType':
       case 'isArrayType':
-      case 'isTupleType':
         return JSON.stringify(this.typePredicate(method, JSON.parse(params) as proto.TypeParams));
-      case 'isArrayTypes':
-      case 'isTupleTypes':
-        return JSON.stringify(this.typePredicates(method, JSON.parse(params) as proto.TypesParams));
       case 'isTypeAssignableTo':
         return JSON.stringify(this.isTypeAssignableTo(JSON.parse(params) as proto.AssignabilityParams));
       case 'getShorthandAssignmentValueSymbol':
@@ -344,8 +445,9 @@ export class Session {
       case 'isContextSensitive':
         return JSON.stringify(this.isContextSensitive(JSON.parse(params) as proto.LocationParams));
       case 'getReturnTypeOfSignature':
+        return JSON.stringify(this.returnTypeOfSignature(JSON.parse(params) as proto.ObjectParams));
       case 'getRestTypeOfSignature':
-        return JSON.stringify(this.typeOfSignature(method, JSON.parse(params) as proto.SignatureParams));
+        return JSON.stringify(this.restTypeOfSignature(JSON.parse(params) as proto.SignatureParams));
       case 'getReturnTypesOfSignatures':
         return JSON.stringify(this.returnTypesOfSignatures(JSON.parse(params) as proto.SignaturesParams));
       case 'getTypePredicateOfSignature':
@@ -408,15 +510,15 @@ export class Session {
       case 'getWellKnownSymbols':
         return JSON.stringify(this.wellKnownSymbols(JSON.parse(params) as proto.ProjectParams));
       case 'getSyntacticDiagnostics':
-        return JSON.stringify(this.fileDiagnostics('syntactic', JSON.parse(params) as proto.OptionalFileParams));
+        return JSON.stringify(this.fileDiagnostics('syntactic', JSON.parse(params) as proto.FilesParams));
       case 'getBindDiagnostics':
-        return JSON.stringify(this.fileDiagnostics('bind', JSON.parse(params) as proto.OptionalFileParams));
+        return JSON.stringify(this.fileDiagnostics('bind', JSON.parse(params) as proto.FilesParams));
       case 'getSemanticDiagnostics':
-        return JSON.stringify(this.fileDiagnostics('semantic', JSON.parse(params) as proto.OptionalFileParams));
+        return JSON.stringify(this.fileDiagnostics('semantic', JSON.parse(params) as proto.FilesParams));
       case 'getSuggestionDiagnostics':
-        return JSON.stringify(this.fileDiagnostics('suggestion', JSON.parse(params) as proto.OptionalFileParams));
+        return JSON.stringify(this.fileDiagnostics('suggestion', JSON.parse(params) as proto.FilesParams));
       case 'getDeclarationDiagnostics':
-        return JSON.stringify(this.fileDiagnostics('declaration', JSON.parse(params) as proto.OptionalFileParams));
+        return JSON.stringify(this.fileDiagnostics('declaration', JSON.parse(params) as proto.FilesParams));
       case 'getDiagnosticsOfCheckedFiles':
         return JSON.stringify(this.diagnosticsOfCheckedFiles(JSON.parse(params) as proto.FilesParams));
       case 'getConfigFileParsingDiagnostics':
@@ -427,6 +529,8 @@ export class Session {
         return JSON.stringify(this.projectDiagnostics('global', JSON.parse(params) as proto.ProjectParams));
       case 'getCompletionsAtPosition':
         return JSON.stringify(this.completionsAtPosition(JSON.parse(params) as proto.CompletionsParams));
+      case 'getImportAdderEdits':
+        return JSON.stringify(this.importAdderEdits(JSON.parse(params) as proto.ImportAdderEditsParams));
       case 'getJsDocTags':
         return JSON.stringify(this.jsDocTags(JSON.parse(params) as proto.SymbolParams));
       case 'getDocumentationComment':
@@ -447,38 +551,84 @@ export class Session {
 
   // Lifecycle
 
-  private initialize(): proto.InitializeResponse {
+  private initialize(params: proto.InitializeParams | null): proto.InitializeResponse {
+    this.objectReferences = params?.objectReferences === true;
     return {
-      useCaseSensitiveFileNames: this.options.useCaseSensitiveFileNames,
+      caseSensitivity: this.options.useCaseSensitiveFileNames ? 1 : 0,
       currentDirectory: this.options.currentDirectory,
+      objectReferences: this.objectReferences ? true : undefined,
     };
   }
 
-  private updateSnapshot(params: proto.UpdateSnapshotParams | null): proto.UpdateSnapshotResponse {
-    const cwd = this.options.currentDirectory;
-    this.applyFileChanges(params?.fileChanges);
-    for (const doc of params?.openProjects ?? []) {
-      const configFileName = normalizeAbsolutePath(documentFileName(doc), cwd);
-      this.openProjects.add(this.loadProject(configFileName).id);
-    }
-    for (const doc of params?.closeProjects ?? []) this.openProjects.delete(this.toPath(documentFileName(doc)));
-    for (const doc of params?.openFiles ?? []) this.openFile(normalizeAbsolutePath(documentFileName(doc), cwd));
-    for (const doc of params?.closeFiles ?? []) this.openFiles.delete(this.toPath(documentFileName(doc)));
-    this.unloadUnusedProjects();
-    this.updateInferredProject();
+  // A new snapshot, with nothing opened before it.
+  private createSnapshot(params: proto.SnapshotChangesParams | null): proto.SnapshotResponse {
+    return this.deriveSnapshot(undefined, params ?? {});
+  }
 
-    // Every update makes a new snapshot; unchanged projects carry over.
-    const previous = this.snapshots.get(this.latestSnapshot);
-    const projects = [...this.loaded.values()].sort((a, b) => compareStrings(a.configFileName, b.configFileName));
-    if (this.inferred !== undefined) projects.push(this.inferred);
-    const snapshot = new SnapshotData(this.nextSnapshotId++, projects);
+  // A new snapshot from a base snapshot, with changes.
+  private updateSnapshot(params: proto.UpdateSnapshotParams | null): proto.SnapshotResponse {
+    return this.deriveSnapshot(this.snapshot(params?.snapshot), params?.changes ?? {});
+  }
+
+  /**
+   * Makes a snapshot from the projects and open files of `base`, or from none, with `changes`. A reported file change
+   * leaves a project dirty, with its program, until the request ensures it: by opening it or one of its files, or
+   * with `ensurePrograms`.
+   */
+  private deriveSnapshot(base: SnapshotData | undefined, changes: proto.SnapshotChangesParams): proto.SnapshotResponse {
+    const cwd = this.options.currentDirectory;
+    const state = new SnapshotState(base);
+    const ensured = new Set<string>();
+    this.applyFileNotifications(state, changes.fileNotifications ?? undefined);
+    for (const doc of changes.openProjects ?? []) {
+      const loaded = this.loadProject(state, normalizeAbsolutePath(documentFileName(doc), cwd));
+      state.openProjects.add(loaded.id);
+      ensured.add(loaded.id);
+    }
+    for (const doc of changes.closeProjects ?? []) state.openProjects.delete(this.toPath(documentFileName(doc)));
+    const opened: string[] = [];
+    for (const doc of changes.openFiles ?? []) {
+      const fileName = normalizeAbsolutePath(documentFileName(doc), cwd);
+      this.openFile(state, fileName);
+      opened.push(fileName);
+    }
+    for (const doc of changes.closeFiles ?? []) state.openFiles.delete(this.toPath(documentFileName(doc)));
+    unloadUnusedProjects(state);
+    // The inferred project's roots are worked out again when the request opens or closes files or projects, as tsc
+    // does. tsc adds the file it ensures last to them again, so it is listed twice.
+    const opensOrCloses = [changes.openProjects, changes.closeProjects, changes.openFiles, changes.closeFiles].some(
+      (documents) => (documents ?? []).length > 0,
+    );
+    if (opensOrCloses) {
+      let lastLooseFile: string | undefined;
+      for (const fileName of opened) {
+        if (state.openFiles.get(this.toPath(fileName))?.configPath === undefined) lastLooseFile = fileName;
+      }
+      this.updateInferredProject(state, lastLooseFile);
+    }
+    for (const fileName of opened)
+      ensured.add(state.openFiles.get(this.toPath(fileName))?.configPath ?? inferredProjectName);
+    const ensurePrograms = changes.ensurePrograms;
+    if (ensurePrograms === true) for (const loaded of state.all()) ensured.add(loaded.id);
+    else if (Array.isArray(ensurePrograms)) for (const id of ensurePrograms) ensured.add(id);
+    for (const id of ensured) this.ensureProgram(state, id);
+
+    const projects = state.projects();
+    const snapshot = new SnapshotData(this.nextSnapshotId++, this.files, projects, state.openProjects, state.openFiles);
     this.snapshots.set(snapshot.id, snapshot);
-    this.files.retain(projects.map((p) => p.project));
-    this.latestSnapshot = snapshot.id;
+    this.retainFiles();
+    const operation: proto.SnapshotOperationResponse = {};
+    if (changes.openFiles !== undefined && changes.openFiles !== null) {
+      operation.openedFiles = opened.map((fileName) => ({
+        project: defaultProject(snapshot, this.toPath(fileName))!.id,
+      }));
+    }
+    const added = base === undefined ? projects : projects.filter((p) => !base.projects.includes(p));
     return {
       snapshot: snapshot.id,
-      projects: snapshot.projects.map((p) => projectResponse(p)),
-      changes: previous === undefined ? undefined : snapshotChanges(previous, snapshot),
+      projects: added.map(projectResponse),
+      changes: base === undefined ? undefined : snapshotChanges(base, snapshot),
+      operation,
     };
   }
 
@@ -488,76 +638,113 @@ export class Session {
     const snapshot = this.snapshots.get(id);
     if (snapshot === undefined) throw new ClientError(`snapshot ${id} not found`);
     this.snapshots.delete(id);
+    this.retainFiles();
     return true;
   }
 
-  // Loads a configured project unless it is already loaded.
-  private loadProject(configFileName: string): LoadedProject {
+  // Keeps the parsed files of the projects of live snapshots, and the leased files.
+  private retainFiles(): void {
+    const projects = new Set<Project>();
+    for (const snapshot of this.snapshots.values()) for (const p of snapshot.projects) projects.add(p.project);
+    this.files.retain([...projects], [...this.leases.values()]);
+  }
+
+  // Loads a configured project unless the snapshot has it.
+  private loadProject(state: SnapshotState, configFileName: string): LoadedProject {
     const id = this.toPath(configFileName);
-    let loaded = this.loaded.get(id);
-    if (loaded === undefined) {
-      loaded = { id, configFileName, project: backend.Project.open(this.projectHost(), configFileName) };
-      this.loaded.set(id, loaded);
-    }
+    const existing = state.loaded.get(id);
+    if (existing !== undefined) return existing;
+    const loaded = newLoadedProject(
+      id,
+      configFileName,
+      false,
+      backend.Project.open(this.projectHost(), configFileName),
+    );
+    state.loaded.set(id, loaded);
     return loaded;
   }
 
-  // Assigns an opened file to the nearest tsconfig.json or jsconfig.json
-  // above it that contains it, or to the inferred project.
-  private openFile(fileName: string): void {
+  // Assigns an opened file to the nearest tsconfig.json or jsconfig.json above it that contains it, or to the
+  // inferred project. A project it looks in is ensured first.
+  private openFile(state: SnapshotState, fileName: string): void {
     const path = this.toPath(fileName);
-    if (this.openFiles.has(path)) return;
+    if (state.openFiles.has(path)) return;
     const fs = this.options.fs;
     let dir = parentDirectory(fileName);
     for (;;) {
       for (const name of ['tsconfig.json', 'jsconfig.json']) {
         const configFileName = dir === '/' ? '/' + name : dir + '/' + name;
         if (!fs.fileExists(configFileName)) continue;
-        const wasLoaded = this.loaded.has(this.toPath(configFileName));
-        const loaded = this.loadProject(configFileName);
-        if (containsFile(loaded, path)) {
-          this.openFiles.set(path, { fileName, configPath: loaded.id });
+        const id = this.toPath(configFileName);
+        const wasLoaded = state.loaded.has(id);
+        this.loadProject(state, configFileName);
+        this.ensureProgram(state, id);
+        if (containsFile(state.loaded.get(id)!, path)) {
+          state.openFiles.set(path, { fileName, configPath: id });
           return;
         }
-        if (!wasLoaded) this.loaded.delete(loaded.id);
+        if (!wasLoaded) state.loaded.delete(id);
       }
       const parent = parentDirectory(dir);
       if (parent === dir) break;
       dir = parent;
     }
-    this.openFiles.set(path, { fileName, configPath: undefined });
+    state.openFiles.set(path, { fileName, configPath: undefined });
   }
 
-  private unloadUnusedProjects(): void {
-    const used = new Set(this.openProjects);
-    for (const file of this.openFiles.values()) if (file.configPath !== undefined) used.add(file.configPath);
-    for (const id of Array.from(this.loaded.keys())) if (!used.has(id)) this.loaded.delete(id);
-  }
-
-  // Rebuilds the inferred project when its root files change.
-  private updateInferredProject(): void {
+  /**
+   * Makes the inferred project's roots the open files no config contains, sorted, with `lastLooseFile`, the last
+   * loose file the request opened, a second time. Roots changed by opening a file make a new program; roots changed
+   * by closing one leave the project dirty, as tsc does.
+   */
+  private updateInferredProject(state: SnapshotState, lastLooseFile: string | undefined): void {
     const roots: string[] = [];
-    for (const file of this.openFiles.values()) if (file.configPath === undefined) roots.push(file.fileName);
+    for (const file of state.openFiles.values()) if (file.configPath === undefined) roots.push(file.fileName);
     if (roots.length === 0) {
-      this.inferred = undefined;
+      state.inferred = undefined;
       return;
     }
-    if (this.inferred !== undefined && this.inferred.project.rootFiles().join('\n') === roots.join('\n')) return;
-    this.inferred = this.loadInferredProject(roots);
+    if (lastLooseFile !== undefined) roots.push(lastLooseFile);
+    roots.sort(compareStrings);
+    const current = state.inferred;
+    if (current !== undefined && sameStrings(current.roots ?? current.project.rootFiles(), roots)) return;
+    if (current === undefined || lastLooseFile !== undefined) {
+      state.inferred = newLoadedProject(
+        inferredProjectName,
+        inferredProjectName,
+        true,
+        backend.Project.openInferred(this.projectHost(), roots),
+      );
+      return;
+    }
+    state.inferred = changedProject(current, current.pendingPaths, current.reloadConfig, roots);
   }
 
-  private loadInferredProject(roots: string[]): LoadedProject {
-    return {
-      id: inferredProjectName,
-      configFileName: inferredProjectName,
-      project: backend.Project.openInferred(this.projectHost(), roots),
-    };
+  // Brings a dirty project's program up to date with the changes reported since it was made.
+  private ensureProgram(state: SnapshotState, id: string): void {
+    const loaded = state.get(id);
+    if (loaded === undefined || !loaded.dirty) return;
+    const host = this.projectHost();
+    let project: Project;
+    if (loaded.inferred && (loaded.roots !== undefined || loaded.reloadConfig)) {
+      project = backend.Project.openInferred(host, [...(loaded.roots ?? loaded.project.rootFiles())]);
+    } else if (loaded.reloadConfig) {
+      project = backend.Project.open(host, loaded.configFileName);
+    } else {
+      // A change to one program file alone, other than a package.json, updates the program, as tsgo does.
+      const paths = loaded.pendingPaths;
+      project =
+        paths.length === 1 && containsFile(loaded, paths[0]) && !paths[0].endsWith('/package.json')
+          ? loaded.project.update(host, paths[0])
+          : loaded.project.reload(host);
+    }
+    state.set(newLoadedProject(loaded.id, loaded.configFileName, loaded.inferred, project));
   }
 
-  // Reloads the projects a set of file changes can affect.
-  private applyFileChanges(changes: proto.FileChanges | undefined): void {
+  // Forgets the reported files' contents, and leaves the projects they can affect dirty.
+  private applyFileNotifications(state: SnapshotState, changes: proto.FileNotifications | undefined): void {
     if (changes === undefined) return;
-    const fileNames = (documents: proto.DocumentIdentifier[] | undefined): string[] =>
+    const fileNames = (documents: proto.DocumentIdentifier[] | null | undefined): string[] =>
       (documents ?? []).map((d) => normalizeAbsolutePath(documentFileName(d), this.options.currentDirectory));
     if (changes.invalidateAll === true) this.files.invalidateAll();
     const changed = [
@@ -566,37 +753,17 @@ export class Session {
     ];
     const reloadAll = changes.invalidateAll === true || (changes.created ?? []).length > 0;
     if (!reloadAll && changed.length === 0) return;
-    // A change affects the projects that read or looked up the file, as their config, an extended config,
-    // a source file, a package.json or a module resolution candidate.
-    const affected = (loaded: LoadedProject): boolean =>
-      reloadAll || changed.some((path) => loaded.project.depends(path));
-    // Without created or deleted files, a project whose config files are unchanged keeps its config.
-    const keepsConfig = (loaded: LoadedProject): boolean =>
-      !reloadAll && (changes.deleted ?? []).length === 0 && !changed.some((path) => loaded.project.configDepends(path));
-    // A project that keeps its config takes a change to one of its program files alone, other than a
-    // package.json, into its program (Project.update), as tsgo does.
-    const updated = (loaded: LoadedProject): backend.Project => {
+    // A change affects the projects that read or looked up the file, as their config, an extended config, a source
+    // file, a package.json or a module resolution candidate. Without created or deleted files, a project whose
+    // config files are unchanged keeps its config.
+    for (const loaded of state.all()) {
       const paths = changed.filter((path) => loaded.project.depends(path));
-      const host = this.projectHost();
-      if (paths.length === 1 && containsFile(loaded, paths[0]) && !paths[0].endsWith('/package.json'))
-        return loaded.project.update(host, paths[0]);
-      return loaded.project.reload(host);
-    };
-    // Reloading re-inserts entries, so iterate over a copy.
-    for (const loaded of Array.from(this.loaded.values())) {
-      if (!affected(loaded)) continue;
-      if (keepsConfig(loaded)) {
-        this.loaded.set(loaded.id, { id: loaded.id, configFileName: loaded.configFileName, project: updated(loaded) });
-        continue;
-      }
-      this.loaded.delete(loaded.id);
-      this.loadProject(loaded.configFileName);
-    }
-    const inferred = this.inferred;
-    if (inferred !== undefined && affected(inferred)) {
-      this.inferred = keepsConfig(inferred)
-        ? { id: inferred.id, configFileName: inferred.configFileName, project: updated(inferred) }
-        : this.loadInferredProject(inferred.project.rootFiles());
+      if (!reloadAll && paths.length === 0) continue;
+      const keepsConfig =
+        !reloadAll && (changes.deleted ?? []).length === 0 && !paths.some((path) => loaded.project.configDepends(path));
+      const pendingPaths = [...loaded.pendingPaths];
+      for (const path of paths) if (!pendingPaths.includes(path)) pendingPaths.push(path);
+      state.set(changedProject(loaded, pendingPaths, loaded.reloadConfig || !keepsConfig, loaded.roots));
     }
   }
 
@@ -605,14 +772,67 @@ export class Session {
     // The config is read again, not taken from the session's files.
     const config = backend.parseConfigFile({ ...this.projectHost(), files: undefined }, fileName);
     if (config === undefined) throw new ClientError(`could not read file "${fileName}"`);
-    return { fileNames: config.fileNames, options: config.options };
+    return configFileResponse(config, undefined);
   }
 
   private defaultProjectForFile(params: proto.SnapshotFileParams): proto.ProjectResponse | null {
-    const snapshot = this.snapshot(params.snapshot);
-    const path = this.toPath(documentFileName(params.file));
-    for (const p of snapshot.projects) if (containsFile(p, path)) return projectResponse(p);
-    return null;
+    const loaded = defaultProject(this.snapshot(params.snapshot), this.toPath(documentFileName(params.file)));
+    return loaded === undefined ? null : projectResponse(loaded);
+  }
+
+  // Source file leases keep a file's symbols resolvable for its references after its snapshots are released.
+
+  private retainSourceFile(params: proto.RetainSourceFileParams | null): proto.RetainSourceFileResponse {
+    const file = this.resolveSourceFileDescriptor(params?.file);
+    const lease = this.nextLeaseId++;
+    this.leases.set(lease, file);
+    return { lease };
+  }
+
+  private releaseSourceFile(params: proto.ReleaseSourceFileParams | null): boolean {
+    const lease = params?.lease ?? 0;
+    if (lease === 0) throw new ClientError('empty source file lease');
+    if (!this.leases.delete(lease)) throw new ClientError(`source file lease ${lease} not found`);
+    this.retainFiles();
+    return true;
+  }
+
+  /** The parsed file a descriptor names, if the session still has that exact file. */
+  private resolveSourceFileDescriptor(descriptor: proto.SourceFileDescriptor | null | undefined): SourceFile {
+    const invalid = (reason: string): never => {
+      throw new ClientError(`invalid source file descriptor: ${reason}`);
+    };
+    // A missing descriptor is an empty one.
+    const hash = descriptor?.contentHash ?? '';
+    if (hash.length !== 32) return invalid('content hash must contain 32 hexadecimal digits');
+    for (const half of [hash.slice(0, 16), hash.slice(16)]) {
+      if (!/^[0-9a-fA-F]+$/.test(half)) {
+        return invalid(`invalid content hash: strconv.ParseUint: parsing ${JSON.stringify(half)}: invalid syntax`);
+      }
+    }
+    const key = descriptor?.parseOptionsKey ?? '';
+    const optionsKey = Number(key);
+    if (!/^[0-9]+$/.test(key) || (optionsKey & ~3) !== 0)
+      return invalid(`invalid parse options key ${JSON.stringify(key)}`);
+    const scriptKind = descriptor?.scriptKind ?? 0;
+    if (![1, 2, 3, 4, 6].includes(scriptKind)) return invalid(`invalid script kind ${scriptKind}`);
+    // Files are kept by name, path, options, text and script kind, and named by their node ID too.
+    const file = this.files.cachedSourceFile(
+      descriptor?.fileName ?? '',
+      descriptor?.path ?? '',
+      optionsKey,
+      hash.toLowerCase(),
+      scriptKind,
+    );
+    if (file === undefined) throw new ClientError('source file is not available');
+    if (
+      descriptor === undefined ||
+      descriptor === null ||
+      !sameDescriptor(sourceFileDescriptor(this.files, file), descriptor)
+    ) {
+      throw new ClientError('source file descriptor no longer identifies the cached source file');
+    }
+    return file;
   }
 
   // Source files
@@ -620,7 +840,11 @@ export class Session {
   private sourceFile(params: proto.ProjectFileParams): Reply {
     const loaded = this.snapshot(params.snapshot).project(params.project);
     const file = loaded.project.sourceFile(documentFileName(params.file));
-    return file === undefined ? new Uint8Array(0) : backend.encodeSourceFile(file);
+    if (file === undefined) return new Uint8Array(0);
+    const nodeId = this.files.nodeId(file);
+    return this.options.keepEncodings === true
+      ? backend.keptEncodingOf(file, nodeId)
+      : backend.encodeSourceFile(file, nodeId);
   }
 
   private sourceFileNames(params: proto.ProjectParams): string[] {
@@ -636,13 +860,13 @@ export class Session {
 
   // Symbols and types at locations
 
-  private symbolAtPosition(params: proto.PositionParams): proto.SymbolResponse | null {
+  private symbolAtPosition(params: proto.PositionParams): proto.SymbolReply | null {
     const q = this.query(params);
     const node = q.project.nodeAtPosition(q.sourceFile(params.file), params.position ?? 0);
     return node === undefined ? null : q.symbolResponse(q.project.symbolAtLocation(node));
   }
 
-  private symbolsAtPositions(params: proto.PositionsParams): (proto.SymbolResponse | null)[] {
+  private symbolsAtPositions(params: proto.PositionsParams): (proto.SymbolReply | null)[] {
     const q = this.query(params);
     const file = q.sourceFile(params.file);
     return (params.positions ?? []).map((position) => {
@@ -651,28 +875,28 @@ export class Session {
     });
   }
 
-  private symbolAtLocation(params: proto.LocationParams): proto.SymbolResponse | null {
+  private symbolAtLocation(params: proto.LocationParams): proto.SymbolReply | null {
     const q = this.query(params);
     return q.symbolResponse(q.project.symbolAtLocation(q.node(params.location)));
   }
 
-  private symbolsAtLocations(params: proto.LocationsParams): (proto.SymbolResponse | null)[] {
+  private symbolsAtLocations(params: proto.LocationsParams): (proto.SymbolReply | null)[] {
     const q = this.query(params);
     return (params.locations ?? []).map((handle) => q.symbolResponse(q.project.symbolAtLocation(q.node(handle))));
   }
 
-  private typeOfSymbol(params: proto.SymbolParams, declared: boolean): proto.TypeResponse | null {
+  private typeOfSymbol(params: proto.SymbolParams, declared: boolean): proto.TypeReply | null {
     const q = this.query(params);
     const symbol = q.symbol(params.symbol);
     return q.typeResponse(declared ? q.project.declaredTypeOfSymbol(symbol) : q.project.typeOfSymbol(symbol));
   }
 
-  private typesOfSymbols(params: proto.SymbolsParams): (proto.TypeResponse | null)[] {
+  private typesOfSymbols(params: proto.SymbolsParams): (proto.TypeReply | null)[] {
     const q = this.query(params);
     return (params.symbols ?? []).map((id) => q.typeResponse(q.project.typeOfSymbol(q.symbol(id))));
   }
 
-  private resolveName(params: proto.ResolveNameParams): proto.SymbolResponse | null {
+  private resolveName(params: proto.ResolveNameParams): proto.SymbolReply | null {
     const q = this.query(params);
     let location: Node | undefined;
     if (params.location !== undefined && params.location !== '') {
@@ -694,7 +918,7 @@ export class Session {
     return q.symbolResponse(symbol);
   }
 
-  private signaturesOfType(params: proto.SignaturesOfTypeParams): (proto.SignatureResponse | null)[] {
+  private signaturesOfType(params: proto.SignaturesOfTypeParams): (proto.SignatureReply | null)[] {
     const q = this.query(params);
     const kind = params.kind === 1 ? backend.SignatureKind.Construct : backend.SignatureKind.Call;
     return q.project.signaturesOfType(q.type(params.type), kind).map((s) => q.signatureResponse(s));
@@ -704,33 +928,51 @@ export class Session {
     const q = this.query(params);
     const kind = params.kind === 1 ? backend.SignatureKind.Construct : backend.SignatureKind.Call;
     return (params.types ?? []).map((id) =>
-      q.project.signaturesOfType(q.type(id), kind).map((s) => q.signatureResponse(s)),
+      q.project.signaturesOfType(q.type(id), kind).map((s) => signatureData(q.snapshot, q.projectId, s)),
     );
   }
 
-  private resolvedSignature(params: proto.LocationParams): proto.SignatureResponse | null {
+  private resolvedSignature(params: proto.LocationParams): proto.SignatureReply | null {
     const q = this.query(params);
     return q.signatureResponse(q.project.resolvedSignature(q.node(params.location)));
   }
 
-  private resolvedSignatures(params: proto.LocationsParams): (proto.SignatureResponse | null)[] {
+  private resolvedSignatures(params: proto.LocationsParams): (proto.SignatureReply | null)[] {
     const q = this.query(params);
     return (params.locations ?? []).map((handle) => q.signatureResponse(q.project.resolvedSignature(q.node(handle))));
   }
 
-  private contextualTypes(params: proto.LocationsParams): (proto.TypeResponse | null)[] {
+  private contextualTypes(params: proto.LocationsParams): (proto.TypeReply | null)[] {
     const q = this.query(params);
     return (params.locations ?? []).map((handle) => q.typeResponse(q.project.contextualType(q.node(handle))));
   }
 
-  private typeAtLocation(params: proto.LocationParams): proto.TypeResponse | null {
+  private typeAtLocation(params: proto.LocationParams): proto.TypeReply | null {
     const q = this.query(params);
     return q.typeResponse(q.project.typeAtLocation(q.node(params.location)));
   }
 
-  private typeAtLocations(params: proto.LocationsParams): (proto.TypeResponse | null)[] {
+  private typeAtLocations(params: proto.LocationsParams): (proto.TypeReply | null)[] {
     const q = this.query(params);
     return (params.locations ?? []).map((handle) => q.typeResponse(q.project.typeAtLocation(q.node(handle))));
+  }
+
+  // The edits that import the actions' symbols into a file, as tsc's getImportAdderEdits writes them.
+  private importAdderEdits(params: proto.ImportAdderEditsParams): proto.TextEditResponse[] {
+    const q = this.query(params);
+    const file = q.sourceFile(params.file ?? '');
+    // tsc prepares auto-imports for the request in a snapshot of its own, which takes the next snapshot ID.
+    this.nextSnapshotId++;
+    const actions = (params.actions ?? []).map((action, i) => {
+      if (action.kind !== 'importSymbol') {
+        throw new ClientError(`unknown import adder action kind ${JSON.stringify(action.kind ?? '')}`);
+      }
+      if (action.symbol === undefined || action.symbol === null) {
+        throw new ClientError(`import adder action ${i} missing symbol`);
+      }
+      return { symbol: q.symbol(action.symbol), isValidTypeOnlyUseSite: action.isValidTypeOnlyUseSite ?? true };
+    });
+    return q.project.importAdderEdits(file, actions).map((e) => ({ pos: e.pos, end: e.end, newText: e.newText }));
   }
 
   private completionsAtPosition(params: proto.CompletionsParams): proto.CompletionInfoResponse | null {
@@ -739,14 +981,30 @@ export class Session {
     if (file === undefined) return null;
     let list: backend.CompletionList | undefined;
     try {
+      // As tsc, a request without symbols prepares auto-imports; one with symbols uses only those prepared.
+      let prepared = false;
       list = q.project.completionsAtPosition(
         file,
         params.position ?? 0,
         params.triggerCharacter,
         params.includeSymbol === true,
+        params.includeSymbol !== true,
+        () => {
+          // tsc prepares auto-imports in a snapshot of their own, which takes the next snapshot ID.
+          if (params.includeSymbol !== true && !prepared) {
+            prepared = true;
+            this.nextSnapshotId++;
+          }
+        },
       );
     } catch (e) {
-      if (e instanceof backend.NeedsAutoImports) throw new ApiError(e.message);
+      if (e instanceof backend.NeedsAutoImports) {
+        // tsc prepares auto-imports for a request without symbols; with them, it reports that it has not.
+        if (params.includeSymbol === true) {
+          throw new ClientError(`snapshot is not prepared for auto-imports for ${documentString(params.file)}`);
+        }
+        throw new ApiError(e.message);
+      }
       throw e;
     }
     if (list === undefined) return null;
@@ -759,19 +1017,19 @@ export class Session {
         if (entry.filterText !== undefined) response.filterText = entry.filterText;
         if (entry.detail !== undefined) response.detail = entry.detail;
         if (entry.labelDetails !== undefined) response.labelDetails = entry.labelDetails;
-        if (entry.symbol !== undefined) response.symbol = q.symbolResponse(entry.symbol) ?? undefined;
+        if (entry.symbol !== undefined) response.symbol = q.symbolData(entry.symbol);
         return response;
       }),
     };
   }
 
-  private typeAtPosition(params: proto.PositionParams): proto.TypeResponse | null {
+  private typeAtPosition(params: proto.PositionParams): proto.TypeReply | null {
     const q = this.query(params);
     const node = q.project.nodeAtPosition(q.sourceFile(params.file), params.position ?? 0);
     return node === undefined ? null : q.typeResponse(q.project.typeAtLocation(node));
   }
 
-  private typesAtPositions(params: proto.PositionsParams): (proto.TypeResponse | null)[] {
+  private typesAtPositions(params: proto.PositionsParams): (proto.TypeReply | null)[] {
     const q = this.query(params);
     const file = q.sourceFile(params.file);
     return (params.positions ?? []).map((position) => {
@@ -782,23 +1040,58 @@ export class Session {
 
   // Properties of symbols, types and signatures
 
-  private symbolOfSymbol(method: string, params: proto.ObjectParams): proto.SymbolResponse | null {
-    const snapshot = this.snapshot(params.snapshot);
-    const symbol = resolveSymbol(snapshot, params.objectId);
-    const result = method === 'getParentOfSymbol' ? backend.symbolParent(symbol) : backend.symbolExportSymbol(symbol);
-    return result === undefined ? null : symbolResponse(snapshot, result, params.project ?? '');
+  /**
+   * The symbol a reference names, without a checker: a symbol of a source file the session keeps, or of a live
+   * snapshot, with the snapshot and the project it was first returned from.
+   */
+  private resolveSymbolReference(ref: proto.SymbolReference | null | undefined): {
+    symbol: Symbol;
+    snapshot: SnapshotData | undefined;
+    projectId: string;
+  } {
+    const reference = ref ?? {};
+    const kind = reference.kind ?? 0;
+    if (kind === SymbolOwnerKind.File) {
+      if (!isFileReference(reference)) throw new ClientError('invalid file symbol reference');
+      const file = this.resolveSourceFileDescriptor(reference.file);
+      const symbol = resolveFileSymbol(file, reference.id, 'symbol %d not found in source file');
+      return { symbol, snapshot: undefined, projectId: '' };
+    }
+    if (kind === SymbolOwnerKind.Snapshot) {
+      if (hasFile(reference) || (reference.snapshot ?? 0) === 0 || (reference.project ?? '') === '') {
+        throw new ClientError('invalid snapshot symbol reference');
+      }
+      const snapshot = this.snapshot(reference.snapshot);
+      return { symbol: resolveSnapshotSymbol(snapshot, reference.id), snapshot, projectId: reference.project! };
+    }
+    throw new ClientError(`invalid symbol reference kind ${kind}`);
   }
 
-  private symbolTableOfSymbol(method: string, params: proto.ObjectParams): proto.SymbolResponse[] {
-    const snapshot = this.snapshot(params.snapshot);
-    const symbol = resolveSymbol(snapshot, params.objectId);
+  private symbolOfSymbol(method: string, params: proto.SymbolPropertyParams | null): proto.SymbolReply | null {
+    const { symbol, snapshot, projectId } = this.resolveSymbolReference(params?.symbol);
+    const result = method === 'getParentOfSymbol' ? backend.symbolParent(symbol) : backend.symbolExportSymbol(symbol);
+    if (result === undefined) return null;
+    return snapshot === undefined
+      ? fileSymbolResponse(this.files, result)
+      : symbolResponse(snapshot, result, projectId);
+  }
+
+  /**
+   * A symbol's members or exports. A file's symbol's table has symbols of that file alone, sorted by their first
+   * declaration's position (those without one last), then name, then id. A snapshot's symbol's table is sorted in
+   * the checker's order of the project the symbol was first returned from.
+   */
+  private symbolTableOfSymbol(method: string, params: proto.SymbolPropertyParams | null): proto.SymbolReply[] {
+    const ref = params?.symbol;
+    const { symbol, snapshot, projectId } = this.resolveSymbolReference(ref);
     const symbols = method === 'getMembersOfSymbol' ? backend.symbolMembers(symbol) : backend.symbolExports(symbol);
-    if (symbols.length <= 1) return symbols.map((s) => symbolResponse(snapshot, s, params.project ?? ''));
-    const q = this.query(params);
+    if (snapshot === undefined) return sortFileSymbols(symbols).map((s) => fileSymbolResponse(this.files, s));
+    if (symbols.length <= 1) return symbols.map((s) => symbolResponse(snapshot, s, projectId));
+    const q = this.query({ snapshot: ref?.snapshot, project: ref?.project });
     return q.symbolResponses(q.project.sortSymbols(symbols));
   }
 
-  private symbolOfType(method: string, params: proto.ObjectParams): proto.SymbolResponse | null {
+  private symbolOfType(method: string, params: proto.ObjectParams): proto.SymbolReply | null {
     const snapshot = this.snapshot(params.snapshot);
     const projectId = params.project ?? '';
     const type = resolveType(snapshot, projectId, params.objectId);
@@ -806,7 +1099,7 @@ export class Session {
     return result === undefined ? null : symbolResponse(snapshot, result, projectId);
   }
 
-  private typeOfType(method: string, params: proto.ObjectParams): proto.TypeResponse | null {
+  private typeOfType(method: string, params: proto.ObjectParams): proto.TypeReply | null {
     const snapshot = this.snapshot(params.snapshot);
     const projectId = params.project ?? '';
     const type = resolveType(snapshot, projectId, params.objectId);
@@ -814,7 +1107,7 @@ export class Session {
     return result === undefined ? null : typeResponse(snapshot, projectId, result);
   }
 
-  private typesOfType(method: string, params: proto.ObjectParams): proto.TypeResponse[] {
+  private typesOfType(method: string, params: proto.ObjectParams): proto.TypeReply[] {
     const snapshot = this.snapshot(params.snapshot);
     const projectId = params.project ?? '';
     const type = resolveType(snapshot, projectId, params.objectId);
@@ -827,23 +1120,23 @@ export class Session {
     return { snapshot, projectId, signature: resolveSignature(snapshot, projectId, params.objectId) };
   }
 
-  private typeParametersOfSignature(params: proto.ObjectParams): proto.TypeResponse[] {
+  private typeParametersOfSignature(params: proto.ObjectParams): proto.TypeReply[] {
     const { snapshot, projectId, signature } = this.signatureOf(params);
     return backend.signatureTypeParameters(signature).map((t) => typeResponse(snapshot, projectId, t));
   }
 
-  private parametersOfSignature(params: proto.ObjectParams): proto.SymbolResponse[] {
+  private parametersOfSignature(params: proto.ObjectParams): proto.SymbolReply[] {
     const { snapshot, projectId, signature } = this.signatureOf(params);
     return backend.signatureParameters(signature).map((s) => symbolResponse(snapshot, s, projectId));
   }
 
-  private thisParameterOfSignature(params: proto.ObjectParams): proto.SymbolResponse | null {
+  private thisParameterOfSignature(params: proto.ObjectParams): proto.SymbolReply | null {
     const { snapshot, projectId, signature } = this.signatureOf(params);
     const symbol = backend.signatureThisParameter(signature);
     return symbol === undefined ? null : symbolResponse(snapshot, symbol, projectId);
   }
 
-  private targetOfSignature(params: proto.ObjectParams): proto.SignatureResponse | null {
+  private targetOfSignature(params: proto.ObjectParams): proto.SignatureReply | null {
     const { snapshot, projectId, signature } = this.signatureOf(params);
     const target = backend.signatureTarget(signature);
     return target === undefined ? null : signatureResponse(snapshot, projectId, target);
@@ -851,41 +1144,49 @@ export class Session {
 
   // Checker queries
 
-  private contextualType(params: proto.LocationParams): proto.TypeResponse | null {
+  private contextualType(params: proto.LocationParams): proto.TypeReply | null {
     const q = this.query(params);
     return q.typeResponse(q.project.contextualType(q.node(params.location)));
   }
 
-  private checkerTypeOfType(method: string, params: proto.TypeParams): proto.TypeResponse | null {
+  private checkerTypeOfType(method: string, params: proto.TypeParams): proto.TypeReply | null {
     const q = this.query(params);
     const type = q.type(params.type);
     const project = q.project;
     switch (method) {
       case 'getBaseTypeOfLiteralType':
         return q.typeResponse(project.baseTypeOfLiteralType(type));
-      case 'getNonNullableType':
-        return q.typeResponse(project.nonNullableType(type));
       case 'getWidenedType':
         return q.typeResponse(project.widenedType(type));
-      case 'getApparentType':
-        return q.typeResponse(project.apparentType(type));
-      case 'getConstraintOfTypeParameter':
-        return q.typeResponse(project.constraintOfTypeParameter(type));
     }
     return q.typeResponse(project.baseConstraintOfType(type));
   }
 
-  private baseTypesOfLiteralTypes(params: proto.TypesParams): (proto.TypeResponse | null)[] {
+  // The checker methods that name their type `objectId`.
+  private checkerTypeOfObject(method: string, params: proto.ObjectParams): proto.TypeReply | null {
+    const q = this.query(params);
+    const type = q.type(params.objectId);
+    const project = q.project;
+    switch (method) {
+      case 'getNonNullableType':
+        return q.typeResponse(project.nonNullableType(type));
+      case 'getApparentType':
+        return q.typeResponse(project.apparentType(type));
+    }
+    return q.typeResponse(project.constraintOfTypeParameter(type));
+  }
+
+  private baseTypesOfLiteralTypes(params: proto.TypesParams): (proto.TypeReply | null)[] {
     const q = this.query(params);
     return (params.types ?? []).map((id) => q.typeResponse(q.project.baseTypeOfLiteralType(q.type(id))));
   }
 
-  private typeFromTypeNode(params: proto.LocationParams): proto.TypeResponse | null {
+  private typeFromTypeNode(params: proto.LocationParams): proto.TypeReply | null {
     const q = this.query(params);
     return q.typeResponse(q.project.typeFromTypeNode(q.node(params.location)));
   }
 
-  private parameterType(params: proto.ParameterTypeParams): proto.TypeResponse | null {
+  private parameterType(params: proto.ParameterTypeParams): proto.TypeReply | null {
     const q = this.query(params);
     const signature = q.signature(params.signature);
     const index = params.index ?? 0;
@@ -896,17 +1197,7 @@ export class Session {
   private typePredicate(method: string, params: proto.TypeParams): boolean {
     const q = this.query(params);
     const type = q.type(params.type);
-    if (method === 'isArrayLikeType') return q.project.isArrayLikeType(type);
-    if (method === 'isArrayType') return q.project.isArrayType(type);
-    return backend.isTupleType(type);
-  }
-
-  private typePredicates(method: string, params: proto.TypesParams): boolean[] {
-    const q = this.query(params);
-    return (params.types ?? []).map((id) => {
-      const type = q.type(id);
-      return method === 'isArrayTypes' ? q.project.isArrayType(type) : backend.isTupleType(type);
-    });
+    return method === 'isArrayLikeType' ? q.project.isArrayLikeType(type) : q.project.isArrayType(type);
   }
 
   private isTypeAssignableTo(params: proto.AssignabilityParams): boolean {
@@ -914,12 +1205,12 @@ export class Session {
     return q.project.isTypeAssignableTo(q.type(params.source), q.type(params.target));
   }
 
-  private shorthandAssignmentValueSymbol(params: proto.LocationParams): proto.SymbolResponse | null {
+  private shorthandAssignmentValueSymbol(params: proto.LocationParams): proto.SymbolReply | null {
     const q = this.query(params);
     return q.symbolResponse(q.project.shorthandAssignmentValueSymbol(q.node(params.location)));
   }
 
-  private typeOfSymbolAtLocation(params: proto.SymbolAtLocationParams): proto.TypeResponse | null {
+  private typeOfSymbolAtLocation(params: proto.SymbolAtLocationParams): proto.TypeReply | null {
     const q = this.query(params);
     const symbol = q.symbol(params.symbol);
     return q.typeResponse(q.project.typeOfSymbolAtLocation(symbol, q.node(params.location)));
@@ -970,17 +1261,17 @@ export class Session {
     return q.project.isContextSensitive(q.node(params.location));
   }
 
-  private typeOfSignature(method: string, params: proto.SignatureParams): proto.TypeResponse | null {
+  private returnTypeOfSignature(params: proto.ObjectParams): proto.TypeReply | null {
     const q = this.query(params);
-    const signature = q.signature(params.signature);
-    return q.typeResponse(
-      method === 'getReturnTypeOfSignature'
-        ? q.project.returnTypeOfSignature(signature)
-        : q.project.restTypeOfSignature(signature),
-    );
+    return q.typeResponse(q.project.returnTypeOfSignature(q.signature(params.objectId)));
   }
 
-  private returnTypesOfSignatures(params: proto.SignaturesParams): (proto.TypeResponse | null)[] {
+  private restTypeOfSignature(params: proto.SignatureParams): proto.TypeReply | null {
+    const q = this.query(params);
+    return q.typeResponse(q.project.restTypeOfSignature(q.signature(params.signature)));
+  }
+
+  private returnTypesOfSignatures(params: proto.SignaturesParams): (proto.TypeReply | null)[] {
     const q = this.query(params);
     return (params.signatures ?? []).map((id) => q.typeResponse(q.project.returnTypeOfSignature(q.signature(id))));
   }
@@ -993,27 +1284,27 @@ export class Session {
       kind: predicate.kind,
       parameterIndex: predicate.parameterIndex,
       parameterName: predicate.parameterName === '' ? undefined : predicate.parameterName,
-      type: predicate.type === undefined ? undefined : typeResponse(q.snapshot, q.projectId, predicate.type),
+      type: predicate.type === undefined ? undefined : typeData(q.snapshot, q.projectId, predicate.type),
     };
   }
 
-  private checkerTypesOfType(method: string, params: proto.TypeParams): proto.TypeResponse[] {
+  private checkerTypesOfType(method: string, params: proto.TypeParams): proto.TypeReply[] {
     const q = this.query(params);
     const type = q.type(params.type);
     return q.typeResponses(method === 'getBaseTypes' ? q.project.baseTypes(type) : q.project.typeArguments(type));
   }
 
-  private propertiesOfType(params: proto.TypeParams): proto.SymbolResponse[] {
+  private propertiesOfType(params: proto.TypeParams): proto.SymbolReply[] {
     const q = this.query(params);
     return q.symbolResponses(q.project.propertiesOfType(q.type(params.type)));
   }
 
   private propertiesOfTypes(params: proto.TypesParams): proto.SymbolResponse[][] {
     const q = this.query(params);
-    return (params.types ?? []).map((id) => q.symbolResponses(q.project.propertiesOfType(q.type(id))));
+    return (params.types ?? []).map((id) => q.project.propertiesOfType(q.type(id)).map((s) => q.symbolData(s)));
   }
 
-  private propertyOfType(params: proto.NamedTypeParams): proto.SymbolResponse | null {
+  private propertyOfType(params: proto.NamedTypeParams): proto.SymbolReply | null {
     const q = this.query(params);
     return q.symbolResponse(q.project.propertyOfType(q.type(params.type), params.name ?? ''));
   }
@@ -1021,14 +1312,14 @@ export class Session {
   private indexInfosOfType(params: proto.TypeParams): proto.IndexInfoResponse[] {
     const q = this.query(params);
     return q.project.indexInfosOfType(q.type(params.type)).map((info) => ({
-      keyType: typeResponse(q.snapshot, q.projectId, info.keyType),
-      valueType: typeResponse(q.snapshot, q.projectId, info.valueType),
+      keyType: typeData(q.snapshot, q.projectId, info.keyType),
+      valueType: typeData(q.snapshot, q.projectId, info.valueType),
       isReadonly: info.isReadonly,
       declaration: info.declaration === undefined ? undefined : nodeHandle(info.declaration),
     }));
   }
 
-  private branchOfConditionalType(method: string, params: proto.ObjectParams): proto.TypeResponse | null {
+  private branchOfConditionalType(method: string, params: proto.ObjectParams): proto.TypeReply | null {
     const q = this.query(params);
     const type = q.type(params.objectId);
     return q.typeResponse(
@@ -1038,34 +1329,34 @@ export class Session {
     );
   }
 
-  private constantValue(params: proto.LocationParams): proto.LiteralValueResponse {
+  private constantValue(params: proto.LocationParams): proto.ConstantValueResponse {
     const q = this.query(params);
-    return literalValueResponse(q.project.constantValue(q.node(params.location)));
+    return constantValueResponse(q.project.constantValue(q.node(params.location)));
   }
 
-  private constantValues(params: proto.LocationsParams): proto.LiteralValueResponse[] {
+  private constantValues(params: proto.LocationsParams): proto.ConstantValueResponse[] {
     const q = this.query(params);
-    return (params.locations ?? []).map((handle) => literalValueResponse(q.project.constantValue(q.node(handle))));
+    return (params.locations ?? []).map((handle) => constantValueResponse(q.project.constantValue(q.node(handle))));
   }
 
-  private signatureFromDeclaration(params: proto.LocationParams): proto.SignatureResponse | null {
+  private signatureFromDeclaration(params: proto.LocationParams): proto.SignatureReply | null {
     const q = this.query(params);
     return q.signatureResponse(q.project.signatureFromDeclaration(q.node(params.location)));
   }
 
-  private signaturesFromDeclarations(params: proto.LocationsParams): (proto.SignatureResponse | null)[] {
+  private signaturesFromDeclarations(params: proto.LocationsParams): (proto.SignatureReply | null)[] {
     const q = this.query(params);
     return (params.locations ?? []).map((handle) =>
       q.signatureResponse(q.project.signatureFromDeclaration(q.node(handle))),
     );
   }
 
-  private exportSpecifierLocalTargetSymbol(params: proto.LocationParams): proto.SymbolResponse | null {
+  private exportSpecifierLocalTargetSymbol(params: proto.LocationParams): proto.SymbolReply | null {
     const q = this.query(params);
     return q.symbolResponse(q.project.exportSpecifierLocalTargetSymbol(q.node(params.location)));
   }
 
-  private aliasedSymbol(method: string, params: proto.SymbolParams): proto.SymbolResponse | null {
+  private aliasedSymbol(method: string, params: proto.SymbolParams): proto.SymbolReply | null {
     const q = this.query(params);
     const symbol = q.symbol(params.symbol);
     return q.symbolResponse(
@@ -1073,17 +1364,17 @@ export class Session {
     );
   }
 
-  private aliasedSymbols(params: proto.SymbolsParams): (proto.SymbolResponse | null)[] {
+  private aliasedSymbols(params: proto.SymbolsParams): (proto.SymbolReply | null)[] {
     const q = this.query(params);
     return (params.symbols ?? []).map((id) => q.symbolResponse(q.project.aliasedSymbol(q.symbol(id))));
   }
 
-  private exportsOfModule(params: proto.SymbolParams): proto.SymbolResponse[] {
+  private exportsOfModule(params: proto.SymbolParams): proto.SymbolReply[] {
     const q = this.query(params);
     return q.symbolResponses(q.project.exportsOfModule(q.symbol(params.symbol)));
   }
 
-  private memberInModuleExports(params: proto.NamedSymbolParams): proto.SymbolResponse | null {
+  private memberInModuleExports(params: proto.NamedSymbolParams): proto.SymbolReply | null {
     const q = this.query(params);
     return q.symbolResponse(q.project.memberInModuleExports(q.symbol(params.symbol), params.name ?? ''));
   }
@@ -1110,7 +1401,7 @@ export class Session {
     const node = q.node(params.node);
     return q.project.referencedSymbolsForNode(node, params.position ?? 0).map((entry) => {
       const response: proto.ReferencedSymbolEntry = { definition: nodeHandle(entry.definition) };
-      if (entry.symbol !== undefined) response.symbol = q.symbolResponse(entry.symbol)!;
+      if (entry.symbol !== undefined) response.symbol = q.symbolData(entry.symbol);
       response.references = entry.references.map(nodeHandle);
       return response;
     });
@@ -1127,7 +1418,7 @@ export class Session {
       );
   }
 
-  private intrinsicType(name: backend.IntrinsicTypeName, params: proto.ProjectParams): proto.TypeResponse | null {
+  private intrinsicType(name: backend.IntrinsicTypeName, params: proto.ProjectParams): proto.TypeReply | null {
     const q = this.query(params);
     return q.typeResponse(q.project.intrinsicType(name));
   }
@@ -1143,9 +1434,14 @@ export class Session {
 
   // Diagnostics
 
-  private fileDiagnostics(kind: backend.DiagnosticKind, params: proto.OptionalFileParams): proto.DiagnosticResponse[] {
+  // The diagnostics of each of `files`, one list after another, or of the whole program without `files`.
+  private fileDiagnostics(kind: backend.DiagnosticKind, params: proto.FilesParams): proto.DiagnosticResponse[] {
     const q = this.query(params);
-    return q.project.diagnostics(kind, q.optionalSourceFile(params.file)).map(diagnosticResponse);
+    if (params.files === undefined || params.files === null) {
+      return q.project.diagnostics(kind, undefined).map(diagnosticResponse);
+    }
+    const files = params.files.map((file) => q.sourceFile(file));
+    return files.flatMap((file) => q.project.diagnostics(kind, file)).map(diagnosticResponse);
   }
 
   private diagnosticsOfCheckedFiles(params: proto.FilesParams): proto.CheckedFileDiagnosticsResponse {
@@ -1212,6 +1508,7 @@ export class Session {
 
 // Registries
 
+// Registers a symbol its snapshot owns (symbolOwnerFile has none) under the project it was first returned from.
 function registerSymbol(snapshot: SnapshotData, symbol: Symbol, projectId: string): number {
   const id = backend.symbolId(symbol);
   if (!snapshot.symbols.has(id)) snapshot.symbols.set(id, symbol);
@@ -1219,11 +1516,70 @@ function registerSymbol(snapshot: SnapshotData, symbol: Symbol, projectId: strin
   return id;
 }
 
-function resolveSymbol(snapshot: SnapshotData, id: number | undefined): Symbol {
+function resolveSnapshotSymbol(snapshot: SnapshotData, id: number | undefined): Symbol {
   if (id === undefined || id === 0) throw new ClientError('empty symbol handle');
   const symbol = snapshot.symbols.get(id);
   if (symbol === undefined) throw new ClientError(`symbol handle ${id} not found in snapshot registry`);
   return symbol;
+}
+
+// A file's symbol by id, from the file's index.
+function resolveFileSymbol(file: SourceFile, id: number | undefined, notFound: string): Symbol {
+  const symbol = backend.fileSymbolIndex(file).get(id ?? 0);
+  if (symbol === undefined) throw new ClientError(notFound.replace('%d', String(id ?? 0)));
+  return symbol;
+}
+
+// SymbolReference kinds: a source file's symbol, or a snapshot's.
+const enum SymbolOwnerKind {
+  File = 0,
+  Snapshot = 1,
+}
+
+function hasFile(ref: proto.SymbolReference): boolean {
+  return ref.file !== undefined && ref.file !== null;
+}
+
+// A file reference names a file, and no snapshot or project.
+function isFileReference(ref: proto.SymbolReference): boolean {
+  return hasFile(ref) && (ref.snapshot ?? 0) === 0 && (ref.project ?? '') === '';
+}
+
+// A file's symbols in the order of their first declarations, those without one last, then by name and id.
+function sortFileSymbols(symbols: Symbol[]): Symbol[] {
+  return symbols.slice().sort((a, b) => {
+    const left = backend.symbolDeclarations(a);
+    const right = backend.symbolDeclarations(b);
+    if (left.length > 0 !== right.length > 0) return left.length > 0 ? -1 : 1;
+    if (left.length > 0) {
+      const order = backend.nodePos(left[0]) - backend.nodePos(right[0]);
+      if (order !== 0) return order;
+    }
+    const names = compareStrings(backend.symbolName(a), backend.symbolName(b));
+    return names !== 0 ? names : backend.symbolId(a) - backend.symbolId(b);
+  });
+}
+
+function sourceFileDescriptor(files: backend.SessionFiles, file: SourceFile): proto.SourceFileDescriptor {
+  return {
+    fileName: backend.fileName(file),
+    path: backend.filePath(file),
+    contentHash: backend.sourceFileHash(file),
+    parseOptionsKey: String(backend.sourceFileParseOptionsKey(file)),
+    scriptKind: backend.sourceFileScriptKind(file),
+    nodeId: String(files.nodeId(file)),
+  };
+}
+
+function sameDescriptor(a: proto.SourceFileDescriptor, b: proto.SourceFileDescriptor): boolean {
+  return (
+    a.fileName === b.fileName &&
+    a.path === b.path &&
+    a.contentHash === b.contentHash &&
+    a.parseOptionsKey === b.parseOptionsKey &&
+    a.scriptKind === b.scriptKind &&
+    a.nodeId === b.nodeId
+  );
 }
 
 function resolveType(snapshot: SnapshotData, projectId: string, id: number | undefined): Type {
@@ -1282,26 +1638,100 @@ function optionalNode(q: Query, handle: proto.NodeHandle | undefined): Node | un
 
 // Responses
 
-function symbolResponse(snapshot: SnapshotData, symbol: Symbol, projectId: string): proto.SymbolResponse {
+// The ids the request being handled marked as sent, when the client asked for object references.
+let sending: SentIds | null = null;
+
+// The ids a reply marks as sent: kept when the reply is sent, unmarked when the request fails.
+class SentIds {
+  private readonly sets: Set<number>[] = [];
+  private readonly ids: number[] = [];
+
+  // Whether an earlier reply carried the object; marks it as carried otherwise.
+  held(sent: Set<number>, id: number): boolean {
+    if (sent.has(id)) return true;
+    sent.add(id);
+    this.sets.push(sent);
+    this.ids.push(id);
+    return false;
+  }
+
+  unmark(): void {
+    for (let i = 0; i < this.ids.length; i++) this.sets[i]!.delete(this.ids[i]!);
+  }
+}
+
+function symbolResponse(snapshot: SnapshotData, symbol: Symbol, projectId: string): proto.SymbolReply {
+  if (sending !== null) {
+    const id = backend.symbolId(symbol);
+    if (sending.held(snapshot.sentSymbols, id)) return id;
+  }
+  return symbolData(snapshot, symbol, projectId);
+}
+
+function typeResponse(snapshot: SnapshotData, projectId: string, type: Type): proto.TypeReply {
+  if (sending !== null) {
+    const id = backend.typeId(type);
+    if (sending.held(snapshot.registry(projectId).sentTypes, id)) return id;
+  }
+  return typeData(snapshot, projectId, type);
+}
+
+function signatureResponse(snapshot: SnapshotData, projectId: string, signature: Signature): proto.SignatureReply {
+  if (sending !== null) {
+    const id = backend.signatureId(signature);
+    if (sending.held(snapshot.registry(projectId).sentSignatures, id)) return id;
+  }
+  return signatureData(snapshot, projectId, signature);
+}
+
+// A symbol's reference names its source file and its id there, or, for a symbol its snapshot owns, the snapshot and
+// the project it was first returned from.
+function symbolData(snapshot: SnapshotData, symbol: Symbol, projectId: string): proto.SymbolResponse {
+  if (backend.symbolOwnerFile(symbol) !== undefined) return fileSymbolResponse(snapshot.files, symbol);
   const id = registerSymbol(snapshot, symbol, projectId);
+  const project = snapshot.symbolProjects.get(id) ?? projectId;
+  const reference = { kind: SymbolOwnerKind.Snapshot, snapshot: snapshot.id, project, id };
+  return buildSymbolResponse(snapshot.files, symbol, reference);
+}
+
+// The response for a symbol a source file owns, which registers nothing.
+function fileSymbolResponse(files: backend.SessionFiles, symbol: Symbol): proto.SymbolResponse {
+  const file = sourceFileDescriptor(files, backend.symbolOwnerFile(symbol)!);
+  return buildSymbolResponse(files, symbol, { kind: SymbolOwnerKind.File, file, id: backend.symbolId(symbol) });
+}
+
+function buildSymbolResponse(
+  files: backend.SessionFiles,
+  symbol: Symbol,
+  reference: proto.SymbolReference,
+): proto.SymbolResponse {
   const declarations = backend.symbolDeclarations(symbol);
   const valueDeclaration = backend.symbolValueDeclaration(symbol);
-  const parent = backend.symbolParent(symbol);
-  const exportSymbol = backend.symbolExportSymbol(symbol);
   return {
-    id,
-    project: snapshot.symbolProjects.get(id) ?? projectId,
+    reference,
     name: backend.symbolName(symbol),
     flags: backend.symbolFlags(symbol),
     checkFlags: backend.symbolCheckFlags(symbol),
     declarations: declarations.length > 0 ? declarations.map(nodeHandle) : undefined,
     valueDeclaration: valueDeclaration === undefined ? undefined : nodeHandle(valueDeclaration),
-    parent: parent === undefined ? undefined : backend.symbolId(parent),
-    exportSymbol: exportSymbol === undefined ? undefined : backend.symbolId(exportSymbol),
+    parent: compactReference(files, backend.symbolParent(symbol)),
+    exportSymbol: compactReference(files, backend.symbolExportSymbol(symbol)),
   };
 }
 
-function typeResponse(snapshot: SnapshotData, projectId: string, type: Type): proto.TypeResponse {
+// A link to a symbol, which registers nothing: its id, and its file's node id for a file's symbol.
+function compactReference(
+  files: backend.SessionFiles,
+  symbol: Symbol | undefined,
+): proto.CompactSymbolReference | undefined {
+  if (symbol === undefined) return undefined;
+  const owner = backend.symbolOwnerFile(symbol);
+  const reference: proto.CompactSymbolReference = { id: backend.symbolId(symbol) };
+  if (owner !== undefined) reference.file = String(files.nodeId(owner));
+  return reference;
+}
+
+function typeData(snapshot: SnapshotData, projectId: string, type: Type): proto.TypeResponse {
   const id = backend.typeId(type);
   const registry = snapshot.registry(projectId);
   if (!registry.types.has(id)) registry.types.set(id, type);
@@ -1313,6 +1743,7 @@ function typeResponse(snapshot: SnapshotData, projectId: string, type: Type): pr
     id,
     flags,
     objectFlags: 0,
+    isTupleType: false,
     value: null,
     target: undefined,
     typeParameters: undefined,
@@ -1321,20 +1752,26 @@ function typeResponse(snapshot: SnapshotData, projectId: string, type: Type): pr
     elementFlags: undefined,
     fixedLength: undefined,
     readonly: undefined,
+    labeledElementDeclarations: undefined,
     objectType: undefined,
     indexType: undefined,
     checkType: undefined,
     extendsType: undefined,
     baseType: undefined,
     substConstraint: undefined,
+    typeParameter: undefined,
+    constraintType: undefined,
+    nameType: undefined,
+    templateType: undefined,
     texts: undefined,
     freshType: undefined,
     regularType: undefined,
     isThisType: false,
+    thisType: undefined,
     intrinsicName: undefined,
     aliasTypeArguments: typeIds(backend.aliasTypeArguments(type)),
-    aliasSymbol: aliasSymbol === undefined ? undefined : backend.symbolId(aliasSymbol),
-    symbol: symbol === undefined ? undefined : backend.symbolId(symbol),
+    aliasSymbol: compactReference(snapshot.files, aliasSymbol),
+    symbol: compactReference(snapshot.files, symbol),
   };
   if (flags & TypeFlags.Freshable) {
     if (flags & TypeFlags.Literal) r.value = literalValueResponse(backend.literalTypeValue(type));
@@ -1343,6 +1780,7 @@ function typeResponse(snapshot: SnapshotData, projectId: string, type: Type): pr
   } else if (flags & TypeFlags.Object) {
     const objectFlags = backend.objectFlags(type);
     r.objectFlags = objectFlags;
+    r.isTupleType = backend.isTupleType(type);
     if (objectFlags & ObjectFlags.Reference) {
       if (objectFlags & ObjectFlags.Tuple) {
         const tuple = backend.tupleInfo(type);
@@ -1356,6 +1794,7 @@ function typeResponse(snapshot: SnapshotData, projectId: string, type: Type): pr
       r.typeParameters = typeIds(backend.typeParameters(type));
       r.outerTypeParameters = typeIds(backend.outerTypeParameters(type));
       r.localTypeParameters = typeIds(backend.localTypeParameters(type));
+      r.thisType = optionalTypeId(backend.interfaceThisType(type));
     }
   } else if (flags & TypeFlags.UnionOrIntersection) {
     // Member types are fetched with getTypesOfType.
@@ -1381,10 +1820,32 @@ function typeResponse(snapshot: SnapshotData, projectId: string, type: Type): pr
     const name = backend.intrinsicName(type);
     r.intrinsicName = name === '' ? undefined : name;
   }
+  // Data registered with the type: a mapped type's components, and a tuple type's labeled elements.
+  if (backend.isMappedType(type)) {
+    const components = snapshot.project(projectId).project.mappedTypeComponents(type);
+    r.typeParameter = registeredTypeId(snapshot, projectId, components.typeParameter);
+    r.constraintType = registeredTypeId(snapshot, projectId, components.constraintType);
+    r.nameType = registeredTypeId(snapshot, projectId, components.nameType);
+    r.templateType = registeredTypeId(snapshot, projectId, components.templateType);
+  }
+  if (backend.isTupleTypeTarget(type)) {
+    const declarations = backend.tupleLabeledDeclarations(type);
+    if (declarations.some((d) => d !== undefined)) {
+      r.labeledElementDeclarations = declarations.map((d) => (d === undefined ? '' : nodeHandle(d)));
+    }
+  }
   return r;
 }
 
-function signatureResponse(snapshot: SnapshotData, projectId: string, signature: Signature): proto.SignatureResponse {
+function registeredTypeId(snapshot: SnapshotData, projectId: string, type: Type | undefined): number | undefined {
+  if (type === undefined) return undefined;
+  const registry = snapshot.registry(projectId);
+  const id = backend.typeId(type);
+  if (!registry.types.has(id)) registry.types.set(id, type);
+  return id;
+}
+
+function signatureData(snapshot: SnapshotData, projectId: string, signature: Signature): proto.SignatureResponse {
   const id = backend.signatureId(signature);
   const registry = snapshot.registry(projectId);
   if (!registry.signatures.has(id)) registry.signatures.set(id, signature);
@@ -1397,10 +1858,14 @@ function signatureResponse(snapshot: SnapshotData, projectId: string, signature:
     flags: backend.signatureFlags(signature),
     declaration: declaration === undefined ? undefined : nodeHandle(declaration),
     typeParameters: typeIds(backend.signatureTypeParameters(signature)),
-    parameters: parameters.length > 0 ? parameters.map(backend.symbolId) : undefined,
-    thisParameter: thisParameter === undefined ? undefined : backend.symbolId(thisParameter),
+    parameters: parameters.length > 0 ? parameters.map((p) => compactReference(snapshot.files, p)!) : undefined,
+    thisParameter: compactReference(snapshot.files, thisParameter),
     target: target === undefined ? undefined : backend.signatureId(target),
   };
+}
+
+function constantValueResponse(value: backend.LiteralValue): proto.ConstantValueResponse {
+  return { isNumber: typeof value === 'number', value: literalValueResponse(value) };
 }
 
 function typeIds(types: Type[]): number[] | undefined {
@@ -1448,12 +1913,79 @@ function typeListProperty(method: string, type: Type): Type[] {
   return backend.aliasTypeArguments(type);
 }
 
+function newLoadedProject(id: string, configFileName: string, inferred: boolean, project: Project): LoadedProject {
+  return {
+    id,
+    configFileName,
+    inferred,
+    project,
+    dirty: false,
+    pendingPaths: [],
+    reloadConfig: false,
+    roots: undefined,
+  };
+}
+
+// A project left dirty by changes its program does not have yet.
+function changedProject(
+  loaded: LoadedProject,
+  pendingPaths: readonly string[],
+  reloadConfig: boolean,
+  roots: readonly string[] | undefined,
+): LoadedProject {
+  return {
+    id: loaded.id,
+    configFileName: loaded.configFileName,
+    inferred: loaded.inferred,
+    project: loaded.project,
+    dirty: true,
+    pendingPaths,
+    reloadConfig,
+    roots,
+  };
+}
+
+// Drops the configured projects that no open project or open file uses.
+function unloadUnusedProjects(state: SnapshotState): void {
+  const used = new Set(state.openProjects);
+  for (const file of state.openFiles.values()) if (file.configPath !== undefined) used.add(file.configPath);
+  for (const id of Array.from(state.loaded.keys())) if (!used.has(id)) state.loaded.delete(id);
+}
+
+// The project a file belongs to: the first configured project that has it, else the inferred project if it has it.
+function defaultProject(snapshot: SnapshotData, path: string): LoadedProject | undefined {
+  for (const p of snapshot.projects) if (containsFile(p, path)) return p;
+  return undefined;
+}
+
+function sameStrings(a: readonly string[], b: readonly string[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
+
 function projectResponse(p: LoadedProject): proto.ProjectResponse {
   return {
     id: p.id,
-    configFileName: p.configFileName,
-    rootFiles: p.project.rootFiles(),
-    compilerOptions: p.project.compilerOptions(),
+    configFileName: p.inferred ? undefined : p.configFileName,
+    currentDirectory: p.project.currentDirectory(),
+    dirty: p.dirty,
+    parsedCommandLine: configFileResponse(p.project.configFileData(), p.roots),
+  };
+}
+
+function configFileResponse(
+  data: backend.ConfigFileData,
+  fileNames: readonly string[] | undefined,
+): proto.ConfigFileResponse {
+  return {
+    fileNames: [...(fileNames ?? data.fileNames)],
+    options: data.options,
+    projectReferences: data.projectReferences.length > 0 ? data.projectReferences : undefined,
+    typeAcquisition: data.typeAcquisition,
+    compileOnSave: data.compileOnSave,
+    raw: data.raw,
+    errors: data.errors.map(diagnosticResponse),
   };
 }
 
@@ -1462,6 +1994,9 @@ function diagnosticResponse(d: backend.Diagnostic): proto.DiagnosticResponse {
     fileName: d.fileName === '' ? undefined : d.fileName,
     pos: d.pos,
     end: d.end,
+    startPosition: d.startPosition,
+    endPosition: d.endPosition,
+    sourceLines: d.sourceLines.length > 0 ? d.sourceLines.map((l) => ({ line: l.line, text: l.text })) : undefined,
     code: d.code,
     category: d.category,
     text: d.text,

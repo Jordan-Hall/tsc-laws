@@ -5,7 +5,7 @@
 //                      programmatic API (tsc-ts/api): its JS build with
 //                      .d.ts files in dist/api, and its sources
 //   @tsc-ts/<platform> the native executable for this host, with
-//                      TypeScript 7.0.2's lib files next to it in lib/
+//                      TypeScript's lib files next to it in lib/
 //
 // Usage: node scripts/pack.mjs [main] [platform] [--binary <path>] [--check]
 //
@@ -25,11 +25,11 @@ import {
   readdirSync,
   readFileSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from 'node:fs';
-import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { executableName, hostDescription, hostPlatform, packageName, platforms } from '../bin/platforms.js';
 
@@ -131,21 +131,11 @@ function isNewerThan([major, minor], [baseMajor, baseMinor]) {
   return major > baseMajor || (major === baseMajor && minor > baseMinor);
 }
 
-// TypeScript 7.0.2's lib files, from the tsc bundled with the installed scriptc.
+// TypeScript's lib files, from the pinned upstream (npm run fetch:upstream).
 function typescriptLib() {
-  const require = createRequire(join(root, 'package.json'));
-  const scriptc = JSON.parse(readFileSync(require.resolve('scriptc/package.json'), 'utf8'));
-  for (const name of Object.keys(scriptc.optionalDependencies ?? {})) {
-    let path;
-    try {
-      path = require.resolve(`${name}/package.json`);
-    } catch {
-      continue;
-    }
-    const lib = join(dirname(path), 'dist/lib/typescript/lib');
-    if (existsSync(join(lib, 'lib.d.ts'))) return lib;
-  }
-  throw new Error('no scriptc platform package with TypeScript lib files is installed');
+  const lib = join(repo, 'upstream/TypeScript/tsc/internal/bundled/libs');
+  if (!existsSync(join(lib, 'lib.d.ts'))) throw new Error(`no lib files in ${lib}: run npm run fetch:upstream`);
+  return lib;
 }
 
 function pack(dir) {
@@ -174,6 +164,14 @@ function check({ main, platform }) {
 
     const version = run('npx', ['tsc-ts', '--version'], { cwd: dir, stdio: 'pipe' }).stdout.trim();
     console.log(`npx tsc-ts --version: ${version}`);
+    if (process.platform === 'linux') {
+      // The launcher's first run writes the executable again with one write (bin/tsc-ts.js).
+      const installed = join(dir, 'node_modules', packageName(hostPlatform()), 'lib');
+      const size = String(statSync(join(installed, executableName())).size);
+      const marker = readFileSync(join(installed, '.tsc-ts-written'), 'utf8');
+      if (marker !== size) throw new Error(`.tsc-ts-written holds ${marker}, the executable is ${size} bytes`);
+      console.log('executable written once: ok');
+    }
     run('npx', ['tsc-ts', '-p', '.'], { cwd: dir });
     const emitted = readFileSync(join(dir, 'out/index.js'), 'utf8');
     if (!emitted.includes('greeting')) throw new Error(`unexpected output:\n${emitted}`);
@@ -186,6 +184,13 @@ function check({ main, platform }) {
     console.log('npx tsc-ts -p .: ok');
 
     rmSync(join(dir, 'src/error.ts'));
+    // The command line runs without the API's optional peer dependency; the API needs it installed.
+    if (existsSync(join(dir, 'node_modules', '@scriptc', 'threads'))) {
+      throw new Error('installing tsc-ts also installed @scriptc/threads, which only tsc-ts/api needs');
+    }
+    console.log('installed without @scriptc/threads: ok');
+    const threads = `@scriptc/threads@${manifest.peerDependencies['@scriptc/threads']}`;
+    run('npm', ['install', '--no-audit', '--no-fund', threads], { cwd: dir });
     writeFileSync(join(dir, 'checked/error.ts'), 'export const count: number = "one";\n');
     // The platform package's lib files serve as the default libraries of a program.
     const lib = join(dir, 'node_modules', packageName(hostPlatform()), 'lib');

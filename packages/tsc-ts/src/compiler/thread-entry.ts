@@ -6,7 +6,7 @@ import { parentPort } from 'node:worker_threads';
 import { publish, sharesPublishedGraphs } from '@scriptc/threads';
 import { reserveNodeIds, shareNodeIds } from './ast.js';
 import type { OutputWriter } from './compile-program.js';
-import { useThreadTextCaches } from './diagnostics.js';
+import { type DiagnosticFormatOptions, formattedReports, useThreadTextCaches } from './diagnostics.js';
 import { compareReferencesOfThread, type ReferenceJob, referenceThreads } from './incremental.js';
 import {
   CheckerResult,
@@ -16,6 +16,7 @@ import {
   parallelCheck,
   recycleFiles,
 } from './parallel-check.js';
+import { emitFromQueue, parallelEmit, postedEmitResult } from './parallel-emit.js';
 import { type LoadMessage, parallelParse } from './parallel-parse.js';
 import type { ParseThread } from './parse-thread.js';
 import { useLazyJSDocTable } from './parser.js';
@@ -23,6 +24,7 @@ import { CheckedProgram } from './program-checker.js';
 import type { Program } from './program.js';
 import { assignSymbolIdsAtCreation, reserveSymbolIds, shareSymbolIds } from './symbol.js';
 import { mark, setTimelineThread } from './timeline.js';
+import { setThreadSharingData, type ThreadSharingData } from './shared-results.js';
 
 /** What threads need from the command line that starts them. */
 export interface ThreadDrivers {
@@ -38,7 +40,7 @@ export interface ThreadDrivers {
 export type ThreadSpawn = (data: ThreadData) => Worker;
 
 /** The `workerData` of a thread of tsc-ts. */
-export type ThreadData = CheckerThreadData | ParseThreadData | ReferenceThreadData;
+export type ThreadData = CheckerThreadData | EmitThreadData | ParseThreadData | ReferenceThreadData;
 
 export interface CheckerThreadData {
   readonly kind: 'check';
@@ -55,6 +57,24 @@ export interface CheckerThreadData {
   readonly emitKinds: number[] | undefined;
   readonly checking: boolean;
   readonly units: number[];
+  /** See `CheckedProgram.globalsInFileDiagnostics`. */
+  readonly globalsInFileDiagnostics: boolean;
+  /** The main thread's report format (`formattedReports`), which the thread formats its diagnostics in. */
+  readonly reportFormat: DiagnosticFormatOptions | undefined;
+  /** TSC_TS_SHARE: what the thread shares results with the other checker threads through. */
+  readonly sharing: ThreadSharingData | undefined;
+}
+
+export interface EmitThreadData {
+  readonly kind: 'emit';
+  /** The shared, published program. */
+  readonly program: Program;
+  readonly index: number;
+  readonly counter: SharedArrayBuffer;
+  readonly files: number[];
+  readonly kinds: number[];
+  readonly nodeIds: number;
+  readonly symbolIds: number;
 }
 
 export interface ParseThreadData {
@@ -88,6 +108,8 @@ export function startThreads(spawn: ThreadSpawn, drivers: ThreadDrivers, args: r
     emitKinds,
     checking,
     units,
+    globalsInFileDiagnostics,
+    sharing,
   ) =>
     spawn({
       kind: 'check',
@@ -103,8 +125,13 @@ export function startThreads(spawn: ThreadSpawn, drivers: ThreadDrivers, args: r
       emitKinds,
       checking,
       units,
+      globalsInFileDiagnostics,
+      reportFormat: formattedReports.format,
+      sharing,
     });
   if (sharesPublishedGraphs) {
+    parallelEmit.spawn = (program, index, counter, files, kinds, nodeIds, symbolIds) =>
+      spawn({ kind: 'emit', program, index, counter, files, kinds, nodeIds, symbolIds });
     parallelParse.spawn = (configFileName, counter, index) =>
       spawn({ kind: 'parse', configFileName, args, counter, index });
     // The main thread compares the files a reference thread that failed did not.
@@ -123,6 +150,7 @@ export function runThread(data: unknown, drivers: ThreadDrivers): void {
   const kind = (data as { kind: string }).kind;
   if (kind === 'parse') runParseThread(data as ParseThreadData, drivers);
   else if (kind === 'references') runReferenceThread(data as ReferenceThreadData);
+  else if (kind === 'emit') runEmitThread(data as EmitThreadData, drivers);
   else runCheckerThread(data as CheckerThreadData, drivers);
 }
 
@@ -141,12 +169,36 @@ function runReferenceThread(data: ReferenceThreadData): void {
   mark('references compared');
 }
 
+/** An emit thread (parallel-emit.ts): emits JavaScript, without a checker. */
+function runEmitThread(job: EmitThreadData, drivers: ThreadDrivers): void {
+  setTimelineThread('e' + String(job.index));
+  mark('thread start');
+  // As on a checker thread, the shared program is never written.
+  reserveNodeIds(job.nodeIds);
+  reserveSymbolIds(job.symbolIds);
+  assignSymbolIdsAtCreation();
+  useLazyJSDocTable();
+  useThreadTextCaches();
+  const program = publish(job.program);
+  const result = emitFromQueue(
+    program,
+    job.index,
+    new Int32Array(job.counter),
+    job.files,
+    job.kinds,
+    drivers.outputWriter(),
+  );
+  parentPort!.postMessage(postedEmitResult(result, program));
+  mark('result posted');
+}
+
 /** A checker thread (parallel-check.ts). */
 function runCheckerThread(job: CheckerThreadData, drivers: ThreadDrivers): void {
   const startedAt = Date.now();
   setTimelineThread('c' + String(job.index));
   mark('thread start');
   parallelCheck.writer = drivers.outputWriter();
+  formattedReports.format = job.reportFormat;
   let program: Program | undefined = undefined;
   if (job.program !== undefined) {
     // The shared program is never written: new ids continue above its own, and lazily parsed JSDoc
@@ -160,11 +212,18 @@ function runCheckerThread(job: CheckerThreadData, drivers: ThreadDrivers): void 
     mark('program received');
   } else program = drivers.programOfCommandLine(job.args);
   // Without a program this thread checks nothing; the main thread checks the files it would have.
+  let checked: CheckedProgram | undefined = undefined;
+  if (program !== undefined) {
+    // The checker the program creates shares results with the other checker threads.
+    setThreadSharingData(job.sharing);
+    checked = new CheckedProgram(program);
+    checked.globalsInFileDiagnostics = job.globalsInFileDiagnostics;
+  }
   const result =
-    program === undefined
+    checked === undefined
       ? new CheckerResult(job.index, [], [], [], [], 0, [])
       : checkFromQueue(
-          new CheckedProgram(program),
+          checked,
           job.index,
           new Int32Array(job.counter),
           job.order,
@@ -176,6 +235,7 @@ function runCheckerThread(job: CheckerThreadData, drivers: ThreadDrivers): void 
           job.emitKinds,
           job.checking,
           job.units,
+          job.sharing,
         );
   // Packed results are copied: nothing this thread allocated stays reachable after it ends.
   if (packsResults) parentPort!.postMessage(packResult(result, program!));
@@ -197,7 +257,9 @@ function runParseThread(job: ParseThreadData, drivers: ThreadDrivers): void {
   const port = parentPort!;
   port.on('message', (message: unknown) => {
     const chunk = message as LoadMessage;
-    if (chunk.stop) port.close();
+    if (chunk.stop) {
+      port.close();
+    }
     // The main thread read the project, so this one can too; if not, the program's FileLoader
     // parses the files of the chunk (the main thread sees this thread fail).
     else if (thread === undefined) throw new Error('A parse thread could not read the project');

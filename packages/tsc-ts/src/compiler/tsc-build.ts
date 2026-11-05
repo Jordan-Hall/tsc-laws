@@ -55,15 +55,23 @@ import {
   SystemFileSystem,
 } from './tsc-cli.js';
 import {
+  checkWhileThreadsEmit,
   emitFilesAndReportErrors,
+  emitKindsOf,
+  emitsOnThreads,
   exitStatusOf,
   rechecksOnThreads,
+  reportEmitAndErrors,
+  saveRunRecord,
   Statistics,
   statisticsOf,
   SystemTimeStamps,
 } from './tsc-compile.js';
 import { sharesPublishedGraphs } from '@scriptc/threads';
-import { checkerThreads, parseThreads, shareWithCheckers, startParallelCheck } from './parallel-check.js';
+import { checkerThreads, shareWithCheckers, startParallelCheck } from './parallel-check.js';
+import { preParseConfig, reportRunConfig, type RunConfig } from './run-config.js';
+import { openRecord } from './run-record-read.js';
+import { emitThreads } from './parallel-emit.js';
 import { LoadKind, ParseSession, clearPreparedFiles, parallelParse, reportPreparedFiles } from './parallel-parse.js';
 import { assignSymbolIdsAtCreation } from './symbol.js';
 
@@ -177,6 +185,8 @@ class BuildTask {
   buildKind = BuildKind.None;
   filesToDelete: string[] = [];
   configTime = 0;
+  /** The project's run configuration (run-config.ts), one per project of the build. */
+  run: RunConfig | undefined = undefined;
 
   constructor(readonly config: string) {}
 }
@@ -721,6 +731,33 @@ export class Orchestrator {
     const host = new BuildCompilerHost(sys, this.fs, this.locale);
     const configOptions = config.options;
     const checkers = threads ? checkerThreads(configOptions.checkers, configOptions.singleThreaded) : 1;
+    // The projects of a build that builds several at once run beside each other, and each one's timings
+    // are the machine's, not its own: none keeps a record (run-records.ts). A watcher's builds measure a
+    // change, not the project: they keep none either, and read none.
+    const builders = this.command.buildOptions.builders ?? (configOptions.singleThreaded === true ? 1 : 4);
+    const learning = builders === 1 && !this.watching;
+    const opened = learning
+      ? openRecord({
+          configFile: configOptions.configFilePath ?? task.config,
+          rootNames: config.fileNames,
+          options: configOptions,
+        })
+      : undefined;
+    // One configuration per project: its parse threads, and the pins of its checker count and sharing.
+    const run = (task.run = preParseConfig(configOptions, checkers, process.env, opened?.record, learning));
+    if (opened !== undefined) {
+      run.recordDirectory = opened.directory;
+      run.recordKey = opened.key;
+      run.recordFile = opened.file;
+    }
+    if (builders > 1) {
+      run.records = false;
+      run.recordsReason = 'concurrent projects';
+    }
+    if (this.watching) {
+      run.records = false;
+      run.recordsReason = 'watch mode';
+    }
     if (threads && configOptions.singleThreaded !== true && parallelParse.spawn !== undefined) {
       // Threads parse and bind the program's files ahead of it (parallel-parse.ts), as for plain
       // compiles. Here also when the program is checked on this thread, with one checker or after a
@@ -730,7 +767,7 @@ export class Orchestrator {
       // and parse threads don't load them again.
       const libraryDirectory = getNormalizedAbsolutePath(sys.defaultLibraryPath, sys.currentDirectory);
       const session = new ParseSession(
-        parseThreads(checkers),
+        run.parseThreads,
         configOptions,
         sys.currentDirectory,
         task.config,
@@ -772,9 +809,21 @@ export class Orchestrator {
     times.parseTime = performance.now() - parseStart;
     const bindStart = performance.now();
     const checked = new CheckedProgram(program);
+    // The project's incremental program, made after checking, keeps the globals found checking a file
+    // with the file.
+    checked.globalsInFileDiagnostics = true;
     times.bindTime = performance.now() - bindStart;
     const options = program.options;
     const count = mayUseThreads ? checkerThreads(options.checkers, options.singleThreaded, program) : 1;
+    // The run's configuration reports the count that checks: a checker thread run decides again once
+    // the plan is made (`startParallelCheck`, run-config.ts).
+    if (task.run !== undefined) task.run.checkers = count;
+    // A project rebuilt on its old build info checks the files a change affects, not the project: it
+    // keeps no sample, which records only keep full checks of (`run-records.ts`).
+    if (task.run !== undefined && oldSnapshot !== undefined && isIncremental(options)) {
+      task.run.records = false;
+      task.run.recordsReason = 'incremental recheck';
+    }
     if (count > 1 && oldSnapshot !== undefined) {
       if (isIncremental(options)) return this.recheckOnThreads(task, checked, times, oldSnapshot, count, then);
       // Build info of a project that is no longer incremental has no pending emit to give the threads,
@@ -786,14 +835,72 @@ export class Orchestrator {
     if (count > 1) {
       // Checker threads also emit the files they check; the incremental program records their
       // declaration signatures on this thread.
-      startParallelCheck(checked, count, (checkTime) => {
-        this.emitAndReport(task, checked, times, oldSnapshot, checkTime);
-        then();
-      });
+      startParallelCheck(
+        checked,
+        count,
+        (checkTime) => {
+          this.emitAndReport(task, checked, times, oldSnapshot, checkTime);
+          then();
+        },
+        true,
+        undefined,
+        true,
+        undefined,
+        undefined,
+        task.run,
+      );
       return true;
     }
+    if (mayUseThreads && this.emitsOnThreads(checked, oldSnapshot))
+      return this.checkWhileThreadsEmit(task, checked, times, oldSnapshot, then);
     this.emitAndReport(task, checked, times, oldSnapshot, undefined);
     return false;
+  }
+
+  /**
+   * Whether `checkWhileThreadsEmit` builds the project of `checked`: one whose emit threads apply
+   * (`emitsOnThreads`), that emits every file (one without old build info, or one that is not incremental)
+   * and that emits enough for the threads (`emitThreads`).
+   */
+  private emitsOnThreads(checked: CheckedProgram, oldSnapshot: Snapshot | undefined): boolean {
+    const options = checked.program.options;
+    return (
+      emitsOnThreads(options) &&
+      (oldSnapshot === undefined || !isIncremental(options)) &&
+      emitThreads(checked.program, options.singleThreaded) > 0
+    );
+  }
+
+  /**
+   * The rest of `checkAndEmit` with one checker for a project that `emitsOnThreads` accepts, as `tsc -p` compiles
+   * (`compileWithEmitThreads`, tsc-compile.ts): this thread checks the program while emit threads emit its
+   * JavaScript, and the declaration thread its declarations where that pays (parallel-emit.ts). Where its pending
+   * emit leaves too little JavaScript for the threads (`emitDeclarationOnly`), this thread checks and emits it.
+   * Returns whether the threads emit, and then calls `then` once the project is emitted.
+   */
+  private checkWhileThreadsEmit(
+    task: BuildTask,
+    checked: CheckedProgram,
+    times: CompileTimes,
+    oldSnapshot: Snapshot | undefined,
+    then: () => void,
+  ): boolean {
+    const program = checked.program;
+    const options = program.options;
+    // The program is shared before its checker does more than merge the globals.
+    shareWithCheckers(checked);
+    const incrementalProgram = this.incrementalProgramOf(task, checked, times, oldSnapshot);
+    const emitKinds = emitKindsOf(incrementalProgram);
+    const threads = emitThreads(program, options.singleThreaded, emitKinds);
+    if (threads === 0) {
+      this.emitAndReport(task, checked, times, oldSnapshot, undefined, incrementalProgram);
+      return false;
+    }
+    checkWhileThreadsEmit(incrementalProgram, threads, emitKinds, (diagnostics) => {
+      this.emitAndReport(task, checked, times, oldSnapshot, undefined, incrementalProgram, diagnostics);
+      then();
+    });
+    return true;
   }
 
   /**
@@ -843,6 +950,9 @@ export class Orchestrator {
       true,
       incrementalProgram.emitKindsOnCheckers(files),
       incrementalProgram.checksOnCheckers,
+      undefined,
+      undefined,
+      task.run,
     );
     return true;
   }
@@ -869,29 +979,34 @@ export class Orchestrator {
     oldSnapshot: Snapshot | undefined,
     /** The wall time of checker threads that checked the program, as reported. */
     parallelCheckTime: number | undefined,
-    /** The incremental program, where `recheckOnThreads` made it. */
+    /** The incremental program, where `recheckOnThreads` or `checkWhileThreadsEmit` made it. */
     made?: IncrementalProgram,
+    /** The program's diagnostics, where `checkWhileThreadsEmit` collected them. */
+    diagnostics?: Diagnostic[],
   ): void {
     const resolved = task.resolved!;
     const sys = this.sys;
     const program = checked.program;
     const incrementalProgram = made ?? this.incrementalProgramOf(task, checked, times, oldSnapshot);
 
-    const result = emitFilesAndReportErrors(
-      sys,
-      incrementalProgram,
-      new TaskDiagnosticReporter(task, this.reporter, sys, this.locale),
-      new QuietSummary(sys, {}, this.locale),
-      new TaskWriter(this, task),
-      this.locale,
-    );
+    const reporter = new TaskDiagnosticReporter(task, this.reporter, sys, this.locale);
+    const summary = new QuietSummary(sys, {}, this.locale);
+    const writer = new TaskWriter(this, task);
+    const result =
+      diagnostics === undefined
+        ? emitFilesAndReportErrors(sys, incrementalProgram, reporter, summary, writer, this.locale)
+        : reportEmitAndErrors(sys, incrementalProgram, diagnostics, reporter, summary, writer, this.locale);
     task.exitStatus = exitStatusOf(result);
     if (parallelCheckTime !== undefined) times.checkTime = parallelCheckTime;
     const options = program.options;
+    // A project's sample is kept whether or not the build reports statistics, and the section reports
+    // where it went (`run-records.ts`).
+    const records = saveRunRecord(sys, incrementalProgram, task.run);
     if (options.diagnostics === true || options.extendedDiagnostics === true) {
       times.totalTime = sys.sinceStart();
       const statistics = statisticsOf(incrementalProgram);
       statistics.report(sys);
+      if (options.extendedDiagnostics === true && task.run !== undefined) reportRunConfig(sys, task.run, records);
       task.statistics = statistics;
     }
     const status = task.status;

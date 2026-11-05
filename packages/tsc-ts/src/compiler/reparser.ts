@@ -98,6 +98,7 @@ import { Diagnostics } from './diagnostic-messages.js';
 import type { Parser } from './parser.js';
 import { SyntaxKind } from './syntax-kind.js';
 import { TokenFlags } from './types.js';
+import { IdentifierName } from './identifier-name.js';
 
 /** Sets the parent of every node in a subtree. */
 class ParentInChildrenSetter extends NodeVisitor {
@@ -360,7 +361,7 @@ export class Reparser {
         const param = params[pi]!;
         let parameter: ParameterDeclaration;
         if (param instanceof JSDocThisTag) {
-          const thisIdent = new Identifier('this');
+          const thisIdent = new Identifier(new IdentifierName('this'));
           thisIdent.pos = (param as JSDocThisTag).pos;
           thisIdent.end = (param as JSDocThisTag).end;
           thisIdent.flags = p.contextFlags | NodeFlags.Reparsed;
@@ -387,7 +388,10 @@ export class Reparser {
           let name: Node = (param as JSDocParameterOrPropertyTag).name;
           if (name instanceof Identifier && !isValidIdentifier((name as Identifier).text)) {
             // Replace invalid characters with `_`, or use `_N` for an empty name, for a valid parameter name.
-            name = this.addTransformedReparse(new Identifier(sanitizeIdentifier((name as Identifier).text, pi)), name);
+            name = this.addTransformedReparse(
+              new Identifier(new IdentifierName(sanitizeIdentifier((name as Identifier).text, pi))),
+              name,
+            );
           } else {
             name = this.addDeepCloneReparse(name);
           }
@@ -611,7 +615,7 @@ export class Reparser {
             const thisParam = new ParameterDeclaration(
               undefined,
               undefined,
-              new Identifier('this'),
+              new Identifier(new IdentifierName('this')),
               undefined,
               undefined,
               undefined,
@@ -891,11 +895,15 @@ export class Reparser {
       if ((clause as HeritageClause).types.nodes.length !== 1) return false;
       const target = (clause as HeritageClause).types.nodes[0]!;
       const source = tag.className;
+      // The tag's type arguments apply to an `extends` clause without any: one naming the same
+      // entity, or another expression such as a call (`extends mixin(Base)`), but not `null`.
       if (
         target instanceof ExpressionWithTypeArguments &&
-        hasSamePropertyAccessName((target as ExpressionWithTypeArguments).expression, source.expression) &&
         (target as ExpressionWithTypeArguments).typeArguments === undefined &&
-        source.typeArguments !== undefined
+        source.typeArguments !== undefined &&
+        (target as ExpressionWithTypeArguments).expression.kind !== SyntaxKind.NullKeyword &&
+        (!isEntityNameExpression((target as ExpressionWithTypeArguments).expression, false) ||
+          hasSamePropertyAccessName((target as ExpressionWithTypeArguments).expression, source.expression))
       ) {
         const newArguments: Node[] = [];
         for (const arg of source.typeArguments.nodes) newArguments.push(this.addDeepCloneReparse(arg));
@@ -966,6 +974,7 @@ export class Reparser {
       modifiers,
       SyntaxKind.NamespaceKeyword,
       this.addDeepCloneReparse((fullName as ModuleDeclaration).name),
+      undefined,
       block,
     );
     this.finishReparsedNode(result, fullName);

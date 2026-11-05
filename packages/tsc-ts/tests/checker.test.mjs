@@ -7,12 +7,19 @@ import { compileSources, nativeExe } from './temp.mjs';
 
 const root = resolve(import.meta.dirname, '..');
 const repo = resolve(root, '../..');
-const libs = join(repo, 'upstream/typescript-go/internal/bundled/libs');
+const libs = join(repo, 'upstream/TypeScript/tsc/internal/bundled/libs');
 const oracle = nativeExe(join(repo, 'packages/tsgo/dist/check-oracle'));
 
 /** `n` declarations named after `prefix`, which a flow walk passes one by one. */
 const filler = (prefix, n = 40, indent = '') =>
   Array.from({ length: n }, (_, i) => `${indent}const _${prefix}${i} = ${i};`);
+
+// A union of `n` object types that differ in one literal-typed property, by which subtype reduction
+// disqualifies their pairs, so the union exceeds its complexity limit after a cheap scan.
+const wideUnion = (n) => [
+  'type U =',
+  ...Array.from({ length: n }, (_, i) => `  | { k: "s${i}"; v: ${i} }${i === n - 1 ? ';' : ''}`),
+];
 
 // `options` lists options for TSC_TS_CHECK_OPTIONS, separated by commas: boolean options, module, moduleResolution
 // and target as name=value, and the strict family, allowUnreachableCode and allowUnusedLabels as name=true or
@@ -271,6 +278,31 @@ const cases = [
     ],
   },
   {
+    // A check inside a `finally` block sees the antecedents of every path out of the try block.
+    // Flow analysis visits the block again with the normal-completion antecedents when it walks
+    // past the try statement, so the assignment there must narrow `dst` by that later check.
+    // tsc 7.0.2, the oracle, keeps `dst` at `string | number` after the statement and reports both
+    // assignments, where this checker narrows `dst` to the `string` the assignment gives on the
+    // path that reaches the statement.
+    name: 'a finally block revisited with reduced antecedents does not reuse its earlier checks',
+    source: [
+      'declare let src: { v: string } | { v: number };',
+      'let dst: string | number;',
+      'function f(): void {',
+      '  try {',
+      '    src = { v: "a" };',
+      '    if (Math.random() < 0.5) return;',
+      '  } finally {',
+      '    dst = src.v;',
+      '  }',
+      '  const s: string = dst;',
+      '  const n: number = dst;',
+      '}',
+    ],
+    expected: ["/input.ts 2322 230 1 Type 'string' is not assignable to type 'number'."],
+    differsFromOracle: true,
+  },
+  {
     // More than 128 conditions on `x` and `k`: the walks for each are indexed, and so are walks for
     // `k` inside them.
     name: 'flow analysis matches tsgo on walks through many consecutive conditions',
@@ -458,6 +490,30 @@ const cases = [
     differsFromOracle: true,
   },
   {
+    // The protected-base check reads the type of the containing class with getTypeOfNode, which gives a class
+    // expression's constructor type, not its instance type. As in tsgo, `new Base()` in the class expression is an
+    // error, and in the class declaration it is not.
+    name: 'protected base constructors called in a class expression and in a class declaration',
+    source: [
+      'class Base {',
+      '  protected constructor() {}',
+      '}',
+      'const Derived = class extends Base {',
+      '  make() {',
+      '    return new Base();',
+      '  }',
+      '};',
+      'class Declared extends Base {',
+      '  make() {',
+      '    return new Base();',
+      '  }',
+      '}',
+    ],
+    expected: [
+      "/input.ts 2674 103 10 Constructor of class 'Base' is protected and only accessible within the class declaration.",
+    ],
+  },
+  {
     // 70 type parameters: the mappers of the tuple reference and of the call look their sources up in an index.
     name: 'instantiation with more than 64 type parameters',
     source: [
@@ -522,6 +578,101 @@ const cases = [
       "/input.ts 2322 86 1 Type 'M' is not assignable to type 'M.B'.",
     ],
   },
+  {
+    name: 'generic value import type queries instantiate their signatures',
+    source: [
+      'declare module "factory" {',
+      '  export function make<T>(value: T): T[];',
+      '  export function pair<A, B = A>(a: A, b: B): [A, B];',
+      '  export function keyed<K extends string>(key: K): { key: K };',
+      '  export class Box<T> {',
+      '    constructor(value: T);',
+      '    value: T;',
+      '  }',
+      '}',
+      'declare module "callable" {',
+      '  function create<T>(value: T): { value: T };',
+      '  export = create;',
+      '}',
+      'type MakeString = typeof import("factory").make<string>;',
+      'const make1: MakeString = (value: string) => [value];',
+      'const make2: MakeString = (value: number) => [value];',
+      'type BoxOfNumber = typeof import("factory").Box<number>;',
+      'declare const BoxCtor: BoxOfNumber;',
+      'const box = new BoxCtor(1);',
+      'const boxValue: string = box.value;',
+      'const badBox = new BoxCtor("x");',
+      'type PairDefault = typeof import("factory").pair<number>;',
+      'const pair1: PairDefault = (a: number, b: number) => [a, b];',
+      'type TooMany = typeof import("factory").make<string, number>;',
+      'type BadKey = typeof import("factory").keyed<number>;',
+      'type Created = typeof import("callable")<boolean>;',
+      'const created: Created = (value: boolean) => ({ value });',
+      'const createdBad: Created = (value: string) => ({ value });',
+      'type Mapped = { [K in "a" | "b"]: typeof import("factory").make<K> };',
+      'const mapped: Mapped = { a: (value: "a") => [value], b: (value: "b") => [value] };',
+      'type MakeGeneric = typeof import("factory").make;',
+      'const make3: MakeGeneric = <T>(value: T) => [value];',
+      'const make4: MakeGeneric = (value: string) => [value];',
+    ],
+    expected: [
+      "/input.ts 2322 469 5 Type '(value: number) => number[]' is not assignable to type '(value: string) => string[]'.",
+      "/input.ts 2322 644 8 Type 'number' is not assignable to type 'string'.",
+      "/input.ts 2345 701 3 Argument of type 'string' is not assignable to parameter of type 'number'.",
+      "/input.ts 2635 871 14 Type '<T>(value: T) => T[]' has no signatures for which the type argument list is applicable.",
+      "/input.ts 2344 933 6 Type 'number' does not satisfy the constraint 'string'.",
+      "/input.ts 2322 1057 10 Type '(value: string) => { value: string; }' is not assignable to type '(value: boolean) => { value: boolean; }'.",
+      "/input.ts 2322 1373 5 Type '(value: string) => string[]' is not assignable to type '<T>(value: T) => T[]'.",
+    ],
+  },
+  {
+    name: 'calling the resolve of a new Promise without an argument',
+    source: [
+      'const a = new Promise<number>((resolve) => resolve());',
+      'const b = new Promise<void>((resolve) => resolve());',
+      'const c = new Promise<number>(function (resolve) { resolve(); });',
+      'declare function f(cb: (x: number) => void): void;',
+      'f((x) => {});',
+      'const resolve = (x: number) => {};',
+      'resolve();',
+    ],
+    expected: [
+      "/input.ts 2794 43 7 Expected 1 arguments, but got 0. Did you forget to include 'void' in your type argument to 'Promise'?",
+      "/input.ts 2794 159 7 Expected 1 arguments, but got 0. Did you forget to include 'void' in your type argument to 'Promise'?",
+      '/input.ts 2554 274 7 Expected 1 arguments, but got 0.',
+    ],
+  },
+  {
+    name: 'calling the resolve of a new Promise without an argument in JavaScript',
+    source: [
+      '// @allowJs: true',
+      '// @checkJs: true',
+      '// @filename: main.js',
+      'new Promise((resolve) => resolve());',
+      'new Promise((resolve) => { resolve(1); });',
+    ],
+    expected: [
+      "/input.js 2810 83 7 Expected 1 argument, but got 0. 'new Promise()' needs a JSDoc hint to produce a 'resolve' that can be called without arguments.",
+    ],
+  },
+  {
+    // Both array literals pass the same list of element types to subtype reduction, which exceeds
+    // its complexity limit on the first; the second reports it again rather than taking the first
+    // expression's error type from a cache.
+    name: 'a union too complex to represent is reported at each expression',
+    source: [
+      ...wideUnion(1200),
+      'declare const a: U;',
+      'declare const b: U;',
+      'declare const s: string;',
+      'export const x = [a, b, s];',
+      'export const y = [a, b, s];',
+    ],
+    expected: [
+      '/input.ts 2590 31472 9 Expression produces a union type that is too complex to represent.',
+      '/input.ts 2590 31500 9 Expression produces a union type that is too complex to represent.',
+    ],
+  },
 ];
 
 test(
@@ -539,7 +690,8 @@ test(
       expected,
       differsFromOracle,
     } of cases) {
-      const file = corpus !== undefined ? join(repo, 'upstream/TypeScript/tests/cases', corpus) : join(out, fileName);
+      const file =
+        corpus !== undefined ? join(repo, 'upstream/TypeScript/tsc/testdata/tests/cases', corpus) : join(out, fileName);
       if (corpus === undefined) writeFileSync(file, source.join('\n') + '\n');
       const env = { ...process.env, TSC_TS_CHECK_OPTIONS: options };
       const actual = execFileSync(process.execPath, ['--stack-size=16000', join(out, 'drivers/check.js'), file, libs], {

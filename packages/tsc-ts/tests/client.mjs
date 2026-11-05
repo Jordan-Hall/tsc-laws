@@ -13,18 +13,16 @@ const Call = 6;
 export const callbacks = ['readFile', 'fileExists', 'directoryExists', 'realpath', 'getAccessibleEntries'];
 
 export class Client {
-  // command: [executable, ...args] that starts `tsc --api`. With `pipe` (Windows), the server serves on the named
-  // pipe it creates, as scriptc's Node host starts it, and the client connects to it once it exists.
-  constructor(command, cwd, env = {}, { pipe } = {}) {
-    const args = [...command.slice(1), '--api', '--cwd', cwd, `--callbacks=${callbacks.join(',')}`];
+  // command: [executable, ...args] that starts `tsc --api`; `args` are more server flags. With `pipe` (Windows), the
+  // server serves on the named pipe it creates, as scriptc's Node host starts it, and the client connects to it once
+  // it exists.
+  constructor(command, cwd, env = {}, { pipe, args: extra = [] } = {}) {
+    const args = [...command.slice(1), '--api', '--cwd', cwd, `--callbacks=${callbacks.join(',')}`, ...extra];
     this.child = spawn(command[0], pipe === undefined ? args : [...args, '--pipe', pipe], {
       stdio: pipe === undefined ? ['pipe', 'pipe', 'pipe'] : ['ignore', 'ignore', 'pipe'],
       env: { ...process.env, ...env },
     });
-    this.buffer = Buffer.alloc(0);
-    this.waiters = [];
-    this.stderr = '';
-    this.calls = [];
+    this.init();
     const receive = (chunk) => {
       this.buffer = Buffer.concat([this.buffer, chunk]);
       this.drain();
@@ -41,6 +39,34 @@ export class Client {
     this.child.on('exit', () => {
       for (const w of this.waiters.splice(0)) w.reject(new Error(`server exited: ${this.stderr}`));
     });
+  }
+
+  // A client of the server listening on the Unix socket `path` (`tsc-ts --api --listen`). `close()` resolves once
+  // the server has closed the connection.
+  static connect(path) {
+    const client = Object.create(Client.prototype);
+    client.init();
+    client.socket = connect(path);
+    client.socket.on('data', (chunk) => {
+      client.buffer = Buffer.concat([client.buffer, chunk]);
+      client.drain();
+    });
+    client.output = client.socket;
+    // Resolves to 0, or to 1 after a connection error.
+    client.exited = new Promise((resolve) => client.socket.once('close', (error) => resolve(error ? 1 : 0)));
+    client.socket.on('error', (error) => (client.stderr += `${error.message}\n`));
+    client.socket.once('close', () => {
+      for (const w of client.waiters.splice(0)) w.reject(new Error(`connection closed: ${client.stderr}`));
+    });
+    return client;
+  }
+
+  init() {
+    this.latestSnapshot = undefined;
+    this.buffer = Buffer.alloc(0);
+    this.waiters = [];
+    this.stderr = '';
+    this.calls = [];
   }
 
   // Sends a request and returns { type: 'response' | 'error', payload: Buffer }.
@@ -60,6 +86,13 @@ export class Client {
     const reply = await this.request(method, params);
     if (reply.type === 'error') throw new Error(`${method}: ${reply.payload}`);
     return JSON.parse(reply.payload.toString());
+  }
+
+  // Makes a snapshot from the latest one with `changes` (see snapshotRequest).
+  async snapshot(changes, options) {
+    const reply = await this.json(...snapshotRequest(this.latestSnapshot, changes, options));
+    this.latestSnapshot = reply.snapshot;
+    return reply;
   }
 
   async close() {
@@ -107,18 +140,21 @@ export class Client {
   }
 }
 
+// Callback replies are TypeScript 7.1's: `{kind: 'value', value}`, `{kind: 'missing'}` for a file that is not there,
+// or `{kind: 'useOS'}` to let the server look itself.
 function answer(method, path) {
+  const value = (v) => ({ kind: 'value', value: v });
   switch (method) {
     case 'readFile':
-      return existsSync(path) && statSync(path).isFile() ? { content: readFileSync(path, 'utf8') } : null;
+      return existsSync(path) && statSync(path).isFile() ? value(readFileSync(path, 'utf8')) : { kind: 'missing' };
     case 'fileExists':
-      return existsSync(path) && statSync(path).isFile();
+      return value(existsSync(path) && statSync(path).isFile());
     case 'directoryExists':
-      return existsSync(path) && statSync(path).isDirectory();
+      return value(existsSync(path) && statSync(path).isDirectory());
     case 'realpath':
-      return existsSync(path) ? realpathSync(path) : path;
+      return value(existsSync(path) ? realpathSync(path) : path);
     case 'getAccessibleEntries': {
-      if (!existsSync(path)) return null;
+      if (!existsSync(path)) return { kind: 'useOS' };
       const files = [];
       const directories = [];
       for (const name of readdirSync(path).sort()) {
@@ -126,10 +162,10 @@ function answer(method, path) {
           (statSync(`${path}/${name}`).isDirectory() ? directories : files).push(name);
         } catch {}
       }
-      return { files, directories };
+      return value({ files, directories });
     }
   }
-  return null;
+  return { kind: 'useOS' };
 }
 
 function bin(data) {
@@ -178,4 +214,13 @@ function readFrame(b) {
   const payload = readBin();
   if (payload === undefined) return undefined;
   return { type, method: method.toString(), payload: Buffer.from(payload), size: i };
+}
+
+/**
+ * The request that makes a snapshot with `changes`: createSnapshot for the first, then updateSnapshot from `latest`.
+ * Each updates the programs of its projects (`ensurePrograms: true`), unless `ensure` is false.
+ */
+export function snapshotRequest(latest, changes = {}, { ensure = true } = {}) {
+  const params = ensure ? { ...changes, ensurePrograms: true } : changes;
+  return latest === undefined ? ['createSnapshot', params] : ['updateSnapshot', { snapshot: latest, changes: params }];
 }

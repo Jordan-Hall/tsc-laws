@@ -27,6 +27,7 @@ import {
   equalDiagnosticsNoRelatedInfo,
   type DiagnosticMessage,
   type Locale,
+  sortDiagnostics,
   useThreadTextCaches,
 } from './diagnostics.js';
 import {
@@ -84,6 +85,7 @@ import {
   pathIsRelative,
   toFileNameLowerCase,
   toPath,
+  isNetworkPathValue,
 } from './path.js';
 import {
   getDefaultResolutionModeForFile,
@@ -105,6 +107,7 @@ import {
   type SourceOutputAndProjectReference,
 } from './tsconfig.js';
 import { SyntaxKind } from './syntax-kind.js';
+import { isSourcePhaseImport } from './ast-utilities.js';
 import { KnownSymlinks } from './symlinks.js';
 import { mark } from './timeline.js';
 import { LanguageVariant } from './types.js';
@@ -293,6 +296,11 @@ export class Program implements OutputPathsHost {
     return this.processed.redirectTargets.get(path) ?? [];
   }
 
+  /** The nearest `package.json` lookup at or above `directory`. */
+  getPackageScopeForPath(directory: string): PackageJsonInfo | undefined {
+    return this.processed.resolver.getPackageScopeForPath(directory);
+  }
+
   /** The directory of the nearest `package.json` at or above `directory`, or `''`. */
   getNearestAncestorDirectoryWithPackageJson(directory: string): string {
     const scope = this.processed.resolver.getPackageScopeForPath(directory);
@@ -361,7 +369,8 @@ export class Program implements OutputPathsHost {
         )
           continue;
         const resolved = resolver.resolvePackageDirectory(dependency, packageJsonName, ModuleKind.CommonJS);
-        if (resolved !== undefined && resolved.resolvedFileName !== '')
+        // A dependency installed in place has no original path to map from.
+        if (resolved !== undefined && resolved.resolvedFileName !== '' && resolved.originalPath !== '')
           symlinks.processResolution(
             combinePaths(resolved.originalPath, 'package.json'),
             combinePaths(resolved.resolvedFileName, 'package.json'),
@@ -455,30 +464,9 @@ export class Program implements OutputPathsHost {
     return this.processed.resolvedModules.get(file.path)?.get(modeAwareKey(moduleName, mode));
   }
 
-  /** The program files that the imports and type reference directives of `file` resolved to. */
-  /**
-   * The files `file` imports and references through type directives. `byFileName`, the program's
-   * files by file name, finds a file without computing its path when it is resolved by that name.
-   */
-  getResolvedFilesOf(file: SourceFile, byFileName?: ReadonlyMap<string, SourceFile>): SourceFile[] {
-    const result: SourceFile[] = [];
-    const modules = this.processed.resolvedModules.get(file.path);
-    if (modules !== undefined)
-      for (const resolved of modules.values()) {
-        const name = resolved.resolvedFileName;
-        if (name === '') continue;
-        const target = byFileName?.get(name) ?? this.getSourceFileForResolvedModule(name);
-        if (target !== undefined) result.push(target);
-      }
-    const types = this.processed.typeResolutionsInFile.get(file.path);
-    if (types !== undefined)
-      for (const resolved of types.values()) {
-        const name = resolved.resolvedFileName;
-        if (name === '') continue;
-        const target = byFileName?.get(name) ?? this.getSourceFile(name);
-        if (target !== undefined) result.push(target);
-      }
-    return result;
+  /** The files each file added to the program (`ProcessedFiles.addedFiles`), as indices of `getSourceFiles`. */
+  addedFiles(): readonly (readonly number[])[] {
+    return this.processed.addedFiles;
   }
 
   /** The specifier of the implicit JSX runtime import of `file`, if any. */
@@ -487,6 +475,8 @@ export class Program implements OutputPathsHost {
   }
 
   getResolvedModuleFromModuleSpecifier(file: SourceFile, specifier: Node): ResolvedModule | undefined {
+    // A source phase import loads no module declarations.
+    if (specifier.parent !== undefined && isSourcePhaseImport(specifier.parent)) return undefined;
     const text = specifierText(specifier);
     return this.getResolvedModule(file, text, this.getModeForUsageLocation(file, specifier));
   }
@@ -935,6 +925,8 @@ export class Program implements OutputPathsHost {
               Diagnostics.Non_relative_paths_are_not_allowed_Did_you_forget_a_leading_Slash,
               [],
             );
+          } else if (isNetworkPathValue(substitution, options.pathsBasePath ?? this.currentDirectory)) {
+            this.pathsValueDiagnostic(key, i, Diagnostics.Network_path_0_is_not_supported, [substitution]);
           }
         }
       }
@@ -1398,7 +1390,7 @@ class NodeCollector extends NodeVisitor {
 
 /** Sorts diagnostics and merges duplicates, combining their related information. */
 export function sortAndDeduplicateDiagnostics(diagnostics: readonly Diagnostic[]): Diagnostic[] {
-  const sorted = [...diagnostics].sort(compareDiagnostics);
+  const sorted = sortDiagnostics(diagnostics);
   if (sorted.length < 2) return sorted;
   const result: Diagnostic[] = [];
   let i = 0;

@@ -1,6 +1,6 @@
-// Request parameters and responses of the API, as sent over the wire.
+// Request parameters and responses of TypeScript 7.1's API, as sent over the wire.
 // Fields are declared in the order tsc --api writes them.
-import type { CompilerOptions, LiteralValue } from './backend.js';
+import type { CompilerOptions, LiteralValue, ProjectReferenceData, TypeAcquisitionData } from './backend.js';
 
 // A file name, or a document URI.
 export type DocumentIdentifier = string | { uri: string };
@@ -9,19 +9,27 @@ export type NodeHandle = string;
 
 // Params
 
-export interface UpdateSnapshotParams {
-  openProjects?: DocumentIdentifier[];
-  closeProjects?: DocumentIdentifier[];
-  fileChanges?: FileChanges;
-  openFiles?: DocumentIdentifier[];
-  closeFiles?: DocumentIdentifier[];
+// The changes a snapshot makes to its base (createSnapshot has none).
+export interface SnapshotChangesParams {
+  openProjects?: DocumentIdentifier[] | null;
+  closeProjects?: DocumentIdentifier[] | null;
+  openFiles?: DocumentIdentifier[] | null;
+  closeFiles?: DocumentIdentifier[] | null;
+  // `true` updates every project's program; a list, those projects'.
+  ensurePrograms?: boolean | string[] | null;
+  fileNotifications?: FileNotifications | null;
 }
 
-export interface FileChanges {
+export interface UpdateSnapshotParams {
+  snapshot?: number;
+  changes?: SnapshotChangesParams | null;
+}
+
+export interface FileNotifications {
   invalidateAll?: boolean;
-  changed?: DocumentIdentifier[];
-  created?: DocumentIdentifier[];
-  deleted?: DocumentIdentifier[];
+  changed?: DocumentIdentifier[] | null;
+  created?: DocumentIdentifier[] | null;
+  deleted?: DocumentIdentifier[] | null;
 }
 
 export interface ReleaseParams {
@@ -46,10 +54,6 @@ export interface ProjectFileParams extends ProjectParams {
   file: DocumentIdentifier;
 }
 
-export interface OptionalFileParams extends ProjectParams {
-  file?: DocumentIdentifier | null;
-}
-
 export interface FilesParams extends ProjectParams {
   files?: DocumentIdentifier[];
 }
@@ -67,6 +71,24 @@ export interface CompletionsParams extends ProjectFileParams {
   position?: number;
   triggerCharacter?: string;
   includeSymbol?: boolean;
+}
+
+/** An action of getImportAdderEdits: import a symbol, in a position where a type-only import is valid or not. */
+export interface ImportAdderAction {
+  kind?: string;
+  symbol?: SymbolReference | null;
+  isValidTypeOnlyUseSite?: boolean | null;
+}
+
+export interface ImportAdderEditsParams extends ProjectFileParams {
+  actions?: ImportAdderAction[] | null;
+}
+
+/** A text edit: `newText` in place of the UTF-16 range from `pos` to `end`. */
+export interface TextEditResponse {
+  pos: number;
+  end: number;
+  newText: string;
 }
 
 export interface CompletionEntryResponse {
@@ -97,12 +119,42 @@ export interface LocationsParams extends ProjectParams {
   locations?: NodeHandle[];
 }
 
+// A symbol of a source file (kind 0), named by the file and its id there, or of a snapshot's project (kind 1).
+export interface SymbolReference {
+  kind?: number;
+  file?: SourceFileDescriptor;
+  snapshot?: number;
+  project?: string;
+  id?: number;
+}
+
+// A source file as references name it. Each field is optional in requests, where a missing one is empty, as in tsc.
+export interface SourceFileDescriptor {
+  fileName?: string;
+  path?: string;
+  contentHash?: string;
+  parseOptionsKey?: string;
+  scriptKind?: number;
+  nodeId?: string;
+}
+
+// A link to a symbol: its id, and for a file's symbol the file's node id.
+export interface CompactSymbolReference {
+  id: number;
+  file?: string;
+}
+
 export interface SymbolParams extends ProjectParams {
-  symbol?: number;
+  symbol?: SymbolReference | null;
 }
 
 export interface SymbolsParams extends ProjectParams {
-  symbols?: number[];
+  symbols?: (SymbolReference | null)[];
+}
+
+// Parameters of the symbol property methods: a symbol reference, without a snapshot or project.
+export interface SymbolPropertyParams {
+  symbol?: SymbolReference | null;
 }
 
 export interface TypeParams extends ProjectParams {
@@ -127,7 +179,7 @@ export interface SignaturesParams extends ProjectParams {
 }
 
 export interface SymbolAtLocationParams extends ProjectParams {
-  symbol?: number;
+  symbol?: SymbolReference | null;
   location?: NodeHandle;
 }
 
@@ -183,17 +235,38 @@ export interface PrintNodeParams {
   terminateUnterminatedLiterals?: boolean;
 }
 
+export interface InitializeParams {
+  // Whether replies may name objects the client already holds by their ids (TypeReply, SymbolReply, SignatureReply).
+  objectReferences?: boolean;
+}
+
 // Responses
 
 export interface InitializeResponse {
-  useCaseSensitiveFileNames: boolean;
+  // 0 for case-insensitive file names, 1 for case-sensitive ones.
+  caseSensitivity: number;
   currentDirectory: string;
+  // Whether replies name objects the client already holds by their ids: true when the client asked for it.
+  objectReferences?: boolean;
 }
 
-export interface UpdateSnapshotResponse {
+// A reply that is a type, or an array of types, carries each as a TypeResponse. When the client asked for object
+// references, a type an earlier reply carried for the same snapshot and project is its id instead. Types inside other
+// response objects are always TypeResponses. SymbolReply and SignatureReply do the same; symbols are kept per snapshot.
+export type TypeReply = TypeResponse | number;
+export type SymbolReply = SymbolResponse | number;
+export type SignatureReply = SignatureResponse | number;
+
+export interface SnapshotResponse {
   snapshot: number;
+  // Every project of a new snapshot, or those added or replaced relative to the base.
   projects: ProjectResponse[];
   changes?: SnapshotChanges;
+  operation: SnapshotOperationResponse;
+}
+
+export interface SnapshotOperationResponse {
+  openedFiles?: { project: string }[];
 }
 
 export interface SnapshotChanges {
@@ -208,32 +281,40 @@ export interface ProjectFileChanges {
 
 export interface ProjectResponse {
   id: string;
-  configFileName: string;
-  rootFiles: string[];
-  compilerOptions: CompilerOptions;
+  // Absent for the inferred project.
+  configFileName?: string;
+  currentDirectory: string;
+  // The program does not have the changes reported since it was made.
+  dirty: boolean;
+  parsedCommandLine: ConfigFileResponse;
 }
 
 export interface ConfigFileResponse {
   fileNames: string[];
   options: CompilerOptions;
+  projectReferences?: ProjectReferenceData[];
+  typeAcquisition?: TypeAcquisitionData;
+  compileOnSave?: boolean;
+  raw?: unknown;
+  errors: DiagnosticResponse[];
 }
 
 export interface SymbolResponse {
-  id: number;
-  project: string;
+  reference: SymbolReference;
   name: string;
   flags: number;
   checkFlags: number;
   declarations?: NodeHandle[];
   valueDeclaration?: NodeHandle;
-  parent?: number;
-  exportSymbol?: number;
+  parent?: CompactSymbolReference;
+  exportSymbol?: CompactSymbolReference;
 }
 
 export interface TypeResponse {
   id: number;
   flags: number;
   objectFlags: number;
+  isTupleType: boolean;
   value: LiteralValueResponse;
   target?: number;
   typeParameters?: number[];
@@ -242,20 +323,33 @@ export interface TypeResponse {
   elementFlags?: number[];
   fixedLength?: number;
   readonly?: boolean;
+  // The declarations of labeled elements; "" for an element without a label.
+  labeledElementDeclarations?: NodeHandle[];
   objectType?: number;
   indexType?: number;
   checkType?: number;
   extendsType?: number;
   baseType?: number;
   substConstraint?: number;
+  typeParameter?: number;
+  constraintType?: number;
+  nameType?: number;
+  templateType?: number;
   texts?: string[];
   freshType?: number;
   regularType?: number;
   isThisType: boolean;
+  thisType?: number;
   intrinsicName?: string;
   aliasTypeArguments?: number[];
-  aliasSymbol?: number;
-  symbol?: number;
+  aliasSymbol?: CompactSymbolReference;
+  symbol?: CompactSymbolReference;
+}
+
+// An enum member's or constant's value, and whether it is a number.
+export interface ConstantValueResponse {
+  isNumber: boolean;
+  value: LiteralValueResponse;
 }
 
 // Literal values on the wire: bigints are decimal strings.
@@ -266,8 +360,8 @@ export interface SignatureResponse {
   flags: number;
   declaration?: NodeHandle;
   typeParameters?: number[];
-  parameters?: number[];
-  thisParameter?: number;
+  parameters?: CompactSymbolReference[];
+  thisParameter?: CompactSymbolReference;
   target?: number;
 }
 
@@ -303,6 +397,9 @@ export interface DiagnosticResponse {
   fileName?: string;
   pos: number;
   end: number;
+  startPosition?: { line: number; character: number };
+  endPosition?: { line: number; character: number };
+  sourceLines?: { line: number; text: string }[];
   code: number;
   category: number;
   text: string;
@@ -344,4 +441,16 @@ export interface SignatureUsagesParams extends ProjectParams {
 export interface SignatureUsageResponse {
   name: NodeHandle;
   call?: NodeHandle;
+}
+
+export interface RetainSourceFileParams {
+  file?: SourceFileDescriptor | null;
+}
+
+export interface RetainSourceFileResponse {
+  lease: number;
+}
+
+export interface ReleaseSourceFileParams {
+  lease?: number;
 }
