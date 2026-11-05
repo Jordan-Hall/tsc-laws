@@ -2,6 +2,18 @@
 
 The upstream tsc-ts changelog is CHANGELOG.md. Releases of tsc-laws are tagged `laws-v<version>` (see RELEASING-LAWS.md).
 
+## 0.6.1
+
+- Merge pull request #8 from Jordan-Hall/docs/delegation-explainer
+- docs: show both explainer videos in the README
+- docs: an explainer video on laws, migration and delegated accept
+
+## 0.6.0
+
+- Merge pull request #7 from Jordan-Hall/feat/vscode-live-laws
+- fix(vscode): default-export and excluded-law handling
+- feat(vscode): law failures show live on the law and on the source it exercises
+
 ## 0.5.2
 
 - Merge pull request #6 from Jordan-Hall/chore/sync-upstream
@@ -292,6 +304,28 @@ The upstream tsc-ts changelog is CHANGELOG.md. Releases of tsc-laws are tagged `
 - Emit decorated files on the emit threads with metadata answers from the checker
 - Emit JavaScript on threads while the main thread checks at --checkers 1 (#310)
 - Emit JavaScript on threads while the main thread checks at --checkers 1
+
+## Unreleased: law failures show live in VS Code
+
+- VS Code: a failed law is marked on the law's name and on the name of the function it exercises, as you edit. Each is a
+  diagnostic with the shrunk counterexample and the reproduce command, each is related information of the other, and both have the
+  code `tslaws/<law name>`. They clear when the law passes.
+- VS Code: only the laws that cover the changed file run (the laws that reached it, else the laws file beside it, else all), debounced,
+  and a newer change stops a run that is going. The status bar counts results as they stream.
+- VS Code: CodeLens above each law (state, counts, last run time; click to rerun) and above each function a law reaches
+  (`covered by N laws, M failing`), hover with the shrunk input, quick fixes (re-run, open the failing law, copy the reproduce
+  command), the counterexample after the failing line, and the laws as tests in the Testing view.
+- VS Code settings: new `tslaws.run` (`onSave` default, `onType`, `manual`), `tslaws.debounceMs`, `tslaws.runOnOpen`,
+  `tslaws.inlineCounterexample`. `tslaws.runOnSave` is deprecated and still read while `tslaws.run` is not set (`false` is `manual`).
+  `onType` runs on a copy of the project in `.tslaws/shadow` that holds the unsaved text; your files are not written.
+- tslaws: `check --reporter ndjson` streams `plan`, `start`, `result` and `report` events; `check --law NAME[,NAME]` runs named laws.
+- tslaws: each result carries `exercises`, the functions the law reaches with their declaration and call ranges, and `failing`
+  on the one a thrown error's stack names. An `uncovered` result's `line` is the function's declaration line.
+- tslaws: a law that imports a helper as a default export now resolves for every form: `export default helper;`, `export default function`/`class`,
+  `export { x as default }`, `export default () => ...` and a default re-exported from an imported function. Before, `export default helper` never resolved, so a
+  failing law got no mark on the function.
+- VS Code Test Explorer: running a laws file with some of its laws excluded now runs only the others (`--law`), not every law in the file.
+- The extension still never accepts laws: `tslaws.accept` only types the command into a terminal.
 
 ## 0.5.1
 

@@ -26,6 +26,20 @@ FAILED    sortKeepsLength (src/math.laws.ts:17) [property]
 UNCOVERED sub (src/math.ts) [coverage]
 ```
 
+## Watch
+
+What tslaws is, in two minutes (laws, proofs, tests, the coverage gate and the lock):
+
+<video src="https://github.com/Jordan-Hall/tsc-laws/raw/main/docs/media/tslaws-explained.mp4" controls muted width="480"></video>
+
+[tslaws-explained.mp4](docs/media/tslaws-explained.mp4)
+
+Laws, migration and delegated accept: why laws make a port safer, and how a person can lend `accept` to an agent for a limited time:
+
+<video src="https://github.com/Jordan-Hall/tsc-laws/raw/main/docs/media/tslaws-delegation-explainer.mp4" controls muted width="480"></video>
+
+[tslaws-delegation-explainer.mp4](docs/media/tslaws-delegation-explainer.mp4)
+
 What it offers:
 
 - **`law` as syntax.** A fork of [tsc-ts](https://github.com/vercel-labs/tsc-ts) (the TypeScript 7 compiler, ported to

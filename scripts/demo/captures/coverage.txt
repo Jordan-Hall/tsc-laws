@@ -1,0 +1,4 @@
+PROVED   totalNeverNegative (src/cart.laws.ts:6) [smt]
+PROVED   couponNeverRaisesTheTotal (src/cart.laws.ts:12) [smt]
+UNCOVERED shipping (src/cart.ts:0) [coverage]
+         no law reaches this exported function; add a law, or a person can mark it @tslaws-exempt and accept

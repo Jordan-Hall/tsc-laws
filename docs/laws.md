@@ -590,13 +590,34 @@ laws: `tslaws accept` stays a person's act at a terminal.
 
 ## Editor integration
 
-`packages/vscode-tslaws` is a VS Code extension with no bundled dependencies. Above each `law` in a `*.laws.ts` file it shows a
-CodeLens with the last status (`proved`, `bounded`, `tested`, `open`, `failed`, `uncovered`, `tampered`, `error` or `not run`),
-a `Run` lens, and for a failure the shrunk counterexample. Failed, open, tampered and error laws appear as problems on the
-law's line with the message, counterexample and hint. A status-bar item shows totals (`laws: 3 proved, 1 failed`) and opens
-the dashboard. Commands: `tslaws.check`, `tslaws.runFile`, `tslaws.openDashboard` (runs `tslaws ui --no-open --port 0`), and
-`tslaws.accept`, which only types `npx tslaws accept` into a terminal; a person presses Enter. Settings: `tslaws.runOnSave`
-(default on), `tslaws.executable` and `tslaws.args`. It runs `node_modules/.bin/tslaws`, else `npx tslaws`.
+`packages/vscode-tslaws` is a VS Code extension with no bundled dependencies. When a law fails it says so, as you work, on the
+law and on the code the law exercises.
+
+- **Run on change.** A debounced run of only the laws that cover the changed file: a laws file runs itself; a source file runs the
+  laws that reached it in the last report (`exercises`); else the laws file beside it, or the nearest folder's; else every law.
+  `tslaws.run` is `onSave` (default), `onType` or `manual`. A newer change kills the run that is going. The status bar counts
+  results as they stream (`laws: running 2/5 - 1 proved, 1 failed`). On save is the default because a check compiles and starts the
+  prover, which takes seconds; `onType` runs on a copy of the project in `.tslaws/shadow` that holds the unsaved text, so no
+  file of yours is written.
+- **Both ends.** A failed law is a diagnostic on the law's name and another on the name of the function it exercises, from the
+  report's `exercises`. Each message has the shrunk counterexample under the law's parameter names, the method, runs and seed,
+  and the command that reproduces it. Each end is `relatedInformation` of the other, and both have the code `tslaws/<law name>`.
+  If the stack named the function it is marked as an error; if the law calls several functions and none is named, each is
+  a warning. Ranges are re-resolved against the buffer, so they follow edits between runs. Both clear when the law passes.
+  `open`, `tampered` and `error` laws are marked on the law; `uncovered` functions on their names.
+- **CodeLens, hover, quick fixes.** Above a law: its state, counts and the time of the last run; click to rerun. Above a function a
+  law reaches: `covered by 2 laws, 1 failing`. The hover shows the shrunk input and the reproduce command. Quick fixes: re-run
+  this law, open the failing law, go to the code it exercises, copy the reproduce command. The counterexample also ends the failing
+  line in the theme's error colour, with a gutter mark.
+- **Test Explorer.** Laws are tests in the Testing view, with `Run`, `Rerun failed` and `Run without the prover` profiles (no
+  debug profile). A failure is reported at the law and at the function.
+- **Commands.** `tslaws.check`, `tslaws.runFile`, `tslaws.cancel`, `tslaws.openDashboard` (runs `tslaws ui --no-open --port 0`), and
+  `tslaws.accept`, which only types `npx tslaws accept` into a terminal; a person presses Enter. The extension never accepts laws.
+
+Settings: `tslaws.run`, `tslaws.debounceMs`, `tslaws.runOnOpen`, `tslaws.inlineCounterexample`, `tslaws.executable` and
+`tslaws.args`. `tslaws.runOnSave` is deprecated and counts only while `tslaws.run` is not set (`false` means `manual`). The extension
+runs `node_modules/tslaws/bin/tslaws.js` (or `tslaws.executable`) with `check --reporter ndjson`, and `--json` for an older
+`tslaws`. See `packages/vscode-tslaws/README.md`.
 
 ## Statuses
 
@@ -714,7 +735,7 @@ tslaws delegate status
 tslaws regressions [list|clear]
 tslaws mutate [files...] [--max N] [--seed N] [--runs N] [--bound N] [--proof-timeout MS] [--property-timeout MS] [--json]
 tslaws check [files...] [--json] [--summary] [--watch] [--runs N] [--seed N] [--no-prove] [--no-regressions] [--bound N]
-             [--proof-timeout MS] [--proposed] [--compiler PATH]
+             [--proof-timeout MS] [--proposed] [--compiler PATH] [--reporter text|json|junit|github|ndjson] [--law NAME[,NAME]]
 ```
 
 Exit status is 0 only when every law is `proved`, `bounded` or `tested`, nothing is `uncovered`, the files compile and the
@@ -863,7 +884,22 @@ the built-in default. It applies to `check`, `ui`, `mutate` and `mcp`. End-to-en
 - run: npx tslaws check --reporter github
 ```
 
+- `ndjson` is for editors. It writes one JSON object per line as the check proceeds: `{"type":"plan","laws":[...]}`, then
+  for each law `{"type":"start",...}` and `{"type":"result","result":{...}}`, then `{"type":"report",...}`, the same as `--json`.
+
 For a test report, redirect JUnit output: `npx tslaws check --reporter junit > tslaws-junit.xml`.
+
+`--law NAME[,NAME]` runs only the laws with those names in the files chosen (the others are skipped, not reported).
+
+### Where a failure lives
+
+Every result of a law that ran carries `exercises` in the JSON and `ndjson` reports: the project functions the law reaches, in the
+order it names them and then the ones those use (the same reach the coverage rule uses; it follows imports and re-exports
+through the sources, not the type checker). Each entry has the function's `name`, its `declaration` (the name where it is
+declared) and, for a function the law names itself, `call` (the first reference in the law). Ranges are
+`{file, line, column, endLine, endColumn}`, 1-based, the end exclusive, with `file` relative to the project. When the law threw,
+the entry whose function is in the error's stack also has `failing: true`; a law that returned `false` has no stack, so no entry
+is marked. An `uncovered` result's `line` is the function's declaration line.
 
 ## Build
 
@@ -889,7 +925,7 @@ On Windows the native build is `dist/tsc`; copy it to `tsc.exe` to run it.
 | `packages/tslaws/src/generators.ts`                      | generators from declared types                                                                          |
 | `packages/tslaws/src/init.ts`, `hints.ts`, `cli.ts`      | scaffolding, agent hints, commands                                                                      |
 | `packages/tslaws/hooks/`                                 | Claude Code hook, settings example, agent rules                                                         |
-| `packages/vscode-tslaws/`                                | VS Code grammar for `law`                                                                               |
+| `packages/vscode-tslaws/`                                | VS Code extension: grammar for `law`, live diagnostics, CodeLens, Test Explorer                         |
 | `examples/basic/`                                        | a small project with a failing law, a lock and coverage                                                 |
 
 ## Limits
@@ -907,5 +943,7 @@ On Windows the native build is `dist/tsc`; copy it to `tsc.exe` to run it.
 ## Intro video
 
 [docs/media/tslaws-explained.mp4](media/tslaws-explained.mp4) is a 103-second illustrated explainer of what tslaws is and what it offers: the problem with agent-written code, the law, the gate, a checkout story (a coupon makes a negative total, the law catches it, the fix is proved), the lock, and where it runs. `scripts/demo/explain.mjs` makes it from `scripts/demo/explainer.json`, with the real code from `examples/checkout` and the real output in `scripts/demo/captures/`.
+
+[docs/media/tslaws-delegation-explainer.mp4](media/tslaws-delegation-explainer.mp4) is a 123-second illustrated explainer of what tslaws offers in one picture, why laws help a migration, and how a person can lend `accept` to an agent for a limited time with `tslaws delegate grant`. It says plainly that a grant is a decision bounded in time and audited, not a sandbox. The command output in it is real, from `examples/checkout` (`scripts/demo/captures/`); the grant file and log lines are labelled illustration drawn from this document. `NARRATION=explainer-delegation.json node scripts/demo/explain.mjs` makes it from `scripts/demo/explainer-delegation.json`.
 
 [docs/media/tslaws-intro.mp4](media/tslaws-intro.mp4) is a 79-second narrated recording: the law typed out, the real dashboard running the real laws in `examples/basic`, `examples/react` and `examples/e2e`, and the real `tslaws check` output, including the tamper failure after a law is edited. The voice is [Kokoro](https://huggingface.co/hexgrad/Kokoro-82M) (`scripts/demo/voice.mjs`, open neural text to speech, offline); the music bed and sound cues are synthesised by `scripts/demo/mix.mjs`; `scripts/demo/record.mjs` records the screen. `scripts/demo/captures/` holds the recorded command output.
