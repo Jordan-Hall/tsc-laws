@@ -67,6 +67,8 @@ Every workflow run tests the extension (`npm test -w vscode-tslaws`), packages i
 
 To publish it to the Marketplace and Open VSX, set the repository variable `VSCODE_PUBLISH` to `true` and add a
 `VSCE_PAT` secret (an Azure DevOps token for the `tsc-laws` publisher) and/or an `OVSX_PAT` secret (an Open VSX token).
+A store whose token is missing is skipped with a notice. The full set-up is in
+[docs/publishing-the-extension.md](docs/publishing-the-extension.md).
 
 ## Syncing with upstream
 
