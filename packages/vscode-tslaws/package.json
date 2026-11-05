@@ -35,12 +35,14 @@
     "directory": "packages/vscode-tslaws"
   },
   "qna": "marketplace",
-  "publisher": "TS-Laws",
+  "publisher": "ts-laws",
   "main": "./src/extension.js",
   "scripts": {
-    "test": "node --test test/grammar.test.mjs test/find-laws.test.mjs test/parse-report.test.mjs test/summary.test.mjs test/command.test.mjs test/model.test.mjs test/ranges.test.mjs test/format.test.mjs test/diagnostics.test.mjs test/plan.test.mjs test/settings.test.mjs test/scheduler.test.mjs test/runner.test.mjs test/shadow.test.mjs test/host.test.mjs test/extension.test.mjs test/real-cli.test.mjs"
+    "test": "node --test test/grammar.test.mjs test/transform.test.mjs test/tsserver-plugin.test.mjs test/plugin.test.mjs test/compile-diagnostics.test.mjs test/live-units.test.mjs test/find-laws.test.mjs test/parse-report.test.mjs test/summary.test.mjs test/command.test.mjs test/model.test.mjs test/ranges.test.mjs test/format.test.mjs test/diagnostics.test.mjs test/plan.test.mjs test/settings.test.mjs test/scheduler.test.mjs test/runner.test.mjs test/shadow.test.mjs test/host.test.mjs test/extension.test.mjs test/real-cli.test.mjs"
   },
   "devDependencies": {
+    "fast-check": "^4.10.2",
+    "typescript": "5.9",
     "vscode-oniguruma": "^2.0.1",
     "vscode-textmate": "^9.2.0"
   },
@@ -95,6 +97,34 @@
       {
         "command": "tslaws.copyReproduce",
         "title": "tslaws: Copy the reproduce command"
+      },
+      {
+        "command": "tslaws.pauseLive",
+        "title": "tslaws: pause/resume live results"
+      },
+      {
+        "command": "tslaws.writeLaw",
+        "title": "tslaws: Write a law for this function"
+      },
+      {
+        "command": "tslaws.openFunction",
+        "title": "tslaws: Go to the function"
+      },
+      {
+        "command": "tslaws.goToLaws",
+        "title": "tslaws: Go to the laws for this function"
+      },
+      {
+        "command": "tslaws.peekLaws",
+        "title": "tslaws: Peek the laws for this function"
+      },
+      {
+        "command": "tslaws.goToFunction",
+        "title": "tslaws: Go to the function this law exercises"
+      },
+      {
+        "command": "tslaws.goToLaw",
+        "title": "tslaws: Go to law..."
       }
     ],
     "configuration": {
@@ -152,6 +182,35 @@
           "default": [],
           "description": "Extra arguments appended to every tslaws invocation, for example [\"--compiler\", \"path/to/tsc\"].",
           "scope": "machine"
+        },
+        "tslaws.liveBackground": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "on",
+            "off"
+          ],
+          "enumDescriptions": [
+            "On for a project that has a tslaws.json, unless you chose when to run with tslaws.run (default).",
+            "Always on: after you stop typing, the laws that cover the code you changed run in the background on the text of your open buffers.",
+            "Off: laws run only as tslaws.run says."
+          ],
+          "default": "auto",
+          "description": "Live results: while you edit a function, its status after the signature updates by itself. A run never blocks typing: it waits for you to stop, a newer edit stops it, and only one check runs at a time."
+        },
+        "tslaws.liveCpuLimit": {
+          "type": "integer",
+          "default": 85,
+          "minimum": 10,
+          "maximum": 100,
+          "description": "Live results wait while the machine is busier than this many percent of its processor time."
+        },
+        "tslaws.liveMaxSeconds": {
+          "type": "integer",
+          "default": 30,
+          "minimum": 1,
+          "maximum": 3600,
+          "description": "Live results stop by themselves when a run takes longer than this many seconds. Resume them with \"tslaws: pause/resume live results\"."
         }
       }
     },
@@ -176,6 +235,48 @@
         {
           "command": "tslaws.copyReproduce",
           "when": "false"
+        },
+        {
+          "command": "tslaws.writeLaw",
+          "when": "false"
+        },
+        {
+          "command": "tslaws.openFunction",
+          "when": "false"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "tslaws.goToLaws",
+          "when": "editorLangId == typescript && resourceFilename =~ /^(?!.*\\.laws\\.ts$)/",
+          "group": "navigation@90"
+        },
+        {
+          "command": "tslaws.peekLaws",
+          "when": "editorLangId == typescript && resourceFilename =~ /^(?!.*\\.laws\\.ts$)/",
+          "group": "navigation@91"
+        },
+        {
+          "command": "tslaws.goToFunction",
+          "when": "editorLangId == typescript && resourceFilename =~ /\\.laws\\.ts$/",
+          "group": "navigation@90"
+        }
+      ]
+    },
+    "typescriptServerPlugins": [
+      {
+        "name": "tslaws-ts-plugin",
+        "enableForWorkspaceTypeScriptVersions": true
+      }
+    ],
+    "views": {
+      "explorer": [
+        {
+          "id": "tslawsLaws",
+          "name": "Laws",
+          "icon": "media/failed-dark.svg",
+          "when": "tslaws.hasLaws",
+          "contextualTitle": "tslaws"
         }
       ]
     }

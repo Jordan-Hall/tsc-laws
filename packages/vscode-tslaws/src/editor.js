@@ -11,7 +11,7 @@ const { relativeTo } = require('./parse-report.js');
 
 const SELECTOR = [{ scheme: 'file', pattern: '**/*.{ts,tsx,mts,cts}' }];
 const MEDIA = path.join(__dirname, '..', 'media');
-const COMMANDS = ['tslaws.runLaw', 'tslaws.copyReproduce', 'tslaws.openLaw', 'tslaws.openSource'];
+const COMMANDS = ['tslaws.runLaw', 'tslaws.copyReproduce', 'tslaws.openLaw', 'tslaws.openSource', 'tslaws.writeLaw'];
 
 const commandUri = (command, args) => `command:${command}?${encodeURIComponent(JSON.stringify(args))}`;
 const isLawsFile = (rel) => rel.endsWith('.laws.ts');
@@ -43,7 +43,11 @@ function createEditor(vscode, host) {
           const diag = new vscode.Diagnostic(
             rangeOf(d.range),
             d.message,
-            d.severity === 'error' ? vscode.DiagnosticSeverity.Error : vscode.DiagnosticSeverity.Warning,
+            d.severity === 'error'
+              ? vscode.DiagnosticSeverity.Error
+              : d.severity === 'hint'
+                ? vscode.DiagnosticSeverity.Hint
+                : vscode.DiagnosticSeverity.Warning,
           );
           diag.source = d.source;
           diag.code = d.code;
@@ -94,7 +98,7 @@ function createEditor(vscode, host) {
         const range = declarationRange(text, entry.declaration, entry.name);
         if (range === null) continue;
         out.push(
-          lens(rangeOf({ ...range, start: 0, end: 0 }), sourceLensTitle(entry.laws), 'tslaws.showLaws', [
+          lens(rangeOf({ ...range, start: 0, end: 0 }), sourceLensTitle(entry.laws), 'tslaws.goToLaws', [
             rel,
             entry.name,
           ]),
@@ -147,6 +151,13 @@ function createEditor(vscode, host) {
       for (const diag of context.diagnostics) {
         if (diag.source !== 'tslaws') continue;
         const d = descs.find((x) => x.code === diag.code && x.range.line === diag.range.start.line);
+        if (d !== undefined && d.role === 'source' && d.lawFile === undefined) {
+          const action = new vscode.CodeAction('tslaws: Write a law for this function', vscode.CodeActionKind.QuickFix);
+          action.command = { title: 'Write a law', command: 'tslaws.writeLaw', arguments: [rel, d.lawName] };
+          action.diagnostics = [diag];
+          out.push(action);
+          continue;
+        }
         if (d === undefined || d.lawFile === undefined) continue;
         const args = [d.lawFile, d.lawName];
         const add = (title, command) => {
@@ -212,11 +223,15 @@ function createEditor(vscode, host) {
     const firstPerLine = (list) => [...new Map(list.map((d) => [d.range.line, d])).values()];
     editor.setDecorations(
       errorType,
-      options(firstPerLine(descs.filter((d) => d.severity === 'error' && d.inline !== undefined))),
+      options(
+        firstPerLine(descs.filter((d) => d.severity === 'error' && d.inline !== undefined && d.role !== 'source')),
+      ),
     );
     editor.setDecorations(
       warningType,
-      options(firstPerLine(descs.filter((d) => d.severity === 'warning' && d.inline !== undefined))),
+      options(
+        firstPerLine(descs.filter((d) => d.severity === 'warning' && d.inline !== undefined && d.role !== 'source')),
+      ),
     );
     editor.setDecorations(
       callType,

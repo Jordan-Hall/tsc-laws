@@ -19,19 +19,26 @@ test('activate registers the commands, providers, test controller and status bar
       'tslaws.cancel',
       'tslaws.check',
       'tslaws.copyReproduce',
+      'tslaws.goToFunction',
+      'tslaws.goToLaw',
+      'tslaws.goToLaws',
       'tslaws.openDashboard',
+      'tslaws.openFunction',
       'tslaws.openLaw',
       'tslaws.openSource',
+      'tslaws.pauseLive',
+      'tslaws.peekLaws',
       'tslaws.runFile',
       'tslaws.runLaw',
       'tslaws.showLaws',
+      'tslaws.writeLaw',
     ]);
     assert.equal(fake.providers.lens.length, 1);
     assert.equal(fake.providers.hover.length, 1);
     assert.equal(fake.providers.actions.length, 1);
     assert.equal(fake.controllers.length, 1);
     assert.equal(fake.statuses[0].text, 'laws: not run');
-    assert.equal(fake.statuses[0].command, 'tslaws.openDashboard');
+    assert.equal(fake.statuses[0].command, 'tslawsLaws.focus');
 
     fake.commands.get('tslaws.accept')();
     assert.deepEqual(fake.terminals[0].sent, [['npx tslaws accept', false]]);

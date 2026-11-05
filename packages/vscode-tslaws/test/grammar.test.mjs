@@ -70,3 +70,31 @@ test('not inside comment or string', () => {
   assert.ok(!isLaw('// law foo(a)', 'law'));
   assert.ok(!scopesOf('"law foo(a)"', 'law foo(a)').some((s) => s.includes('storage.type.law.tslaws')));
 });
+
+test('every form a laws file uses: async, generics, proved, arrow, the declaration split over lines', () => {
+  const file = [
+    "import { assume } from 'tslaws';",
+    'export async law proved asyncOne<T>(a: T) { await a; }',
+    'export law arrowOne(a: number): boolean => a === a;',
+    'law proved   spaced (a: number) { }',
+    'export law multi(',
+    '  a: number,',
+    ') { }',
+  ].join('\n');
+  assert.equal(scopesOf(file, 'law').filter((s) => s.includes('keyword.declaration.law.tslaws')).length, 4);
+  assert.equal(scopesOf(file, 'proved').filter((s) => s.includes('storage.modifier.proved.tslaws')).length, 2);
+  for (const name of ['asyncOne', 'arrowOne', 'spaced', 'multi'])
+    assert.ok(scopesOf(file, name)[0].includes('entity.name.function.law.tslaws'), name);
+});
+
+test('law as a word elsewhere stays an ordinary token', () => {
+  const file = ['const law = 1;', 'obj.law = law;', 'law(1);', 'export { law };'].join('\n');
+  assert.ok(!isLaw(file));
+});
+
+test('the injection applies to TypeScript sources, which is what a .laws.ts file is', () => {
+  const manifest = JSON.parse(fs.readFileSync(fileURLToPath(new URL('../package.json', import.meta.url)), 'utf8'));
+  const grammar = manifest.contributes.grammars.find((g) => g.scopeName === 'source.tslaws');
+  assert.deepEqual(grammar.injectTo.sort(), ['source.ts', 'source.tsx']);
+  assert.equal(injection.injectionSelector.includes('L:source.ts'), true);
+});

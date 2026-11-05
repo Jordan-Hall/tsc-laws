@@ -10,7 +10,7 @@ const { lawMessage, sourceMessage, inlineText, reproduceCommand } = require('./f
 const { blamedFunctions } = require('./model.js');
 
 const SHOWN = new Set(['failed', 'open', 'tampered', 'error', 'uncovered']);
-const WARNING = new Set(['open', 'uncovered']);
+const WARNING = new Set(['open']);
 
 /** The stable code of a diagnostic: `tslaws/<law or function name>`. */
 const codeOf = (record) => `tslaws/${record.name}`;
@@ -30,7 +30,8 @@ function buildDiagnostics(records, readText) {
   };
   for (const record of records) {
     if (!SHOWN.has(record.status)) continue;
-    const severity = WARNING.has(record.status) ? 'warning' : 'error';
+    // An exported function no law reaches is a hint: a prompt to write one, not a fault.
+    const severity = record.status === 'uncovered' ? 'hint' : WARNING.has(record.status) ? 'warning' : 'error';
     const code = codeOf(record);
 
     if (record.status === 'uncovered') {
