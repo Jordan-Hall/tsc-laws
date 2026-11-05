@@ -4,7 +4,7 @@
 // accepts laws, writes tsc-laws.lock or edits a `*.laws.ts` file that is not a `*.proposed.laws.ts`; the server sets
 // TSLAWS_AGENT so nothing it spawns can run `accept` either. A person promotes proposals with `tslaws promote`.
 // stdout is the protocol channel: this module writes nothing else to it.
-import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { createInterface } from 'node:readline';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { check } from './check.ts';
@@ -12,11 +12,11 @@ import { readConfig } from './coverage.ts';
 import type { CheckReport } from './check.ts';
 import { hintFor } from './hints.ts';
 import { isProposedLawFile } from './lawNames.ts';
+import { discoverLaws, discoverProposals, ignoredDirs } from './lawFiles.ts';
 import { parseLawFile } from './promote.ts';
 import { resolveSettings } from './settings.ts';
 import type { CheckOptions, LawResult } from './types.ts';
 
-const ignoredDirs = new Set(['node_modules', '.tslaws', '.git']);
 const passing = new Set(['proved', 'bounded', 'tested']);
 const supportedVersions = ['2025-06-18', '2025-03-26', '2024-11-05'];
 const defaultProposalFile = 'agent.proposed.laws.ts';
@@ -86,17 +86,7 @@ function slash(path: string): string {
 }
 
 function discover(cwd: string, proposed: boolean): string[] {
-  const found: string[] = [];
-  const walk = (dir: string): void => {
-    for (const entry of readdirSync(dir)) {
-      if (ignoredDirs.has(entry)) continue;
-      const full = join(dir, entry);
-      if (statSync(full).isDirectory()) walk(full);
-      else if (entry.endsWith('.laws.ts') && isProposedLawFile(entry) === proposed) found.push(full);
-    }
-  };
-  walk(cwd);
-  return found.map((f) => slash(relative(cwd, f))).sort();
+  return proposed ? [...discoverLaws(cwd, true), ...discoverProposals(cwd)] : discoverLaws(cwd, false);
 }
 
 /** A project-relative path inside the root that names an existing or new file; throws ToolError otherwise. */

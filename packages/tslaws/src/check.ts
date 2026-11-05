@@ -18,7 +18,8 @@ import { compareLock, lawKey, readLock, type Lock } from './lock.ts';
 import { proveLaw } from './smt.ts';
 import { decodeExample, loadExamples, regressionMessage, saveExample } from './regressions.ts';
 import { closeBrowser, runBrowserLaw } from './browser.ts';
-import { ensureServer, importsBoth, lawMode, runE2eLaw, stopServer } from './e2e.ts';
+import { ensureServer, runE2eLaw, stopServer } from './e2e.ts';
+import { classifyLawFile, type KindVerdict } from './lawKinds.ts';
 import { declarationOf, exercisesOf, markFailing, Sources, type Exercised } from './exercises.ts';
 import type { CheckOptions, LawResult, ManifestLaw } from './types.ts';
 
@@ -27,6 +28,8 @@ export interface CheckReport {
   compileDiagnostics: string;
   compileOk: boolean;
   lockMissing: boolean;
+  /** Things worth a person's attention that do not fail the check: a file name that its imports do not back. */
+  notices: string[];
   /** Whether every law holds and nothing is open, failed or tampered with. */
   ok: boolean;
 }
@@ -50,6 +53,18 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
   const laws = readManifest(options.compiler, options.files, options.cwd);
   const results: LawResult[] = [];
   const blocked = new Set<string>();
+  const notices: string[] = [];
+  // The level of a laws file comes from what it imports; looked at once per file.
+  const verdicts = new Map<string, KindVerdict>();
+  const verdictOf = (file: string): KindVerdict => {
+    let verdict = verdicts.get(file);
+    if (verdict === undefined) {
+      verdict = classifyLawFile(options.cwd, file);
+      verdicts.set(file, verdict);
+      for (const notice of verdict.notices) notices.push(notice);
+    }
+    return verdict;
+  };
   const sources = new Sources(options.cwd);
   // What a law reaches is syntactic and cheap; a project that cannot be read this way just has no locations.
   const exercisesFor = (law: ManifestLaw): Exercised[] => {
@@ -127,21 +142,13 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
       add(law, 'error', 'generators', { message: (error as Error).message });
       continue;
     }
-    let source = '';
-    try {
-      source = readFileSync(join(options.cwd, law.file), 'utf8');
-    } catch {
-      // The compiler already reported an unreadable file.
-    }
-    if (importsBoth(source)) {
-      add(law, 'error', 'manifest', {
-        message: `${law.file}: a browser laws file is either component level (tslaws/browser) or end-to-end (tslaws/e2e), not both`,
-      });
+    const verdict = verdictOf(law.file);
+    if (verdict.error !== undefined) {
+      add(law, 'error', 'manifest', { message: verdict.error });
       continue;
     }
-    const mode = lawMode(law.file, source);
-    const browser = mode === 'component';
-    const e2e = mode === 'e2e';
+    const browser = verdict.kind === 'browser';
+    const e2e = verdict.kind === 'e2e';
     const method = browser ? 'browser' : e2e ? 'e2e' : 'property';
     let fn: ((...args: unknown[]) => unknown) | undefined;
     // A browser law touches the DOM when it loads, so only the browser loads it.
@@ -309,5 +316,5 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
     built.ok &&
     !lockMissing &&
     results.every((r) => r.status === 'proved' || r.status === 'bounded' || r.status === 'tested');
-  return { results, compileDiagnostics: built.diagnostics, compileOk: built.ok, lockMissing, ok };
+  return { results, compileDiagnostics: built.diagnostics, compileOk: built.ok, lockMissing, notices, ok };
 }

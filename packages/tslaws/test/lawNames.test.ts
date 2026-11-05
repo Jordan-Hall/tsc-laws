@@ -1,11 +1,7 @@
-// Law file names: a proposed file keeps the kind of the accepted file it proposes. Pure, so no compiler or browser needed.
+// Law file names: a proposed file maps to the accepted name; the suffix is only a hint at the level. Pure, so no compiler or browser needed.
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { isBrowserLawFile } from '../dist/browser.js';
-import { importsBoth, isE2eLawFile, lawMode } from '../dist/e2e.js';
-import { acceptedLawName, isProposedLawFile } from '../dist/lawNames.js';
-
-const e2eImport = "import { open } from 'tslaws/e2e';\n";
+import { acceptedLawName, isProposedLawFile, suffixKind } from '../dist/lawNames.js';
 
 describe('proposed law file names', () => {
   it('recognise a proposal of any kind', () => {
@@ -29,34 +25,17 @@ describe('proposed law file names', () => {
   });
 });
 
-describe('law file kinds', () => {
-  it('treat a proposed browser law as a browser law', () => {
-    assert.equal(isBrowserLawFile('src/a.browser.laws.ts'), true);
-    assert.equal(isBrowserLawFile('src/a.browser.proposed.laws.ts'), true);
-    assert.equal(isBrowserLawFile('src/a.proposed.laws.ts'), false);
-    assert.equal(isBrowserLawFile('src/a.e2e.proposed.laws.ts'), false);
-    assert.equal(lawMode('src/a.browser.proposed.laws.ts', ''), 'component');
+describe('law file kind hints', () => {
+  it('read the level the name hints at, proposed or accepted', () => {
+    assert.equal(suffixKind('src/a.browser.laws.ts'), 'browser');
+    assert.equal(suffixKind('src/a.browser.proposed.laws.ts'), 'browser');
+    assert.equal(suffixKind('src/a.e2e.laws.ts'), 'e2e');
+    assert.equal(suffixKind('src/a.e2e.proposed.laws.ts'), 'e2e');
   });
 
-  it('treat a proposed e2e law as an end-to-end law', () => {
-    assert.equal(isE2eLawFile('src/a.e2e.laws.ts'), true);
-    assert.equal(isE2eLawFile('src/a.e2e.proposed.laws.ts'), true);
-    assert.equal(isE2eLawFile('src/a.browser.proposed.laws.ts'), false);
-    assert.equal(lawMode('src/a.e2e.proposed.laws.ts', ''), 'e2e');
-  });
-
-  it('keep a plain proposed file a node law', () => {
-    assert.equal(lawMode('src/a.proposed.laws.ts', ''), 'node');
-    assert.equal(lawMode('src/a.proposed.laws.ts', e2eImport), 'node');
-  });
-
-  it('let a proposed browser file that imports tslaws/e2e run end to end, as an accepted one does', () => {
-    assert.equal(lawMode('src/a.browser.laws.ts', e2eImport), 'e2e');
-    assert.equal(lawMode('src/a.browser.proposed.laws.ts', e2eImport), 'e2e');
-  });
-
-  it('spot a file that imports both levels', () => {
-    assert.equal(importsBoth(`${e2eImport}import { mount } from 'tslaws/browser';\n`), true);
-    assert.equal(importsBoth(e2eImport), false);
+  it('hint nothing for a plain name', () => {
+    assert.equal(suffixKind('src/a.laws.ts'), undefined);
+    assert.equal(suffixKind('src/a.proposed.laws.ts'), undefined);
+    assert.equal(suffixKind('.tslaws/proposals/a.ts'), undefined);
   });
 });

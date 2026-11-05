@@ -1,5 +1,5 @@
 import { createInterface } from 'node:readline/promises';
-import { readdirSync, statSync, watch } from 'node:fs';
+import { watch } from 'node:fs';
 import { join, relative, resolve, sep } from 'node:path';
 import { resolveEngine } from './browser.ts';
 import { bundledCompiler, checkoutCompiler } from './bundled.ts';
@@ -7,7 +7,7 @@ import { check, exemptionsOf } from './check.ts';
 import type { CheckReport } from './check.ts';
 import { readManifest } from './compile.ts';
 import { hintFor } from './hints.ts';
-import { isProposedLawFile } from './lawNames.ts';
+import { discoverLaws, discoverProposals, ignoredDirs } from './lawFiles.ts';
 import { init, nextStep } from './init.ts';
 import { serveMcp } from './mcp.ts';
 import { promoteFiles } from './promote.ts';
@@ -52,21 +52,10 @@ Exit status is 0 only when every law is proved, bounded or tested and nothing is
   --watch     rerun the check when a .ts file under the current directory changes (Ctrl+C exits)
   --force     init: overwrite tslaws.json and replace the AGENTS.md section`;
 
-const ignoredDirs = new Set(['node_modules', '.tslaws', '.git']);
 const passing = new Set(['proved', 'bounded', 'tested']);
 
 function discover(cwd: string, proposed: boolean): string[] {
-  const found: string[] = [];
-  const walk = (dir: string): void => {
-    for (const entry of readdirSync(dir)) {
-      if (ignoredDirs.has(entry)) continue;
-      const full = join(dir, entry);
-      if (statSync(full).isDirectory()) walk(full);
-      else if (entry.endsWith('.laws.ts') && isProposedLawFile(entry) === proposed) found.push(full);
-    }
-  };
-  walk(cwd);
-  return found.map((f) => relative(cwd, f).replace(/\\/g, '/')).sort();
+  return proposed ? [...discoverLaws(cwd, true), ...discoverProposals(cwd)] : discoverLaws(cwd, false);
 }
 
 function parse(args: string[]): { command: string; flags: Map<string, string | true>; files: string[] } {
@@ -156,6 +145,8 @@ function render(report: CheckReport, flags: Map<string, string | true>): string 
   let text = '';
   if (report.compileDiagnostics !== '') text += `${report.compileDiagnostics}\n\n`;
   if (report.lockMissing) text += 'tsc-laws.lock is missing: a person must run `tslaws accept`\n\n';
+  for (const notice of report.notices) text += `notice: ${notice}\n`;
+  if (report.notices.length > 0) text += '\n';
   if (flags.has('summary')) {
     for (const result of report.results) if (!passing.has(result.status)) text += `${summarise(result)}\n`;
     return `${text}${totals(report)}\n`;
