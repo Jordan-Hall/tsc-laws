@@ -2,6 +2,13 @@
 
 The upstream tsc-ts changelog is CHANGELOG.md. Releases of tsc-laws are tagged `laws-v<version>` (see RELEASING-LAWS.md).
 
+## 0.5.0
+
+- Merge pull request #4 from Jordan-Hall/feat/delegated-accept
+- fix(tslaws): delegation reads the home directory from the user database
+- fix(tslaws): delegation always reads the real home directory
+- feat(tslaws): a person can lend accept to an agent for a limited time
+
 ## 0.4.0
 
 - Merge pull request #3 from Jordan-Hall/feat/auto-release
