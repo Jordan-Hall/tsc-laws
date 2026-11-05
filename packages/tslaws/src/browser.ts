@@ -2,17 +2,20 @@
 // each input is sent to a page where the compiled law and the code it checks run against a live DOM.
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
-import { delimiter, join } from 'node:path';
+import { delimiter, join, relative as pathRelative, resolve, sep } from 'node:path';
 import { build as bundleWith, type Plugin } from 'esbuild';
+import { explainBundleError, loadBundlerPlugins } from './bundlerPlugins.ts';
+import { readConfig } from './coverage.ts';
 import { chromium, firefox, webkit, type Browser, type BrowserType, type Page } from 'playwright-core';
 import type * as fc from 'fast-check';
 import { toWire } from './generators.ts';
+import { acceptedLawName } from './lawNames.ts';
 import { runProperty, summarise, type PropertyOutcome } from './property.ts';
 import type { CheckOptions } from './types.ts';
 
-/** `a.browser.laws.ts` runs in a browser. */
+/** `a.browser.laws.ts` and its proposal `a.browser.proposed.laws.ts` run in a browser. */
 export function isBrowserLawFile(file: string): boolean {
-  return /\.browser\.laws\.[cm]?ts$/.test(file);
+  return /\.browser\.laws\.[cm]?ts$/.test(acceptedLawName(file));
 }
 
 function findBrowser(): string | undefined {
@@ -170,21 +173,70 @@ function projectModulesPlugin(cwd: string): Plugin {
   };
 }
 
-async function bundleOf(jsFile: string, cwd: string): Promise<string> {
-  const result = await bundleWith({
-    plugins: [projectModulesPlugin(cwd)],
-    entryPoints: [jsFile],
-    bundle: true,
-    write: false,
-    format: 'iife',
-    globalName: '__lawModule',
-    platform: 'browser',
-    target: 'es2022',
-    absWorkingDir: cwd,
-    logLevel: 'silent',
-    define: { 'process.env.NODE_ENV': '"development"', global: 'globalThis' },
-  });
-  return result.outputFiles[0]!.text;
+// The compiler writes only what it compiles to .tslaws/out, so a relative import of any other source file (a `.tsrx`
+// template, a stylesheet, an image) would look for it there. Such an import resolves to the file beside the source.
+function sourceFilesPlugin(cwd: string): Plugin {
+  const out = join(cwd, '.tslaws', 'out');
+  return {
+    name: 'tslaws-source-files',
+    setup(build) {
+      build.onResolve({ filter: /^\.\.?\// }, (args) => {
+        if (args.resolveDir !== out && !args.resolveDir.startsWith(out + sep)) return undefined;
+        const inOut = resolve(args.resolveDir, args.path);
+        if (existsSync(inOut)) return undefined;
+        const source = join(cwd, pathRelative(out, inOut));
+        return existsSync(source) && !source.endsWith('.js') ? { path: source } : undefined;
+      });
+    },
+  };
+}
+
+const assetExtensions = [
+  '.png',
+  '.jpg',
+  '.jpeg',
+  '.gif',
+  '.webp',
+  '.avif',
+  '.svg',
+  '.ico',
+  '.woff',
+  '.woff2',
+  '.ttf',
+  '.otf',
+  '.eot',
+];
+
+/** The project's `bundlerPlugins` from tslaws.json come first, so they can claim a format before the built-in resolver. */
+async function bundleOf(jsFile: string, cwd: string): Promise<{ js: string; css: string }> {
+  const projectPlugins = await loadBundlerPlugins(cwd, readConfig(cwd).bundlerPlugins);
+  try {
+    const result = await bundleWith({
+      plugins: [...projectPlugins, sourceFilesPlugin(cwd), projectModulesPlugin(cwd)],
+      entryPoints: [jsFile],
+      bundle: true,
+      write: false,
+      // Stylesheets a law imports come out as a separate .css file, which needs an output directory to be named.
+      outdir: join(cwd, '.tslaws', 'bundle'),
+      // Images and fonts become data URLs, so a url() in the CSS or an import in the JavaScript needs no file server.
+      loader: Object.fromEntries(assetExtensions.map((extension) => [extension, 'dataurl' as const])),
+      format: 'iife',
+      globalName: '__lawModule',
+      platform: 'browser',
+      target: 'es2022',
+      absWorkingDir: cwd,
+      logLevel: 'silent',
+      define: { 'process.env.NODE_ENV': '"development"', global: 'globalThis' },
+    });
+    const emitted = (extension: string): string =>
+      result.outputFiles
+        .filter((file) => file.path.endsWith(extension))
+        .map((file) => file.text)
+        .join('\n');
+    return { js: emitted('.js'), css: emitted('.css') };
+  } catch (error) {
+    throw explainBundleError(error as Error);
+  }
 }
 
 export interface BrowserLaw {
@@ -229,7 +281,7 @@ async function capture(
 
 /** Property-tests one law in a page; `'timeout'` when it does not finish within `options.propertyTimeoutMs`. */
 export async function runBrowserLaw(law: BrowserLaw, options: CheckOptions): Promise<PropertyOutcome | 'timeout'> {
-  const code = await bundleOf(law.jsFile, options.cwd);
+  const { js: code, css } = await bundleOf(law.jsFile, options.cwd);
   const page: Page = await (await launch(resolveEngine(options.browser))).newPage();
   // A watcher needs only the first few runs to linger; the rest should not eat the time limit.
   let calls = 0;
@@ -259,6 +311,8 @@ export async function runBrowserLaw(law: BrowserLaw, options: CheckOptions): Pro
     : undefined;
   try {
     await page.setContent('<!doctype html><html><head><meta charset="utf-8"></head><body></body></html>');
+    // The stylesheet goes in before the script runs, as a linked one would.
+    if (css !== '') await page.addStyleTag({ content: css });
     await page.addScriptTag({ content: code });
     await page.addScriptTag({ content: harness });
     const call = async (...args: unknown[]): Promise<unknown> => {

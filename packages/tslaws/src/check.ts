@@ -22,6 +22,7 @@ import { proveLaw } from './smt.ts';
 import { decodeExample, loadExamples, regressionMessage, saveExample } from './regressions.ts';
 import { closeBrowser, runBrowserLaw } from './browser.ts';
 import { ensureServer, importsBoth, lawMode, runE2eLaw, stopServer } from './e2e.ts';
+import { declarationOf, exercisesOf, markFailing, Sources, type Exercised } from './exercises.ts';
 import type { CheckOptions, LawResult, ManifestLaw } from './types.ts';
 
 type Add = (law: ManifestLaw, status: LawResult['status'], method: string, extra?: Partial<LawResult>) => void;
@@ -85,8 +86,26 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
   const laws = readManifest(options.compiler, options.files, options.cwd);
   const results: LawResult[] = [];
   const blocked = new Set<string>();
+  const sources = new Sources(options.cwd);
+  // What a law reaches is syntactic and cheap; a project that cannot be read this way just has no locations.
+  const exercisesFor = (law: ManifestLaw): Exercised[] => {
+    try {
+      return exercisesOf(sources, law);
+    } catch {
+      return [];
+    }
+  };
   const add = (law: ManifestLaw, status: LawResult['status'], method: string, extra: Partial<LawResult> = {}): void => {
-    const result: LawResult = { file: law.file, name: law.name, line: law.line, status, method, ...extra };
+    const exercises = status === 'tampered' ? [] : (extra.exercises ?? exercisesFor(law));
+    const result: LawResult = {
+      file: law.file,
+      name: law.name,
+      line: law.line,
+      status,
+      method,
+      ...extra,
+      ...(exercises.length > 0 ? { exercises } : {}),
+    };
     results.push(result);
     blocked.add(lawKey(law.file, law.name));
     options.onEvent?.({ type: 'result', result });
@@ -129,17 +148,20 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
 
   const covered = coverFiles(options.cwd, readConfig(options.cwd).cover ?? []);
   const compiled = [...new Set([...options.files, ...covered])];
-  const sources = new Map<string, string>();
+  const texts = new Map<string, string>();
   const readSource = (file: string): string => {
-    if (!sources.has(file)) sources.set(file, readFileSync(join(options.cwd, file), 'utf8'));
-    return sources.get(file)!;
+    if (!texts.has(file)) texts.set(file, readFileSync(join(options.cwd, file), 'utf8'));
+    return texts.get(file)!;
   };
-  warmWorkers(laws.filter((law) => law.problems.length === 0 && lawMode(law.file, readSource(law.file)) === 'node').length);
+  warmWorkers(
+    laws.filter((law) => law.problems.length === 0 && lawMode(law.file, readSource(law.file)) === 'node').length,
+  );
   const built = build(options.compiler, compiled, options.cwd);
   // What the type checker works out is kept with the build it came from, so an unchanged project skips the checker.
   const derived = derivedStore(options.cwd, built.key);
   let programOf: ts.Program | undefined;
-  const program = (): ts.Program => (programOf ??= built.program ?? ts.createProgram(declarationFiles(built.outDir), compilerOptions));
+  const program = (): ts.Program =>
+    (programOf ??= built.program ?? ts.createProgram(declarationFiles(built.outDir), compilerOptions));
   const sourceCwd = built.program === undefined ? undefined : options.cwd;
   const require = createRequire(import.meta.url);
 
@@ -185,7 +207,9 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
     // A browser law touches the DOM when it loads, so only the browser loads it.
     if (!browser) {
       try {
-        fn = (require(jsPath(built.outDir, law.file)) as Record<string, (...args: unknown[]) => unknown>)[law.symbol ?? law.name];
+        fn = (require(jsPath(built.outDir, law.file)) as Record<string, (...args: unknown[]) => unknown>)[
+          law.symbol ?? law.name
+        ];
       } catch (error) {
         add(law, 'error', 'load', { message: `cannot load compiled law: ${(error as Error).message}` });
         return;
@@ -217,7 +241,13 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
           )
         : browser
           ? await runBrowserLaw(
-              { file: law.file, name: law.name, symbol: law.symbol, jsFile: jsPath(built.outDir, law.file), generators: types.generators },
+              {
+                file: law.file,
+                name: law.name,
+                symbol: law.symbol,
+                jsFile: jsPath(built.outDir, law.file),
+                generators: types.generators,
+              },
               lawOptions,
             )
           : await runLawGuarded(built.outDir, law, lawOptions, types.plans);
@@ -246,6 +276,7 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
             ? 'returned false'
             : `threw: ${details.message}`;
         add(law, 'failed', method, {
+          exercises: markFailing(exercisesFor(law), details.stack, built.outDir),
           runs: details.numRuns,
           seed: details.seed,
           counterexample: details.counterexample,
@@ -319,7 +350,8 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
   const lanes = { cpu: new Semaphore(jobs()), page: new Semaphore(1) };
   await Promise.all(
     laws.map(async (law, index) => {
-      const skipped = (options.only !== undefined && !options.only.includes(law.name)) || blocked.has(lawKey(law.file, law.name));
+      const skipped =
+        (options.only !== undefined && !options.only.includes(law.name)) || blocked.has(lawKey(law.file, law.name));
       if (skipped) {
         finished.set(index, []);
         flush();
@@ -345,7 +377,7 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
       results.push({
         file,
         name,
-        line: 0,
+        line: declarationOf(sources, file, name)?.line ?? 0,
         status: 'uncovered',
         method: 'coverage',
         message: 'no law reaches this exported function; add a law, or a person can mark it @tslaws-exempt and accept',

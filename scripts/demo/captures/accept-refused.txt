@@ -1,0 +1,1 @@
+accept records laws as correct and needs a person at a terminal or a live delegation (no delegation covers this project); run `tslaws delegate grant` at a terminal to lend accept for a limited time

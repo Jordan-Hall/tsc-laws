@@ -116,11 +116,15 @@ export class GeneratorFactory {
         if (declaration === undefined) continue;
         const propertyType = checker.getTypeOfSymbolAtLocation(property, declaration);
         const optional = (property.flags & ts.SymbolFlags.Optional) !== 0;
-        fields[property.getName()] = this.plan(optional ? checker.getNonNullableType(propertyType) : propertyType, depth + 1);
+        fields[property.getName()] = this.plan(
+          optional ? checker.getNonNullableType(propertyType) : propertyType,
+          depth + 1,
+        );
         if (!optional) required.push(property.getName());
       }
       const index = checker.getIndexInfosOfType(type)[0];
-      if (index !== undefined && Object.keys(fields).length === 0) return { k: 'dict', of: this.plan(index.type, depth + 1) };
+      if (index !== undefined && Object.keys(fields).length === 0)
+        return { k: 'dict', of: this.plan(index.type, depth + 1) };
       return { k: 'record', fields, required };
     } finally {
       this.active.delete(type);

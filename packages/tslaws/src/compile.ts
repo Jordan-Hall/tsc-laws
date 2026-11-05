@@ -91,7 +91,9 @@ const isLawFile = (file: string): boolean => /\.laws\.tsx?$/.test(file);
  */
 export function usesBuiltin(compiler: string, files: string[], cwd: string): boolean {
   if (compiler === builtinCompiler) return true;
-  return !files.some((f) => isLawFile(f) && existsSync(join(cwd, f)) && usesLegacySyntax(readFileSync(join(cwd, f), 'utf8')));
+  return !files.some(
+    (f) => isLawFile(f) && existsSync(join(cwd, f)) && usesLegacySyntax(readFileSync(join(cwd, f), 'utf8')),
+  );
 }
 
 /**
@@ -246,7 +248,8 @@ function buildBuiltin(args: string[], files: string[], cwd: string, outDir: stri
   };
   const overrides = new Map<string, string>();
   for (const file of files)
-    if (isLawFile(file) && existsSync(join(cwd, file))) overrides.set(slash(resolve(cwd, file)), lowerFile(file, cwd).text);
+    if (isLawFile(file) && existsSync(join(cwd, file)))
+      overrides.set(slash(resolve(cwd, file)), lowerFile(file, cwd).text);
   const host = ts.createCompilerHost(options);
   const getSourceFile = host.getSourceFile.bind(host);
   host.getSourceFile = (name, languageVersion, onError, shouldCreate) => {
@@ -288,7 +291,16 @@ function buildBuiltin(args: string[], files: string[], cwd: string, outDir: stri
     ok: diagnostics.every((d) => d.category !== ts.DiagnosticCategory.Error),
   };
   Object.defineProperty(result, 'program', { value: program, enumerable: false });
-  saveBuildCache(args, files, cwd, result, program.getSourceFiles().map((f) => f.fileName).filter((f) => !overrides.has(slash(resolve(f)))));
+  saveBuildCache(
+    args,
+    files,
+    cwd,
+    result,
+    program
+      .getSourceFiles()
+      .map((f) => f.fileName)
+      .filter((f) => !overrides.has(slash(resolve(f)))),
+  );
   return result;
 }
 
@@ -308,7 +320,8 @@ function buildKey(args: string[], files: string[], cwd: string): string {
   const hash = createHash('sha256');
   hash.update(JSON.stringify([args, ts.version, toolStamp]));
   for (const file of files)
-    if (isLawFile(file) && existsSync(join(cwd, file))) hash.update(`
+    if (isLawFile(file) && existsSync(join(cwd, file)))
+      hash.update(`
 ${file}
 ${lowerFile(file, cwd).text}`);
   return hash.digest('hex');

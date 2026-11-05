@@ -1,31 +1,200 @@
 // Builds the native tsc-ts, dist/tsc (`npm run build:native`; `--dev` for `npm run build:native:dev`). On Windows it
 // first compiles native/pipe-win32.c, the named pipe server of `tsc-ts --api --pipe`, with zig (the linker scriptc
-// uses there) and links it through native/pipe-win32.ffi.json.
-import { spawnSync } from 'node:child_process';
-import { readFileSync, mkdirSync } from 'node:fs';
+// uses there) and links it through native/pipe-win32.ffi.json. On Linux and macOS it first compiles
+// native/listen-posix.c, the Unix socket server of `tsc-ts --api --listen`, with clang, or with zig for the
+// SCRIPTC_TARGET that scriptc links for, and links it through native/listen-posix.ffi.json. Then it checks that the
+// number fields of Node, Type and Symbol are 32-bit integers in the build (scripts/check-int32-fields.mjs).
+//
+// Optimized Linux builds compile with `scriptc build --exceptions=rare` (a scriptc with a second profile phase knows
+// the option): the check's recursive functions propagate an exception by native unwinding instead of testing a flag
+// after each of their calls, and the exceptions tsc-ts throws, in the configuration, record and watch drivers, travel
+// a few frames. A profile describes the code of a build with a given setting, so the committed profiles are collected
+// from builds with the same option (refresh-profile.mjs passes it to every instrumented build).
+//
+// Optimized builds use a committed profile (profile-phases.mjs): profiles/tsc-ts.cs.profdata, collected in two phases,
+// when the scriptc accepts a second profile phase, and profiles/tsc-ts.profdata, collected in one phase, otherwise.
+// They check how well the profile matches the code they compile (profile-match.mjs): below 95% of the functions the
+// profile describes they warn, and below 90% a build in CI (the CI environment variable is set) fails. Windows builds
+// print the match without checking it. Other arguments go to `scriptc build`, except:
+//   --output <path>          writes the executable there instead of dist/tsc
+//   --profile-generate=<p>   builds the instrumented tsc-ts refresh-profile.mjs runs, without the profile
+//   --profile-use=<p>        optimizes with <p> instead of a committed profile; with --profile-generate, builds the
+//                            second instrumented tsc-ts refresh-profile.mjs runs, which is optimized by <p> and counts
+//                            the code again after inlining
+//   --record-profile         writes the number of functions the profile describes beside it (tsc-ts.json or
+//                            tsc-ts.cs.json)
+//   --with-share-price       builds with the price log compiled in, from a copy of src/ that
+//                            scripts/share-price-sources.patch edits (share-price-sources.mjs); a build without it
+//                            compiles the sources as they are, which carry none of the log
+import { spawn, spawnSync } from 'node:child_process';
+import { existsSync, readFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
+import { parseArgs } from 'node:util';
+import { judgeProfileMatch, parseProfileReport } from './profile-match.mjs';
+import { writeSharePriceSources } from './share-price-sources.mjs';
+import {
+  SINGLE_PHASE_PROFILE,
+  TWO_PHASE_PROFILE,
+  profileInfoPath,
+  supportsSecondProfilePhase,
+} from './profile-phases.mjs';
 
 const root = resolve(import.meta.dirname, '..');
-const dev = process.argv.includes('--dev');
 const windows = process.platform === 'win32';
 
+const { values, tokens } = parseArgs({
+  options: {
+    dev: { type: 'boolean', default: false },
+    output: { type: 'string', default: 'dist/tsc' },
+    'profile-generate': { type: 'string' },
+    'profile-use': { type: 'string' },
+    'record-profile': { type: 'boolean', default: false },
+    'with-share-price': { type: 'boolean', default: false },
+  },
+  strict: false,
+  tokens: true,
+});
+const ours = new Set(['dev', 'output', 'profile-generate', 'profile-use', 'record-profile', 'with-share-price']);
+// The arguments for scriptc, in their order: every option this script does not handle, with its value.
+const passed = [];
+for (const token of tokens) {
+  if (token.kind === 'positional') passed.push(token.value);
+  else if (token.kind === 'option' && !ours.has(token.name)) {
+    if (token.value === undefined) passed.push(token.rawName);
+    else if (token.inlineValue) passed.push(`${token.rawName}=${token.value}`);
+    else passed.push(token.rawName, token.value);
+  }
+}
+// A price build writes dist/tsc-price unless --output names a file, so it does not replace the release binary.
+const output =
+  values['with-share-price'] && !tokens.some((token) => token.kind === 'option' && token.name === 'output')
+    ? 'dist/tsc-price'
+    : values.output;
+
+// SCRIPTC selects another scriptc executable than the installed one.
 const require = createRequire(join(root, 'package.json'));
 const scriptcPackage = require.resolve('scriptc/package.json');
-const scriptc = join(dirname(scriptcPackage), JSON.parse(readFileSync(scriptcPackage, 'utf8')).bin.scriptc);
+const scriptc =
+  process.env.SCRIPTC ?? join(dirname(scriptcPackage), JSON.parse(readFileSync(scriptcPackage, 'utf8')).bin.scriptc);
 
-const args = ['build', 'src/main.ts'];
-args.push(
-  ...(dev
-    ? ['--optimization=dev']
-    : ['--optimization=speed', '--detached-exit', '--profile-use=profiles/tsc-ts.profdata']),
-);
+const generate = values['profile-generate'];
+const useProfile = !values.dev && generate === undefined;
+// scriptc gained --exceptions=rare with the second profile phase; an older scriptc does not know the option. The
+// probe builds a one-line program, so it runs once.
+let secondPhase;
+const profile = values['profile-use'] ?? (useProfile ? committedProfile() : undefined);
+const info = profile === undefined ? undefined : profileInfoPath(profile);
+const profileInfo = info === undefined ? undefined : join(root, info);
+// --with-share-price builds the sources writeSharePriceSources writes: a copy of src/ with the price log added.
+const entry = values['with-share-price'] ? writeSharePriceSources(root, join(root, 'dist/share-price')) : 'src/main.ts';
+const args = ['build', entry];
+if (values.dev) args.push('--optimization=dev');
+else {
+  args.push('--optimization=speed', '--detached-exit');
+  if (process.platform === 'linux' && hasSecondProfilePhase()) args.push('--exceptions=rare');
+  if (generate === undefined) args.push(`--profile-use=${profile}`);
+  else args.push(...(profile === undefined ? [] : [`--profile-use=${profile}`]), `--profile-generate=${generate}`);
+}
+mkdirSync(join(root, 'dist'), { recursive: true });
 if (windows) {
-  mkdirSync(join(root, 'dist'), { recursive: true });
   run('zig', ['cc', '-target', 'x86_64-windows-gnu', '-O2', '-c', 'native/pipe-win32.c', '-o', 'dist/pipe-win32.o']);
   args.push('--ffi', 'native/pipe-win32.ffi.json');
+} else {
+  const target = process.env.SCRIPTC_TARGET;
+  const flags = [
+    '-std=c11',
+    '-O2',
+    '-Wall',
+    '-Wextra',
+    '-Werror',
+    '-c',
+    'native/listen-posix.c',
+    '-o',
+    'dist/listen-posix.o',
+  ];
+  if (target) run('zig', ['cc', '-target', target, ...flags]);
+  else run('clang', flags);
+  args.push('--ffi', 'native/listen-posix.ffi.json');
 }
-run(scriptc, [...args, ...process.argv.slice(2).filter((arg) => arg !== '--dev'), '-o', 'dist/tsc']);
+args.push(...passed, '-o', output);
+if (!useProfile) run(scriptc, args);
+else {
+  const { status, stderr } = await runCollectingStderr(scriptc, args);
+  if (status !== 0) process.exit(status ?? 1);
+  const report = parseProfileReport(stderr);
+  if (values['record-profile']) recordProfile(report);
+  else checkProfile(report);
+}
+// The checker's hot classes keep 32-bit number fields (scripts/check-int32-fields.mjs), in the IR scriptc keeps
+// beside the executable.
+if (!passed.includes('--no-keep-llvm'))
+  run(process.execPath, ['scripts/check-int32-fields.mjs', join(dirname(output), 'main.ll')]);
+
+// The committed profile for this scriptc: the two-phase one when scriptc accepts a second profile phase.
+function committedProfile() {
+  const twoPhase = existsSync(join(root, TWO_PHASE_PROFILE));
+  return twoPhase && hasSecondProfilePhase() ? TWO_PHASE_PROFILE : SINGLE_PHASE_PROFILE;
+}
+
+// The installed scriptc has a second profile phase when it is the one that collected the two-phase profile, as
+// profiles/tsc-ts.cs.json records. The probe needs --profile-generate, which scriptc supports only for Linux
+// executables, so on macOS and Windows it always fails; it decides only for another scriptc (SCRIPTC).
+function hasSecondProfilePhase() {
+  return (secondPhase ??=
+    collectedTwoPhaseProfile() || supportsSecondProfilePhase(scriptc, join(root, SINGLE_PHASE_PROFILE)));
+}
+
+function collectedTwoPhaseProfile() {
+  if (process.env.SCRIPTC !== undefined) return false;
+  const recorded = join(root, profileInfoPath(TWO_PHASE_PROFILE));
+  if (!existsSync(recorded)) return false;
+  const { scriptc: collectedWith, secondProfilePhase } = JSON.parse(readFileSync(recorded, 'utf8'));
+  return secondProfilePhase === true && collectedWith === JSON.parse(readFileSync(scriptcPackage, 'utf8')).version;
+}
+
+function checkProfile(report) {
+  const info = profileInfo === undefined ? {} : JSON.parse(readFileSync(profileInfo, 'utf8'));
+  const verdict = judgeProfileMatch(report, info.functions ?? undefined, {
+    ci: Boolean(process.env.CI),
+    checked: process.platform === 'linux',
+    profile,
+  });
+  const prefix = { ok: 'tsc-ts:', note: 'tsc-ts: note:', warn: 'tsc-ts: warning:', fail: 'tsc-ts: error:' }[
+    verdict.level
+  ];
+  console.error(`${prefix} ${verdict.message}`);
+  if (verdict.level === 'fail') process.exit(1);
+}
+
+// A build right after the profile was collected annotates every function the profile describes.
+function recordProfile(report) {
+  if (profileInfo === undefined) throw new Error(`--record-profile needs a committed profile, not ${profile}`);
+  const info = JSON.parse(readFileSync(profileInfo, 'utf8'));
+  if (report !== undefined && report.mismatched > 0)
+    throw new Error(`${report.mismatched} functions changed since the profile was collected; collect it again`);
+  info.functions = report === undefined || report.withoutCounts > 0 ? null : report.annotated;
+  writeFileSync(profileInfo, `${JSON.stringify(info, null, 2)}\n`);
+  console.error(
+    info.functions === null
+      ? `tsc-ts: note: scriptc printed no profile report, so ${profileInfoPath(profile)} records no function count`
+      : `tsc-ts: ${profile} describes ${info.functions} functions`,
+  );
+}
+
+// Runs scriptc with its stderr shown as it arrives and collected, since its profile report is printed there.
+function runCollectingStderr(command, commandArgs) {
+  return new Promise((resolveRun, reject) => {
+    const child = spawn(command, commandArgs, { cwd: root, stdio: ['inherit', 'inherit', 'pipe'] });
+    const chunks = [];
+    child.stderr.on('data', (chunk) => {
+      process.stderr.write(chunk);
+      chunks.push(chunk);
+    });
+    child.on('error', reject);
+    child.on('close', (status) => resolveRun({ status, stderr: Buffer.concat(chunks).toString('utf8') }));
+  });
+}
 
 function run(command, commandArgs) {
   const result = spawnSync(command, commandArgs, { cwd: root, stdio: 'inherit' });

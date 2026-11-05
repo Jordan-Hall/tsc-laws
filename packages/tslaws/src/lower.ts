@@ -47,15 +47,11 @@ function identifierFor(name: string, taken: Set<string>): string {
 /** Why a law's function cannot be run, or undefined when it can. */
 function problemsOf(fn: ts.ArrowFunction | ts.FunctionExpression): string[] {
   const problems: string[] = [];
-  if (!ts.isArrowFunction(fn) && fn.asteriskToken !== undefined)
-    problems.push('a law cannot be a generator');
+  if (!ts.isArrowFunction(fn) && fn.asteriskToken !== undefined) problems.push('a law cannot be a generator');
   for (const parameter of fn.parameters) {
-    if (!ts.isIdentifier(parameter.name))
-      problems.push('a law parameter must be a plain identifier');
+    if (!ts.isIdentifier(parameter.name)) problems.push('a law parameter must be a plain identifier');
     else if (parameter.type === undefined)
-      problems.push(
-        `parameter ${parameter.name.text} of a law needs a type annotation so inputs can be generated`,
-      );
+      problems.push(`parameter ${parameter.name.text} of a law needs a type annotation so inputs can be generated`);
   }
   return problems;
 }
@@ -117,7 +113,8 @@ export function lowerLawFile(file: string, text: string): Lowered {
         ? ''
         : `<${text.slice(bodyArg.typeParameters.pos, bodyArg.typeParameters.end)}>`;
     const parameterText = text.slice(bodyArg.parameters.pos, bodyArg.parameters.end);
-    const returnType = bodyArg.type === undefined ? '' : `: ${text.slice(bodyArg.type.getStart(source), bodyArg.type.end)}`;
+    const returnType =
+      bodyArg.type === undefined ? '' : `: ${text.slice(bodyArg.type.getStart(source), bodyArg.type.end)}`;
     const header = `export ${isAsync ? 'async ' : ''}function ${id}${typeParameters}(${parameterText})${returnType}`;
 
     const bodyStart = bodyArg.body.getStart(source);
@@ -129,9 +126,7 @@ export function lowerLawFile(file: string, text: string): Lowered {
       ? `${header} ${pad}${inner}${tail}`
       : `${header} {${pad} return ${inner};${tail} }`;
     edits.push({ start: statement.getStart(source), end: statement.end, replacement });
-    checks.push(
-      `type __LawResult_${id} = __LawReturns<typeof ${id}>;`,
-    );
+    checks.push(`type __LawResult_${id} = __LawReturns<typeof ${id}>;`);
   }
 
   let lowered = text;

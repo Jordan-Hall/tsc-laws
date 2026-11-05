@@ -7,43 +7,41 @@ Parameters: 3 repeats per cell; 100 generated inputs per property test; 5 DOM wa
 
 ## Unit and property tests, 10 tests
 
-| Tool | Cold median s | Cold p95 s | Warm median s | Warm p95 s | Tests/s cold | Tests/s warm | Peak RSS median MB | Peak RSS p95 MB | Cold vs tslaws | Repeats |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| tslaws check --no-prove | 3.99 | 4.13 | 4.04 | 5.30 | 2.5 | 2.5 | 1518 | 1532 | 1.00x | 3 |
-| tslaws check (prover on, default) * | 5.47 | 5.71 | 5.20 | 5.64 | 1.8 | 1.9 | 1774 | 1778 | 1.37x | 3 |
-| Vitest | 0.87 | 0.95 | 0.77 | 0.83 | 12 | 13 | 193 | 195 | 0.22x | 3 |
-| Rstest | 0.94 | 1.03 | 0.78 | 0.82 | 11 | 13 | 220 | 221 | 0.24x | 3 |
+| Tool                                | Cold median s | Cold p95 s | Warm median s | Warm p95 s | Tests/s cold | Tests/s warm | Peak RSS median MB | Peak RSS p95 MB | Cold vs tslaws | Repeats |
+| ----------------------------------- | ------------: | ---------: | ------------: | ---------: | -----------: | -----------: | -----------------: | --------------: | -------------: | ------: |
+| tslaws check --no-prove             |          3.99 |       4.13 |          4.04 |       5.30 |          2.5 |          2.5 |               1518 |            1532 |          1.00x |       3 |
+| tslaws check (prover on, default) * |          5.47 |       5.71 |          5.20 |       5.64 |          1.8 |          1.9 |               1774 |            1778 |          1.37x |       3 |
+| Vitest                              |          0.87 |       0.95 |          0.77 |       0.83 |           12 |           13 |                193 |             195 |          0.22x |       3 |
+| Rstest                              |          0.94 |       1.03 |          0.78 |       0.82 |           11 |           13 |                220 |             221 |          0.24x |       3 |
 
 - tslaws check (prover on, default) (*): proves what Z3 can lower instead of running the generated cases.
 
 ## Unit tests, example based, 10 tests
 
-| Tool | Cold median s | Cold p95 s | Warm median s | Warm p95 s | Tests/s cold | Tests/s warm | Peak RSS median MB | Peak RSS p95 MB | Cold vs tslaws | Repeats |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| tslaws check --no-prove --runs 1 | 4.38 | 5.30 | 3.89 | 4.07 | 2.3 | 2.6 | 1506 | 1521 | 1.00x | 3 |
-| tslaws check, zero-parameter laws | failed | | | | | | | | | 0 |
-| Vitest | 0.68 | 0.78 | 0.63 | 0.63 | 15 | 16 | 188 | 188 | 0.16x | 3 |
-| Rstest | 0.54 | 0.67 | 0.64 | 0.68 | 18 | 16 | 215 | 215 | 0.12x | 3 |
+| Tool                              | Cold median s | Cold p95 s | Warm median s | Warm p95 s | Tests/s cold | Tests/s warm | Peak RSS median MB | Peak RSS p95 MB | Cold vs tslaws | Repeats |
+| --------------------------------- | ------------: | ---------: | ------------: | ---------: | -----------: | -----------: | -----------------: | --------------: | -------------: | ------: |
+| tslaws check --no-prove --runs 1  |          4.38 |       5.30 |          3.89 |       4.07 |          2.3 |          2.6 |               1506 |            1521 |          1.00x |       3 |
+| tslaws check, zero-parameter laws |        failed |            |               |            |              |              |                    |                 |                |       0 |
+| Vitest                            |          0.68 |       0.78 |          0.63 |       0.63 |           15 |           16 |                188 |             188 |          0.16x |       3 |
+| Rstest                            |          0.54 |       0.67 |          0.64 |       0.68 |           18 |           16 |                215 |             215 |          0.12x |       3 |
 
 - tslaws check --no-prove --runs 1: a one-parameter law run once: zero-parameter laws do not run.
 - tslaws check, zero-parameter laws fails as the probe expected: error src/ops_0.laws.ts add_0 adds: asyncProperty expects at least two parameters
 
 ## Browser tests, 10 tests
 
-| Tool | Cold median s | Cold p95 s | Warm median s | Warm p95 s | Tests/s cold | Tests/s warm | Peak RSS median MB | Peak RSS p95 MB | Cold vs tslaws | Repeats |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| tslaws check --no-prove (browser laws) | 6.87 | 8.47 | 6.58 | 7.94 | 1.5 | 1.5 | 991 | 992 | 1.00x | 3 |
-| Vitest browser mode (playwright provider) | 2.13 | 2.18 | 2.14 | 2.57 | 4.7 | 4.7 | 898 | 898 | 0.31x | 3 |
-| Playwright Test | 7.50 | 8.56 | 7.62 | 8.33 | 1.3 | 1.3 | 6819 | 7084 | 1.09x | 3 |
-
+| Tool                                      | Cold median s | Cold p95 s | Warm median s | Warm p95 s | Tests/s cold | Tests/s warm | Peak RSS median MB | Peak RSS p95 MB | Cold vs tslaws | Repeats |
+| ----------------------------------------- | ------------: | ---------: | ------------: | ---------: | -----------: | -----------: | -----------------: | --------------: | -------------: | ------: |
+| tslaws check --no-prove (browser laws)    |          6.87 |       8.47 |          6.58 |       7.94 |          1.5 |          1.5 |                991 |             992 |          1.00x |       3 |
+| Vitest browser mode (playwright provider) |          2.13 |       2.18 |          2.14 |       2.57 |          4.7 |          4.7 |                898 |             898 |          0.31x |       3 |
+| Playwright Test                           |          7.50 |       8.56 |          7.62 |       8.33 |          1.3 |          1.3 |               6819 |            7084 |          1.09x |       3 |
 
 ## End-to-end tests, 10 tests
 
-| Tool | Cold median s | Cold p95 s | Warm median s | Warm p95 s | Tests/s cold | Tests/s warm | Peak RSS median MB | Peak RSS p95 MB | Cold vs tslaws | Repeats |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| tslaws check --no-prove (e2e laws) | 19.17 | 24.03 | 16.34 | 17.61 | 0.5 | 0.6 | 1029 | 1031 | 1.00x | 3 |
-| Playwright Test | 9.75 | 9.76 | 9.84 | 10.61 | 1.0 | 1.0 | 7327 | 7328 | 0.51x | 3 |
-
+| Tool                               | Cold median s | Cold p95 s | Warm median s | Warm p95 s | Tests/s cold | Tests/s warm | Peak RSS median MB | Peak RSS p95 MB | Cold vs tslaws | Repeats |
+| ---------------------------------- | ------------: | ---------: | ------------: | ---------: | -----------: | -----------: | -----------------: | --------------: | -------------: | ------: |
+| tslaws check --no-prove (e2e laws) |         19.17 |      24.03 |         16.34 |      17.61 |          0.5 |          0.6 |               1029 |            1031 |          1.00x |       3 |
+| Playwright Test                    |          9.75 |       9.76 |          9.84 |      10.61 |          1.0 |          1.0 |               7327 |            7328 |          0.51x |       3 |
 
 ## Where tslaws is slower
 

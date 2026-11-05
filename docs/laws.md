@@ -367,6 +367,48 @@ The law file is `.ts`, so it calls `createElement` rather than writing JSX; `Cou
 
 Bootstrap the component inside `mount(...)` as you do in your app; decorators and metadata are emitted by the compiler.
 
+### Bundler plugins
+
+The browser bundler is esbuild, which loads `.ts`, `.tsx`, `.js` and `.json`. A project that writes components in another source
+format (`.tsrx`, `.svelte`, `.vue`) teaches the bundler that format with an esbuild plugin, listed in `tslaws.json`:
+
+```json
+{ "bundlerPlugins": ["./tools/tsrx-plugin.mjs"] }
+```
+
+Paths are relative to `tslaws.json`. Each module default-exports an esbuild `Plugin`, or a function (sync or async) that takes
+`{ cwd }`, the project root, and returns one:
+
+```js
+import { readFileSync } from 'node:fs';
+import { compile } from './my-compiler.mjs';
+
+export default ({ cwd }) => ({
+  name: 'my-format',
+  setup(build) {
+    build.onLoad({ filter: /\.tsrx$/ }, (args) => ({
+      contents: compile(readFileSync(args.path, 'utf8'), args.path),
+      loader: 'js',
+      resolveDir: cwd,
+    }));
+  },
+});
+```
+
+A plugin for `.tsrx` templates compiled by the public `@tsrx/ripple` compiler is in `packages/tslaws/test/fixtures/tsrx/tsrx-plugin.mjs`.
+
+The plugins run before the built-in resolver and apply to every browser law (`check`, `ui`, `mcp`), including the
+component laws that mount a component. End-to-end laws bundle nothing: they drive your running app. `mutate` copies only
+compiled output, so a file the compiler does not emit (a template, a stylesheet) resolves to the file beside the source. Keep in mind that laws
+are compiled to CommonJS, so a bare import reaches the bundler as `require()`: a package whose `exports` offer only the `import`
+condition needs the plugin to resolve it (`build.resolve(path, { kind: 'import-statement', resolveDir })`).
+
+A stylesheet a law imports (directly or through a template) is added to the page in a `<style>` element before the law's script runs, and an image or font it imports (`.png`, `.jpg`, `.svg`, `.woff2` and so on) is inlined as a data URL, so computed styles and images match the app.
+
+A plugin that cannot be loaded, or whose factory throws, makes each browser law of the run report `error`, naming the setting and
+the module. Without a plugin for the extension, a law that imports such a file reports an `error` that names the extension and
+the `bundlerPlugins` setting. The compiler does not know the format either: it reports the import as TS2307 in `compileDiagnostics`, which does not stop the bundle from running, and the imported value is untyped in the law.
+
 ## End-to-end laws
 
 There are three levels of law. All laws that need a browser share one suffix, `*.browser.laws.ts`; the import selects the level.
@@ -381,7 +423,9 @@ There are three levels of law. All laws that need a browser share one suffix, `*
 | Status      | `proved`, `bounded` or `tested` | `tested`                                       | `tested` (method `e2e`)                                     |
 
 A file that imports both `tslaws/browser` and `tslaws/e2e` is an `error`: it is either component level or end-to-end, not
-both. `*.e2e.laws.ts` is accepted as an alias that always means end-to-end.
+both. `*.e2e.laws.ts` is accepted as an alias that always means end-to-end. A proposed file follows the same rules under its
+own name: `*.browser.proposed.laws.ts` is a proposed component or end-to-end law and `*.e2e.proposed.laws.ts` a proposed
+end-to-end law (see [Naming proposed laws](#naming-proposed-laws)).
 
 An end-to-end law starts from a running app and a Playwright `Page`. Inputs are generated from the parameter types and a
 failure is shrunk to a minimal counterexample, like every other law. Every generated input gets a fresh browser context
@@ -507,6 +551,13 @@ shrunk. If `reset` fails to reset when the count is exactly 3, the counterexampl
 the long sequence that first failed. Keep the operation union small so shrinking can reach a minimal sequence. Stateful
 laws are `tested`: the prover does not model `apply` callbacks.
 
+What shrinking guarantees for an array input such as the operations, for the same seed always giving the same result: a
+failing array of up to 12 elements shrinks to a shortest failing subsequence of it, because every subset of its elements
+is tried, fewest remaining first. A longer array shrinks until removing any one run of consecutive elements, or any two
+separate runs, no longer fails, which is checked in full up to 33 elements; beyond that the search is cut at 50,000 smaller
+arrays for each step, so the result may be longer than a two-run minimum. The generators produce up to 8 elements for an array type, so
+there the result is always a shortest failing subsequence.
+
 In a browser law the operations are clicks and `apply` waits for the page to settle:
 
 ```ts
@@ -548,13 +599,34 @@ laws: `tslaws accept` stays a person's act at a terminal.
 
 ## Editor integration
 
-`packages/vscode-tslaws` is a VS Code extension with no bundled dependencies. Above each `law` in a `*.laws.ts` file it shows a
-CodeLens with the last status (`proved`, `bounded`, `tested`, `open`, `failed`, `uncovered`, `tampered`, `error` or `not run`),
-a `Run` lens, and for a failure the shrunk counterexample. Failed, open, tampered and error laws appear as problems on the
-law's line with the message, counterexample and hint. A status-bar item shows totals (`laws: 3 proved, 1 failed`) and opens
-the dashboard. Commands: `tslaws.check`, `tslaws.runFile`, `tslaws.openDashboard` (runs `tslaws ui --no-open --port 0`), and
-`tslaws.accept`, which only types `npx tslaws accept` into a terminal; a person presses Enter. Settings: `tslaws.runOnSave`
-(default on), `tslaws.executable` and `tslaws.args`. It runs `node_modules/.bin/tslaws`, else `npx tslaws`.
+`packages/vscode-tslaws` is a VS Code extension with no bundled dependencies. When a law fails it says so, as you work, on the
+law and on the code the law exercises.
+
+- **Run on change.** A debounced run of only the laws that cover the changed file: a laws file runs itself; a source file runs the
+  laws that reached it in the last report (`exercises`); else the laws file beside it, or the nearest folder's; else every law.
+  `tslaws.run` is `onSave` (default), `onType` or `manual`. A newer change kills the run that is going. The status bar counts
+  results as they stream (`laws: running 2/5 - 1 proved, 1 failed`). On save is the default because a check compiles and starts the
+  prover, which takes seconds; `onType` runs on a copy of the project in `.tslaws/shadow` that holds the unsaved text, so no
+  file of yours is written.
+- **Both ends.** A failed law is a diagnostic on the law's name and another on the name of the function it exercises, from the
+  report's `exercises`. Each message has the shrunk counterexample under the law's parameter names, the method, runs and seed,
+  and the command that reproduces it. Each end is `relatedInformation` of the other, and both have the code `tslaws/<law name>`.
+  If the stack named the function it is marked as an error; if the law calls several functions and none is named, each is
+  a warning. Ranges are re-resolved against the buffer, so they follow edits between runs. Both clear when the law passes.
+  `open`, `tampered` and `error` laws are marked on the law; `uncovered` functions on their names.
+- **CodeLens, hover, quick fixes.** Above a law: its state, counts and the time of the last run; click to rerun. Above a function a
+  law reaches: `covered by 2 laws, 1 failing`. The hover shows the shrunk input and the reproduce command. Quick fixes: re-run
+  this law, open the failing law, go to the code it exercises, copy the reproduce command. The counterexample also ends the failing
+  line in the theme's error colour, with a gutter mark.
+- **Test Explorer.** Laws are tests in the Testing view, with `Run`, `Rerun failed` and `Run without the prover` profiles (no
+  debug profile). A failure is reported at the law and at the function.
+- **Commands.** `tslaws.check`, `tslaws.runFile`, `tslaws.cancel`, `tslaws.openDashboard` (runs `tslaws ui --no-open --port 0`), and
+  `tslaws.accept`, which only types `npx tslaws accept` into a terminal; a person presses Enter. The extension never accepts laws.
+
+Settings: `tslaws.run`, `tslaws.debounceMs`, `tslaws.runOnOpen`, `tslaws.inlineCounterexample`, `tslaws.executable` and
+`tslaws.args`. `tslaws.runOnSave` is deprecated and counts only while `tslaws.run` is not set (`false` means `manual`). The extension
+runs `node_modules/tslaws/bin/tslaws.js` (or `tslaws.executable`) with `check --reporter ndjson`, and `--json` for an older
+`tslaws`. See `packages/vscode-tslaws/README.md`.
 
 ## Statuses
 
@@ -656,7 +728,9 @@ under `.tslaws/out/smt`.
    (`{ "cover": ["src/**/*.ts", "!src/**/*.test.ts"] }`), or, without that file, every module the laws import. A function
    marked `@tslaws-exempt` in its doc comment is exempt only once the exemption is in the lock.
 3. **Agents propose, people promote.** Agents write candidate laws in `*.proposed.laws.ts` and try them with
-   `tslaws check --proposed` (no lock, no coverage gate). A person moves them into a `*.laws.ts` file and accepts.
+   `tslaws check --proposed` (no lock, no coverage gate). A person moves them into a `*.laws.ts` file and accepts. A proposal
+   keeps the kind of the file it proposes (see [Naming proposed laws](#naming-proposed-laws)). A proposed file of any kind is
+   never counted by the lock or the coverage gate: a proposal protects nothing, and a person accepts.
 4. **The gate runs by itself.** `tslaws init` installs a Claude Code hook (`hooks/claude-hook.mjs`) that blocks
    `git commit` and sends the agent back to work when the check fails, plus rules for `AGENTS.md`
    (`hooks/AGENTS.snippet.md`).
@@ -672,7 +746,7 @@ tslaws delegate status
 tslaws regressions [list|clear]
 tslaws mutate [files...] [--max N] [--seed N] [--runs N] [--bound N] [--proof-timeout MS] [--property-timeout MS] [--json]
 tslaws check [files...] [--json] [--summary] [--watch] [--runs N] [--seed N] [--no-prove] [--no-regressions] [--bound N]
-             [--proof-timeout MS] [--proposed] [--compiler PATH]
+             [--proof-timeout MS] [--proposed] [--compiler PATH] [--reporter text|json|junit|github|ndjson] [--law NAME[,NAME]]
 ```
 
 Exit status is 0 only when every law is `proved`, `bounded` or `tested`, nothing is `uncovered`, the files compile and the
@@ -708,6 +782,21 @@ or edits a `*.laws.ts` file that is not a `*.proposed.laws.ts`. `tslaws_propose`
 a path outside the project root (also through a symlinked directory) and the `node_modules`, `.tslaws` and `.git`
 directories, and accepts only imports and `law` declarations as source. The server sets `TSLAWS_AGENT=1`, so nothing it
 spawns can run `accept` or `promote`. A proposed law is still code that `check --proposed` runs, as with any law file.
+
+## Naming proposed laws
+
+A proposed file is the accepted name with `.proposed` before `.laws`, and it keeps the kind of the file it proposes:
+
+| Proposed file                  | Kind                                      | Accepted file         |
+| ------------------------------ | ----------------------------------------- | --------------------- |
+| `foo.proposed.laws.ts`         | node laws                                 | `foo.laws.ts`         |
+| `foo.browser.proposed.laws.ts` | component laws (or end-to-end, by import) | `foo.browser.laws.ts` |
+| `foo.e2e.proposed.laws.ts`     | end-to-end laws                           | `foo.e2e.laws.ts`     |
+
+`tslaws check --proposed` runs each proposed file at the level its name says, so a proposed browser law loads in the browser
+and not in Node. The refusal of a file that imports both `tslaws/browser` and `tslaws/e2e` applies to proposed files too.
+`tslaws_propose` accepts any of these names and refuses the accepted ones. Proposed files of any kind are never counted by
+`tsc-laws.lock` or by the coverage gate.
 
 ## Promoting proposed laws
 
@@ -748,7 +837,8 @@ file itself; it stops an agent from creating the grant through `tslaws` or the r
 `tslaws promote [file] [--all]` is the person's step after an agent proposes laws. Like `accept`, it refuses without a
 terminal, under `CI`, or with `TSLAWS_AGENT` set. Name one `*.proposed.laws.ts` file, or pass `--all` for every one. For
 each law it shows the name, the source and the current `check --proposed` result, then asks `promote? [y/N]`. Approved
-laws are appended to the matching accepted file (`foo.proposed.laws.ts` to `foo.laws.ts`, created if missing; imports are
+laws are appended to the matching accepted file of the same kind (`foo.proposed.laws.ts` to `foo.laws.ts`,
+`foo.browser.proposed.laws.ts` to `foo.browser.laws.ts`, `foo.e2e.proposed.laws.ts` to `foo.e2e.laws.ts`, created if missing; imports are
 added once) and removed from the proposed file, which is deleted when no law is left. A name the accepted file already
 has is refused. `promote` never writes the lock: review the diff, then run `tslaws accept`.
 
@@ -792,7 +882,7 @@ first failing law; raise the timeouts when it timed out.
 
 ## Settings
 
-`tslaws.json` takes optional run settings besides `cover`, `compilerOptions` and `e2e`:
+`tslaws.json` takes optional run settings besides `cover`, `compilerOptions`, `bundlerPlugins` and `e2e`:
 
 | Key                 | Meaning                                    | Default (`check`) |
 | ------------------- | ------------------------------------------ | ----------------- |
@@ -821,7 +911,22 @@ the built-in default. It applies to `check`, `ui`, `mutate` and `mcp`. End-to-en
 - run: npx tslaws check --reporter github
 ```
 
+- `ndjson` is for editors. It writes one JSON object per line as the check proceeds: `{"type":"plan","laws":[...]}`, then
+  for each law `{"type":"start",...}` and `{"type":"result","result":{...}}`, then `{"type":"report",...}`, the same as `--json`.
+
 For a test report, redirect JUnit output: `npx tslaws check --reporter junit > tslaws-junit.xml`.
+
+`--law NAME[,NAME]` runs only the laws with those names in the files chosen (the others are skipped, not reported).
+
+### Where a failure lives
+
+Every result of a law that ran carries `exercises` in the JSON and `ndjson` reports: the project functions the law reaches, in the
+order it names them and then the ones those use (the same reach the coverage rule uses; it follows imports and re-exports
+through the sources, not the type checker). Each entry has the function's `name`, its `declaration` (the name where it is
+declared) and, for a function the law names itself, `call` (the first reference in the law). Ranges are
+`{file, line, column, endLine, endColumn}`, 1-based, the end exclusive, with `file` relative to the project. When the law threw,
+the entry whose function is in the error's stack also has `failing: true`; a law that returned `false` has no stack, so no entry
+is marked. An `uncovered` result's `line` is the function's declaration line.
 
 ## Build
 
@@ -847,7 +952,7 @@ On Windows the native build is `dist/tsc`; copy it to `tsc.exe` to run it.
 | `packages/tslaws/src/generators.ts`                      | generators from declared types                                                                          |
 | `packages/tslaws/src/init.ts`, `hints.ts`, `cli.ts`      | scaffolding, agent hints, commands                                                                      |
 | `packages/tslaws/hooks/`                                 | Claude Code hook, settings example, agent rules                                                         |
-| `packages/vscode-tslaws/`                                | VS Code grammar for `law`                                                                               |
+| `packages/vscode-tslaws/`                                | VS Code extension: grammar for `law`, live diagnostics, CodeLens, Test Explorer                         |
 | `examples/basic/`                                        | a small project with a failing law, a lock and coverage                                                 |
 
 ## Limits
@@ -866,6 +971,8 @@ On Windows the native build is `dist/tsc`; copy it to `tsc.exe` to run it.
 
 [docs/media/tslaws-explained.mp4](media/tslaws-explained.mp4) is a 103-second illustrated explainer of what tslaws is and what it offers: the problem with agent-written code, the law, the gate, a checkout story (a coupon makes a negative total, the law catches it, the fix is proved), the lock, and where it runs. `scripts/demo/explain.mjs` makes it from `scripts/demo/explainer.json`, with the real code from `examples/checkout` and the real output in `scripts/demo/captures/`.
 
+[docs/media/tslaws-delegation-explainer.mp4](media/tslaws-delegation-explainer.mp4) is a 123-second illustrated explainer of what tslaws offers in one picture, why laws help a migration, and how a person can lend `accept` to an agent for a limited time with `tslaws delegate grant`. It says plainly that a grant is a decision bounded in time and audited, not a sandbox. The command output in it is real, from `examples/checkout` (`scripts/demo/captures/`); the grant file and log lines are labelled illustration drawn from this document. `NARRATION=explainer-delegation.json node scripts/demo/explain.mjs` makes it from `scripts/demo/explainer-delegation.json`.
+
 [docs/media/tslaws-intro.mp4](media/tslaws-intro.mp4) is a 79-second narrated recording: the law typed out, the real dashboard running the real laws in `examples/basic`, `examples/react` and `examples/e2e`, and the real `tslaws check` output, including the tamper failure after a law is edited. The voice is [Kokoro](https://huggingface.co/hexgrad/Kokoro-82M) (`scripts/demo/voice.mjs`, open neural text to speech, offline); the music bed and sound cues are synthesised by `scripts/demo/mix.mjs`; `scripts/demo/record.mjs` records the screen. `scripts/demo/captures/` holds the recorded command output.
 
 ## Migrating from other test frameworks
@@ -879,14 +986,14 @@ convert, as `file:line`. `--write` creates `<name>.laws.ts` next to each test (P
 or under `--out DIR` with the same folders. It never overwrites a file and never deletes a test. The new laws are not in
 `tsc-laws.lock`: read them, run `tslaws check`, and have a person run `tslaws accept`.
 
-| Source                                  | Becomes                                                                                                  |
-| --------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `it`, `test`                            | `law('describe > nested > test', () => { ... })`; the body is kept, `expect` is imported from its package |
-| `beforeEach`, `afterEach`               | inlined at the start (and in a `finally` at the end) of each law; `beforeAll` and `afterAll` too, with a note |
-| `.skip`, `.todo`, `.only`               | listed in the report; skipped laws are not written, `.only` is dropped                                   |
-| `test.each` tables                      | one law per row, named from the title with `%s`, `%i` and `$name` filled in                              |
+| Source                                   | Becomes                                                                                                                                                                                                                                                                                                                          |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `it`, `test`                             | `law('describe > nested > test', () => { ... })`; the body is kept, `expect` is imported from its package                                                                                                                                                                                                                        |
+| `beforeEach`, `afterEach`                | inlined at the start (and in a `finally` at the end) of each law; `beforeAll` and `afterAll` too, with a note                                                                                                                                                                                                                    |
+| `.skip`, `.todo`, `.only`                | listed in the report; skipped laws are not written, `.only` is dropped                                                                                                                                                                                                                                                           |
+| `test.each` tables                       | one law per row, named from the title with `%s`, `%i` and `$name` filled in                                                                                                                                                                                                                                                      |
 | `fc.assert(fc.property(...))`, `it.prop` | a typed law when every arbitrary has a type: `integer` is `int`, `nat` is `int` plus `assume(n >= 0)`, `string`, `boolean`, `array(x)` is `x[]`, `float` and `double` are `number`; limits such as `min` and `max` become `assume` lines. Otherwise the `fc.assert` is kept in a law with no parameters, and the report says why |
-| Playwright `test(...)`                  | an end-to-end law: `page`, `context` and `baseURL` fixtures become `e2e.page()`, `e2e.context()` and `e2e.baseURL()`, and a relative `page.goto('/x')` becomes `e2e.open('/x')`; fixtures such as `request`, `test.use` and `testInfo` are reported, not guessed |
+| Playwright `test(...)`                   | an end-to-end law: `page`, `context` and `baseURL` fixtures become `e2e.page()`, `e2e.context()` and `e2e.baseURL()`, and a relative `page.goto('/x')` becomes `e2e.open('/x')`; fixtures such as `request`, `test.use` and `testInfo` are reported, not guessed                                                                 |
 
 Matchers are not reimplemented: a converted file keeps importing `expect` from `vitest`, `@jest/globals`, `@rstest/core`,
 `bun:test` or `@playwright/test`, so that package must stay installed.

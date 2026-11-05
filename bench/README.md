@@ -2,12 +2,12 @@
 
 Measures `tslaws check` against the fastest alternative test tools on equivalent work.
 
-| Workload | tslaws | Compared with |
-| --- | --- | --- |
-| unit-prop: fast-check property tests, 100 generated inputs per test | `*.laws.ts`, `--runs 100` | Vitest, Rstest |
-| unit-example: one assertion per test | `*.laws.ts`, `--runs 1` | Vitest, Rstest |
-| browser: the same DOM checks against real Chromium | `*.browser.laws.ts` | Vitest browser mode (playwright provider), Playwright Test |
-| e2e: the same click-through against a tiny local server | `*.e2e.laws.ts` | Playwright Test |
+| Workload                                                            | tslaws                    | Compared with                                              |
+| ------------------------------------------------------------------- | ------------------------- | ---------------------------------------------------------- |
+| unit-prop: fast-check property tests, 100 generated inputs per test | `*.laws.ts`, `--runs 100` | Vitest, Rstest                                             |
+| unit-example: one assertion per test                                | `*.laws.ts`, `--runs 1`   | Vitest, Rstest                                             |
+| browser: the same DOM checks against real Chromium                  | `*.browser.laws.ts`       | Vitest browser mode (playwright provider), Playwright Test |
+| e2e: the same click-through against a tiny local server             | `*.e2e.laws.ts`           | Playwright Test                                            |
 
 ## Run
 

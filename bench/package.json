@@ -2,8 +2,8 @@
   "name": "tslaws-bench",
   "version": "0.0.0",
   "private": true,
-  "type": "module",
   "description": "Benchmarks tslaws against Vitest, Rstest (@rstest/core), Vitest browser mode and Playwright Test. Bench-only dependencies live here, not in the repository root.",
+  "type": "module",
   "scripts": {
     "bench": "node run.mjs",
     "quick": "node run.mjs --quick"

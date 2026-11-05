@@ -27,7 +27,13 @@ const flag = (name) => {
 const has = (name) => argv.includes(`--${name}`);
 
 if (has('help') || has('h')) {
-  process.stdout.write(readFileSync(import.meta.filename, 'utf8').split('\n').slice(1, 12).map((l) => l.replace(/^\/\/ ?/, '')).join('\n') + '\n');
+  process.stdout.write(
+    readFileSync(import.meta.filename, 'utf8')
+      .split('\n')
+      .slice(1, 12)
+      .map((l) => l.replace(/^\/\/ ?/, ''))
+      .join('\n') + '\n',
+  );
   process.exit(0);
 }
 
@@ -44,9 +50,11 @@ mkdirSync(resultsDir, { recursive: true });
 const logDir = join(benchRoot, '.logs');
 mkdirSync(logDir, { recursive: true });
 
-for (const w of workloads) if (!workloadNames.includes(w)) throw new Error(`unknown workload ${w}; known: ${workloadNames.join(', ')}`);
+for (const w of workloads)
+  if (!workloadNames.includes(w)) throw new Error(`unknown workload ${w}; known: ${workloadNames.join(', ')}`);
 if (!existsSync(join(benchRoot, 'node_modules', 'vitest'))) throw new Error('run `npm install` in bench/ first');
-if (!existsSync(join(repoRoot, 'packages', 'tslaws', 'dist', 'cli.js'))) throw new Error('build tslaws first: npx tsc -p packages/tslaws/tsconfig.json');
+if (!existsSync(join(repoRoot, 'packages', 'tslaws', 'dist', 'cli.js')))
+  throw new Error('build tslaws first: npx tsc -p packages/tslaws/tsconfig.json');
 
 // ---- environment ----
 
@@ -57,17 +65,31 @@ function chromeExecutable() {
   if (process.platform === 'win32') {
     for (const base of [process.env.PROGRAMFILES, process.env['PROGRAMFILES(X86)'], process.env.LOCALAPPDATA])
       if (base) candidates.push(join(base, 'Google', 'Chrome', 'Application', 'chrome.exe'));
-  } else if (process.platform === 'darwin') candidates.push('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome');
-  else candidates.push('/usr/bin/google-chrome', '/usr/bin/google-chrome-stable', '/usr/bin/chromium', '/usr/bin/chromium-browser');
+  } else if (process.platform === 'darwin')
+    candidates.push('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome');
+  else
+    candidates.push(
+      '/usr/bin/google-chrome',
+      '/usr/bin/google-chrome-stable',
+      '/usr/bin/chromium',
+      '/usr/bin/chromium-browser',
+    );
   const found = candidates.find((c) => existsSync(c));
   if (found) return found;
-  return spawnSync(process.execPath, ['-e', "console.log(require('playwright').chromium.executablePath())"], { cwd: benchRoot, encoding: 'utf8' }).stdout.trim();
+  return spawnSync(process.execPath, ['-e', "console.log(require('playwright').chromium.executablePath())"], {
+    cwd: benchRoot,
+    encoding: 'utf8',
+  }).stdout.trim();
 }
 
 function chromeVersion(path) {
   try {
     if (process.platform === 'win32')
-      return execFileSync('powershell.exe', ['-NoProfile', '-Command', `(Get-Item -LiteralPath '${path}').VersionInfo.ProductVersion`], { encoding: 'utf8' }).trim();
+      return execFileSync(
+        'powershell.exe',
+        ['-NoProfile', '-Command', `(Get-Item -LiteralPath '${path}').VersionInfo.ProductVersion`],
+        { encoding: 'utf8' },
+      ).trim();
     return execFileSync(path, ['--version'], { encoding: 'utf8' }).trim();
   } catch {
     return 'unknown';
@@ -100,7 +122,9 @@ const environment = {
   memoryGiB: Math.round((os.totalmem() / 2 ** 30) * 10) / 10,
   node: process.version,
   chrome: { path: chrome, version: chromeVersion(chrome) },
-  rssMeasured: useWrapper ? 'peak sum of working sets over the whole process tree (job object, sampled every ~8 ms)' : 'not measured on this platform',
+  rssMeasured: useWrapper
+    ? 'peak sum of working sets over the whole process tree (job object, sampled every ~8 ms)'
+    : 'not measured on this platform',
   tools: {
     tslaws: JSON.parse(readFileSync(join(repoRoot, 'packages', 'tslaws', 'package.json'), 'utf8')).version,
     vitest: packageVersion('vitest'),
@@ -114,7 +138,9 @@ const environment = {
   tslawsSource: {
     branch: git('rev-parse', '--abbrev-ref', 'HEAD'),
     commit: git('rev-parse', '--short', 'HEAD'),
-    uncommittedFiles: git('status', '--porcelain', '--', 'packages/tslaws/src', 'packages/tslaws/dist').split('\n').filter(Boolean).length,
+    uncommittedFiles: git('status', '--porcelain', '--', 'packages/tslaws/src', 'packages/tslaws/dist')
+      .split('\n')
+      .filter(Boolean).length,
   },
   parameters: { ...params, testsPerFile: perFile, sizes, repeats, workloads, timeoutSeconds: timeoutMs / 1000 },
 };
@@ -148,21 +174,45 @@ async function runOnce(tool, workload, size, dir, phase, repeat) {
   }
   const valid = m.exitCode === 0 && !m.timedOut && parsed.total === size && parsed.passed === size;
   const record = {
-    workload, size, tool: tool.id, phase, repeat,
-    wallMs: m.wallMs, innerWallMs: m.innerWallMs, cpuMs: m.cpuMs,
-    peakRssBytes: m.peakRssBytes, sumOfProcessPeaksBytes: m.sumOfProcessPeaksBytes, peakProcesses: m.peakProcesses, totalProcesses: m.totalProcesses,
+    workload,
+    size,
+    tool: tool.id,
+    phase,
+    repeat,
+    wallMs: m.wallMs,
+    innerWallMs: m.innerWallMs,
+    cpuMs: m.cpuMs,
+    peakRssBytes: m.peakRssBytes,
+    sumOfProcessPeaksBytes: m.sumOfProcessPeaksBytes,
+    peakProcesses: m.peakProcesses,
+    totalProcesses: m.totalProcesses,
     leftoverProcesses: m.leftoverProcesses,
-    exitCode: m.exitCode, timedOut: m.timedOut ?? false,
-    tests: parsed.total, passed: parsed.passed, runsPerLaw: parsed.runsPerLaw, methods: parsed.methods,
+    exitCode: m.exitCode,
+    timedOut: m.timedOut ?? false,
+    tests: parsed.total,
+    passed: parsed.passed,
+    runsPerLaw: parsed.runsPerLaw,
+    methods: parsed.methods,
     valid,
   };
-  if (!valid) record.failure = parsed.error ?? `exit ${m.exitCode}${m.timedOut ? ' (timed out)' : ''}, ${parsed.passed}/${parsed.total} of ${size} passed\n${tail(logFile)}`;
+  if (!valid)
+    record.failure =
+      parsed.error ??
+      `exit ${m.exitCode}${m.timedOut ? ' (timed out)' : ''}, ${parsed.passed}/${parsed.total} of ${size} passed\n${tail(logFile)}`;
   return record;
 }
 
 const stat = (records, pick) => {
   const values = records.map(pick).filter((v) => typeof v === 'number' && Number.isFinite(v));
-  return values.length === 0 ? null : { median: median(values), p95: percentile(values, 0.95), min: Math.min(...values), max: Math.max(...values), n: values.length };
+  return values.length === 0
+    ? null
+    : {
+        median: median(values),
+        p95: percentile(values, 0.95),
+        min: Math.min(...values),
+        max: Math.max(...values),
+        n: values.length,
+      };
 };
 
 const label = (tool, workload, size) => `${workload}-${size} / ${tool.id}`;
@@ -196,10 +246,27 @@ for (const workload of workloads) {
       const ok = (phase) => records.filter((r) => r.phase === phase && r.valid);
       const failure = records.find((r) => !r.valid);
       results.summaries.push({
-        workload, size, tool: tool.id, label: tool.label, equivalent: tool.equivalent !== false, probe: tool.probe === true, note: tool.note,
-        casesPerTest: tool.casesPerTest, repeats: ok('cold').length,
-        cold: { wallMs: stat(ok('cold'), (r) => r.wallMs), cpuMs: stat(ok('cold'), (r) => r.cpuMs), peakRssBytes: stat(ok('cold'), (r) => r.peakRssBytes), testsPerSecond: stat(ok('cold'), (r) => size / (r.wallMs / 1000)) },
-        warm: { wallMs: stat(ok('warm'), (r) => r.wallMs), cpuMs: stat(ok('warm'), (r) => r.cpuMs), peakRssBytes: stat(ok('warm'), (r) => r.peakRssBytes), testsPerSecond: stat(ok('warm'), (r) => size / (r.wallMs / 1000)) },
+        workload,
+        size,
+        tool: tool.id,
+        label: tool.label,
+        equivalent: tool.equivalent !== false,
+        probe: tool.probe === true,
+        note: tool.note,
+        casesPerTest: tool.casesPerTest,
+        repeats: ok('cold').length,
+        cold: {
+          wallMs: stat(ok('cold'), (r) => r.wallMs),
+          cpuMs: stat(ok('cold'), (r) => r.cpuMs),
+          peakRssBytes: stat(ok('cold'), (r) => r.peakRssBytes),
+          testsPerSecond: stat(ok('cold'), (r) => size / (r.wallMs / 1000)),
+        },
+        warm: {
+          wallMs: stat(ok('warm'), (r) => r.wallMs),
+          cpuMs: stat(ok('warm'), (r) => r.cpuMs),
+          peakRssBytes: stat(ok('warm'), (r) => r.peakRssBytes),
+          testsPerSecond: stat(ok('warm'), (r) => size / (r.wallMs / 1000)),
+        },
         leftoverProcesses: Math.max(0, ...records.map((r) => r.leftoverProcesses ?? 0)),
         failure: failure === undefined ? undefined : failure.failure,
       });
@@ -212,6 +279,8 @@ save();
 process.stdout.write(`\nwrote ${join('bench', 'results', `${name}.json`)} and ${name}.md\n`);
 const failed = results.summaries.filter((s) => s.failure !== undefined && !s.probe);
 if (failed.length > 0) {
-  process.stdout.write(`${failed.length} tool runs failed: ${failed.map((s) => `${s.workload}-${s.size}/${s.tool}`).join(', ')}\n`);
+  process.stdout.write(
+    `${failed.length} tool runs failed: ${failed.map((s) => `${s.workload}-${s.size}/${s.tool}`).join(', ')}\n`,
+  );
   process.exitCode = 1;
 }

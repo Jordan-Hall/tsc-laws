@@ -238,7 +238,10 @@ class Converter {
     const children: { statement: ts.Statement; call: ts.CallExpression; callee?: Callee }[] = [];
     for (const statement of statements) {
       if (ts.isImportDeclaration(statement)) continue;
-      const call = ts.isExpressionStatement(statement) && ts.isCallExpression(statement.expression) ? statement.expression : undefined;
+      const call =
+        ts.isExpressionStatement(statement) && ts.isCallExpression(statement.expression)
+          ? statement.expression
+          : undefined;
       const callee = call === undefined ? undefined : this.classifyCall(call);
       if (call !== undefined && callee !== undefined) {
         if (callee.kind === 'hook') this.addHook(level, call, callee);
@@ -256,7 +259,11 @@ class Converter {
         continue;
       }
       if (this.isModuleMock(statement)) {
-        this.entry('unconverted', statement, 'module mocking has no equivalent outside the framework runner; the call is left out');
+        this.entry(
+          'unconverted',
+          statement,
+          'module mocking has no equivalent outside the framework runner; the call is left out',
+        );
         continue;
       }
       if (this.declaresTests(statement)) {
@@ -283,17 +290,14 @@ class Converter {
     const name = this.b.imported.get(written) ?? written;
     // node:test's `before` and `after` run once, like `beforeAll`.
     const scope = /All$|^(?:before|after)$/.test(name) ? 'all' : 'each';
-    const problem = !isFn(fn)
-      ? 'the hook is not a function written in place'
-      : this.hookProblem(fn);
+    const problem = !isFn(fn) ? 'the hook is not a function written in place' : this.hookProblem(fn);
     if (problem !== undefined) {
       this.entry('unconverted', call, `${name}: ${problem}`);
       level.broken ??= `the ${name} hook at line ${this.src.lineOfNode(call)} was not converted (${problem})`;
       return;
     }
     const hook = fn as FnLike;
-    if (scope === 'all')
-      this.entry('note', call, `${name} now runs in front of every law instead of once`);
+    if (scope === 'all') this.entry('note', call, `${name} now runs in front of every law instead of once`);
     level.hooks.push({ fn: hook, line: this.src.lineOfNode(call), kind: callee.hook!, scope });
   }
 
@@ -320,21 +324,36 @@ class Converter {
     return found;
   }
 
-  private describe(call: ts.CallExpression, callee: Callee, levels: Level[], titles: string[], skip: string | undefined): void {
+  private describe(
+    call: ts.CallExpression,
+    callee: Callee,
+    levels: Level[],
+    titles: string[],
+    skip: string | undefined,
+  ): void {
     const [titleArg, fn] = call.arguments;
     const title = titleOf(titleArg, this.src);
     if (callee.each !== undefined || callee.prop !== undefined || callee.conditional !== undefined) {
-      this.entry('unconverted', call, `${callee.each !== undefined ? 'describe.each' : callee.conditional !== undefined ? `describe.${callee.conditional}` : 'describe'} is not converted; its tests have no laws`);
+      this.entry(
+        'unconverted',
+        call,
+        `${callee.each !== undefined ? 'describe.each' : callee.conditional !== undefined ? `describe.${callee.conditional}` : 'describe'} is not converted; its tests have no laws`,
+      );
       return;
     }
     if (title === undefined || !isFn(fn) || !ts.isBlock(fn.body) || fn.parameters.length > 0) {
-      this.entry('unconverted', call, 'this describe has a computed title or a callback that is not a plain block; its tests have no laws');
+      this.entry(
+        'unconverted',
+        call,
+        'this describe has a computed title or a callback that is not a plain block; its tests have no laws',
+      );
       return;
     }
     let inner = skip;
     if (callee.mods.has('skip') || callee.mods.has('todo') || callee.mods.has('fixme'))
       inner ??= `inside a skipped describe (${title}) at line ${this.src.lineOfNode(call)}`;
-    if (callee.mods.has('only')) this.entry('note', call, `describe.only on "${title}": the focus is dropped, every law runs`);
+    if (callee.mods.has('only'))
+      this.entry('note', call, `describe.only on "${title}": the focus is dropped, every law runs`);
     if (callee.mods.has('fails') || callee.mods.has('failing') || callee.mods.has('fail')) {
       this.entry('unconverted', call, `describe "${title}" is expected to fail; a law cannot expect a failure`);
       return;
@@ -352,7 +371,13 @@ class Converter {
     return candidate;
   }
 
-  private test(call: ts.CallExpression, callee: Callee, levels: Level[], titles: string[], skip: string | undefined): void {
+  private test(
+    call: ts.CallExpression,
+    callee: Callee,
+    levels: Level[],
+    titles: string[],
+    skip: string | undefined,
+  ): void {
     const args = call.arguments;
     const title = titleOf(args[0], this.src);
     const label = title ?? call.getText(this.src.file).slice(0, 30);
@@ -366,15 +391,24 @@ class Converter {
     }
     const fnIndex = args.findIndex((a, i) => i > 0 && isFn(a));
     const fn = fnIndex < 0 ? undefined : (args[fnIndex] as FnLike);
-    const options = args.find((a, i) => i > 0 && ts.isObjectLiteralExpression(a)) as ts.ObjectLiteralExpression | undefined;
+    const options = args.find((a, i) => i > 0 && ts.isObjectLiteralExpression(a)) as
+      | ts.ObjectLiteralExpression
+      | undefined;
     const optionMods = new Set<string>();
     const dropped: string[] = [];
     if (options !== undefined)
       for (const p of options.properties) {
-        const key = ts.isPropertyAssignment(p) && (ts.isIdentifier(p.name) || ts.isStringLiteral(p.name)) ? p.name.text : undefined;
-        if (key !== undefined && (key === 'skip' || key === 'todo' || key === 'only') && p.kind === ts.SyntaxKind.PropertyAssignment) {
+        const key =
+          ts.isPropertyAssignment(p) && (ts.isIdentifier(p.name) || ts.isStringLiteral(p.name))
+            ? p.name.text
+            : undefined;
+        if (
+          key !== undefined &&
+          (key === 'skip' || key === 'todo' || key === 'only') &&
+          p.kind === ts.SyntaxKind.PropertyAssignment
+        ) {
           const value = (p as ts.PropertyAssignment).initializer.kind;
-          if (value === ts.SyntaxKind.TrueKeyword || (value === ts.SyntaxKind.StringLiteral)) optionMods.add(key);
+          if (value === ts.SyntaxKind.TrueKeyword || value === ts.SyntaxKind.StringLiteral) optionMods.add(key);
           else dropped.push(key);
         } else dropped.push(key ?? 'option');
       }
@@ -384,7 +418,7 @@ class Converter {
       return;
     }
     const skipped = ['skip', 'todo', 'fixme'].find((m) => callee.mods.has(m) || optionMods.has(m));
-    if (skipped !== undefined || fn === undefined && callee.prop === undefined) {
+    if (skipped !== undefined || (fn === undefined && callee.prop === undefined)) {
       this.entry('skipped', call, `${skipped ?? 'todo'}: "${[...titles, title ?? label].join(' > ')}"`);
       return;
     }
@@ -393,9 +427,17 @@ class Converter {
       return;
     }
     if (callee.mods.has('only') || optionMods.has('only'))
-      this.entry('note', call, `only on "${[...titles, title ?? label].join(' > ')}": the focus is dropped, every law runs`);
+      this.entry(
+        'note',
+        call,
+        `only on "${[...titles, title ?? label].join(' > ')}": the focus is dropped, every law runs`,
+      );
     if (dropped.length > 0)
-      this.entry('note', call, `"${[...titles, title ?? label].join(' > ')}": ${dropped.join(', ')} not kept (a law takes its limits from tslaws.json and the command line)`);
+      this.entry(
+        'note',
+        call,
+        `"${[...titles, title ?? label].join(' > ')}": ${dropped.join(', ')} not kept (a law takes its limits from tslaws.json and the command line)`,
+      );
     const broken = levels.find((l) => l.broken !== undefined)?.broken;
     if (broken !== undefined) {
       this.entry('unconverted', call, `"${[...titles, title ?? label].join(' > ')}" has no law because ${broken}`);
@@ -422,7 +464,11 @@ class Converter {
 
   private plainTest(call: ts.CallExpression, fn: FnLike, title: string, levels: Level[], titles: string[]): void {
     const name = this.nameOf(titles, title);
-    const problem = this.playwright ? (fixturesOf(fn).problem ?? this.testUse(fn)) : fn.parameters.length > 0 ? 'it takes a callback or context argument' : undefined;
+    const problem = this.playwright
+      ? (fixturesOf(fn).problem ?? this.testUse(fn))
+      : fn.parameters.length > 0
+        ? 'it takes a callback or context argument'
+        : undefined;
     if (problem !== undefined) {
       this.lawNames.delete(name);
       this.entry('unconverted', call, `"${name}": ${problem}`);
@@ -443,7 +489,11 @@ class Converter {
   private keepStrayAsserts(fn: FnLike): void {
     const visit = (n: ts.Node): void => {
       if (ts.isCallExpression(n) && fcMember(n.expression, this.b) === 'assert')
-        this.entry('unconverted', n, 'fc.assert kept as it is in a zero-parameter law: it is not the only statement of the test');
+        this.entry(
+          'unconverted',
+          n,
+          'fc.assert kept as it is in a zero-parameter law: it is not the only statement of the test',
+        );
       else ts.forEachChild(n, visit);
     };
     visit(fn.body);
@@ -474,7 +524,8 @@ class Converter {
     const lines = this.src.block(expression.getStart(this.src.file), expression.end, depth);
     if (lines.length === 0) return [];
     if (returns) lines[0] = `${pad(depth)}return ${lines[0]!.trimStart()}`;
-    else if (awaited && !ts.isAwaitExpression(unwrap(expression))) lines[0] = `${pad(depth)}await ${lines[0]!.trimStart()}`;
+    else if (awaited && !ts.isAwaitExpression(unwrap(expression)))
+      lines[0] = `${pad(depth)}await ${lines[0]!.trimStart()}`;
     lines[lines.length - 1] += ';';
     return lines;
   }
@@ -497,10 +548,14 @@ class Converter {
     const property = unwrap(prop);
     if (!ts.isCallExpression(property)) return fail('the property is built elsewhere');
     const kind = fcMember(property.expression, this.b);
-    if (kind !== 'property' && kind !== 'asyncProperty') return fail('the property is not fc.property(...) or fc.asyncProperty(...)');
+    if (kind !== 'property' && kind !== 'asyncProperty')
+      return fail('the property is not fc.property(...) or fc.asyncProperty(...)');
     const fnArg = property.arguments[property.arguments.length - 1];
     if (!isFn(fnArg)) return fail('the property function is not written in place');
-    const note = options === undefined ? undefined : `fc.assert options (${options.getText(this.src.file).replace(/\s+/g, ' ').slice(0, 60)}) are not kept; use --runs and --seed`;
+    const note =
+      options === undefined
+        ? undefined
+        : `fc.assert options (${options.getText(this.src.file).replace(/\s+/g, ' ').slice(0, 60)}) are not kept; use --runs and --seed`;
     return this.typedProperty(property.arguments.slice(0, -1), fnArg, node, note, kind === 'asyncProperty');
   }
 
@@ -521,7 +576,12 @@ class Converter {
       const mapped = mapArbitrary(arbitrary, this.b);
       if (!mapped.ok) return fail(mapped.reason);
       const parameter = names === undefined ? fn.parameters[i] : undefined;
-      if (parameter !== undefined && (!ts.isIdentifier(parameter.name) || parameter.initializer !== undefined || parameter.dotDotDotToken !== undefined))
+      if (
+        parameter !== undefined &&
+        (!ts.isIdentifier(parameter.name) ||
+          parameter.initializer !== undefined ||
+          parameter.dotDotDotToken !== undefined)
+      )
         return fail('a parameter of the property function is destructured or has a default');
       params.push({
         name: names?.[i] ?? (parameter === undefined ? `_${i + 1}` : (parameter.name as ts.Identifier).text),
@@ -560,7 +620,13 @@ class Converter {
   }
 
   /** A top-level `fc.assert(...)` outside any test. */
-  private bareProperty(statement: ts.Statement, call: ts.CallExpression, levels: Level[], titles: string[], skip: string | undefined): void {
+  private bareProperty(
+    statement: ts.Statement,
+    call: ts.CallExpression,
+    levels: Level[],
+    titles: string[],
+    skip: string | undefined,
+  ): void {
     const line = this.src.lineOfNode(statement);
     const name = this.nameOf(titles, `property at line ${line}`);
     if (skip !== undefined) {
@@ -576,17 +642,28 @@ class Converter {
     }
     const [prop, options] = call.arguments;
     const property = prop === undefined ? undefined : unwrap(prop);
-    const kind = property !== undefined && ts.isCallExpression(property) ? fcMember(property.expression, this.b) : undefined;
-    const fnArg = property !== undefined && ts.isCallExpression(property) ? property.arguments[property.arguments.length - 1] : undefined;
+    const kind =
+      property !== undefined && ts.isCallExpression(property) ? fcMember(property.expression, this.b) : undefined;
+    const fnArg =
+      property !== undefined && ts.isCallExpression(property)
+        ? property.arguments[property.arguments.length - 1]
+        : undefined;
     let result: PropertyResult;
-    if (property === undefined || !ts.isCallExpression(property) || (kind !== 'property' && kind !== 'asyncProperty') || !isFn(fnArg))
+    if (
+      property === undefined ||
+      !ts.isCallExpression(property) ||
+      (kind !== 'property' && kind !== 'asyncProperty') ||
+      !isFn(fnArg)
+    )
       result = { ok: false, reason: 'the property is not fc.property(...) written in place', node: statement };
     else
       result = this.typedProperty(
         property.arguments.slice(0, -1),
         fnArg,
         statement,
-        options === undefined ? undefined : `fc.assert options (${options.getText(this.src.file).replace(/\s+/g, ' ').slice(0, 60)}) are not kept; use --runs and --seed`,
+        options === undefined
+          ? undefined
+          : `fc.assert options (${options.getText(this.src.file).replace(/\s+/g, ' ').slice(0, 60)}) are not kept; use --runs and --seed`,
         kind === 'asyncProperty',
       );
     if (result.ok) {
@@ -600,7 +677,14 @@ class Converter {
   }
 
   /** `it.prop([arbitraries])('name', (a, b) => ...)` of @fast-check/vitest and @fast-check/jest. */
-  private propTest(call: ts.CallExpression, callee: Callee, fn: FnLike | undefined, title: string | undefined, levels: Level[], titles: string[]): void {
+  private propTest(
+    call: ts.CallExpression,
+    callee: Callee,
+    fn: FnLike | undefined,
+    title: string | undefined,
+    levels: Level[],
+    titles: string[],
+  ): void {
     const prop = callee.prop!;
     const name = this.nameOf(titles, title ?? `property at line ${this.src.lineOfNode(call)}`);
     const give = (reason: string): void => this.entry('unconverted', call, `"${name}": ${reason}`);
@@ -615,7 +699,10 @@ class Converter {
       give('there are no arbitraries');
       return;
     }
-    const note = options === undefined ? undefined : `property options (${options.getText(this.src.file).replace(/\s+/g, ' ').slice(0, 60)}) are not kept; use --runs and --seed`;
+    const note =
+      options === undefined
+        ? undefined
+        : `property options (${options.getText(this.src.file).replace(/\s+/g, ' ').slice(0, 60)}) are not kept; use --runs and --seed`;
     const list = unwrap(arbitraries);
     let result: PropertyResult;
     let keys: string[] | undefined;
@@ -626,24 +713,51 @@ class Converter {
       const pattern = fn.parameters[0]?.name;
       const members = new Map<string, ts.Expression>();
       for (const p of list.properties)
-        if (ts.isPropertyAssignment(p) && (ts.isIdentifier(p.name) || ts.isStringLiteral(p.name))) members.set(p.name.text, p.initializer);
-      if (pattern === undefined || !ts.isObjectBindingPattern(pattern) || fn.parameters.length !== 1 || members.size !== list.properties.length) {
-        result = { ok: false, reason: 'the object of arbitraries is not matched by a destructured parameter', node: call };
+        if (ts.isPropertyAssignment(p) && (ts.isIdentifier(p.name) || ts.isStringLiteral(p.name)))
+          members.set(p.name.text, p.initializer);
+      if (
+        pattern === undefined ||
+        !ts.isObjectBindingPattern(pattern) ||
+        fn.parameters.length !== 1 ||
+        members.size !== list.properties.length
+      ) {
+        result = {
+          ok: false,
+          reason: 'the object of arbitraries is not matched by a destructured parameter',
+          node: call,
+        };
       } else {
         const picked: ts.Expression[] = [];
         keys = [];
         let ok = true;
         for (const element of pattern.elements) {
-          const key = element.propertyName === undefined ? (ts.isIdentifier(element.name) ? element.name.text : undefined) : ts.isIdentifier(element.propertyName) || ts.isStringLiteral(element.propertyName) ? element.propertyName.text : undefined;
+          const key =
+            element.propertyName === undefined
+              ? ts.isIdentifier(element.name)
+                ? element.name.text
+                : undefined
+              : ts.isIdentifier(element.propertyName) || ts.isStringLiteral(element.propertyName)
+                ? element.propertyName.text
+                : undefined;
           const arbitrary = key === undefined ? undefined : members.get(key);
-          if (arbitrary === undefined || !ts.isIdentifier(element.name) || element.initializer !== undefined || element.dotDotDotToken !== undefined) {
+          if (
+            arbitrary === undefined ||
+            !ts.isIdentifier(element.name) ||
+            element.initializer !== undefined ||
+            element.dotDotDotToken !== undefined
+          ) {
             ok = false;
             break;
           }
           picked.push(arbitrary);
           keys.push(element.name.text);
         }
-        if (!ok) result = { ok: false, reason: 'a destructured property is renamed with a default or has no arbitrary', node: call };
+        if (!ok)
+          result = {
+            ok: false,
+            reason: 'a destructured property is renamed with a default or has no arbitrary',
+            node: call,
+          };
         else {
           result = this.typedProperty(picked, fn, call, note, false, keys);
         }
@@ -658,7 +772,9 @@ class Converter {
     this.includeNode(call);
     const fc = this.fcName();
     const arbs = ts.isObjectLiteralExpression(list) ? `${fc}.record(${this.src.textOf(list)})` : undefined;
-    const arbList = ts.isArrayLiteralExpression(list) ? list.elements.map((e) => this.src.textOf(e)) : [arbs ?? this.src.textOf(list)];
+    const arbList = ts.isArrayLiteralExpression(list)
+      ? list.elements.map((e) => this.src.textOf(e))
+      : [arbs ?? this.src.textOf(list)];
     const asyncProperty = isAsyncFn(fn);
     const head = `${asyncProperty ? 'await ' : ''}${fc}.assert(${fc}.${asyncProperty ? 'asyncProperty' : 'property'}(${arbList.join(', ')}, `;
     const lines = (depth: number): string[] => {
@@ -681,9 +797,17 @@ class Converter {
 
   // --- test.each ----------------------------------------------------------------------------------------------
 
-  private eachTest(call: ts.CallExpression, callee: Callee, fn: FnLike, title: string, levels: Level[], titles: string[]): void {
+  private eachTest(
+    call: ts.CallExpression,
+    callee: Callee,
+    fn: FnLike,
+    title: string,
+    levels: Level[],
+    titles: string[],
+  ): void {
     const rows = rowsOf(callee.each!, this.src, callee.forRows !== true);
-    const here = (reason: string): void => this.entry('unconverted', call, `"${[...titles, title].join(' > ')}": ${reason}`);
+    const here = (reason: string): void =>
+      this.entry('unconverted', call, `"${[...titles, title].join(' > ')}": ${reason}`);
     if (!rows.ok) return here(rows.reason);
     if (rows.rows.length === 0) return here('the table has no rows');
     for (const parameter of fn.parameters)
@@ -697,7 +821,10 @@ class Converter {
       const bindings: string[] = [];
       const declared: string[] = [];
       for (const [i, parameter] of fn.parameters.entries()) {
-        const value = callee.forRows === true && row.args.length === 1 && row.synthetic === undefined && fn.parameters.length === 1 ? texts[0] : texts[i];
+        const value =
+          callee.forRows === true && row.args.length === 1 && row.synthetic === undefined && fn.parameters.length === 1
+            ? texts[0]
+            : texts[i];
         const type = parameter.type === undefined ? '' : `: ${parameter.type.getText(this.src.file)}`;
         bindings.push(`const ${parameter.name.getText(this.src.file)}${type} = ${value ?? 'undefined'};`);
         const pattern = new Set<string>();
@@ -738,17 +865,31 @@ class Converter {
         pages.has(n.expression.expression.text)
       ) {
         const url = n.arguments[0];
-        const text = url === undefined ? undefined : ts.isStringLiteral(url) || ts.isNoSubstitutionTemplateLiteral(url) ? url.text : undefined;
+        const text =
+          url === undefined
+            ? undefined
+            : ts.isStringLiteral(url) || ts.isNoSubstitutionTemplateLiteral(url)
+              ? url.text
+              : undefined;
         if (url === undefined) {
           /* page.goto() without a URL is not valid */
         } else if (text === undefined)
-          this.entry('note', n, 'page.goto with a computed address: a relative one does not resolve against the base URL in a law; use open(path)');
+          this.entry(
+            'note',
+            n,
+            'page.goto with a computed address: a relative one does not resolve against the base URL in a law; use open(path)',
+          );
         else if (relative(text)) {
           this.usesE2e = true;
           const quoted = quote(text);
           if (n.arguments.length === 1 && ts.isAwaitExpression(n.parent))
             this.src.edit(n.getStart(this.src.file), n.end, `${this.e2eName}.open(${quoted})`);
-          else this.src.edit(url.getStart(this.src.file), url.end, `new URL(${quoted}, ${this.e2eName}.baseURL()).toString()`);
+          else
+            this.src.edit(
+              url.getStart(this.src.file),
+              url.end,
+              `new URL(${quoted}, ${this.e2eName}.baseURL()).toString()`,
+            );
         }
       }
       ts.forEachChild(n, visit);
@@ -766,7 +907,9 @@ class Converter {
         for (const [local, fixture] of fixturesOf(fn).bindings) fixtures.set(local, fixture);
       for (const hook of hooks) this.playwrightEdits(hook.fn);
     }
-    const isAsync = body.async || hooks.some((h) => isAsyncFn(h.fn) || awaits(h.fn.body) || (this.playwright && !ts.isBlock(h.fn.body)));
+    const isAsync =
+      body.async ||
+      hooks.some((h) => isAsyncFn(h.fn) || awaits(h.fn.body) || (this.playwright && !ts.isBlock(h.fn.body)));
     const scope = new Set<string>([...body.params.map((p) => p.name), ...fixtures.keys()]);
     const lines: string[] = [];
     for (const [local, fixture] of fixtures) {
@@ -781,12 +924,21 @@ class Converter {
     void node;
   }
 
-  private statementsLines(statements: readonly ts.Statement[], depth: number, scope: Set<string>, wrapAlways: boolean): string[] {
+  private statementsLines(
+    statements: readonly ts.Statement[],
+    depth: number,
+    scope: Set<string>,
+    wrapAlways: boolean,
+  ): string[] {
     const names = statements.flatMap(declaredNames);
     this.includeNode({ forEachChild: () => undefined } as unknown as ts.Node);
     for (const s of statements) this.includeNode(s);
-    const inner = this.src.statements(statements, names.length > 0 && (wrapAlways || names.some((n) => scope.has(n))) ? depth + 1 : depth);
-    if (names.length > 0 && (wrapAlways || names.some((n) => scope.has(n)))) return [`${pad(depth)}{`, ...inner, `${pad(depth)}}`];
+    const inner = this.src.statements(
+      statements,
+      names.length > 0 && (wrapAlways || names.some((n) => scope.has(n))) ? depth + 1 : depth,
+    );
+    if (names.length > 0 && (wrapAlways || names.some((n) => scope.has(n))))
+      return [`${pad(depth)}{`, ...inner, `${pad(depth)}}`];
     for (const n of names) scope.add(n);
     return inner;
   }
@@ -842,8 +994,14 @@ class Converter {
     for (const s of this.moduleStatements) this.includeNode(s);
     const importLines: string[] = [];
     const extra = new Map<string, Set<string>>();
-    const tslaws = ['law', ...[...this.helpers].filter((h) => h !== 'int').map((h) => (this.aliases.get(h) === h ? h : `${h} as ${this.aliases.get(h)}`))];
-    if (this.helpers.has('int')) tslaws.push(this.aliases.get('int') === 'int' ? 'type int' : `type int as ${this.aliases.get('int')}`);
+    const tslaws = [
+      'law',
+      ...[...this.helpers]
+        .filter((h) => h !== 'int')
+        .map((h) => (this.aliases.get(h) === h ? h : `${h} as ${this.aliases.get(h)}`)),
+    ];
+    if (this.helpers.has('int'))
+      tslaws.push(this.aliases.get('int') === 'int' ? 'type int' : `type int as ${this.aliases.get('int')}`);
     importLines.push(`import { ${tslaws.join(', ')} } from 'tslaws';`);
     // The import of `tslaws/e2e` is what makes the file an end-to-end law file, so it stays even when no law uses it.
     if (this.playwright)
@@ -859,7 +1017,10 @@ class Converter {
       }
       const rebuilt = this.frameworkImport(statement, module);
       if (rebuilt !== undefined) importLines.push(rebuilt);
-      for (const element of statement.importClause?.namedBindings && ts.isNamedImports(statement.importClause.namedBindings) ? statement.importClause.namedBindings.elements : [])
+      for (const element of statement.importClause?.namedBindings &&
+      ts.isNamedImports(statement.importClause.namedBindings)
+        ? statement.importClause.namedBindings.elements
+        : [])
         provided.add(element.name.text);
     }
     if (globals !== undefined) {
@@ -867,7 +1028,16 @@ class Converter {
       if (wanted.length > 0) extra.set(globals.module, new Set(wanted));
     }
     for (const [module, names] of extra) importLines.push(`import { ${[...names].join(', ')} } from ${quote(module)};`);
-    if (this.usedFc && !this.src.file.statements.some((s) => ts.isImportDeclaration(s) && ts.isStringLiteral(s.moduleSpecifier) && s.moduleSpecifier.text === 'fast-check' && this.used.has(this.fcName())))
+    if (
+      this.usedFc &&
+      !this.src.file.statements.some(
+        (s) =>
+          ts.isImportDeclaration(s) &&
+          ts.isStringLiteral(s.moduleSpecifier) &&
+          s.moduleSpecifier.text === 'fast-check' &&
+          this.used.has(this.fcName()),
+      )
+    )
       importLines.push(`import * as ${this.fcName()} from 'fast-check';`);
     const module = this.src.statements(this.moduleStatements, 0);
     return `${[importLines.join('\n'), module.join('\n'), this.lawBlocks.join('\n\n')].filter((p) => p !== '').join('\n\n')}\n`;

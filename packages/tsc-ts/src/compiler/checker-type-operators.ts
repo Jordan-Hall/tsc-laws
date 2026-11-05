@@ -37,6 +37,8 @@ import {
   IndexFlags,
   IndexInfo,
   type IndexType,
+  ConditionalResultKey,
+  DistributedConditional,
   IndexedAccessType,
   type IntersectionType,
   type LiteralType,
@@ -61,6 +63,8 @@ import {
   ReferenceArgs,
   type TypeReference,
   VarianceFlags,
+  getMappedType,
+  getNonDistributedTypeParameter,
 } from './checker-types.js';
 import {
   UnionReduction,
@@ -119,7 +123,6 @@ import {
   getIndexTypeOfType,
   hasPropertiesOfType,
   keepPropertiesOnly,
-  memberResolutionFlags,
 } from './checker-members.js';
 import {
   getLateBoundSymbol,
@@ -328,13 +331,7 @@ function getIndexTypeForGenericType(c: Checker, t: Type, indexFlags: IndexFlags)
 }
 
 export function getLiteralTypeFromProperties(c: Checker, t: Type, include: TypeFlags, includeOrigin: boolean): Type {
-  const key =
-    'props' +
-    t.id +
-    ':' +
-    include +
-    (includeOrigin ? 'o' : '') +
-    ((memberResolutionFlags(c, t) & ObjectFlags.UnresolvedMembers) !== 0 ? 'u' : '');
+  const key = 'props' + t.id + ':' + include + (includeOrigin ? 'o' : '');
   const cached = c.cachedTypes.get(key);
   if (cached !== undefined) return cached;
   const origin =
@@ -594,6 +591,7 @@ export function getIndexedAccessTypeOrUndefinedEx(
     let t = c.indexedAccessTypes.get(key);
     if (t === undefined) {
       t = newIndexedAccessType(c, objectType, indexType, persistent);
+      if (c.indexedAccessKeyFlags !== undefined) c.indexedAccessKeyFlags.set(t, accessFlags);
       t.alias = alias;
       c.indexedAccessTypes.set(key, t);
     }
@@ -1193,11 +1191,36 @@ export function getSimplifiedType(c: Checker, t: Type, writing: boolean): Type {
   if ((t.flags & TypeFlags.IndexedAccess) !== 0)
     return getSimplifiedIndexedAccessType(c, t as IndexedAccessType, writing);
   if ((t.flags & TypeFlags.Conditional) !== 0) return getSimplifiedConditionalType(c, t as ConditionalType, writing);
+  if ((t.flags & TypeFlags.Index) !== 0) return getSimplifiedIndexType(c, t as IndexType);
+  return t;
+}
+
+/** Simplifies `keyof` a generic mapped type with an `as` clause to the type of the keys it produces. */
+function getSimplifiedIndexType(c: Checker, t: IndexType): Type {
+  const target = t.target;
+  if (
+    isGenericMappedType(c, target) &&
+    getNameTypeFromMappedType(c, target as MappedType) !== undefined &&
+    !isMappedTypeWithKeyofConstraintDeclaration(c, target as MappedType)
+  )
+    return getIndexForMappedType(c, target as MappedType, IndexFlags.None);
   return t;
 }
 
 /** Simplifies `T extends U ? T : never` and `T extends U ? never : T` when the outcome is known. */
 function getSimplifiedConditionalType(c: Checker, t: ConditionalType, writing: boolean): Type {
+  const key = cachedTypeKey(
+    writing ? CachedTypeKind.SimplifiedConditionalForWriting : CachedTypeKind.SimplifiedConditionalForReading,
+    t.id,
+  );
+  const cached = c.cachedTypesById.get(key);
+  if (cached !== undefined) return cached;
+  const result = getSimplifiedConditionalTypeWorker(c, t, writing);
+  c.cachedTypesById.set(key, result);
+  return result;
+}
+
+function getSimplifiedConditionalTypeWorker(c: Checker, t: ConditionalType, writing: boolean): Type {
   const checkType = t.checkType;
   const extendsType = t.extendsType;
   const trueType = getTrueTypeFromConditionalType(c, t);
@@ -1561,7 +1584,9 @@ export function getModifiersTypeFromMappedType(c: Checker, t: MappedType): Type 
       const declaredType = getTypeFromMappedTypeNode(c, t.declaration!) as MappedType;
       const constraint = getConstraintTypeFromMappedType(c, declaredType);
       const extended =
-        (constraint.flags & TypeFlags.TypeParameter) !== 0 ? getConstraintOfTypeParameter(c, constraint) : constraint;
+        (constraint.flags & TypeFlags.TypeParameter) !== 0
+          ? getConstraintOfTypeParameter(c, getNonDistributedTypeParameter(constraint))
+          : constraint;
       side.modifiersType =
         extended !== undefined && (extended.flags & TypeFlags.Index) !== 0
           ? instantiateType(c, (extended as IndexType).target, t.mapper)
@@ -1584,17 +1609,12 @@ export function getActualTypeVariable(c: Checker, t: Type): Type {
   if ((t.flags & TypeFlags.Substitution) !== 0) return getActualTypeVariable(c, (t as SubstitutionType).baseType);
   if ((t.flags & TypeFlags.IndexedAccess) !== 0) {
     const access = t as IndexedAccessType;
-    if (
-      (access.objectType.flags & TypeFlags.Substitution) !== 0 ||
-      (access.indexType.flags & TypeFlags.Substitution) !== 0
-    )
-      return getIndexedAccessType(
-        c,
-        getActualTypeVariable(c, access.objectType),
-        getActualTypeVariable(c, access.indexType),
-      );
+    const objectType = getActualTypeVariable(c, access.objectType);
+    const indexType = getActualTypeVariable(c, access.indexType);
+    if (objectType !== access.objectType || indexType !== access.indexType)
+      return getIndexedAccessType(c, objectType, indexType);
   }
-  return t;
+  return getNonDistributedTypeParameter(t);
 }
 
 export const enum MappedTypeNameTypeKind {
@@ -1907,7 +1927,7 @@ function instantiateMappedTypeTemplate(
   )
     return getOptionalType(c, propType, true);
   if (c.strictNullChecks && (modifiers & MappedTypeModifiers.ExcludeOptional) !== 0 && isOptional)
-    return filterType(c, propType, (u) => (u.flags & TypeFlags.Undefined) === 0);
+    return removeMissingOrUndefinedType(c, propType);
   return propType;
 }
 
@@ -1975,21 +1995,41 @@ export function getConditionalTypeInstantiation(
   if (result === undefined) {
     const newMapper = newTypeMapper(root.outerTypeParameters, typeArguments);
     const checkType = root.checkType;
-    const distributionType = root.isDistributive ? getReducedType(c, newMapper.map(checkType)) : undefined;
+    const distributionType = root.isDistributive ? getReducedType(c, getMappedType(checkType, newMapper)) : undefined;
     // Distributive conditional types distribute over unions.
     if (
       distributionType !== undefined &&
       checkType !== distributionType &&
       (distributionType.flags & (TypeFlags.Union | TypeFlags.Never)) !== 0
-    )
+    ) {
+      const distributed = c.distributedConditionals;
       result = mapTypeWithAlias(
         c,
         distributionType,
-        (u) => getConditionalType(c, root, prependTypeMapping(checkType, u, newMapper), forConstraint, undefined),
+        (u) => {
+          const member = getConditionalType(
+            c,
+            root,
+            prependTypeMapping(checkType, u, newMapper),
+            forConstraint,
+            undefined,
+          );
+          // Sharing results (shared-results.ts) names a distributed member by the instantiation it is part of.
+          if (distributed !== undefined && (member.flags & TypeFlags.Conditional) !== 0) {
+            if (!distributed.has(member))
+              distributed.set(member, new DistributedConditional(typeArguments.slice(), alias, tag, u));
+            c.distributedByKey!.set(distributedKey(root.node.id, typeArguments, alias, tag, u), member);
+          }
+          return member;
+        },
         alias,
       );
-    else result = getConditionalType(c, root, newMapper, forConstraint, alias);
+    } else result = getConditionalType(c, root, newMapper, forConstraint, alias);
     root.instantiations.set(hash, typeArguments, alias, tag, result);
+    // Sharing results names a conditional type made for another root (a tail or nested root) by this instantiation.
+    const results = c.conditionalResults;
+    if (results !== undefined && (result.flags & TypeFlags.Conditional) !== 0 && !results.has(result))
+      results.set(result, new ConditionalResultKey(root, typeArguments.slice(), alias, tag));
   }
   return result;
 }
@@ -2322,7 +2362,7 @@ function getTailRecursionRoot(c: Checker, newType: Type, newMapper: TypeMapper |
   const typeArguments: Type[] = [];
   for (const t of newRoot.outerTypeParameters) typeArguments.push(typeParamMapper.map(t));
   const newRootMapper = newTypeMapper(newRoot.outerTypeParameters, typeArguments);
-  const newCheckType = newRoot.isDistributive ? newRootMapper.map(newRoot.checkType) : undefined;
+  const newCheckType = newRoot.isDistributive ? getMappedType(newRoot.checkType, newRootMapper) : undefined;
   if (
     newCheckType === undefined ||
     newCheckType === newRoot.checkType ||
@@ -2435,7 +2475,7 @@ export function isTypeMatchedByTemplateLiteralType(
   target: TemplateLiteralType,
   compareTypes?: TemplateTypeComparer,
 ): boolean {
-  const inferences = inferTypesFromTemplateLiteralType(c, source, target);
+  const inferences = inferTypesFromTemplateLiteralType(c, source, target, compareTypes);
   if (inferences === undefined) return false;
   const compare = compareTypes ?? ((s: Type, t: Type) => isTypeAssignableTo(c, s, t));
   for (let i = 0; i < inferences.length; i++)
@@ -2507,4 +2547,21 @@ export type { TupleType, UnionType };
 export function mappedTypeTarget(t: MappedType): MappedType {
   const target = t.target;
   return target !== undefined ? (target as MappedType) : t;
+}
+
+/** The key of the member of a conditional type instantiation's distribution for one constituent (shared-results.ts). */
+export function distributedKey(
+  root: number,
+  typeArguments: readonly Type[],
+  alias: TypeAlias | undefined,
+  tag: number,
+  constituent: Type,
+): string {
+  let key = root + ':' + tag + ':' + constituent.id + ':';
+  for (const t of typeArguments) key += t.id + ',';
+  if (alias !== undefined) {
+    key += '@' + getSymbolId(alias.symbol);
+    for (const t of alias.typeArguments) key += ',' + t.id;
+  }
+  return key;
 }

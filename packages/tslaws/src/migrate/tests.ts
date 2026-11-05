@@ -71,10 +71,18 @@ export function fixturesOf(fn: FnLike): Fixtures {
   for (const element of parameter.name.elements) {
     if (element.dotDotDotToken !== undefined || element.initializer !== undefined || !ts.isIdentifier(element.name))
       return { bindings, problem: 'a fixture is renamed with a default, a rest or a pattern' };
-    const fixture = element.propertyName === undefined ? element.name.text : ts.isIdentifier(element.propertyName) ? element.propertyName.text : undefined;
+    const fixture =
+      element.propertyName === undefined
+        ? element.name.text
+        : ts.isIdentifier(element.propertyName)
+          ? element.propertyName.text
+          : undefined;
     if (fixture === undefined) return { bindings, problem: 'a fixture has a computed name' };
     if (fixture !== 'page' && fixture !== 'context' && fixture !== 'baseURL')
-      return { bindings, problem: `the fixture ${fixture} has no counterpart in a law (only page, context and baseURL do)` };
+      return {
+        bindings,
+        problem: `the fixture ${fixture} has no counterpart in a law (only page, context and baseURL do)`,
+      };
     bindings.set(element.name.text, fixture);
   }
   return { bindings };
@@ -99,7 +107,11 @@ export function rowsOf(each: ts.CallExpression | ts.TaggedTemplateExpression, sr
   if (ts.isTaggedTemplateExpression(each)) {
     const template = each.template;
     if (ts.isNoSubstitutionTemplateLiteral(template)) return { ok: true, rows: [], template: true, header: [] };
-    const header = template.head.text.trim().split('|').map((h) => h.trim()).filter((h) => h !== '');
+    const header = template.head.text
+      .trim()
+      .split('|')
+      .map((h) => h.trim())
+      .filter((h) => h !== '');
     const cells = template.templateSpans.map((s) => s.expression);
     if (header.length === 0 || cells.length % header.length !== 0)
       return { ok: false, reason: 'the table has cells that do not line up with its header' };
@@ -127,7 +139,11 @@ export function rowsOf(each: ts.CallExpression | ts.TaggedTemplateExpression, sr
       rows.push({ args: cells.slice(), texts: cells.map((c) => oneLine(src.textOf(c))) });
     } else {
       const e = unwrap(element);
-      rows.push({ args: [element], object: ts.isObjectLiteralExpression(e) ? e : undefined, texts: [oneLine(src.textOf(element))] });
+      rows.push({
+        args: [element],
+        object: ts.isObjectLiteralExpression(e) ? e : undefined,
+        texts: [oneLine(src.textOf(element))],
+      });
     }
   }
   return { ok: true, rows, template: false, header: [] };
@@ -165,7 +181,12 @@ export function rowTitle(title: string, row: Row, index: number, src: Source): s
     const object = row.object;
     if (object !== undefined && ts.isObjectLiteralExpression(object)) {
       for (const p of object.properties) {
-        if (ts.isPropertyAssignment(p) && (ts.isIdentifier(p.name) || ts.isStringLiteral(p.name)) && p.name.text === head && rest.length === 0)
+        if (
+          ts.isPropertyAssignment(p) &&
+          (ts.isIdentifier(p.name) || ts.isStringLiteral(p.name)) &&
+          p.name.text === head &&
+          rest.length === 0
+        )
           return shown(p.initializer, src);
         if (ts.isShorthandPropertyAssignment(p) && p.name.text === head && rest.length === 0) return head;
       }

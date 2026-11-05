@@ -50,9 +50,15 @@ export function renderReport(report: MigrateReport): string {
     const counts = ['skipped', 'unconverted', 'note']
       .map((k) => [k, file.entries.filter((e) => e.kind === k).length] as const)
       .filter(([, n]) => n > 0)
-      .map(([k, n]) => `${n} ${k === 'unconverted' ? 'not converted' : k === 'note' ? (n === 1 ? 'note' : 'notes') : k}`);
-    const where = file.target === undefined ? 'no laws' : `${file.target}: ${file.laws.length} law${file.laws.length === 1 ? '' : 's'}`;
-    const state = file.written === 'written' ? ' [written]' : file.written === 'exists' ? ' [exists: not overwritten]' : '';
+      .map(
+        ([k, n]) => `${n} ${k === 'unconverted' ? 'not converted' : k === 'note' ? (n === 1 ? 'note' : 'notes') : k}`,
+      );
+    const where =
+      file.target === undefined
+        ? 'no laws'
+        : `${file.target}: ${file.laws.length} law${file.laws.length === 1 ? '' : 's'}`;
+    const state =
+      file.written === 'written' ? ' [written]' : file.written === 'exists' ? ' [exists: not overwritten]' : '';
     lines.push(`${file.source} -> ${where}${counts.length > 0 ? ` (${counts.join(', ')})` : ''}${state}`);
   }
   const section = (title: string, kind: EntryKind): void => {
@@ -69,7 +75,8 @@ export function renderReport(report: MigrateReport): string {
     '',
     `Files: ${report.files.length} read, ${converted} converted. Laws emitted: ${lawCount(report)}. Not converted: ${entriesOf(report, 'unconverted').length}.`,
   );
-  if (!report.write && converted > 0) lines.push('Dry run: pass --write to write the files. Existing files are never overwritten.');
+  if (!report.write && converted > 0)
+    lines.push('Dry run: pass --write to write the files. Existing files are never overwritten.');
   if (converted > 0)
     lines.push(
       'The new laws are not in tsc-laws.lock. Read them, run `tslaws check`, and have a person run `tslaws accept`.',

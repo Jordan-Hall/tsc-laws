@@ -2,9 +2,16 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 
-const { parseReport, recordsForFile, lensesFor, diagnosticsFor, parseUiUrl } = createRequire(import.meta.url)(
+const { parseReport, recordsForFile, createStreamParser, parseUiUrl, filesOf } = createRequire(import.meta.url)(
   '../src/parse-report.js',
 );
+
+const exercised = {
+  name: 'sortNumbers',
+  declaration: { file: 'src\\math.ts', line: 10, column: 17, endLine: 10, endColumn: 28 },
+  call: { file: 'src/math.laws.ts', line: 14, column: 45, endLine: 14, endColumn: 56 },
+  failing: true,
+};
 
 const report = {
   results: [
@@ -18,10 +25,11 @@ const report = {
       counterexample: '[[5,5]]',
       message: 'returned false',
       hint: 'Fix the code.',
+      exercises: [exercised],
     },
     { file: 'src/math.laws.ts', name: 'slow', line: 16, status: 'open', message: 'gave up' },
     { file: 'src/other.laws.ts', name: 'x', line: 1, status: 'tampered', message: 'changed' },
-    { file: 'src/api.ts', name: 'helper', line: 0, status: 'uncovered', message: 'no law' },
+    { file: 'src/api.ts', name: 'helper', line: 3, status: 'uncovered', message: 'no law' },
   ],
   compileDiagnostics: '',
   compileOk: true,
@@ -37,78 +45,77 @@ test('parses a report, tolerating text before the JSON', () => {
   assert.throws(() => parseReport('nothing'), /no JSON/);
 });
 
+test('keeps where a failure lives: the exercised function, its declaration, the call and the failing mark', () => {
+  const p = parseReport(JSON.stringify(report));
+  const failed = p.records.find((r) => r.name === 'sortKeepsLength');
+  assert.deepEqual(failed.exercises, [
+    {
+      name: 'sortNumbers',
+      declaration: { file: 'src/math.ts', line: 10, column: 17, endLine: 10, endColumn: 28 },
+      call: { file: 'src/math.laws.ts', line: 14, column: 45, endLine: 14, endColumn: 56 },
+      failing: true,
+    },
+  ]);
+  assert.deepEqual(p.records.find((r) => r.name === 'add').exercises, []);
+});
+
+test('a report from an older tslaws, or with malformed locations, still parses', () => {
+  const p = parseReport(
+    JSON.stringify({
+      results: [
+        {
+          file: 'a.laws.ts',
+          name: 'a',
+          status: 'failed',
+          exercises: [{ name: 'f' }, { declaration: { line: 1 } }, null],
+        },
+      ],
+    }),
+  );
+  assert.deepEqual(p.records[0].exercises, []);
+  assert.equal(p.records[0].line, 0);
+});
+
 test('normalizes Windows paths and picks records per file', () => {
   const p = parseReport(
     JSON.stringify({ results: [{ file: '.\\src\\a.laws.ts', name: 'a', line: 1, status: 'proved' }] }),
   );
   assert.equal(recordsForFile(p.records, 'C:\\w\\src\\a.laws.ts', 'C:\\w').length, 1);
   assert.equal(recordsForFile(p.records, 'C:\\w\\src\\b.laws.ts', 'C:\\w').length, 0);
+  assert.deepEqual(filesOf(parseReport(JSON.stringify(report)).records), [
+    'src/math.laws.ts',
+    'src/other.laws.ts',
+    'src/api.ts',
+  ]);
 });
 
-test('lenses: status per law, counterexample lens for failures, not run when unknown', () => {
-  const { records } = parseReport(JSON.stringify(report));
-  const laws = [
-    { name: 'add', line: 3 },
-    { name: 'sortKeepsLength', line: 13 },
-    { name: 'fresh', line: 20 },
-  ];
-  const lenses = lensesFor(laws, recordsForFile(records, 'src/math.laws.ts', ''));
-  assert.deepEqual(
-    lenses.map((l) => [l.line, l.title]),
-    [
-      [3, '$(check) proved'],
-      [13, '$(error) failed'],
-      [13, 'counterexample: [[5,5]]'],
-      [20, '$(circle-outline) not run'],
-    ],
+test('reads the ndjson stream: plan, start, result and the final report, and hands noise on', () => {
+  const events = [];
+  const noise = [];
+  const parser = createStreamParser(
+    (e) => events.push(e),
+    (t) => noise.push(t),
   );
-});
-
-test('diagnostics: failed, open, tampered, error and uncovered only, on the law line', () => {
-  const { records } = parseReport(JSON.stringify(report));
-  const mine = recordsForFile(records, 'src/math.laws.ts', '');
-  const ds = diagnosticsFor(mine, [{ name: 'sortKeepsLength', line: 13 }]);
-  assert.equal(ds.length, 2);
-  assert.equal(ds[0].line, 13);
-  assert.equal(ds[0].severity, 'error');
-  assert.match(ds[0].message, /returned false/);
-  assert.match(ds[0].message, /counterexample: \[\[5,5\]\]/);
-  assert.match(ds[0].message, /hint: Fix the code\./);
-  assert.equal(ds[1].line, 15); // open law not found in text: reported line, 0-based
-  assert.equal(ds[1].severity, 'warning');
-  const unc = diagnosticsFor(recordsForFile(records, 'src/api.ts', ''));
-  assert.equal(unc[0].line, 0);
+  const lines = [
+    { type: 'plan', laws: [{ file: 'src\\a.laws.ts', name: 'a', line: 3 }] },
+    { type: 'start', file: 'src/a.laws.ts', name: 'a' },
+    { type: 'result', result: report.results[1] },
+    { type: 'report', ...report },
+  ].map((o) => JSON.stringify(o));
+  parser.write(`${lines[0]}\ngarbage line\n${lines[1]}\n${lines[2].slice(0, 30)}`);
+  parser.write(`${lines[2].slice(30)}\n${lines[3]}`);
+  parser.end();
+  assert.deepEqual(
+    events.map((e) => e.type),
+    ['plan', 'start', 'result', 'report'],
+  );
+  assert.deepEqual(events[0].laws, [{ file: 'src/a.laws.ts', name: 'a', line: 3 }]);
+  assert.equal(events[2].record.exercises[0].failing, true);
+  assert.equal(events[3].report.records.length, 5);
+  assert.deepEqual(noise, ['garbage line']);
 });
 
 test('parses the dashboard URL', () => {
   assert.equal(parseUiUrl('tslaws ui: http://127.0.0.1:51234/  (Ctrl+C exits)\n'), 'http://127.0.0.1:51234/');
   assert.equal(parseUiUrl('starting'), null);
-});
-
-test('spaced law names match their lenses and diagnostics', () => {
-  const recs = parseReport(
-    JSON.stringify({
-      results: [
-        { file: 'src/math.laws.ts', name: 'add commutes', line: 4, status: 'proved', method: 'smt' },
-        { file: 'src/math.laws.ts', name: 'sort keeps length', line: 9, status: 'failed', counterexample: '[1]' },
-      ],
-    }),
-  ).records;
-  const laws = [
-    { name: 'add commutes', line: 3, column: 0, proved: false },
-    { name: 'sort keeps length', line: 8, column: 0, proved: true },
-    { name: 'never ran', line: 12, column: 0, proved: false },
-  ];
-  assert.deepEqual(
-    lensesFor(laws, recs).map((l) => [l.line, l.status]),
-    [
-      [3, 'proved'],
-      [8, 'failed'],
-      [8, 'counterexample'],
-      [12, 'not run'],
-    ],
-  );
-  const [d] = diagnosticsFor(recs, laws);
-  assert.equal(d.line, 8);
-  assert.match(d.message, /^law sort keeps length: failed/);
 });

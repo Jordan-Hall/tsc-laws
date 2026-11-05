@@ -92,7 +92,8 @@ describe('lowering law calls', () => {
 describe('checking law calls', () => {
   it('gives the verdicts the keyword syntax gives, with prose names', async () => {
     const cwd = project('verdicts', {
-      'src/f.ts': 'export const add = (a: number, b: number): number => a + b;\nexport const keep = (xs: number[]): number[] => xs.slice(1);\n',
+      'src/f.ts':
+        'export const add = (a: number, b: number): number => a + b;\nexport const keep = (xs: number[]): number[] => xs.slice(1);\n',
       'src/f.laws.ts': [
         "import { law } from 'tslaws';",
         "import { add, keep } from './f';",

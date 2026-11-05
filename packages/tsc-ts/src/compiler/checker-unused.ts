@@ -53,7 +53,6 @@ import { SyntaxKind } from './syntax-kind.js';
 import { getMergedSymbol, getSymbolOfDeclaration } from './checker-symbols.js';
 import { getResolvedSymbol } from './checker-expressions.js';
 import { skipTrivia } from './scanner.js';
-import { getContainingFunctionOrClassStaticBlock } from './checker-grammar.js';
 import { nodeCanBeDecorated } from './checker-decorators.js';
 import { symbolToString } from './type-printer.js';
 import type { Type } from './checker-types.js';
@@ -248,20 +247,14 @@ class PotentiallyUnusedCollector extends NodeVisitor {
   }
 
   /**
-   * Whether the checker skips the children of `node`: a `return` outside a function body, or in a class
-   * static block, and a decorator of a declaration that can't be decorated, are reported as errors and
-   * not checked further.
+   * Whether the checker skips the children of `node`: a decorator of a declaration that can't be decorated
+   * is reported as an error and not checked further. (The expression of a `return` outside a function
+   * body, or in a class static block, is still checked.)
    */
   private isUnchecked(node: Node): boolean {
-    if (node.kind === SyntaxKind.ReturnStatement) {
-      const container = getContainingFunctionOrClassStaticBlock(node);
-      return container === undefined || container.kind === SyntaxKind.ClassStaticBlockDeclaration;
-    }
-    if (node.kind === SyntaxKind.Decorator) {
-      const declaration = node.parent!;
-      return !nodeCanBeDecorated(this.legacyDecorators, declaration, declaration.parent, declaration.parent?.parent);
-    }
-    return false;
+    if (node.kind !== SyntaxKind.Decorator) return false;
+    const declaration = node.parent!;
+    return !nodeCanBeDecorated(this.legacyDecorators, declaration, declaration.parent, declaration.parent?.parent);
   }
 }
 
@@ -273,7 +266,8 @@ function isPotentiallyUnusedContainer(node: Node): boolean {
     case SyntaxKind.CaseBlock:
     case SyntaxKind.ForStatement:
     case SyntaxKind.ForInStatement:
-    case SyntaxKind.ForOfStatement: {
+    case SyntaxKind.ForOfStatement:
+    case SyntaxKind.ClassStaticBlockDeclaration: {
       const locals = getLocals(node);
       return locals !== undefined && locals.size !== 0;
     }
@@ -319,6 +313,7 @@ function checkUnusedIdentifiersOfNode(c: Checker, node: Node): void {
     case SyntaxKind.ForStatement:
     case SyntaxKind.ForInStatement:
     case SyntaxKind.ForOfStatement:
+    case SyntaxKind.ClassStaticBlockDeclaration:
       checkUnusedLocalsAndParameters(c, node);
       return;
     case SyntaxKind.Constructor:
@@ -426,8 +421,9 @@ function checkUnusedClassMembers(c: Checker, node: Node): void {
 function checkUnusedLocalsAndParameters(c: Checker, node: Node): void {
   const locals = getLocals(node);
   if (locals === undefined) return;
-  const variableParents = new Set<Node>();
-  const importClauses = new Map<Node, Node[]>();
+  // Created on the first unused declaration: most scopes have none.
+  let variableParents: Set<Node> | undefined;
+  let importClauses: Map<Node, Node[]> | undefined;
   for (const local of locals.values()) {
     const referenceKinds = c.symbolReferenceKinds.get(getSymbolId(local));
     if ((local.flags & SymbolFlags.TypeParameter) !== 0) {
@@ -443,6 +439,7 @@ function checkUnusedLocalsAndParameters(c: Checker, node: Node): void {
         case SyntaxKind.VariableDeclaration:
         case SyntaxKind.Parameter:
         case SyntaxKind.BindingElement:
+          variableParents ??= new Set<Node>();
           variableParents.add(getRootDeclaration(declaration).parent!);
           break;
         case SyntaxKind.ImportClause:
@@ -450,6 +447,7 @@ function checkUnusedLocalsAndParameters(c: Checker, node: Node): void {
         case SyntaxKind.NamespaceImport:
           if (!isIdentifierThatStartsWithUnderscore(getName(declaration))) {
             const importClause = importClauseFromImported(declaration);
+            importClauses ??= new Map<Node, Node[]>();
             const unuseds = importClauses.get(importClause);
             if (unuseds === undefined) importClauses.set(importClause, [declaration]);
             else unuseds.push(declaration);
@@ -461,12 +459,14 @@ function checkUnusedLocalsAndParameters(c: Checker, node: Node): void {
       }
     }
   }
-  for (const declaration of variableParents) {
-    if (declaration.kind === SyntaxKind.VariableDeclarationList)
-      reportUnusedVariables(c, declaration, (declaration as VariableDeclarationList).declarations.nodes);
-    else reportUnusedVariableDeclarations(c, getParameters(declaration)!.nodes);
-  }
-  for (const [declaration, unuseds] of importClauses) reportUnusedImports(c, declaration as ImportClause, unuseds);
+  if (variableParents !== undefined)
+    for (const declaration of variableParents) {
+      if (declaration.kind === SyntaxKind.VariableDeclarationList)
+        reportUnusedVariables(c, declaration, (declaration as VariableDeclarationList).declarations.nodes);
+      else reportUnusedVariableDeclarations(c, getParameters(declaration)!.nodes);
+    }
+  if (importClauses !== undefined)
+    for (const [declaration, unuseds] of importClauses) reportUnusedImports(c, declaration as ImportClause, unuseds);
 }
 
 function reportUnusedLocal(c: Checker, node: Node, name: string): void {

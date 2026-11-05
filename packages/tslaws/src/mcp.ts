@@ -11,6 +11,7 @@ import { check } from './check.ts';
 import { readConfig } from './coverage.ts';
 import type { CheckReport } from './check.ts';
 import { hintFor } from './hints.ts';
+import { isProposedLawFile } from './lawNames.ts';
 import { parseLawFile } from './promote.ts';
 import { resolveSettings } from './settings.ts';
 import type { CheckOptions, LawResult } from './types.ts';
@@ -57,7 +58,7 @@ export const tools: Tool[] = [
   {
     name: 'tslaws_propose',
     description:
-      'Write a law into a *.proposed.laws.ts file (appended; a law of the same name is replaced) and check it. Only proposed files can be written. A person promotes proposals with `tslaws promote`.',
+      'Write a law into a *.proposed.laws.ts file (appended; a law of the same name is replaced) and check it. Only proposed files can be written; name it *.browser.proposed.laws.ts or *.e2e.proposed.laws.ts for a browser or end-to-end law. A person promotes proposals with `tslaws promote`.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -91,7 +92,7 @@ function discover(cwd: string, proposed: boolean): string[] {
       if (ignoredDirs.has(entry)) continue;
       const full = join(dir, entry);
       if (statSync(full).isDirectory()) walk(full);
-      else if (entry.endsWith('.laws.ts') && entry.endsWith('.proposed.laws.ts') === proposed) found.push(full);
+      else if (entry.endsWith('.laws.ts') && isProposedLawFile(entry) === proposed) found.push(full);
     }
   };
   walk(cwd);
@@ -115,7 +116,7 @@ function insideRoot(cwd: string, file: string): string {
 
 /** The only files a tool may write. */
 export function proposalPath(cwd: string, file: string): string {
-  if (!file.endsWith('.proposed.laws.ts') || file.endsWith('/.proposed.laws.ts'))
+  if (!isProposedLawFile(file) || file.endsWith('/.proposed.laws.ts'))
     throw new ToolError(`'${file}' is not a *.proposed.laws.ts file; only proposed laws can be written`);
   return insideRoot(cwd, file);
 }

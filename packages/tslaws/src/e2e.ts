@@ -6,14 +6,15 @@ import { mkdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import type { BrowserContext, Page } from 'playwright-core';
 import type * as fc from 'fast-check';
-import { launch, resolveEngine } from './browser.ts';
+import { isBrowserLawFile, launch, resolveEngine } from './browser.ts';
+import { acceptedLawName } from './lawNames.ts';
 import { withE2e } from './e2eApi.ts';
 import { runProperty, summarise, type PropertyOutcome } from './property.ts';
 import type { CheckOptions } from './types.ts';
 
-/** `a.e2e.laws.ts` is an accepted alias: it always drives a running app. */
+/** `a.e2e.laws.ts` and its proposal `a.e2e.proposed.laws.ts` are an accepted alias: they always drive a running app. */
 export function isE2eLawFile(file: string): boolean {
-  return /\.e2e\.laws\.[cm]?ts$/.test(file);
+  return /\.e2e\.laws\.[cm]?ts$/.test(acceptedLawName(file));
 }
 
 const importsOf = (module: string): RegExp => new RegExp(`(?:from|import)\\s*['"]${module}['"]`);
@@ -24,12 +25,12 @@ export function importsBoth(text: string): boolean {
 }
 
 /**
- * The level a law file runs at. `*.browser.laws.ts` is a component law (in a page) unless it imports from
- * `tslaws/e2e`, which makes it an end-to-end law (in Node, driving a running app); `*.e2e.laws.ts` is always e2e.
+ * The level a law file runs at. `*.browser.laws.ts` (or `*.browser.proposed.laws.ts`) is a component law (in a page) unless it imports from
+ * `tslaws/e2e`, which makes it an end-to-end law (in Node, driving a running app); `*.e2e.laws.ts` (or `*.e2e.proposed.laws.ts`) is always e2e.
  */
 export function lawMode(file: string, text: string): 'node' | 'component' | 'e2e' {
   if (isE2eLawFile(file)) return 'e2e';
-  if (!/\.browser\.laws\.[cm]?ts$/.test(file)) return 'node';
+  if (!isBrowserLawFile(file)) return 'node';
   return importsOf('tslaws/e2e').test(text) ? 'e2e' : 'component';
 }
 

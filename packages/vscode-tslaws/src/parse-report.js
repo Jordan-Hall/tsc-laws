@@ -1,17 +1,16 @@
 'use strict';
 
-// Turns the output of `tslaws check --json` into per-law records and lens/diagnostic descriptors. Pure.
-
-const { PASSING } = require('./summary.js');
-
-const DIAGNOSTIC_STATUSES = new Set(['failed', 'open', 'tampered', 'error', 'uncovered']);
+// Turns the output of `tslaws check` (`--json`, or the `--reporter ndjson` stream) into per-law records. Pure.
 
 /** Extract and parse the JSON object from stdout, tolerating noise before it. */
 function parseReport(stdout) {
   const text = String(stdout);
   const start = text.indexOf('{');
   if (start < 0) throw new Error('no JSON in tslaws output');
-  const raw = JSON.parse(text.slice(start, text.lastIndexOf('}') + 1));
+  return normalizeReport(JSON.parse(text.slice(start, text.lastIndexOf('}') + 1)));
+}
+
+function normalizeReport(raw) {
   const results = Array.isArray(raw.results) ? raw.results : [];
   return {
     records: results.map(normalizeRecord),
@@ -34,13 +33,78 @@ function normalizeRecord(r) {
     counterexample: r.counterexample,
     message: r.message,
     hint: r.hint,
+    exercises: Array.isArray(r.exercises) ? r.exercises.map(normalizeExercise).filter((e) => e !== null) : [],
   };
+}
+
+function normalizeSpan(s) {
+  if (s === null || typeof s !== 'object' || !Number.isInteger(s.line)) return undefined;
+  const column = Number.isInteger(s.column) ? s.column : 1;
+  return {
+    file: normalizePath(s.file),
+    line: s.line,
+    column,
+    endLine: Number.isInteger(s.endLine) ? s.endLine : s.line,
+    endColumn: Number.isInteger(s.endColumn) ? s.endColumn : column,
+  };
+}
+
+function normalizeExercise(e) {
+  const declaration = normalizeSpan(e?.declaration);
+  if (declaration === undefined || typeof e.name !== 'string') return null;
+  return { name: e.name, declaration, call: normalizeSpan(e.call), failing: e.failing === true };
 }
 
 function normalizePath(p) {
   return String(p ?? '')
     .replaceAll('\\', '/')
     .replace(/^\.\//, '');
+}
+
+/**
+ * Reads the `--reporter ndjson` stream a chunk at a time. `onEvent` gets each parsed event: `plan`, `start`, `result`
+ * (the record normalised) and `report` (the normalised report). Lines that are not JSON go to `onNoise`.
+ * @returns {{write(chunk: string): void, end(): void}}
+ */
+function createStreamParser(onEvent, onNoise = () => {}) {
+  let buffer = '';
+  const line = (text) => {
+    if (text.trim() === '') return;
+    let event;
+    try {
+      event = JSON.parse(text);
+    } catch {
+      return onNoise(text);
+    }
+    if (event === null || typeof event !== 'object' || typeof event.type !== 'string') return onNoise(text);
+    if (event.type === 'result') onEvent({ type: 'result', record: normalizeRecord(event.result ?? {}) });
+    else if (event.type === 'report') onEvent({ type: 'report', report: normalizeReport(event) });
+    else if (event.type === 'plan')
+      onEvent({
+        type: 'plan',
+        laws: (Array.isArray(event.laws) ? event.laws : []).map((l) => ({
+          file: normalizePath(l.file),
+          name: String(l.name),
+          line: l.line,
+        })),
+      });
+    else if (event.type === 'start')
+      onEvent({ type: 'start', file: normalizePath(event.file), name: String(event.name) });
+  };
+  return {
+    write(chunk) {
+      buffer += chunk;
+      let at;
+      while ((at = buffer.indexOf('\n')) >= 0) {
+        line(buffer.slice(0, at));
+        buffer = buffer.slice(at + 1);
+      }
+    },
+    end() {
+      line(buffer);
+      buffer = '';
+    },
+  };
 }
 
 /** Records for one file. `file` may be absolute; `root` is the workspace root. */
@@ -56,68 +120,6 @@ function relativeTo(file, root) {
   return f;
 }
 
-function oneLine(s) {
-  return String(s).replace(/\s+/g, ' ').trim();
-}
-
-/**
- * Lens descriptors for the law declarations found in a file.
- * @param {{name: string, line: number}[]} laws from findLaws (0-based lines)
- * @param {object[]} fileRecords records of this file
- * @returns {{line: number, title: string, command: string, status: string}[]} line 0-based
- */
-function lensesFor(laws, fileRecords) {
-  const out = [];
-  for (const law of laws) {
-    // Names may repeat or contain spaces; prefer the record on the law's own line.
-    const rec =
-      fileRecords.find((r) => r.name === law.name && r.line - 1 === law.line) ??
-      fileRecords.find((r) => r.name === law.name);
-    const status = rec === undefined ? 'not run' : rec.status;
-    out.push({ line: law.line, title: `${statusIcon(status)} ${status}`, command: 'tslaws.runFile', status });
-    if (rec !== undefined && rec.status === 'failed' && rec.counterexample !== undefined) {
-      out.push({
-        line: law.line,
-        title: `counterexample: ${oneLine(rec.counterexample)}`,
-        command: 'tslaws.openDashboard',
-        status: 'counterexample',
-      });
-    }
-  }
-  return out;
-}
-
-function statusIcon(status) {
-  if (PASSING.has(status)) return '$(check)';
-  if (status === 'not run') return '$(circle-outline)';
-  return '$(error)';
-}
-
-/**
- * Diagnostic descriptors for records of a file. Laws are located by declaration when found, else by the reported line.
- * @returns {{line: number, severity: 'error'|'warning', message: string, source: string, code: string}[]} line 0-based
- */
-function diagnosticsFor(fileRecords, laws = []) {
-  const out = [];
-  for (const r of fileRecords) {
-    if (!DIAGNOSTIC_STATUSES.has(r.status)) continue;
-    const decl = laws.find((l) => l.name === r.name && r.line - 1 === l.line) ?? laws.find((l) => l.name === r.name);
-    const line = decl !== undefined ? decl.line : Math.max(0, r.line - 1);
-    const parts = [`law ${r.name}: ${r.status}`];
-    if (r.message) parts[0] += ` - ${oneLine(r.message)}`;
-    if (r.counterexample !== undefined) parts.push(`counterexample: ${oneLine(r.counterexample)}`);
-    if (r.hint) parts.push(`hint: ${oneLine(r.hint)}`);
-    out.push({
-      line,
-      severity: r.status === 'open' || r.status === 'uncovered' ? 'warning' : 'error',
-      message: parts.join('\n'),
-      source: 'tslaws',
-      code: r.status,
-    });
-  }
-  return out;
-}
-
 /** Distinct files that have records. */
 function filesOf(records) {
   return [...new Set(records.map((r) => r.file))];
@@ -129,4 +131,13 @@ function parseUiUrl(text) {
   return m === null ? null : m[1];
 }
 
-module.exports = { parseReport, recordsForFile, lensesFor, diagnosticsFor, filesOf, parseUiUrl, relativeTo };
+module.exports = {
+  parseReport,
+  createStreamParser,
+  normalizeRecord,
+  normalizePath,
+  recordsForFile,
+  filesOf,
+  parseUiUrl,
+  relativeTo,
+};

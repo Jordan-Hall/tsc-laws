@@ -193,8 +193,7 @@ export function classify(callee: ts.Expression, b: Bindings, playwright: boolean
     if (last === 'each' || last === 'for') {
       each = node;
       forRows = last === 'for';
-    }
-    else if (last === 'prop') prop = node;
+    } else if (last === 'prop') prop = node;
     else if (last === 'runIf' || last === 'skipIf') conditional = last;
     else return undefined;
     node = node.expression;

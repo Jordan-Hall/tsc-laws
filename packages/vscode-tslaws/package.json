@@ -1,20 +1,26 @@
 {
   "name": "vscode-tslaws",
   "displayName": "tsc-laws",
-  "version": "0.3.2",
+  "version": "0.6.4",
   "private": true,
-  "description": "tsc-laws for VS Code: law highlighting, CodeLens status, diagnostics and commands",
+  "description": "tsc-laws for VS Code: law failures show live on the law and on the code it exercises, with CodeLens, Test Explorer and commands",
   "categories": [
     "Linters",
-    "Programming Languages"
+    "Programming Languages",
+    "Testing"
   ],
   "keywords": [
     "accessibility",
     "ai agents",
+    "codelens",
+    "counterexample",
+    "law",
     "laws",
     "proof",
     "property testing",
+    "test explorer",
     "testing",
+    "tslaws",
     "typescript",
     "z3"
   ],
@@ -28,10 +34,11 @@
     "url": "https://github.com/Jordan-Hall/tsc-laws.git",
     "directory": "packages/vscode-tslaws"
   },
-  "publisher": "tsc-laws",
+  "qna": "marketplace",
+  "publisher": "TS-Laws",
   "main": "./src/extension.js",
   "scripts": {
-    "test": "node --test test/grammar.test.mjs test/find-laws.test.mjs test/parse-report.test.mjs test/summary.test.mjs test/command.test.mjs test/extension.test.mjs"
+    "test": "node --test test/grammar.test.mjs test/find-laws.test.mjs test/parse-report.test.mjs test/summary.test.mjs test/command.test.mjs test/model.test.mjs test/ranges.test.mjs test/format.test.mjs test/diagnostics.test.mjs test/plan.test.mjs test/settings.test.mjs test/scheduler.test.mjs test/runner.test.mjs test/shadow.test.mjs test/host.test.mjs test/extension.test.mjs test/real-cli.test.mjs"
   },
   "devDependencies": {
     "vscode-oniguruma": "^2.0.1",
@@ -64,15 +71,72 @@
       {
         "command": "tslaws.accept",
         "title": "tslaws: Accept (types the command in a terminal; you press Enter)"
+      },
+      {
+        "command": "tslaws.runLaw",
+        "title": "tslaws: Re-run this law"
+      },
+      {
+        "command": "tslaws.cancel",
+        "title": "tslaws: Cancel the running check"
+      },
+      {
+        "command": "tslaws.showLaws",
+        "title": "tslaws: Show the laws that reach this function"
+      },
+      {
+        "command": "tslaws.openLaw",
+        "title": "tslaws: Open the failing law"
+      },
+      {
+        "command": "tslaws.openSource",
+        "title": "tslaws: Go to the code the law exercises"
+      },
+      {
+        "command": "tslaws.copyReproduce",
+        "title": "tslaws: Copy the reproduce command"
       }
     ],
     "configuration": {
       "title": "tslaws",
       "properties": {
+        "tslaws.run": {
+          "type": "string",
+          "enum": [
+            "onSave",
+            "onType",
+            "manual"
+          ],
+          "enumDescriptions": [
+            "Run the laws that cover a TypeScript file when it is saved (default: a check takes a few seconds, because it compiles and proves).",
+            "Run after you stop typing, on the text of the open buffers (a copy under .tslaws/shadow; your files are not written).",
+            "Run only when you ask: the commands, a CodeLens or the Testing view."
+          ],
+          "default": "onSave",
+          "description": "When to run the laws that cover the file you changed. Only those laws run: the ones that reach the file, else the laws file beside it, else all."
+        },
         "tslaws.runOnSave": {
           "type": "boolean",
           "default": true,
-          "description": "Run `tslaws check` after saving a TypeScript file."
+          "deprecationMessage": "Use tslaws.run. false means \"manual\", true means \"onSave\"; this setting only counts while tslaws.run is not set.",
+          "description": "Deprecated: use `tslaws.run`."
+        },
+        "tslaws.debounceMs": {
+          "type": "integer",
+          "default": 600,
+          "minimum": 100,
+          "maximum": 10000,
+          "description": "How long to wait after the last change before running. A newer change stops a run that is going."
+        },
+        "tslaws.runOnOpen": {
+          "type": "boolean",
+          "default": false,
+          "description": "Run every law once when the folder opens, so failures show before the first edit."
+        },
+        "tslaws.inlineCounterexample": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show the counterexample after the failing line, on the law and on the function it exercises."
         },
         "tslaws.executable": {
           "type": "string",
@@ -90,6 +154,30 @@
           "scope": "machine"
         }
       }
+    },
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "tslaws.runLaw",
+          "when": "false"
+        },
+        {
+          "command": "tslaws.showLaws",
+          "when": "false"
+        },
+        {
+          "command": "tslaws.openLaw",
+          "when": "false"
+        },
+        {
+          "command": "tslaws.openSource",
+          "when": "false"
+        },
+        {
+          "command": "tslaws.copyReproduce",
+          "when": "false"
+        }
+      ]
     }
   },
   "activationEvents": [
@@ -101,6 +189,7 @@
     "color": "#0f1220",
     "theme": "dark"
   },
+  "markdown": "github",
   "engines": {
     "vscode": "^1.80.0"
   },
@@ -113,5 +202,6 @@
         "tslaws.args"
       ]
     }
-  }
+  },
+  "pricing": "Free"
 }

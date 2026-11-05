@@ -11,7 +11,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { Worker } from 'node:worker_threads';
-import { WorkerPool } from './pool.ts';
+import { jobs, WorkerPool } from './pool.ts';
 import { dirname, join } from 'node:path';
 import ts from 'typescript';
 import { Executor, SpuriousModel, Unsupported, and, type Value } from './symbolic.ts';
@@ -281,7 +281,8 @@ function startWorker(): Worker {
   return w;
 }
 
-const solvers = new WorkerPool(startWorker);
+// Each Z3 instance holds a large WebAssembly heap; more than four at once run out of memory on the bigger queries.
+const solvers = new WorkerPool(startWorker, Math.min(4, jobs()));
 
 /**
  * Runs the query, and runs it again in a fresh worker when the solver itself fell over (a WebAssembly allocation that
@@ -390,7 +391,8 @@ async function attempt(input: ProveInput, intLimit: bigint | undefined): Promise
       ts.ScriptKind.JS,
     );
     const fn = source.statements.find(
-      (s): s is ts.FunctionDeclaration => ts.isFunctionDeclaration(s) && s.name?.text === (input.law.symbol ?? input.law.name),
+      (s): s is ts.FunctionDeclaration =>
+        ts.isFunctionDeclaration(s) && s.name?.text === (input.law.symbol ?? input.law.name),
     );
     if (fn === undefined || fn.body === undefined)
       throw new Unsupported('law function not found in the compiled output');

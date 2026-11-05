@@ -79,7 +79,10 @@ describe('build cache', () => {
     const dir = join(root, 'globals');
     mkdirSync(join(dir, 'node_modules', '@types', 'fake'), { recursive: true });
     writeFileSync(join(dir, 'node_modules', '@types', 'fake', 'index.d.ts'), 'declare const fakeGlobal: number;\n');
-    writeFileSync(join(dir, 'node_modules', '@types', 'fake', 'package.json'), '{"name":"@types/fake","version":"1.0.0","types":"index.d.ts"}');
+    writeFileSync(
+      join(dir, 'node_modules', '@types', 'fake', 'package.json'),
+      '{"name":"@types/fake","version":"1.0.0","types":"index.d.ts"}',
+    );
     writeFileSync(
       join(dir, 'a.laws.ts'),
       "import { law } from 'tslaws';\nlaw('globals are visible', (n: number) => typeof document === 'undefined' && fakeGlobal === fakeGlobal && n === n);\n",

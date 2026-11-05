@@ -352,6 +352,38 @@ describe(
       assert.equal(r.method, 'e2e');
     });
 
+    it('accept *.e2e.proposed.laws.ts as a proposed end-to-end law', async () => {
+      const { opts } = await project('alias-proposed', {
+        file: 'src/shop.e2e.proposed.laws.ts',
+        laws: [...header, ...totalLaw('totalMatchesQuantity')],
+      });
+      const r = byName((await check(opts, false)).results, 'totalMatchesQuantity');
+      assert.equal(r.status, 'tested', JSON.stringify(r));
+      assert.equal(r.method, 'e2e');
+    });
+
+    it('refuse a proposed browser laws file that imports both levels', async () => {
+      const { opts } = await project('both-proposed', {
+        file: 'src/shop.browser.proposed.laws.ts',
+        laws: [
+          ...header,
+          "import { mount } from 'tslaws/browser';",
+          'export async law mixed(n: int) {',
+          '  mount();',
+          "  await open('/');",
+          '  return true;',
+          '}',
+        ],
+      });
+      const r = byName((await check(opts, false)).results, 'mixed');
+      assert.equal(r.status, 'error', JSON.stringify(r));
+      assert.match(
+        r.message ?? '',
+        /either component level \(tslaws\/browser\) or end-to-end \(tslaws\/e2e\), not both/,
+      );
+      assert.match(r.message ?? '', /shop\.browser\.proposed\.laws\.ts/);
+    });
+
     it('refuse a browser laws file that imports both levels', async () => {
       const { opts } = await project('both', {
         laws: [

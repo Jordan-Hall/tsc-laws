@@ -9,7 +9,14 @@
  */
 import { type Node, ScriptKind, type SourceFile } from './ast.js';
 import { Checker, CheckerHost, disposeChecker } from './checker.js';
-import { createDiagnostic, Diagnostic, type DiagnosticMessage, Diagnostics, messageCode } from './diagnostics.js';
+import {
+  compareDiagnostics,
+  createDiagnostic,
+  Diagnostic,
+  type DiagnosticMessage,
+  Diagnostics,
+  messageCode,
+} from './diagnostics.js';
 import type { EmitResult } from './emitter.js';
 import type { CompilerOptions, ModuleKind } from './options.js';
 import type { ResolvedModule } from './module-resolution-types.js';
@@ -241,6 +248,28 @@ export class CheckedProgram {
     this.reportingChecker = undefined;
   }
 
+  /** Adds the counts a checker thread sent (`CheckerResult.counts`): types, instantiations, symbols. */
+  addCheckerCounts(counts: readonly number[]): void {
+    if (counts.length < 3) return;
+    this.threadTypeCount += counts[0]!;
+    this.threadInstantiations += counts[1]!;
+    this.threadSymbolCount += counts[2]!;
+  }
+
+  /**
+   * The types, instantiations and transient symbols of every checker of the program: this thread's and
+   * the checker threads', as tsgo's `Program.TypeCount`, `InstantiationCount` and `SymbolCount` add them up.
+   * Reading them doesn't create this thread's checker.
+   */
+  checkerCounts(): { types: number; instantiations: number; symbols: number } {
+    const own = this.reportingChecker;
+    return {
+      types: (own === undefined ? 0 : own.typeCount) + this.threadTypeCount,
+      instantiations: (own === undefined ? 0 : own.totalInstantiations) + this.threadInstantiations,
+      symbols: (own === undefined ? 0 : own.symbolCount) + this.threadSymbolCount,
+    };
+  }
+
   getBindDiagnostics(file: SourceFile | undefined): Diagnostic[] {
     return this.collect(file, (f) => f.bindDiagnostics);
   }
@@ -265,6 +294,18 @@ export class CheckedProgram {
    */
   referenceThreads = 1;
   readonly parallelGlobalDiagnostics: Diagnostic[] = [];
+  /** The types checker threads created (`CheckerResult.counts`), which `--diagnostics` adds to `checker`'s. */
+  threadTypeCount = 0;
+  /** The instantiations checker threads made. */
+  threadInstantiations = 0;
+  /** The transient symbols checker threads created. */
+  threadSymbolCount = 0;
+  /**
+   * Whether the semantic diagnostics of a file include the global diagnostics its checker found while
+   * checking it, as an incremental program caches them (IncrementalProgram). Such a program doesn't report
+   * the global diagnostics found by checking otherwise (`reportsGlobalDiagnosticsOfChecking`, compile-program.ts).
+   */
+  globalsInFileDiagnostics = false;
   /**
    * The declaration diagnostics checker threads computed under `noEmit` (PlainProgram,
    * IncrementalProgram), by file index; `undefined` for files they did not. Set once every file is
@@ -276,6 +317,10 @@ export class CheckedProgram {
    * emit. Set once every file is checked, when checker threads emit (parallel-check.ts).
    */
   emittedInParallel: (EmitResult | undefined)[] | undefined = undefined;
+  /** Emit threads emitted only the JavaScript of `emittedInParallel`: declarations are emitted here. */
+  javaScriptEmittedOnThreads = false;
+  /** The declaration emit of each file on the declaration thread (parallel-emit.ts); undefined for one it didn't emit. */
+  declarationsEmittedAhead: (EmitResult | undefined)[] | undefined = undefined;
   /**
    * The global diagnostics of this thread's checker before it emitted files while checker threads
    * checked (`emitUncheckedFiles`), reported instead of its current ones.
@@ -399,11 +444,11 @@ export class CheckedProgram {
     return sortAndDeduplicateDiagnostics([...own, ...parallel]);
   }
 
-  /** Whether `file`'s bind and check diagnostics are reported. */
-  skipTypeChecking(file: SourceFile): boolean {
+  /** Whether `file`'s bind and check diagnostics are skipped; `ignoreNoCheck` leaves `noCheck` out. */
+  skipTypeChecking(file: SourceFile, ignoreNoCheck = false): boolean {
     const options = this.program.options;
     return (
-      options.noCheck === true ||
+      (!ignoreNoCheck && options.noCheck === true) ||
       (options.skipLibCheck === true && file.isDeclarationFile) ||
       (options.skipDefaultLibCheck === true && this.program.isSourceFileDefaultLibrary(file.path)) ||
       this.program.getProjectReferenceFromSource(file.path) !== undefined ||
@@ -432,7 +477,15 @@ export class CheckedProgram {
   private getBindAndCheckDiagnostics(file: SourceFile, checks?: readonly Diagnostic[]): Diagnostic[] {
     const options = this.program.options;
     const diagnostics = file.bindDiagnostics.slice();
-    for (const d of checks ?? this.checker.getDiagnostics(file)) diagnostics.push(d);
+    if (checks !== undefined) for (const d of checks) diagnostics.push(d);
+    else if (this.globalsInFileDiagnostics) {
+      const checker = this.checker;
+      const before = checker.getGlobalDiagnostics();
+      for (const d of checker.getDiagnostics(file)) diagnostics.push(d);
+      const after = checker.getGlobalDiagnostics();
+      if (after.length > before.length)
+        for (const d of after) if (!containsSortedDiagnostic(before, d)) diagnostics.push(d);
+    } else for (const d of this.checker.getDiagnostics(file)) diagnostics.push(d);
     if (isPlainJSFile(file, options)) {
       const result: Diagnostic[] = [];
       for (const d of diagnostics) if (plainJSErrors.has(d.code)) result.push(d);
@@ -463,6 +516,20 @@ export class CheckedProgram {
   }
 }
 
+/** Whether `sorted`, in `compareDiagnostics` order, has a diagnostic equal to `diagnostic`. */
+function containsSortedDiagnostic(sorted: readonly Diagnostic[], diagnostic: Diagnostic): boolean {
+  let low = 0;
+  let high = sorted.length - 1;
+  while (low <= high) {
+    const middle = (low + high) >>> 1;
+    const c = compareDiagnostics(sorted[middle]!, diagnostic);
+    if (c === 0) return true;
+    if (c < 0) low = middle + 1;
+    else high = middle - 1;
+  }
+  return false;
+}
+
 /** The `@ts-ignore` and `@ts-expect-error` comments of a file, by line. */
 class Directives {
   private readonly byLine = new Map<number, { pos: number; end: number; kind: CommentDirectiveKind }>();
@@ -484,6 +551,11 @@ class Directives {
     const lineStarts = this.file.diagnosticFile().getLineStarts();
     const result: Diagnostic[] = [];
     for (const diagnostic of diagnostics) {
+      // A global diagnostic, or one of another file, has no line here.
+      if (diagnostic.file === undefined || diagnostic.file.fileName !== this.file.fileName) {
+        result.push(diagnostic);
+        continue;
+      }
       let ignored = false;
       for (let line = computeLineOfPosition(lineStarts, diagnostic.pos) - 1; line >= 0; line--) {
         const directive = this.byLine.get(line);
@@ -560,6 +632,7 @@ const plainJSErrors = codesOf([
   Diagnostics.A_continue_statement_can_only_jump_to_a_label_of_an_enclosing_iteration_statement,
   Diagnostics.A_default_clause_cannot_appear_more_than_once_in_a_switch_statement,
   Diagnostics.A_default_export_must_be_at_the_top_level_of_a_file_or_module_declaration,
+  Diagnostics.A_deferred_import_must_specify_a_namespace_binding,
   Diagnostics.A_definite_assignment_assertion_is_not_permitted_in_this_context,
   Diagnostics.A_destructuring_declaration_must_have_an_initializer,
   Diagnostics.A_get_accessor_cannot_have_parameters,
@@ -628,6 +701,13 @@ const plainJSErrors = codesOf([
   Diagnostics.X_await_using_statements_are_only_allowed_within_async_functions_and_at_the_top_levels_of_modules,
   Diagnostics.Private_field_0_must_be_declared_in_an_enclosing_class,
   Diagnostics.This_condition_will_always_return_0_since_JavaScript_compares_objects_by_reference_not_value,
+  Diagnostics.A_deferred_import_must_specify_a_namespace_binding,
+  Diagnostics.A_source_phase_import_must_specify_a_local_binding,
+  Diagnostics.Named_and_namespace_imports_are_not_allowed_in_a_source_phase_import,
+  Diagnostics.Optional_chaining_cannot_be_used_with_import_source,
+  Diagnostics.Source_phase_imports_are_not_allowed_on_statements_that_compile_to_CommonJS_require_calls,
+  Diagnostics.Source_phase_imports_are_only_supported_when_the_module_option_is_set_to_esnext_nodenext_or_preserve,
+  Diagnostics.X_0_is_not_a_valid_meta_property_for_keyword_import_Did_you_mean_meta_defer_or_source,
 ]);
 
 function codesOf(messages: readonly DiagnosticMessage[]): Set<number> {

@@ -69,7 +69,9 @@ const card = async (key, title, sub = []) => {
 };
 
 const esc = (t) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;');
-const frame = (title) => `<!doctype html><meta charset=utf-8><body style="margin:0;height:100vh;display:grid;place-items:center;background:#0f1220;font-family:system-ui,Segoe UI,sans-serif">
+const frame = (
+  title,
+) => `<!doctype html><meta charset=utf-8><body style="margin:0;height:100vh;display:grid;place-items:center;background:#0f1220;font-family:system-ui,Segoe UI,sans-serif">
   <div style="width:1180px;background:#171b2e;border-radius:14px;box-shadow:0 30px 80px #0008;overflow:hidden">
   <div style="padding:12px 18px;background:#1f2440;display:flex;gap:8px;align-items:center"><i style="width:12px;height:12px;border-radius:50%;background:#ff5f57"></i><i style="width:12px;height:12px;border-radius:50%;background:#febc2e"></i><i style="width:12px;height:12px;border-radius:50%;background:#28c840"></i><span style="color:#8a93b8;margin-left:12px;font:15px ui-monospace,Consolas,monospace">${title}</span></div>
   <pre id="t" style="margin:0;padding:28px 34px;min-height:380px;color:#dfe5ff;font:24px/1.55 ui-monospace,Cascadia Code,Consolas,monospace;white-space:pre-wrap"></pre></div>`;

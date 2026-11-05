@@ -15,6 +15,8 @@ export interface ManifestLaw {
   problems: string[];
 }
 
+import type { Exercised } from './exercises.ts';
+
 export interface LawResult {
   file: string;
   name: string;
@@ -28,6 +30,8 @@ export interface LawResult {
   message?: string;
   /** Project-relative path of a screenshot of the page at the counterexample (browser laws). */
   screenshot?: string;
+  /** The project functions the law reaches and where they are declared, for an editor to mark on both ends. */
+  exercises?: Exercised[];
 }
 
 export interface CheckOptions {

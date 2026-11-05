@@ -1,0 +1,42 @@
+name: sync-upstream
+
+# Merges vercel-labs/tsc-ts main into a branch and opens a pull request into main, every Monday and on demand.
+# On a merge conflict it opens an issue labelled `upstream-sync` instead. It never pushes to main and never publishes.
+# See "Syncing with upstream" in RELEASING-LAWS.md.
+on:
+  schedule:
+    - cron: '17 4 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: sync-upstream
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: sync
+    # A fork of this fork has nothing to sync into.
+    if: github.repository == 'Jordan-Hall/tsc-laws'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+      - name: Merge upstream main
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/ci/sync-upstream.mjs

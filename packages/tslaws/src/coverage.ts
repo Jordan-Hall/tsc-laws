@@ -15,6 +15,8 @@ export interface CoverageConfig {
   compilerOptions?: Record<string, unknown>;
   /** End-to-end laws: the app to drive; see `parseE2eConfig`. */
   e2e?: E2eConfig;
+  /** esbuild plugin modules (paths relative to tslaws.json) that teach the browser bundler new source formats. */
+  bundlerPlugins?: string[];
   /** Run settings; a command line flag beats them and they beat the built-in default. */
   runs?: number;
   propertyTimeoutMs?: number;
@@ -23,7 +25,7 @@ export interface CoverageConfig {
 }
 
 const settingKeys = ['runs', 'propertyTimeoutMs', 'proofTimeoutMs', 'bound'] as const;
-const configKeys = ['cover', 'compilerOptions', 'e2e', ...settingKeys];
+const configKeys = ['cover', 'compilerOptions', 'e2e', 'bundlerPlugins', ...settingKeys];
 
 export interface Uncovered {
   file: string;
@@ -65,6 +67,12 @@ export function parseConfig(raw: unknown): CoverageConfig {
     if (value !== undefined && (typeof value !== 'number' || !Number.isInteger(value) || value < 1))
       fail(`"${key}" must be an integer of at least 1, got ${JSON.stringify(value)}`);
   }
+  const plugins = object.bundlerPlugins;
+  if (
+    plugins !== undefined &&
+    (!Array.isArray(plugins) || plugins.some((entry) => typeof entry !== 'string' || entry === ''))
+  )
+    fail(`"bundlerPlugins" must be an array of module paths, got ${JSON.stringify(plugins)}`);
   return object as CoverageConfig;
 }
 

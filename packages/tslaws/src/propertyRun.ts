@@ -20,17 +20,20 @@ export async function runProperty(
 ): Promise<fc.RunDetails<unknown[]>> {
   // fast-check needs at least one arbitrary: a law without parameters gets a stand-in and runs once.
   const none = generators.length === 0;
-  const property = fc.asyncProperty(...((none ? [fc.constant(undefined)] : generators) as [fc.Arbitrary<unknown>]), async (...args: unknown[]) => {
-    try {
-      return (await call(...(none ? [] : args))) !== false;
-    } catch (error) {
-      if (isDiscard(error)) {
-        fc.pre(false);
-        return true;
+  const property = fc.asyncProperty(
+    ...((none ? [fc.constant(undefined)] : generators) as [fc.Arbitrary<unknown>]),
+    async (...args: unknown[]) => {
+      try {
+        return (await call(...(none ? [] : args))) !== false;
+      } catch (error) {
+        if (isDiscard(error)) {
+          fc.pre(false);
+          return true;
+        }
+        throw error;
       }
-      throw error;
-    }
-  });
+    },
+  );
   return (await fc.check(property as unknown as fc.IAsyncProperty<unknown[]>, {
     numRuns: none ? 1 : options.runs,
     seed: options.seed,
@@ -49,6 +52,8 @@ export interface PropertyOutcome {
   /** Absent when the law failed because `assume` discarded nearly every input. */
   counterexample?: string;
   message?: string;
+  /** The stack of the error the law threw, to say which function threw. */
+  stack?: string;
   screenshot?: string;
   /** The counterexample in the regression corpus's encoding; absent when it cannot be stored. */
   encoded?: string;
@@ -74,5 +79,6 @@ export function summarise(details: fc.RunDetails<unknown[]>, options?: CheckOpti
     seed: details.seed,
     counterexample: details.counterexample === null ? undefined : fc.stringify(details.counterexample),
     message,
+    stack: details.errorInstance instanceof Error ? details.errorInstance.stack : undefined,
   };
 }

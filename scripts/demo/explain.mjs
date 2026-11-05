@@ -3,12 +3,12 @@
 // Render the voice first:  NARRATION=explainer.json KOKORO_DIR=<dir> node voice.mjs <vo> <voice>
 // Then:                    node explain.mjs <vo-dir> <out-dir>      and   node mix.mjs <vo-dir> <out-dir> <result.mp4>
 import { spawnSync } from 'node:child_process';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, readdirSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { chromium } from 'playwright-core';
 
 const [voDir, outDir] = process.argv.slice(2);
-const lines = JSON.parse(readFileSync(new URL('explainer.json', import.meta.url), 'utf8'));
+const lines = JSON.parse(readFileSync(new URL(process.env.NARRATION ?? 'explainer.json', import.meta.url), 'utf8'));
 const seconds = (file) =>
   Number(
     spawnSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', file], {
@@ -21,6 +21,18 @@ const capture = (name) =>
     .split(/\r?\n/)
     .filter((l) => l && !/^\s+(hint|reproduce):/.test(l) && !/^\d+ laws:/.test(l));
 
+// The checkout example's real sources, plus the proposal that was checked for captures/proposed.txt.
+const exampleFile = (name) =>
+  readFileSync(
+    new URL(name.includes('proposed') ? `captures/${name}` : `../../examples/checkout/src/${name}`, import.meta.url),
+    'utf8',
+  );
+// One law declaration of a file, without the comment above it.
+const lawOf = (name, law) => {
+  const text = exampleFile(name);
+  const start = text.indexOf(`export law ${law}`);
+  return text.slice(start, text.indexOf('\n}\n', start) + 2);
+};
 const esc = (t) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;');
 const ink = '#1b1b30';
 const css = `
@@ -36,7 +48,7 @@ body{margin:0;width:960px;height:960px;overflow:hidden;background:var(--bg,var(-
 .card{position:absolute;background:#fff8;border:3px solid var(--ink);border-radius:14px}
 .note{position:absolute;background:var(--pink);border:3px solid var(--ink);padding:14px 20px;font-size:34px;line-height:1.25;border-radius:6px;box-shadow:6px 6px 0 var(--ink)}
 .term{position:absolute;background:var(--navy);color:#e8ecff;border-radius:14px;padding:26px 30px;font:25px/1.6 'JetBrains Mono',Consolas,monospace;box-shadow:8px 8px 0 #0004}
-.term .ok{color:#4ade80;font-weight:700}.term .bad{color:#ff6b61;font-weight:700}.term .dim{color:#8f99c8}
+.term div{overflow-wrap:anywhere}.term .ok{color:#4ade80;font-weight:700}.term .bad{color:#ff6b61;font-weight:700}.term .dim{color:#8f99c8}
 .pill{position:absolute;padding:6px 18px;border-radius:8px;font:600 32px 'Josefin Sans';border:3px solid var(--ink)}
 .cap{position:absolute;left:0;right:0;text-align:center;font-size:42px;font-weight:300}
 .code{position:absolute;background:#fffdf5;border:3px solid var(--ink);border-radius:12px;padding:26px 30px;font:27px/1.55 'JetBrains Mono',Consolas,monospace;white-space:pre}
@@ -60,7 +72,7 @@ const termLines = (rows, start, gap) =>
     .map((l, i) => {
       const html = esc(l)
         .replace(/^(PROVED)/, '<span class="ok">$1</span>')
-        .replace(/^(FAILED|TAMPERED)/, '<span class="bad">$1</span>')
+        .replace(/^(FAILED|TAMPERED|UNCOVERED)/, '<span class="bad">$1</span>')
         .replace(/(counterexample: .*)$/, '<span class="bad">$1</span>');
       return `<div class="a" ${at(start + i * gap)}>${html}</div>`;
     })
@@ -73,7 +85,11 @@ const codeHtml = (text) =>
 
 const stripes = (x, y, w, h) =>
   `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="#fffdf5" stroke="${ink}" stroke-width="4"/>` +
-  Array.from({ length: Math.floor(h / 22) }, (_, i) => `<line x1="${x + 14}" x2="${x + w - 14 - ((i * 37) % 90)}" y1="${y + 18 + i * 22}" y2="${y + 18 + i * 22}" stroke="${i % 6 === 3 ? '#c8372d' : '#6a6a80'}" stroke-width="3"/>`).join('');
+  Array.from(
+    { length: Math.floor(h / 22) },
+    (_, i) =>
+      `<line x1="${x + 14}" x2="${x + w - 14 - ((i * 37) % 90)}" y1="${y + 18 + i * 22}" y2="${y + 18 + i * 22}" stroke="${i % 6 === 3 ? '#c8372d' : '#6a6a80'}" stroke-width="3"/>`,
+  ).join('');
 
 const scenes = {
   title: () =>
@@ -227,6 +243,151 @@ const scenes = {
        <div class="abs a" style="--d:1.2s;left:86px;top:580px;font-size:56px;font-weight:300;color:#fff">Trust the code you did not write.</div>
        <div class="abs a mono" style="--d:2s;left:86px;top:720px;font-size:40px;color:var(--yellow)">npm i -D tslaws</div>`,
     ),
+  d_title: () =>
+    doc(
+      'var(--cream)',
+      `<div class="sun a" style="width:300px;height:300px;right:90px;top:90px"></div>
+       <div class="abs a" style="left:80px;top:300px;font-size:96px;font-weight:300;line-height:1.05">Laws,<br>migration,<br>and who says</div>
+       <div class="abs a" style="--d:.7s;left:80px;top:610px;font-size:200px;font-weight:600;color:var(--red);line-height:1">yes</div>
+       <div class="abs a mono" style="--d:1.4s;left:84px;top:840px;font-size:30px;color:#6a6a80">tslaws</div>`,
+    ),
+  d_picture: () =>
+    doc(
+      'var(--cream)',
+      `<div class="abs a mono" style="left:60px;top:40px;font-size:28px;color:var(--blue)">cart.ts</div>
+       <div class="code a" style="--d:.2s;left:60px;top:80px;width:840px;font-size:21px">${codeHtml(exampleFile('cart.ts').split('\n').slice(1).join('\n').trim())}</div>
+       <div class="abs a mono" style="--d:1.2s;left:60px;top:280px;font-size:28px;color:var(--blue)">cart.laws.ts</div>
+       <div class="code a" style="--d:1.4s;left:60px;top:320px;width:840px;font-size:21px">${codeHtml(lawOf('cart.laws.ts', 'totalNeverNegative'))}</div>
+       ${['proved', 'bounded', 'tested', 'open', 'failed']
+         .map(
+           (s, i) =>
+             `<div class="pill a" style="--d:${[4.6, 7.2, 8.4, 9.6, 10.8][i]}s;left:${60 + i * 172}px;top:700px;width:156px;text-align:center;font-size:30px;background:${['#b9e0c4', '#bcd6f0', '#f6e08a', '#e0d6c4', '#f2b3b3'][i]}">${s}</div>`,
+         )
+         .join('')}
+       <div class="abs a" style="--d:3.4s;left:60px;top:790px;font-size:36px">a solver proves it, for every input, where it can</div>
+       <div class="abs a" style="--d:6.6s;left:60px;top:850px;font-size:36px;color:#6a6a80">otherwise it is tested with generated inputs</div>`,
+    ),
+  d_more: () => {
+    const tiles = [
+      ['real browser', '◧', '#2c3ea3', 1.2, 82],
+      ['coverage gate', '▣', '#2f9e5e', 3.2, 82],
+      ['lock file', '≡', '#c8372d', 5.4, 82],
+      ['editor', '{ }', '#2c3ea3', 8.2, 82],
+      ['MCP server', 'MCP', '#2f9e5e', 9.8, 64],
+      ['bundler plugins', '.tsrx', '#c8372d', 11.6, 56],
+    ];
+    return doc(
+      'var(--cream)',
+      `<div class="abs a" style="left:70px;top:70px;font-size:64px;font-weight:300">and the rest of the toolbox</div>
+       ${tiles
+         .map(
+           ([label, glyph, color, d, size], i) =>
+             `<div class="a" style="--d:${d}s;position:absolute;left:${70 + (i % 3) * 290}px;top:${230 + Math.floor(i / 3) * 330}px;width:260px;height:290px;text-align:center">
+               <div style="height:210px;border-radius:26px;background:${color};border:4px solid ${ink};box-shadow:8px 8px 0 ${ink};color:#fff;font:700 ${size}px 'JetBrains Mono';display:grid;place-items:center">${glyph}</div>
+               <div style="font-size:36px;margin-top:16px">${label}</div></div>`,
+         )
+         .join('')}`,
+    );
+  },
+  d_pin: () =>
+    doc(
+      '#e8dfc6',
+      `<div class="abs a" style="left:60px;top:60px;font-size:60px;font-weight:300">pin down today's behaviour</div>
+       <div class="pill a" style="--d:1.2s;left:60px;top:190px;background:#fff8">total(100, 30) → 70</div>
+       <div class="pill a" style="--d:1.9s;left:60px;top:280px;background:#fff8">total(10, 50) → 0</div>
+       <div class="term" style="left:60px;top:430px;width:840px;height:250px;font-size:21px"><div class="a" ${at(3)}><span class="dim">$ tslaws check</span></div>${termLines(capture('checkout-good.txt'), 3.6, 0.7)}</div>
+       <div class="abs a" style="--d:5.4s;left:60px;top:740px;font-size:44px">the laws hold the behaviour still</div>`,
+    ),
+  d_port: () =>
+    doc(
+      '#d9d0e8',
+      `<svg class="abs" width="960" height="960"><g class="a" style="--d:.2s">${stripes(60, 90, 300, 190)}</g>
+        <g class="a" style="--d:.8s;stroke:${ink};stroke-width:6;fill:none"><path d="M390 185 H530"/><path d="M530 185 l-18 -14 M530 185 l-18 14"/></g>
+        <g class="a" style="--d:1.2s">${stripes(560, 90, 300, 190)}</g></svg>
+       <div class="abs a" style="--d:.3s;left:60px;top:290px;font-size:34px">today</div>
+       <div class="abs a" style="--d:1.3s;left:560px;top:290px;font-size:34px">changed or ported</div>
+       <div class="term" style="left:60px;top:360px;width:840px;height:330px;font-size:21px"><div class="a" ${at(2.4)}><span class="dim">$ tslaws check</span></div>${termLines(capture('coverage.txt'), 3, 0.9)}</div>
+       <div class="abs a" style="--d:3.2s;left:60px;top:730px;font-size:42px;color:#1d7a43">the laws pass: the behaviour survived</div>
+       <div class="abs a" style="--d:6.6s;left:60px;top:810px;font-size:42px;color:var(--red)">no law reaches shipping: still unprotected</div>`,
+    ),
+  d_lock: () => {
+    const tamper = capture('checkout-tamper.txt').slice(0, 2);
+    return doc(
+      '#d9d0e8',
+      `<svg class="abs a" style="left:70px;top:90px" width="260" height="300"><path d="M60 140 V90 a70 70 0 0 1 140 0 V140" fill="none" stroke="${ink}" stroke-width="22"/><rect x="30" y="130" width="200" height="150" rx="16" fill="#f2c230" stroke="${ink}" stroke-width="8"/><circle cx="130" cy="195" r="18" fill="${ink}"/><rect x="123" y="195" width="14" height="50" fill="${ink}"/></svg>
+       <div class="note a" style="--d:.4s;left:380px;top:130px;width:500px">the safety net stays put</div>
+       <div class="term" style="left:60px;top:470px;width:840px;height:250px"><div class="a" ${at(1.6)}><span class="dim">$ tslaws check   # a law was edited</span></div>${termLines(tamper, 2.2, 0.7)}</div>`,
+    );
+  },
+  d_propose: () =>
+    doc(
+      'var(--cream)',
+      `<div class="abs a mono" style="left:60px;top:40px;font-size:28px;color:var(--blue)">shipping.proposed.laws.ts</div>
+       <div class="code a" style="--d:.3s;left:60px;top:90px;width:840px;font-size:26px">${codeHtml(lawOf('shipping.proposed.laws.ts', 'zeroCouponChangesNothing'))}</div>
+       <div class="pill a" style="--d:1.4s;left:60px;top:330px;background:#fff8;font-size:30px">written by an agent</div>
+       <div class="term" style="left:60px;top:430px;width:840px;height:170px"><div class="a" ${at(3)}><span class="dim">$ tslaws check --proposed</span></div>${termLines(capture('proposed.txt'), 3.8, 0.7)}</div>
+       <div class="pill a" style="--d:5.4s;left:60px;top:680px;background:var(--pink)">a proposal protects nothing yet</div>
+       <div class="pill a" style="--d:7.6s;left:60px;top:780px;background:var(--mint)">a person decides</div>`,
+    ),
+  d_refuse: () =>
+    doc(
+      '#ecd27a',
+      `<div class="abs a" style="left:60px;top:50px;font-size:56px;font-weight:300">accept refuses an agent</div>
+       <div class="term" style="left:60px;top:150px;width:840px;height:250px;font-size:23px"><div class="a" ${at(0.8)}><span class="dim">$ tslaws accept   # no terminal</span></div>${termLines(capture('accept-refused.txt'), 1.6, 0.9)}</div>
+       <div class="term" style="left:60px;top:450px;width:840px;height:170px;font-size:23px"><div class="a" ${at(5)}><span class="dim">$ CI=1 tslaws accept</span></div>${termLines(capture('accept-ci.txt'), 5.8, 0.9)}</div>
+       <div class="abs a" style="--d:7s;left:60px;top:690px;font-size:44px">a person at a terminal, and never in CI</div>`,
+    ),
+  d_grant: () =>
+    doc(
+      '#e8dfc6',
+      `<div class="pill a" style="--d:.2s;left:60px;top:40px;background:var(--mint);font-size:26px">real output</div>
+       <div class="term" style="left:60px;top:100px;width:840px;height:150px"><div class="a" ${at(0.5)}><span class="dim">$ tslaws delegate status</span></div>${termLines(capture('delegate-status.txt'), 1.1, 0.7)}</div>
+       <div class="pill a" style="--d:2.6s;left:60px;top:290px;background:var(--yellow);font-size:26px">illustration, drawn from docs/laws.md</div>
+       <div class="card a" style="--d:3s;left:60px;top:350px;width:840px;height:400px;border-style:dashed;background:#fff9"></div>
+       <div class="abs a mono" style="--d:3.4s;left:90px;top:380px;font-size:26px;color:#6a6a80"># a person, at a terminal</div>
+       <div class="abs a mono" style="--d:3.8s;left:90px;top:425px;font-size:30px;font-weight:700">$ tslaws delegate grant --for 8h</div>
+       <div class="abs a mono" style="--d:6s;left:90px;top:500px;font-size:24px;color:var(--blue)">~/.tslaws/delegation.json</div>
+       <div class="abs a mono" style="--d:6.6s;left:90px;top:545px;font-size:24px;line-height:1.5;white-space:pre">{ "grants": [{
+    "root": "&lt;this project&gt;",
+    "expires": "&lt;now + 8 hours&gt;"
+}] }</div>
+       <div class="abs a" style="--d:9.2s;left:60px;top:790px;font-size:42px">in your home directory, outside the repository</div>`,
+    ),
+  d_log: () =>
+    doc(
+      '#e8dfc6',
+      `<div class="pill a" style="--d:.2s;left:60px;top:40px;background:var(--yellow);font-size:26px">illustration, drawn from docs/laws.md</div>
+       <div class="abs a" style="--d:.6s;left:60px;top:110px;font-size:50px;font-weight:300">while the grant is live</div>
+       <div class="card a" style="--d:1.2s;left:60px;top:210px;width:840px;height:300px;border-style:dashed;background:#fff9"></div>
+       <div class="abs a mono" style="--d:1.6s;left:90px;top:240px;font-size:24px;color:var(--blue)">.tslaws/accept.log</div>
+       <div class="abs a mono" style="--d:2s;left:90px;top:290px;font-size:25px;line-height:1.5;white-space:pre">&lt;time&gt;  delegated  &lt;grant expiry&gt;
+&lt;lock hash before&gt; → &lt;lock hash after&gt;</div>
+       <div class="abs a mono" style="--d:3.4s;left:90px;top:410px;font-size:28px;font-weight:700;color:var(--red)">DELEGATED ACCEPT</div>
+       <div class="abs a" style="--d:4.2s;left:60px;top:570px;font-size:44px">every delegated accept is logged</div>
+       <div class="abs a mono" style="--d:5.6s;left:60px;top:700px;font-size:40px;font-weight:700">$ tslaws delegate revoke</div>
+       <div class="abs a" style="--d:6.4s;left:60px;top:780px;font-size:44px;color:#1d7a43">revoking is one command</div>`,
+    ),
+  d_honest: () =>
+    doc(
+      'var(--cream)',
+      `<div class="abs a" style="left:60px;top:50px;font-size:60px;font-weight:300">the honest limit</div>
+       <div class="card a" style="--d:.6s;left:60px;top:170px;width:400px;height:420px;border-color:var(--red);background:#fff8"></div>
+       <div class="abs a" style="--d:.8s;left:90px;top:200px;width:340px;font-size:42px;font-weight:600;color:var(--red)">not a sandbox</div>
+       <div class="abs a" style="--d:2.2s;left:90px;top:300px;width:340px;font-size:34px;line-height:1.3">an agent running as you could write the grant file itself</div>
+       <div class="card a" style="--d:4.6s;left:500px;top:170px;width:400px;height:420px;border-color:var(--green);background:#fff8"></div>
+       <div class="abs a" style="--d:4.8s;left:530px;top:200px;width:340px;font-size:42px;font-weight:600;color:var(--green)">a decision</div>
+       <div class="abs" style="left:530px;top:300px;width:340px;font-size:34px;line-height:1.35">
+        <div class="a" style="--d:5.8s">made by a person</div><div class="a" style="--d:6.8s">bounded in time</div>
+        <div class="a" style="--d:7.8s">kept outside the repo</div><div class="a" style="--d:8.8s">audited in a log</div></div>`,
+    ),
+  d_outro: () =>
+    doc(
+      'var(--red)',
+      `<div class="sun a" style="width:240px;height:240px;right:110px;top:110px"></div>
+       <div class="abs a" style="--d:.3s;left:80px;top:310px;font-size:190px;font-weight:600;color:#fff;letter-spacing:-4px">tslaws</div>
+       <div class="abs a mono" style="--d:1.2s;left:86px;top:560px;font-size:46px;color:var(--yellow)">npm i -D tslaws</div>
+       <div class="abs a mono" style="--d:3.4s;left:86px;top:660px;font-size:36px;color:#fff">github.com/Jordan-Hall/tsc-laws</div>`,
+    ),
 };
 
 const W = 960;
@@ -253,5 +414,41 @@ for (const key of Object.keys(lines)) {
 await page.waitForTimeout(Math.max(0, voiceEnd - (Date.now() - t0)) + 1200);
 await context.close();
 await browser.close();
+// A cold start (web fonts fetched for the first scene) leaves blank frames before the first scene. Cut them, and move every
+// scene time back by the same amount, so the voice and the pictures stay together.
+const lead = Math.max(0, timings[Object.keys(timings)[0]] - 0.3);
+if (lead > 0.5) {
+  const dir = join(outDir, 'video');
+  const file = join(
+    dir,
+    readdirSync(dir).find((f) => f.endsWith('.webm')),
+  );
+  const cut = join(dir, 'cut.tmp');
+  const run = spawnSync(
+    'ffmpeg',
+    [
+      '-v',
+      'error',
+      '-y',
+      '-ss',
+      lead.toFixed(3),
+      '-i',
+      file,
+      '-c:v',
+      'libvpx-vp9',
+      '-crf',
+      '28',
+      '-b:v',
+      '0',
+      '-f',
+      'webm',
+      cut,
+    ],
+    { encoding: 'utf8' },
+  );
+  if (run.status !== 0) throw new Error(run.stderr);
+  renameSync(cut, file);
+  for (const key of Object.keys(timings)) timings[key] -= lead;
+}
 writeFileSync(join(outDir, 'timings.json'), JSON.stringify({ lines: timings, cues }, null, 2));
 console.log('recorded', timings);

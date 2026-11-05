@@ -1,6 +1,7 @@
 // A generator plan: what to generate for one parameter type, as plain data. The type checker reads a parameter's type
 // once, in the main process, and writes the plan; a worker turns the plan into fast-check arbitraries without loading
 // TypeScript (about 0.8 s of start-up per worker).
+import { sequence } from './sequence.ts';
 import * as fc from 'fast-check';
 import { arbitraryRegistry } from './api.ts';
 
@@ -115,15 +116,14 @@ export function arbitraryOf(plan: Plan): fc.Arbitrary<unknown> {
       });
       return fc.tuple(...parts).map((p) => p.join(''));
     }
-    case 'named':
-      {
-        const registered = arbitraryRegistry().get(plan.name);
-        if (registered !== undefined) return registered;
-        if (plan.fallback === undefined) throw new UnsupportedType(`no generator registered for ${plan.name}`);
-        return arbitraryOf(plan.fallback);
-      }
+    case 'named': {
+      const registered = arbitraryRegistry().get(plan.name);
+      if (registered !== undefined) return registered;
+      if (plan.fallback === undefined) throw new UnsupportedType(`no generator registered for ${plan.name}`);
+      return arbitraryOf(plan.fallback);
+    }
     case 'array':
-      return fc.array(arbitraryOf(plan.of), { maxLength: 8 });
+      return sequence(arbitraryOf(plan.of), { maxLength: 8 });
     case 'tuple': {
       const required = plan.required.map(arbitraryOf);
       const optional = plan.optional.map(arbitraryOf);

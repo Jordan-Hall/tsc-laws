@@ -183,6 +183,18 @@ describe('stateful laws through check', { skip: compiler === undefined ? 'set TS
     assert.equal(r.counterexample, '[["inc","reset"]]');
   });
 
+  // fast-check's array shrinker stops at `inc, inc, dec, reset` (or a longer sequence) for these seeds, which were found by
+  // sweeping seeds 1 to 150: no single removal of an element, prefix or suffix of it fails, only removing the pair `inc, dec`.
+  for (const seed of [15, 46, 93]) {
+    it(`shrinks to the shortest sequence for seed ${seed}`, async () => {
+      const opts = project(`seed-${seed}`, { 'src/f.ts': counter('this.n !== 1'), 'src/f.laws.ts': law });
+      const { results } = await check({ ...opts, seed }, true);
+      const r = byName(results, 'counterAgreesWithModel');
+      assert.equal(r.status, 'failed', JSON.stringify(r));
+      assert.equal(r.counterexample, '[["inc","reset"]]');
+    });
+  }
+
   it('passes the fixed counter', async () => {
     const opts = project('fixed', { 'src/f.ts': counter('true'), 'src/f.laws.ts': law });
     const { results } = await check(opts, true);

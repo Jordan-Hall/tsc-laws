@@ -16,9 +16,13 @@ export function ensureWrapper() {
   const csc = join(windir, 'Microsoft.NET', 'Framework64', 'v4.0.30319', 'csc.exe');
   if (!existsSync(csc)) return false;
   mkdirSync(join(benchRoot, 'bin'), { recursive: true });
-  const built = spawnSync(csc, ['/nologo', '/optimize', '/platform:x64', `/out:${wrapperExe}`, wrapperSource], { encoding: 'utf8' });
+  const built = spawnSync(csc, ['/nologo', '/optimize', '/platform:x64', `/out:${wrapperExe}`, wrapperSource], {
+    encoding: 'utf8',
+  });
   if (built.status !== 0) {
-    process.stderr.write(`could not build rsswrap.exe, peak RSS will not be measured:\n${built.stdout}${built.stderr}\n`);
+    process.stderr.write(
+      `could not build rsswrap.exe, peak RSS will not be measured:\n${built.stdout}${built.stderr}\n`,
+    );
     return false;
   }
   return true;

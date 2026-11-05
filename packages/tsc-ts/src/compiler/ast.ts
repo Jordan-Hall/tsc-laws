@@ -3,6 +3,7 @@
 // Every node extends `Node`. Child fields are typed by category (`Expression`, `TypeNode`, …),
 // which are aliases of `Node`; narrow with the `is*` guards in ast-utilities.ts or `instanceof`.
 import type { ProgramLifetime } from '@scriptc/types';
+import { IdentifierName } from './identifier-name.js';
 import { SyntaxKind } from './syntax-kind.js';
 import { type CommentDirective, type CommentRange, type LanguageVariant, TokenFlags } from './types.js';
 import { type Diagnostic, DiagnosticFile } from './diagnostics.js';
@@ -212,9 +213,14 @@ export abstract class NodeVisitor {
   }
 }
 
-// Native builds store `pos`, `end` and `id` as 32-bit integers when every write provably stores an
-// int32, so writes of values the compiler can't bound (parameters, the id counter) are coerced
-// with `| 0`; the values are always int32.
+// Native builds store `pos`, `end` and `id` as 32-bit integers when every write provably stores
+// an int32, so writes of values the compiler can't bound (parameters, the id counter) are
+// coerced with `| 0`; the values are always int32.
+//
+// The fields of a node that the public API's node types declare are stored fields, not values
+// computed from or packed into another field: a native build copies the stored fields of a node
+// into a record when API code narrows one (`node as StringLiteralLike`), and a field behind an
+// accessor is not copied.
 export abstract class Node implements ProgramLifetime {
   readonly kind: SyntaxKind;
   flags: NodeFlags;
@@ -453,11 +459,15 @@ export class Token extends Node {
 }
 
 export class Identifier extends Node {
-  text: string;
+  readonly identifierName: IdentifierName;
 
-  constructor(text: string) {
+  constructor(name: IdentifierName) {
     super(SyntaxKind.Identifier);
-    this.text = text;
+    this.identifierName = name;
+  }
+
+  get text(): string {
+    return this.identifierName.text;
   }
 
   forEachChild(_v: NodeVisitor): boolean {
@@ -471,7 +481,7 @@ export class Identifier extends Node {
   }
 
   copy(): Identifier {
-    const node = new Identifier(this.text);
+    const node = new Identifier(this.identifierName);
     node.flags = this.flags;
     node.pos = this.pos;
     node.end = this.end;
@@ -488,13 +498,13 @@ export class ReferenceIdentifier extends Identifier {
   // Set by the binder.
   flowNode: FlowNode | undefined;
 
-  constructor(text: string) {
-    super(text);
+  constructor(name: IdentifierName) {
+    super(name);
     this.flowNode = undefined;
   }
 
   copy(): Identifier {
-    const node = new ReferenceIdentifier(this.text);
+    const node = new ReferenceIdentifier(this.identifierName);
     node.flags = this.flags;
     node.pos = this.pos;
     node.end = this.end;
@@ -531,11 +541,11 @@ export class PrivateIdentifier extends Node {
 
 export class QualifiedName extends Node {
   left: EntityName;
-  right: Identifier;
+  right: MemberName;
   // Set by the binder.
   flowNode: FlowNode | undefined;
 
-  constructor(left: EntityName, right: Identifier) {
+  constructor(left: EntityName, right: MemberName) {
     super(SyntaxKind.QualifiedName);
     this.left = left;
     this.right = right;
@@ -557,7 +567,7 @@ export class QualifiedName extends Node {
   }
 
   copy(): QualifiedName {
-    const node = new QualifiedName(this.left.deepClone(), this.right.copy());
+    const node = new QualifiedName(this.left.deepClone(), this.right.deepClone());
     node.flags = this.flags;
     node.pos = this.pos;
     node.end = this.end;
@@ -1700,8 +1710,8 @@ export class FunctionDeclaration extends Node {
   fullSignature: TypeNode | undefined;
   body: FunctionBody | undefined;
   // Set by the binder.
-  symbol: Symbol | undefined;
   flowNode: FlowNode | undefined;
+  symbol: Symbol | undefined;
   localSymbol: Symbol | undefined;
   locals: SymbolTable | undefined;
   nextContainer: Node | undefined;
@@ -1727,8 +1737,8 @@ export class FunctionDeclaration extends Node {
     this.type = type;
     this.fullSignature = fullSignature;
     this.body = body;
-    this.symbol = undefined;
     this.flowNode = undefined;
+    this.symbol = undefined;
     this.localSymbol = undefined;
     this.locals = undefined;
     this.nextContainer = undefined;
@@ -1787,8 +1797,8 @@ export class ClassDeclaration extends Node {
   heritageClauses: NodeList | undefined;
   members: NodeList;
   // Set by the binder.
-  symbol: Symbol | undefined;
   flowNode: FlowNode | undefined;
+  symbol: Symbol | undefined;
   localSymbol: Symbol | undefined;
   locals: SymbolTable | undefined;
   nextContainer: Node | undefined;
@@ -1806,8 +1816,8 @@ export class ClassDeclaration extends Node {
     this.typeParameters = typeParameters;
     this.heritageClauses = heritageClauses;
     this.members = members;
-    this.symbol = undefined;
     this.flowNode = undefined;
+    this.symbol = undefined;
     this.localSymbol = undefined;
     this.locals = undefined;
     this.nextContainer = undefined;
@@ -1952,8 +1962,8 @@ export class InterfaceDeclaration extends Node {
   heritageClauses: NodeList | undefined;
   members: NodeList;
   // Set by the binder.
-  symbol: Symbol | undefined;
   flowNode: FlowNode | undefined;
+  symbol: Symbol | undefined;
   localSymbol: Symbol | undefined;
 
   constructor(
@@ -1969,8 +1979,8 @@ export class InterfaceDeclaration extends Node {
     this.typeParameters = typeParameters;
     this.heritageClauses = heritageClauses;
     this.members = members;
-    this.symbol = undefined;
     this.flowNode = undefined;
+    this.symbol = undefined;
     this.localSymbol = undefined;
   }
 
@@ -2015,8 +2025,8 @@ export class TypeAliasDeclaration extends Node {
   typeParameters: NodeList | undefined;
   type: TypeNode;
   // Set by the binder.
-  symbol: Symbol | undefined;
   flowNode: FlowNode | undefined;
+  symbol: Symbol | undefined;
   localSymbol: Symbol | undefined;
   locals: SymbolTable | undefined;
   nextContainer: Node | undefined;
@@ -2033,8 +2043,8 @@ export class TypeAliasDeclaration extends Node {
     this.name = name;
     this.typeParameters = typeParameters;
     this.type = type;
-    this.symbol = undefined;
     this.flowNode = undefined;
+    this.symbol = undefined;
     this.localSymbol = undefined;
     this.locals = undefined;
     this.nextContainer = undefined;
@@ -2117,8 +2127,8 @@ export class EnumDeclaration extends Node {
   name: Identifier;
   members: NodeList;
   // Set by the binder.
-  symbol: Symbol | undefined;
   flowNode: FlowNode | undefined;
+  symbol: Symbol | undefined;
   localSymbol: Symbol | undefined;
 
   constructor(modifiers: ModifierList | undefined, name: Identifier, members: NodeList) {
@@ -2126,8 +2136,8 @@ export class EnumDeclaration extends Node {
     this.modifiers = modifiers;
     this.name = name;
     this.members = members;
-    this.symbol = undefined;
     this.flowNode = undefined;
+    this.symbol = undefined;
     this.localSymbol = undefined;
   }
 
@@ -2221,8 +2231,12 @@ export class NotEmittedStatement extends Node {
 }
 
 export class NotEmittedTypeElement extends Node {
+  // Set by the binder.
+  symbol: Symbol | undefined;
+
   constructor() {
     super(SyntaxKind.NotEmittedTypeElement);
+    this.symbol = undefined;
   }
 
   forEachChild(_v: NodeVisitor): boolean {
@@ -2400,8 +2414,8 @@ export class ExportAssignment extends Node {
   type: TypeNode | undefined;
   expression: Expression;
   // Set by the binder.
-  symbol: Symbol | undefined;
   flowNode: FlowNode | undefined;
+  symbol: Symbol | undefined;
 
   constructor(
     modifiers: ModifierList | undefined,
@@ -2414,8 +2428,8 @@ export class ExportAssignment extends Node {
     this.isExportEquals = isExportEquals;
     this.type = type;
     this.expression = expression;
-    this.symbol = undefined;
     this.flowNode = undefined;
+    this.symbol = undefined;
   }
 
   forEachChild(v: NodeVisitor): boolean {
@@ -2452,15 +2466,15 @@ export class NamespaceExportDeclaration extends Node {
   modifiers: ModifierList | undefined;
   name: Identifier;
   // Set by the binder.
-  symbol: Symbol | undefined;
   flowNode: FlowNode | undefined;
+  symbol: Symbol | undefined;
 
   constructor(modifiers: ModifierList | undefined, name: Identifier) {
     super(SyntaxKind.NamespaceExportDeclaration);
     this.modifiers = modifiers;
     this.name = name;
-    this.symbol = undefined;
     this.flowNode = undefined;
+    this.symbol = undefined;
   }
 
   forEachChild(v: NodeVisitor): boolean {
@@ -6309,10 +6323,13 @@ export class JsxAttribute extends Node {
 
 export class JsxSpreadAttribute extends Node {
   expression: Expression;
+  // Set by the binder.
+  symbol: Symbol | undefined;
 
   constructor(expression: Expression) {
     super(SyntaxKind.JsxSpreadAttribute);
     this.expression = expression;
+    this.symbol = undefined;
   }
 
   forEachChild(v: NodeVisitor): boolean {
@@ -7578,10 +7595,11 @@ export class ModuleDeclaration extends Node {
   modifiers: ModifierList | undefined;
   keyword: SyntaxKind;
   name: ModuleName;
+  attributes: TypeLiteralNode | undefined;
   body: ModuleBody | undefined;
   // Set by the binder.
-  symbol: Symbol | undefined;
   flowNode: FlowNode | undefined;
+  symbol: Symbol | undefined;
   localSymbol: Symbol | undefined;
   locals: SymbolTable | undefined;
   nextContainer: Node | undefined;
@@ -7591,15 +7609,17 @@ export class ModuleDeclaration extends Node {
     modifiers: ModifierList | undefined,
     keyword: SyntaxKind,
     name: ModuleName,
+    attributes: TypeLiteralNode | undefined,
     body: ModuleBody | undefined,
   ) {
     super(SyntaxKind.ModuleDeclaration);
     this.modifiers = modifiers;
     this.keyword = keyword;
     this.name = name;
+    this.attributes = attributes;
     this.body = body;
-    this.symbol = undefined;
     this.flowNode = undefined;
+    this.symbol = undefined;
     this.localSymbol = undefined;
     this.locals = undefined;
     this.nextContainer = undefined;
@@ -7609,12 +7629,14 @@ export class ModuleDeclaration extends Node {
   forEachChild(v: NodeVisitor): boolean {
     if (this.modifiers !== undefined && v.visitModifiers(this.modifiers)) return true;
     if (v.visitNode(this.name)) return true;
+    if (this.attributes !== undefined && v.visitNode(this.attributes)) return true;
     return this.body !== undefined && v.visitNode(this.body);
   }
 
   setParentOfChildren(): void {
     if (this.modifiers !== undefined) setParents(this.modifiers.nodes, this);
     this.name.parent = this;
+    if (this.attributes !== undefined) this.attributes.parent = this;
     if (this.body !== undefined) this.body.parent = this;
   }
 
@@ -7627,6 +7649,7 @@ export class ModuleDeclaration extends Node {
       this.modifiers === undefined ? undefined : cloneModifiers(this.modifiers),
       this.keyword,
       this.name.deepClone(),
+      this.attributes === undefined ? undefined : this.attributes.copy(),
       this.body === undefined ? undefined : this.body.deepClone(),
     );
     node.flags = this.flags;
@@ -7642,8 +7665,8 @@ export class ImportEqualsDeclaration extends Node {
   name: Identifier;
   moduleReference: ModuleReference;
   // Set by the binder.
-  symbol: Symbol | undefined;
   flowNode: FlowNode | undefined;
+  symbol: Symbol | undefined;
   localSymbol: Symbol | undefined;
 
   constructor(
@@ -7657,8 +7680,8 @@ export class ImportEqualsDeclaration extends Node {
     this.isTypeOnly = isTypeOnly;
     this.name = name;
     this.moduleReference = moduleReference;
-    this.symbol = undefined;
     this.flowNode = undefined;
+    this.symbol = undefined;
     this.localSymbol = undefined;
   }
 
@@ -7699,8 +7722,8 @@ export class ExportDeclaration extends Node {
   moduleSpecifier: Expression | undefined;
   attributes: ImportAttributes | undefined;
   // Set by the binder.
-  symbol: Symbol | undefined;
   flowNode: FlowNode | undefined;
+  symbol: Symbol | undefined;
 
   constructor(
     modifiers: ModifierList | undefined,
@@ -7715,8 +7738,8 @@ export class ExportDeclaration extends Node {
     this.exportClause = exportClause;
     this.moduleSpecifier = moduleSpecifier;
     this.attributes = attributes;
-    this.symbol = undefined;
     this.flowNode = undefined;
+    this.symbol = undefined;
   }
 
   forEachChild(v: NodeVisitor): boolean {
@@ -8230,6 +8253,7 @@ export const emptyCommentDirectives: readonly CommentDirective[] = [];
 export const emptyPragmas: readonly Pragma[] = [];
 export const emptyFileReferences: readonly FileReference[] = [];
 export const emptyPatternAmbientModules: readonly PatternAmbientModule[] = [];
+const emptyNumbers: readonly number[] = [];
 
 /** `list` with `item` appended: a new array when `list` is empty (it may be shared), else `list` itself. */
 export function appendToList<T>(list: readonly T[], item: T): readonly T[] {
@@ -8262,6 +8286,12 @@ export class SourceFile extends Node {
   identifierCount: number;
   nodeCount: number;
   textCount: number;
+  /** The API's binary encoding of this file, when an API server keeps it (`keptEncodingOf`). */
+  apiEncoding: Uint8Array | undefined;
+  /** The symbols the file owns, by id, as API file symbol references resolve them; made on first use. */
+  apiSymbolIndex: Map<number, Symbol> | undefined;
+  /** The xxh3-128 hash of the text in API source file descriptors, as hexadecimal digits; `''` until first use. */
+  apiContentHash: string;
   /** Module specifiers of imports, exports, `require` calls and `import()` types, in source order. */
   imports: Node[];
   /** Names of `declare module "x"` augmentations and `declare global` blocks in modules. */
@@ -8294,13 +8324,19 @@ export class SourceFile extends Node {
   nextContainer: Node | undefined;
   isBound: boolean;
   bindDiagnostics: readonly Diagnostic[];
-  /** The flow at the end of the file. */
-  endFlowNode: FlowNode | undefined;
   symbolCount: number;
   /** Ambient modules with a `*` in their name, like `declare module "*.css"`. */
   patternAmbientModules: readonly PatternAmbientModule[];
   /** UMD exports from `export as namespace N`. */
   globalExports: SymbolTable | undefined;
+
+  // Set by the grammar checks of a parse thread (checker-grammar.ts).
+  /** The diagnostics the parse thread's grammar walk reported for this file. */
+  grammarDiagnostics: Diagnostic[] | undefined;
+  /** The nodes of this file whose grammar check needs the checker, in tree order. */
+  grammarResidualNodes: Node[] | undefined;
+  /** The blocks and statements that reported a statement in an ambient context. */
+  grammarAmbientReports: readonly number[];
 
   constructor(
     fileName: string,
@@ -8329,6 +8365,9 @@ export class SourceFile extends Node {
     this.identifierCount = 0;
     this.nodeCount = 0;
     this.textCount = 0;
+    this.apiEncoding = undefined;
+    this.apiSymbolIndex = undefined;
+    this.apiContentHash = '';
     this.imports = [];
     this.moduleAugmentations = emptyNodes;
     this.ambientModuleNames = emptyStrings;
@@ -8349,10 +8388,12 @@ export class SourceFile extends Node {
     this.nextContainer = undefined;
     this.isBound = false;
     this.bindDiagnostics = emptyDiagnostics;
-    this.endFlowNode = undefined;
     this.symbolCount = 0;
     this.patternAmbientModules = emptyPatternAmbientModules;
     this.globalExports = undefined;
+    this.grammarDiagnostics = undefined;
+    this.grammarResidualNodes = undefined;
+    this.grammarAmbientReports = emptyNumbers;
   }
 
   forEachChild(v: NodeVisitor): boolean {
@@ -8402,20 +8443,22 @@ export class PatternAmbientModule {
   readonly text: string;
   readonly starIndex: number;
   readonly symbol: Symbol;
+  /** The part of `text` before `starIndex`, kept so a match does not copy it. */
+  readonly prefix: string;
+  /** The part of `text` after `starIndex`, kept so a match does not copy it. */
+  readonly suffix: string;
 
   constructor(text: string, starIndex: number, symbol: Symbol) {
     this.text = text;
     this.starIndex = starIndex;
     this.symbol = symbol;
+    this.prefix = text.substring(0, starIndex);
+    this.suffix = text.substring(starIndex + 1);
   }
 
   matches(candidate: string): boolean {
-    const text = this.text;
-    const star = this.starIndex;
     return (
-      candidate.length >= text.length - 1 &&
-      candidate.startsWith(text.substring(0, star)) &&
-      candidate.endsWith(text.substring(star + 1))
+      candidate.length >= this.text.length - 1 && candidate.startsWith(this.prefix) && candidate.endsWith(this.suffix)
     );
   }
 }
@@ -10715,6 +10758,7 @@ export function isDeclarationNode(node: Node): boolean {
     case SyntaxKind.ConstructorType:
     case SyntaxKind.JsxAttributes:
     case SyntaxKind.JsxAttribute:
+    case SyntaxKind.JsxSpreadAttribute:
     case SyntaxKind.JSDocSignature:
     case SyntaxKind.SourceFile:
     case SyntaxKind.ModuleDeclaration:
@@ -11036,6 +11080,12 @@ export function getSymbol(node: Node): Symbol | undefined {
     case SyntaxKind.JsxAttribute:
       if (node instanceof JsxAttribute) {
         const holder: JsxAttribute = node;
+        return holder.symbol;
+      }
+      break;
+    case SyntaxKind.JsxSpreadAttribute:
+      if (node instanceof JsxSpreadAttribute) {
+        const holder: JsxSpreadAttribute = node;
         return holder.symbol;
       }
       break;
@@ -11368,6 +11418,12 @@ export function setSymbol(node: Node, value: Symbol | undefined): void {
     case SyntaxKind.JsxAttribute:
       if (node instanceof JsxAttribute) {
         const target: JsxAttribute = node;
+        target.symbol = value;
+      }
+      break;
+    case SyntaxKind.JsxSpreadAttribute:
+      if (node instanceof JsxSpreadAttribute) {
+        const target: JsxSpreadAttribute = node;
         target.symbol = value;
       }
       break;

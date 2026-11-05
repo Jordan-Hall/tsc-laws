@@ -66,14 +66,26 @@ describe('migrating from the test frameworks', () => {
     ]);
     assert.equal(file.target, 'vitest/cart.laws.ts');
     const out = file.output!;
-    assert.match(out, /^import \{ law \} from 'tslaws';\nimport \{ expect \} from 'vitest';\nimport \{ total \} from '\.\/cart';/);
+    assert.match(
+      out,
+      /^import \{ law \} from 'tslaws';\nimport \{ expect \} from 'vitest';\nimport \{ total \} from '\.\/cart';/,
+    );
     assert.doesNotMatch(out, /\bdescribe\b|\bbeforeEach\b|\bit\(/);
     // The expect call is kept as written, and the hooks sit around it.
-    assert.match(out, /law\('cart > adds up the prices', \(\) => \{\n {2}let items: number\[\] = \[\];\n {2}items = \[\.\.\.prices\];\n {2}try \{\n {4}expect\(total\(items\)\)\.toBe\(7\);\n {2}\} finally \{\n {4}items = \[\];\n {2}\}\n\}\);/);
+    assert.match(
+      out,
+      /law\('cart > adds up the prices', \(\) => \{\n {2}let items: number\[\] = \[\];\n {2}items = \[\.\.\.prices\];\n {2}try \{\n {4}expect\(total\(items\)\)\.toBe\(7\);\n {2}\} finally \{\n {4}items = \[\];\n {2}\}\n\}\);/,
+    );
     // An inner beforeEach follows the outer one; the async body makes an async law.
-    assert.match(out, /law\('cart > when empty > is zero', async \(\) => \{[\s\S]*items = \[\.\.\.prices\];[\s\S]*items = \[\];\n {4}await Promise\.resolve\(\);/);
+    assert.match(
+      out,
+      /law\('cart > when empty > is zero', async \(\) => \{[\s\S]*items = \[\.\.\.prices\];[\s\S]*items = \[\];\n {4}await Promise\.resolve\(\);/,
+    );
     // Rows of a table become constants named like the callback's parameters.
-    assert.match(out, /law\('adds 1 and 2 to give 3', \(\) => \{\n {2}const a = 1;\n {2}const b = 2;\n {2}const sum = 3;\n/);
+    assert.match(
+      out,
+      /law\('adds 1 and 2 to give 3', \(\) => \{\n {2}const a = 1;\n {2}const b = 2;\n {2}const sum = 3;\n/,
+    );
     assert.match(out, /const \{ a, b, sum \} = \{ a: 1, b: 1, sum: 2 \};/);
   });
 
@@ -118,7 +130,10 @@ describe('migrating from the test frameworks', () => {
 
   it('imports expect for a file that relies on the framework globals', () => {
     const file = only(convert('vitest', 'globals'), 'math.test.ts');
-    assert.deepEqual(lowered(file), { names: ['globals > uses the global expect', 'globals > shares set-up'], problems: [] });
+    assert.deepEqual(lowered(file), {
+      names: ['globals > uses the global expect', 'globals > shares set-up'],
+      problems: [],
+    });
     assert.match(file.output!, /import \{ expect \} from 'vitest';/);
     assert.match(file.output!, /law\('globals > shares set-up', \(\) => \{\n {2}const label = 'shared';/);
   });
@@ -131,7 +146,10 @@ describe('migrating from the test frameworks', () => {
     assert.equal(names.length, 7);
     const out = file.output!;
     assert.match(out, /^import \{ law, assume, type int \} from 'tslaws';/);
-    assert.match(out, /law\('properties > addition commutes', \(a: int, b: int\) => \{\n {2}assert\.equal\(a \+ b, b \+ a\);\n\}\);/);
+    assert.match(
+      out,
+      /law\('properties > addition commutes', \(a: int, b: int\) => \{\n {2}assert\.equal\(a \+ b, b \+ a\);\n\}\);/,
+    );
     assert.match(out, /\(n: int\) => \{\n {2}assume\(n >= 0\);\n {2}return n >= 0;/);
     assert.match(out, /\(n: int\) => \{\n {2}assume\(n >= 1 && n <= 10\);/);
     assert.match(out, /\(s: string, flag: boolean, xs: int\[\]\) =>/);
@@ -139,7 +157,10 @@ describe('migrating from the test frameworks', () => {
     // fc.pre becomes assume.
     assert.match(out, /\(n: int\) => \{\n {2}assume\(n !== 0\);\n {2}return n \* n > 0;/);
     // fc.record has no tslaws type: the property stays as it was in a law with no parameters, and the report says so.
-    assert.match(out, /law\('properties > records have no tslaws type', \(\) => \{\n {2}fc\.assert\(fc\.property\(fc\.record/);
+    assert.match(
+      out,
+      /law\('properties > records have no tslaws type', \(\) => \{\n {2}fc\.assert\(fc\.property\(fc\.record/,
+    );
     assert.deepEqual(at(file.entries, 'unconverted'), [
       '37 fc.assert kept as it is in a zero-parameter law: fc.record(...) has no tslaws type',
     ]);
@@ -148,7 +169,10 @@ describe('migrating from the test frameworks', () => {
   it('converts it.prop of @fast-check/vitest, including a named object of arbitraries', () => {
     const file = only(convert('fast-check', 'fast-check'), 'prop.test.ts');
     assert.deepEqual(lowered(file), { names: ['multiplication commutes', 'named arbitraries'], problems: [] });
-    assert.match(file.output!, /law\('multiplication commutes', \(a: int, b: int\) => \{\n {2}expect\(a \* b\)\.toBe\(b \* a\);/);
+    assert.match(
+      file.output!,
+      /law\('multiplication commutes', \(a: int, b: int\) => \{\n {2}expect\(a \* b\)\.toBe\(b \* a\);/,
+    );
     assert.match(file.output!, /law\('named arbitraries', \(n: int\) => \{\n {2}assume\(n >= 0\);/);
     assert.deepEqual(file.entries, []);
   });
@@ -160,7 +184,10 @@ describe('migrating from the test frameworks', () => {
     const out = file.output!;
     assert.match(out, /import \* as e2e from 'tslaws\/e2e';/);
     assert.match(out, /import \{ expect \} from '@playwright\/test';/);
-    assert.match(out, /law\('login > shows the form', async \(\) => \{\n {2}const page = e2e\.page\(\);\n {2}await e2e\.open\('\/login'\);/);
+    assert.match(
+      out,
+      /law\('login > shows the form', async \(\) => \{\n {2}const page = e2e\.page\(\);\n {2}await e2e\.open\('\/login'\);/,
+    );
     assert.match(out, /const context = e2e\.context\(\);/);
     assert.deepEqual(at(file.entries, 'skipped'), ['23 skip: "login > is flaky"']);
     assert.deepEqual(at(file.entries, 'unconverted').sort(), [
@@ -173,7 +200,9 @@ describe('migrating from the test frameworks', () => {
     const jest = migrate({ cwd: fixtures, from: 'jest', files: [], write: false }).files.map((f) => f.source);
     // A file that imports no test framework is read as using the globals of vitest, jest and rstest.
     assert.deepEqual(jest, ['globals/math.test.ts', 'jest/strings.test.ts']);
-    const playwright = migrate({ cwd: fixtures, from: 'playwright', files: [], write: false }).files.map((f) => f.source);
+    const playwright = migrate({ cwd: fixtures, from: 'playwright', files: [], write: false }).files.map(
+      (f) => f.source,
+    );
     assert.deepEqual(playwright, ['playwright/login.spec.ts']);
   });
 
@@ -186,7 +215,7 @@ describe('migrating from the test frameworks', () => {
         "import { describe, expect, it, test } from 'vitest';",
         "import { value } from './value';",
         '',
-        "const table = [[1], [2]];",
+        'const table = [[1], [2]];',
         "describe.each(table)('outer %i', (n) => {",
         "  it('uses the row', () => { expect(n).toBe(n); });",
         '});',
@@ -195,7 +224,7 @@ describe('migrating from the test frameworks', () => {
         "it.runIf(process.env.CI)('only on CI', () => { expect(value).toBe(1); });",
         "it('keeps working', () => { expect(value).toBe(1); });",
         "for (const name of ['a', 'b']) {",
-        "  it(`loop ${name}`, () => { expect(name).toBe(name); });",
+        '  it(`loop ${name}`, () => { expect(name).toBe(name); });',
         '}',
         '',
       ].join('\n'),
@@ -243,7 +272,10 @@ describe('migrating from the test frameworks', () => {
       const file = report.files[0]!;
       assert.equal(file.target, 'laws/src/vitest/cart.laws.ts');
       assert.equal(existsSync(join(dir, 'src', 'vitest', 'cart.laws.ts')), false);
-      assert.match(readFileSync(join(dir, 'laws', 'src', 'vitest', 'cart.laws.ts'), 'utf8'), /from '\.\.\/\.\.\/\.\.\/src\/vitest\/cart'/);
+      assert.match(
+        readFileSync(join(dir, 'laws', 'src', 'vitest', 'cart.laws.ts'), 'utf8'),
+        /from '\.\.\/\.\.\/\.\.\/src\/vitest\/cart'/,
+      );
     });
 
     it('is reached through the command line', async () => {
@@ -267,7 +299,10 @@ describe('migrating from the test frameworks', () => {
       assert.equal(status, 0);
       assert.match(printed, /dry run: nothing is written/);
       assert.match(printed, /jest\/strings\.test\.ts -> jest\/strings\.laws\.ts: 2 laws \(1 skipped\)/);
-      assert.match(printed, /Skipped, no law written \(1\):\n {2}jest\/strings\.test\.ts:15 skip: "strings > is disabled"/);
+      assert.match(
+        printed,
+        /Skipped, no law written \(1\):\n {2}jest\/strings\.test\.ts:15 skip: "strings > is disabled"/,
+      );
       assert.match(printed, /not in tsc-laws\.lock/);
       assert.equal(existsSync(join(dir, 'jest', 'strings.laws.ts')), false);
     });

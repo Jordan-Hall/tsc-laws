@@ -7,6 +7,7 @@ import { check, exemptionsOf } from './check.ts';
 import type { CheckReport } from './check.ts';
 import { readManifest } from './compile.ts';
 import { hintFor } from './hints.ts';
+import { isProposedLawFile } from './lawNames.ts';
 import { init, nextStep } from './init.ts';
 import { serveMcp } from './mcp.ts';
 import { promoteFiles } from './promote.ts';
@@ -29,10 +30,10 @@ import {
   revokeFor,
 } from './delegation.ts';
 import { writeLock } from './lock.ts';
-import type { CheckOptions, LawResult } from './types.ts';
+import type { CheckOptions, LawEvent, LawResult } from './types.ts';
 
 const usage = `tslaws init [--force]       scaffold tslaws.json, .gitignore, AGENTS.md, Claude Code hooks and a starter law (never writes the lock)
-tslaws check [files...] [--reporter text|json|junit|github] [--json] [--summary] [--watch] [--runs N] [--seed N] [--no-prove] [--no-regressions] [--bound N] [--proof-timeout MS] [--property-timeout MS] [--proposed] [--compiler PATH] [--browser chromium|firefox|webkit]
+tslaws check [files...] [--reporter text|json|junit|github|ndjson] [--law NAME[,NAME]] [--json] [--summary] [--watch] [--runs N] [--seed N] [--no-prove] [--no-regressions] [--bound N] [--proof-timeout MS] [--property-timeout MS] [--proposed] [--compiler PATH] [--browser chromium|firefox|webkit]
 tslaws ui [files...] [--port N] [--no-open] [--tab]   open a dashboard of the laws in its own desktop window (--tab: a browser tab): tree, filters, search, source, live reruns on save
 tslaws mutate [files...] [--max N] [--seed N] [--runs N] [--bound N] [--proof-timeout MS] [--property-timeout MS] [--browser ENGINE] [--json]   mutation-test the laws: mutate covered code, report mutants no law kills
 tslaws regressions [list|clear]   show or delete the stored counterexamples (.tslaws/regressions); check replays them first, --no-regressions skips them
@@ -40,14 +41,15 @@ tslaws accept [files...]     record the current laws in tsc-laws.lock (people on
 tslaws delegate grant [--for 1h|8h|1d|7d] [--root DIR]   lend accept to an agent for a limited time (people only; default 8h, max 7d)
 tslaws delegate revoke [--root DIR]   withdraw the delegation for a project (people only)
 tslaws delegate status        list delegations and when they end
-tslaws promote [file] [--all]   move proposed laws (*.proposed.laws.ts) into the accepted *.laws.ts, asking per law (people only: needs a terminal; run accept afterwards)
+tslaws promote [file] [--all]   move proposed laws (*.proposed.laws.ts, *.browser.proposed.laws.ts, *.e2e.proposed.laws.ts) into the accepted file of the same kind, asking per law (people only: needs a terminal; run accept afterwards)
 tslaws mcp [--compiler PATH]   serve check, check_proposed, explain and propose as Model Context Protocol tools on stdio (cannot accept or touch the lock)
 ${migrateUsage}
 
-Without files, every *.laws.ts under the current directory is checked (*.proposed.laws.ts only with --proposed).
+Without files, every *.laws.ts under the current directory is checked (*.proposed.laws.ts, *.browser.proposed.laws.ts and *.e2e.proposed.laws.ts only with --proposed).
 Exit status is 0 only when every law is proved, bounded or tested and nothing is open, failed, uncovered or tampered with.
   --json      machine-readable report; each result carries a hint with the next action (same as --reporter json)
-  --reporter  text (default), json, junit (JUnit XML) or github (workflow annotations; appends a table to $GITHUB_STEP_SUMMARY)
+  --reporter  text (default), json, junit (JUnit XML), github (workflow annotations; appends a table to $GITHUB_STEP_SUMMARY) or ndjson (one JSON event per line as the check proceeds, then the report; for editors)
+  --law       check only the laws with these names (comma-separated), in the files chosen
   --summary   one line per non-passing law, then the totals line
   --watch     rerun the check when a .ts file under the current directory changes (Ctrl+C exits)
   --force     init: overwrite tslaws.json and replace the AGENTS.md section`;
@@ -62,7 +64,7 @@ function discover(cwd: string, proposed: boolean): string[] {
       if (ignoredDirs.has(entry)) continue;
       const full = join(dir, entry);
       if (statSync(full).isDirectory()) walk(full);
-      else if (entry.endsWith('.laws.ts') && entry.endsWith('.proposed.laws.ts') === proposed) found.push(full);
+      else if (entry.endsWith('.laws.ts') && isProposedLawFile(entry) === proposed) found.push(full);
     }
   };
   walk(cwd);
@@ -83,6 +85,7 @@ function parse(args: string[]): { command: string; flags: Map<string, string | t
     'browser',
     'port',
     'reporter',
+    'law',
     'max',
     'for',
     'root',
@@ -151,6 +154,9 @@ function render(report: CheckReport, flags: Map<string, string | true>): string 
   if (reporter === 'json') {
     return `${JSON.stringify({ ...report, results: report.results.map((r) => ({ ...r, hint: hintFor(r) })) }, null, 2)}\n`;
   }
+  if (reporter === 'ndjson') {
+    return `${JSON.stringify({ type: 'report', ...report, results: report.results.map((r) => ({ ...r, hint: hintFor(r) })) })}\n`;
+  }
   let text = '';
   if (report.compileDiagnostics !== '') text += `${report.compileDiagnostics}\n\n`;
   if (report.lockMissing) text += 'tsc-laws.lock is missing: a person must run `tslaws accept`\n\n';
@@ -175,6 +181,7 @@ function options(cwd: string, flags: Map<string, string | true>, chosen: string[
     lockFile: join(cwd, 'tsc-laws.lock'),
     noProve: flags.has('no-prove'),
     noRegressions: flags.has('no-regressions'),
+    only: typeof flags.get('law') === 'string' ? String(flags.get('law')).split(',').filter(Boolean) : undefined,
     bound: settings.bound,
     proofTimeoutMs: settings.proofTimeoutMs,
     propertyTimeoutMs: settings.propertyTimeoutMs,
@@ -198,7 +205,14 @@ async function runCheck(cwd: string, flags: Map<string, string | true>, files: s
     process.stderr.write('no laws files found (looking for *.laws.ts)\n');
     return 1;
   }
-  const report = await check(options(cwd, flags, chosen), !flags.has('proposed'));
+  // `--reporter ndjson` streams one JSON event per line as the check proceeds, then the report, so an editor can show progress.
+  const stream = flags.get('reporter') === 'ndjson';
+  const onEvent = stream
+    ? (event: LawEvent): void => {
+        if (event.type !== 'frame') process.stdout.write(`${JSON.stringify(event)}\n`);
+      }
+    : undefined;
+  const report = await check({ ...options(cwd, flags, chosen), onEvent }, !flags.has('proposed'));
   process.stdout.write(render(report, flags));
   return report.ok ? 0 : 1;
 }

@@ -6,7 +6,14 @@ const options = { runs: 100, seed: 1 } as Parameters<typeof runProperty>[2];
 
 test('a law without parameters runs once and passes', async () => {
   let calls = 0;
-  const details = await runProperty(() => { calls += 1; return true; }, [], options);
+  const details = await runProperty(
+    () => {
+      calls += 1;
+      return true;
+    },
+    [],
+    options,
+  );
   assert.equal(details.failed, false);
   assert.equal(calls, 1);
 });

@@ -44,17 +44,27 @@ function optionsOf(node: ts.Expression | undefined, allowed: string[], member: s
   const values = new Map<string, ts.Expression>();
   if (node === undefined) return { ok: true, values };
   const e = unwrap(node);
-  if (!ts.isObjectLiteralExpression(e)) return { ok: false, reason: `fc.${member} takes options that are not an object literal` };
+  if (!ts.isObjectLiteralExpression(e))
+    return { ok: false, reason: `fc.${member} takes options that are not an object literal` };
   for (const p of e.properties) {
     if (!ts.isPropertyAssignment(p) || !ts.isIdentifier(p.name) || !allowed.includes(p.name.text))
-      return { ok: false, reason: `fc.${member} has an option tslaws cannot express (${p.name?.getText() ?? 'spread'})` };
+      return {
+        ok: false,
+        reason: `fc.${member} has an option tslaws cannot express (${p.name?.getText() ?? 'spread'})`,
+      };
     values.set(p.name.text, p.initializer);
   }
   return { ok: true, values };
 }
 
 const isTrue = (node: ts.Expression | undefined): boolean | undefined =>
-  node === undefined ? undefined : unwrap(node).kind === ts.SyntaxKind.TrueKeyword ? true : unwrap(node).kind === ts.SyntaxKind.FalseKeyword ? false : undefined;
+  node === undefined
+    ? undefined
+    : unwrap(node).kind === ts.SyntaxKind.TrueKeyword
+      ? true
+      : unwrap(node).kind === ts.SyntaxKind.FalseKeyword
+        ? false
+        : undefined;
 
 function combine(parts: (string | undefined)[]): string | undefined {
   const present = parts.filter((p): p is string => p !== undefined);
@@ -62,20 +72,27 @@ function combine(parts: (string | undefined)[]): string | undefined {
 }
 
 /** `min` / `max` as comparisons, when both are numeric literals or absent. */
-function range(values: Map<string, ts.Expression>, member: string): { ok: true; min?: number; max?: number } | { ok: false; reason: string } {
+function range(
+  values: Map<string, ts.Expression>,
+  member: string,
+): { ok: true; min?: number; max?: number } | { ok: false; reason: string } {
   const out: { min?: number; max?: number } = {};
   for (const key of ['min', 'max'] as const) {
     const node = values.get(key);
     if (node === undefined) continue;
     const n = numberOf(node);
-    if (n === undefined || Number.isNaN(n)) return { ok: false, reason: `fc.${member} has a ${key} that is not a number literal` };
+    if (n === undefined || Number.isNaN(n))
+      return { ok: false, reason: `fc.${member} has a ${key} that is not a number literal` };
     out[key] = n;
   }
   return { ok: true, ...out };
 }
 
 function bounds(value: string, r: { min?: number; max?: number }): string | undefined {
-  return combine([r.min === undefined ? undefined : `${value} >= ${r.min}`, r.max === undefined ? undefined : `${value} <= ${r.max}`]);
+  return combine([
+    r.min === undefined ? undefined : `${value} >= ${r.min}`,
+    r.max === undefined ? undefined : `${value} <= ${r.max}`,
+  ]);
 }
 
 /** Maps one arbitrary expression to a tslaws type, or says why it has none. */
@@ -103,7 +120,10 @@ export function mapArbitrary(node: ts.Expression, b: Bindings): Mapped {
         if (!r.ok) return no(r.reason);
         upper = r.max;
       }
-      return { ok: true, typed: { type: 'int', uses: new Set(['int']), condition: (v) => bounds(v, { min: 0, max: upper })! } };
+      return {
+        ok: true,
+        typed: { type: 'int', uses: new Set(['int']), condition: (v) => bounds(v, { min: 0, max: upper })! },
+      };
     }
     case 'float':
     case 'double': {

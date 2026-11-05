@@ -42,12 +42,16 @@ function modulesOf(text: string): Set<string> {
 /** Whether a file found by searching (not named by the person) belongs to the framework being migrated. */
 function belongs(text: string, from: SourceName): boolean {
   const modules = [...modulesOf(text)];
-  if (from === 'fast-check') return modules.some((m) => frameworkModules[m] === 'fast-check' || m.startsWith('@fast-check/'));
+  if (from === 'fast-check')
+    return modules.some((m) => frameworkModules[m] === 'fast-check' || m.startsWith('@fast-check/'));
   if (from === 'playwright') return modules.includes('@playwright/test');
   const own = modules.filter((m) => frameworkModules[m] === from);
   if (own.length > 0) return true;
   // No framework import at all: the file relies on globals, which vitest, jest and rstest provide.
-  return !modules.some((m) => frameworkModules[m] !== 'fast-check') && (from === 'vitest' || from === 'jest' || from === 'rstest');
+  return (
+    !modules.some((m) => frameworkModules[m] !== 'fast-check') &&
+    (from === 'vitest' || from === 'jest' || from === 'rstest')
+  );
 }
 
 /** `src/a.test.ts` to `a`, the name the laws file is built on. */

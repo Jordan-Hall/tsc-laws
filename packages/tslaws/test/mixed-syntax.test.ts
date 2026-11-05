@@ -10,7 +10,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const root = mkdtempSync(join(here, '..', '.tmp-mixed-'));
 after(() => rmSync(root, { recursive: true, force: true, maxRetries: 5 }));
 
-const keyword = "export law keywordLaw(a: number) {\n  return a === a;\n}\n";
+const keyword = 'export law keywordLaw(a: number) {\n  return a === a;\n}\n';
 const call = "import { law } from 'tslaws';\nlaw('call law', (a: number) => a === a);\n";
 
 function project(name: string, files: Record<string, string>): string {
@@ -25,12 +25,18 @@ describe('one syntax per project', () => {
     const dir = project('mixed', { 'a.laws.ts': keyword, 'b.laws.ts': call });
     assert.throws(
       () => readManifest('tsc.exe', ['a.laws.ts', 'b.laws.ts'], dir),
-      (error: Error) => /mixes the two ways/.test(error.message) && error.message.includes('a.laws.ts') && error.message.includes('b.laws.ts'),
+      (error: Error) =>
+        /mixes the two ways/.test(error.message) &&
+        error.message.includes('a.laws.ts') &&
+        error.message.includes('b.laws.ts'),
     );
   });
 
   it('reads call laws alone without the custom compiler', () => {
     const dir = project('calls', { 'b.laws.ts': call });
-    assert.deepEqual(readManifest('tsc.exe', ['b.laws.ts'], dir).map((l) => l.name), ['call law']);
+    assert.deepEqual(
+      readManifest('tsc.exe', ['b.laws.ts'], dir).map((l) => l.name),
+      ['call law'],
+    );
   });
 });

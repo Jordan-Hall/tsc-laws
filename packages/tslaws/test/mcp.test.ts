@@ -7,6 +7,7 @@ import { dirname, join } from 'node:path';
 import { createInterface } from 'node:readline';
 import { after, before, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { proposalPath } from '../dist/mcp.js';
 
 const compiler = process.env.TSC_LAWS_BIN;
 const here = dirname(fileURLToPath(import.meta.url));
@@ -120,6 +121,19 @@ describe('mcp server', { skip: compiler === undefined ? 'set TSC_LAWS_BIN' : fal
       listed.data.results.map((r: { name: string }) => r.name),
       ['doubleIsTwice'],
     );
+  });
+
+  it('accepts a proposed browser or end-to-end path, and refuses the accepted names', () => {
+    for (const file of [
+      'src/shell-layout.browser.proposed.laws.ts',
+      'src/shop.e2e.proposed.laws.ts',
+      'src/f.proposed.laws.ts',
+    ]) {
+      assert.equal(proposalPath(root, file), join(root, file));
+    }
+    for (const file of ['src/x.browser.laws.ts', 'src/x.e2e.laws.ts', 'src/.proposed.laws.ts']) {
+      assert.throws(() => proposalPath(root, file), /only proposed laws can be written/, file);
+    }
   });
 
   it('refuses every other path', async () => {

@@ -13,7 +13,8 @@ function lawFiles(dir, root = dir) {
     if (entry === 'node_modules' || entry === '.tslaws') continue;
     const full = join(dir, entry);
     if (statSync(full).isDirectory()) found.push(...lawFiles(full, root));
-    else if (/\.laws\.[cm]?ts$/.test(entry) && !/\.proposed\.laws\./.test(entry)) found.push(relative(root, full).replaceAll('\\', '/'));
+    else if (/\.laws\.[cm]?ts$/.test(entry) && !/\.proposed\.laws\./.test(entry))
+      found.push(relative(root, full).replaceAll('\\', '/'));
   }
   return found.sort();
 }
@@ -24,7 +25,10 @@ export async function writeProjectLock(dir) {
   const { writeLock } = await import(distUrl + 'lock.js');
   const laws = readManifest('builtin', lawFiles(dir), dir);
   const problems = laws.filter((law) => law.problems !== undefined && law.problems.length > 0);
-  if (problems.length > 0) throw new Error(`${dir}: ${problems.length} laws cannot be run: ${problems[0].name}: ${problems[0].problems.join('; ')}`);
+  if (problems.length > 0)
+    throw new Error(
+      `${dir}: ${problems.length} laws cannot be run: ${problems[0].name}: ${problems[0].problems.join('; ')}`,
+    );
   writeLock(join(dir, 'tsc-laws.lock'), laws, []);
   return laws.length;
 }

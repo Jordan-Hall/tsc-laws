@@ -24,7 +24,7 @@ import { tscTs, tscTsMissing } from './toolchain.mjs';
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '../../..');
 const tsgo = join(root, 'packages/tsgo/dist/tsgo');
-const bundledLibs = join(root, 'upstream/typescript-go/internal/bundled/libs');
+const bundledLibs = join(root, 'upstream/TypeScript/tsc/internal/bundled/libs');
 const skip = (!existsSync(tsgo) && 'needs packages/tsgo/dist/tsgo') || tscTsMissing;
 
 /**
@@ -153,6 +153,87 @@ const scenarios = {
     steps: [
       { args: [] },
       { args: [], edit: { 'a.ts': 'import { make } from "dep";\nexport const x = make();\n// edit\n' } },
+    ],
+  },
+  // A JSON module's signature is its version, so fixing it rechecks its importers.
+  'JSON module errors cleared after fixing the JSON file': {
+    files: {
+      'tsconfig.json':
+        '{"compilerOptions":{"strict":true,"noEmit":true,"incremental":true,"resolveJsonModule":true,' +
+        '"esModuleInterop":true}}',
+      'data.json': '{ "title": "hello" }',
+      'check.ts':
+        'import type data from "./data.json";\n\ntype Shape = { title: string };\ntype Covers<T extends Shape> = T;\n\n' +
+        'export type Check = Covers<typeof data>;\n',
+    },
+    steps: [
+      { args: [] },
+      { args: [], edit: { 'data.json': '{}' } },
+      { args: [], edit: { 'data.json': '{ "title": "fixed" }' } },
+    ],
+  },
+  // Deleting a global declaration file with another file rechecks every file, also when the other file
+  // (exports.d.ts) comes first.
+  'mixed file deletion with add and change': {
+    files: {
+      'tsconfig.json': '{"compilerOptions":{"incremental":true,"noEmit":true,"types":[]}}',
+      'consumer.ts': 'declare const value: RemovedGlobal; value.property;',
+      'global.d.ts': 'interface RemovedGlobal { property: string; }',
+      'exports.d.ts': 'export interface ModuleOnly { property: string; }',
+      'changed.ts': 'export const changed = 1;',
+    },
+    steps: [
+      { args: [] },
+      {
+        args: [],
+        edit: {
+          'global.d.ts': null,
+          'exports.d.ts': null,
+          'changed.ts': 'export const changed = 2;',
+          'added.ts': 'export const added = 1;',
+        },
+      },
+      { args: [] },
+      { args: [], edit: { 'global.d.ts': 'interface RemovedGlobal { property: number; }' } },
+      { args: [], edit: { 'added.ts': null } },
+      { args: [] },
+    ],
+  },
+  // A global declaration file that becomes a module changes the global scope: its user, which does not
+  // import it, is checked again.
+  'global declaration file that becomes a module': {
+    files: {
+      'tsconfig.json': '{"compilerOptions":{"incremental":true,"noEmit":true,"types":[]}}',
+      'consumer.ts': 'declare const value: Shared; value.property;\n',
+      'global.d.ts': 'interface Shared { property: string; }\n',
+    },
+    steps: [
+      { args: [] },
+      { args: [], edit: { 'global.d.ts': 'export interface Shared { property: string; }\n' } },
+      { args: [] },
+      { args: [], edit: { 'global.d.ts': 'interface Shared { property: string; }\n' } },
+    ],
+  },
+  // Pending changes of deleted files leave the build info.
+  'unchecked deleted paths with no emit': {
+    files: {
+      'tsconfig.json':
+        '{"compilerOptions":{"incremental":true,"noCheck":true,"noEmit":true,"composite":true,"types":[]}}',
+      'stable.ts': 'export const stable = 1;',
+    },
+    steps: [
+      { args: [] },
+      { args: [], edit: { 'first.ts': 'export const first = 1;', 'second.ts': 'export const second = 1;' } },
+      { args: [], edit: { 'first.ts': null, 'second.ts': null } },
+      { args: [] },
+      {
+        args: [],
+        edit: {
+          'tsconfig.json':
+            '{"compilerOptions":{"incremental":true,"noCheck":false,"noEmit":false,"composite":true,"types":[]}}',
+        },
+      },
+      { args: [] },
     ],
   },
   'upstream errors, --stopBuildOnErrors, solutions and missing references': {
@@ -292,6 +373,20 @@ const scenarios = {
         },
       },
       { args: ['--checkers', '3', '--listEmittedFiles'] },
+    ],
+  },
+  // Missing global types that checking a file finds stay with the file, and a rebuild that doesn't check it
+  // again reports them from the build info. In native builds the first step checks on two checker threads.
+  'missing global types of an incremental program on checker threads': {
+    files: {
+      'tsconfig.json': '{"compilerOptions":{"incremental":true,"lib":["es5"],"target":"es2017","types":[]}}',
+      'generators.ts': 'export async function* values() { yield 1; }\nexport function* keys() { yield 1; }\n',
+      'other.ts': 'export const other = 1;\n',
+    },
+    steps: [
+      { args: ['--checkers', '2'] },
+      { args: ['--checkers', '2'], edit: { 'other.ts': 'export const other = 2;\n' } },
+      { args: ['--checkers', '2'] },
     ],
   },
   // In native builds the second step checks and emits the files the change affects on two checker threads.
@@ -862,6 +957,8 @@ function normalize(text, dir) {
       .replaceAll(dir, '<dir>')
       .replace(/\d\d:\d\d:\d\d [AP]M/g, '<time>')
       .replace(/^((?:Aggregate )?[A-Za-z][A-Za-z ]+:) +\S+$/gm, '$1 <value>')
+      // The run configuration the compiler chose, which tsc-ts prints and tsgo does not.
+      .replace(/\nSuggestions:\n(?: {2}.*\n)+/g, '')
       // Outputs written in the same clock tick have the same time, so which one is oldest varies.
       .replace(/(is older than output )'[^']*'/g, "$1'<output>'")
   );
@@ -959,19 +1056,19 @@ const stampGap = 20;
 /**
  * Runs `tsc-ts` with `args` in a new directory with `files` and makes the edits of `steps` (a file and its text, or
  * `null` to remove a directory, files to write in order, or a function of the directory and the `tsc-ts` process), each once the previous build
- * reported. `prepare` runs on the directory before `tsc-ts`
+ * reported. `prepare` runs on the directory before `tsc-ts` (or `command`)
  * starts, which gets `extraEnv` in its environment. Returns the output and the output directory's files.
  *
  * Edits go through `replaceFiles`, and each starts `stampGap` milliseconds after the report: the watch compares
  * modification times, which the system takes from a clock that advances in ticks of a few milliseconds, so an edit in
  * the tick of the last build's stamps would have the time stamp it already saw.
  */
-async function watchSequence(args, steps, files = watchProject, prepare = () => {}, extraEnv = {}) {
+async function watchSequence(args, steps, files = watchProject, prepare = () => {}, extraEnv = {}, command = tscTs) {
   const dir = tempDir('tsc-ts-watch-');
   writeFiles(dir, files);
   prepare(dir);
   const env = { PATH: process.env.PATH ?? '', TSC_TS_BUNDLED_LIBS: bundledLibs, NO_COLOR: '1', ...extraEnv };
-  const child = spawn(tscTs[0], [...tscTs.slice(1), ...args, '--preserveWatchOutput'], { cwd: dir, env });
+  const child = spawn(command[0], [...command.slice(1), ...args, '--preserveWatchOutput'], { cwd: dir, env });
   let output = '';
   let exit;
   child.stdout.on('data', (chunk) => (output += chunk));
@@ -1215,10 +1312,6 @@ test(
   },
 );
 
-// A watch that starts on one thread because its config sets `checkers` to 1, then an edit of the config sets it to 2
-// with a change that affects every file: the rebuild takes the unchanged files of the first build, whose symbols got
-// no ids at creation, so it checks them on this thread rather than sharing them with checker threads. The output is
-// that of a watch on one thread.
 // A rebuild that swaps an edited file into a program shared with checker threads takes its immutable files and
 // include reasons; the file-processing error of an unchanged file is reported again from them.
 test(
@@ -1288,6 +1381,42 @@ test(
   },
 );
 
+// Rebuilds in a row that check on checker threads: each edit writes the file in place, so no directory changes and
+// the rebuild takes the program of the last build with the file swapped in (`Program.updateFile`), and with it the
+// resolver that the last build shared with checker threads, which is immutable once shared. Each edit changes the
+// type of a value that every other file imports. The output is that of a watch on one thread.
+for (const incremental of [false, true]) {
+  test(
+    `--watch shares a program with checker threads in consecutive rebuilds${incremental ? ' with --incremental' : ''}`,
+    { skip: tscTsMissing, timeout: 120_000 },
+    async () => {
+      const files = {
+        'proj/tsconfig.json': JSON.stringify({
+          compilerOptions: { strict: true, noEmit: true, incremental },
+          include: ['src'],
+        }),
+        'proj/src/shared.ts': 'export const shared: number = 1;\n',
+      };
+      for (let i = 0; i < 150; i++)
+        files[`proj/src/m${i}.ts`] =
+          "import { shared } from './shared';\n" + `export const value${i}: number = shared;\n`;
+      const steps = ['string = "s"', 'boolean = true', 'number = 1'].map(
+        (value) => (dir) => writeFileSync(join(dir, 'proj/src/shared.ts'), `export const shared: ${value};\n`),
+      );
+      const run = (args) =>
+        watchSequence(['-p', 'proj', '--watch', ...args], steps, files, () => {}, { TSC_TS_WATCH_MEMORY: '0' });
+      const expected = await run(['--singleThreaded']);
+      const threaded = await run(['--checkers', '2']);
+      assert.equal((expected.output.match(/Found 150 errors/g) ?? []).length, 2);
+      assert.equal((expected.output.match(/Found 0 errors/g) ?? []).length, 2);
+      assert.equal(threaded.output, expected.output);
+    },
+  );
+}
+
+// A watch whose config sets `checkers` to 1 loads its first program on parse threads, so its symbols get ids at
+// creation; an edit of the config then sets it to 2 with a change that affects every file, and the rebuild shares
+// the unchanged files of the first build with checker threads. The output is that of a watch on one thread.
 test('--watch after a config edit turns checker threads on', { skip: tscTsMissing, timeout: 120_000 }, async () => {
   const config = (checkers) =>
     `{"compilerOptions":{"outDir":"out","rootDir":"src","strict":true,"checkers":${checkers}},"include":["src"]}`;
@@ -1308,6 +1437,60 @@ test('--watch after a config edit turns checker threads on', { skip: tscTsMissin
   assert.equal((expected.output.match(/Found 20 errors/g) ?? []).length, 2);
   assert.equal(threaded.output, expected.output);
   assert.deepEqual(threaded.files, expected.files);
+});
+
+// A watch started with build info loads its first program on parse threads and checks what changed since the build
+// info was written: here an edit that affects every file, which checker threads check with `--checkers 2`. The first
+// build reports and writes what tsgo's does, and the rebuild after it what a watch on one thread does.
+test('--watch with build info builds what changed since it', { skip, timeout: 180_000 }, async () => {
+  const files = {
+    'proj/tsconfig.json': JSON.stringify({
+      compilerOptions: { outDir: 'out', rootDir: 'src', strict: true, incremental: true, declaration: true },
+      include: ['src'],
+    }),
+    'proj/src/shared.ts': 'export const shared: number = 1;\n',
+  };
+  for (let i = 0; i < 200; i++)
+    files[`proj/src/m${i}.ts`] = "import { shared } from './shared';\n" + `export const value${i}: number = shared;\n`;
+  const outputs = (dir) => {
+    const out = readFiles(join(dir, 'proj/out'));
+    for (const [file, text] of Object.entries(out)) out[file] = normalize(text, dir);
+    return out;
+  };
+  const watchWith = async (command, args, steps) => {
+    let dir;
+    // The build info of a build, then an edit that affects every file.
+    const prepare = (d) => {
+      dir = d;
+      run(command, ['-p', 'proj'], d);
+      writeFiles(d, { 'proj/src/shared.ts': 'export const shared: string = "s";\n' });
+    };
+    const result = await watchSequence(
+      ['-p', 'proj', '--watch', ...args],
+      steps,
+      files,
+      prepare,
+      { TSC_TS_WATCH_MEMORY: '0' },
+      command,
+    );
+    return { output: result.output, files: outputs(dir) };
+  };
+  const expected = await watchWith([tsgo], [], []);
+  assert.equal((expected.output.match(/Found 200 errors/g) ?? []).length, 1);
+  for (const args of [
+    ['--checkers', '1'],
+    ['--checkers', '2'],
+  ]) {
+    const first = await watchWith(tscTs, args, []);
+    assert.equal(first.output, expected.output, args.join(' '));
+    assert.deepEqual(first.files, expected.files, args.join(' '));
+  }
+  const steps = [['proj/src/shared.ts', 'export const shared: number = 1;\n']];
+  const single = await watchWith(tscTs, ['--singleThreaded'], steps);
+  const threaded = await watchWith(tscTs, ['--checkers', '2'], steps);
+  assert.equal((single.output.match(/Found 0 errors/g) ?? []).length, 1);
+  assert.equal(threaded.output, single.output);
+  assert.deepEqual(threaded.files, single.files);
 });
 
 // A new process reads the config again: after a failed read of a changed config, the process builds on with the

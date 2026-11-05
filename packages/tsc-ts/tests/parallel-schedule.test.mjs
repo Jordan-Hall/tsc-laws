@@ -13,7 +13,7 @@ import { compileSources, tempDir } from './temp.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '../../..');
-const bundledLibs = join(root, 'upstream/typescript-go/internal/bundled/libs');
+const bundledLibs = join(root, 'upstream/TypeScript/tsc/internal/bundled/libs');
 
 const out = compileSources('tsc-ts-parallel-schedule-', ['main.ts']);
 const load = (path) => import(pathToFileURL(join(out, path)).href);
@@ -41,6 +41,15 @@ const {
   textLengths,
   unpackResult,
 } = await load('compiler/parallel-check.js');
+const {
+  compareDiagnostics,
+  createDiagnostic,
+  DiagnosticFile,
+  formatDiagnostic,
+  formatDiagnostics,
+  formattedReports,
+  sortDiagnostics,
+} = await load('compiler/diagnostics.js');
 
 const Root = 0;
 const File = 1;
@@ -94,6 +103,26 @@ test('while root files are matched, other files go out to parse threads in full 
   assert.equal(queue.next(8, true), undefined);
   assert.deepEqual(queue.next(8).names, ['/p/16.ts']);
   assert.equal(queue.left(), 3);
+});
+
+test('a chunk of other files ends with the file that reaches about a large file of text', () => {
+  const queue = new ParseQueue();
+  for (let i = 0; i < 5; i++) queue.push(File, `/p/big${i}.ts`, 0, 100_000);
+  for (let i = 0; i < 4; i++) queue.push(File, `/p/small${i}.ts`, 0, 1000);
+  assert.deepEqual(queue.next(1).names, ['/p/big0.ts', '/p/big1.ts', '/p/big2.ts']);
+  assert.deepEqual(queue.next(1).names, [
+    '/p/big3.ts',
+    '/p/big4.ts',
+    '/p/small0.ts',
+    '/p/small1.ts',
+    '/p/small2.ts',
+    '/p/small3.ts',
+  ]);
+  // While root files are matched, a chunk with that much text is full with fewer than 16 files.
+  for (let i = 0; i < 4; i++) queue.push(File, `/p/next${i}.ts`, 0, 100_000);
+  assert.equal(queue.next(8, true).names.length, 3);
+  assert.equal(queue.next(8, true), undefined);
+  assert.equal(queue.left(), 1);
 });
 
 function project() {
@@ -242,6 +271,19 @@ test('auto starts a checker per CPU, at least four, fewer only when memory does 
   assert.equal(autoCheckers(8, checkersFittingMemory(2003 * MiB, 22113123, 8 * GiB)), 6);
   assert.equal(autoCheckers(8, checkersFittingMemory(2003 * MiB, 22113123, 6 * GiB)), 4);
   assert.equal(autoCheckers(16, checkersFittingMemory(1600 * MiB, 30414210, 16 * GiB)), 16);
+  // Sharing's extra peak (sharingPeakShare, 1.12) costs checkers where memory is tight: T3 Code's web
+  // project fits 16 at 32 GiB either way, and fewer with sharing's peak at 12 GiB.
+  assert.ok(checkersFittingMemory(1600 * MiB, 30414210, 32 * GiB, 1.12) >= 16);
+  assert.ok(checkersFittingMemory(1600 * MiB, 30414210, 32 * GiB) >= 16);
+  assert.ok(
+    checkersFittingMemory(1600 * MiB, 30414210, 12 * GiB, 1.12) < checkersFittingMemory(1600 * MiB, 30414210, 12 * GiB),
+  );
+  // A peak share of 1 is the fit without sharing, which the automatic count uses.
+  assert.equal(
+    checkersFittingMemory(2003 * MiB, 22113123, 8 * GiB, 1),
+    checkersFittingMemory(2003 * MiB, 22113123, 8 * GiB),
+  );
+  assert.equal(checkersFittingMemory(2003 * MiB, 22113123, 8 * GiB, 1.12) < 6, true);
 });
 
 function groupProject() {
@@ -397,6 +439,60 @@ test('a checker result packed as plain data comes back with the same diagnostics
       .find((f) => f.fileName.endsWith('a.ts'))
       .diagnosticFile(),
   );
+});
+
+test('a packed checker result carries the reported text of each diagnostic in the report format', () => {
+  const c = erroneous();
+  const plan = planSchedule(c, 1);
+  const result = checkFromQueue(c, 0, new Int32Array(scheduleOf(plan, 1)), plan.order, 0);
+  const format = { locale: 0, currentDirectory: '/', useCaseSensitiveFileNames: true, newLine: '\n' };
+  // Without a report format, nothing is formatted.
+  const plain = unpackResult(structuredClone(packResult(result, c.program)), c.program, new Map());
+  assert.ok(plain.diagnostics.flat().every((d) => d.formatted === ''));
+  formattedReports.format = format;
+  try {
+    const back = unpackResult(structuredClone(packResult(result, c.program)), c.program, new Map());
+    const all = back.diagnostics.flat();
+    const original = result.diagnostics.flat();
+    assert.ok(all.length >= 3);
+    for (let k = 0; k < all.length; k++) {
+      assert.equal(all[k].formatted, formatDiagnostic(original[k], format));
+      // Elaborations and related information are part of their diagnostic's text.
+      for (const d of [...all[k].messageChain, ...all[k].relatedInformation]) assert.equal(d.formatted, '');
+    }
+    // The report writes the texts in place of formatting the diagnostics again.
+    assert.equal(formatDiagnostics(all, format), formatDiagnostics(original, format));
+    for (const d of all) d.formatted = 'x';
+    assert.equal(formatDiagnostics(all, format), 'x'.repeat(all.length));
+    // In another format, they are formatted.
+    assert.equal(formatDiagnostics(all, { ...format }), formatDiagnostics(original, format));
+  } finally {
+    formattedReports.format = undefined;
+  }
+});
+
+test('sorted diagnostics are in the order of compareDiagnostics, equal ones as they came', () => {
+  const a = new DiagnosticFile('/p/a.ts', 'let a = 1;\nlet b = 2;\n');
+  const b = new DiagnosticFile('/p/b.ts', 'let c = 3;\n');
+  // Another file object with a's name, as a thread's copy of a file has.
+  const otherA = new DiagnosticFile('/p/a.ts', a.text);
+  // Diagnostics.Cannot_find_name_0, a const enum member.
+  const message = 482;
+  const diagnostics = [
+    createDiagnostic(b, 4, 5, message, 'c'),
+    createDiagnostic(a, 15, 16, message, 'b'),
+    createDiagnostic(undefined, -1, -1, message, 'global'),
+    createDiagnostic(otherA, 4, 5, message, 'a'),
+    createDiagnostic(a, 4, 5, message, 'a'),
+    createDiagnostic(b, 0, 3, message, 'let'),
+    createDiagnostic(otherA, 15, 16, message, 'b'),
+    createDiagnostic(a, 4, 5, message, 'A'),
+  ];
+  const sorted = sortDiagnostics(diagnostics);
+  const expected = [...diagnostics].sort(compareDiagnostics);
+  assert.equal(sorted.length, expected.length);
+  for (let k = 0; k < sorted.length; k++) assert.equal(sorted[k], expected[k]);
+  assert.deepEqual(sortDiagnostics([]), []);
 });
 
 test('a checker at its file limit stops, and a new one on its schedule index checks the rest once', () => {

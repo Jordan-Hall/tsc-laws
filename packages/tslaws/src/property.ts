@@ -70,7 +70,9 @@ export function shapeOf(checker: ts.TypeChecker, type: ts.Type): Shape {
 export function typesOf(program: ts.Program, outDir: string, law: ManifestLaw, cwd?: string): LawTypes {
   const checker = program.getTypeChecker();
   const source =
-    cwd === undefined ? program.getSourceFile(dtsPath(outDir, law.file)) : program.getSourceFile(resolve(cwd, law.file));
+    cwd === undefined
+      ? program.getSourceFile(dtsPath(outDir, law.file))
+      : program.getSourceFile(resolve(cwd, law.file));
   if (source === undefined) throw new UnsupportedType(`no declaration output for ${law.file}`);
   const moduleSymbol = checker.getSymbolAtLocation(source);
   const exported =

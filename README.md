@@ -1,5 +1,7 @@
 # tsc-laws
 
+<p align="center"><img src="docs/media/brand/logo-512.png" alt="tsc-laws" width="128" height="128"></p>
+
 **Laws for TypeScript, checked the way Bend 2 checks its laws, without leaving TypeScript.**
 
 A person writes `law` declarations. A coding agent writes the code. One command, `tslaws check`, says whether the code
@@ -23,6 +25,20 @@ FAILED    sortKeepsLength (src/math.laws.ts:17) [property]
           counterexample: [[3,3]]
 UNCOVERED sub (src/math.ts) [coverage]
 ```
+
+## Watch
+
+What tslaws is, in two minutes (laws, proofs, tests, the coverage gate and the lock):
+
+<video src="https://github.com/Jordan-Hall/tsc-laws/raw/main/docs/media/tslaws-explained.mp4" controls muted width="480"></video>
+
+[tslaws-explained.mp4](docs/media/tslaws-explained.mp4)
+
+Laws, migration and delegated accept: why laws make a port safer, and how a person can lend `accept` to an agent for a limited time:
+
+<video src="https://github.com/Jordan-Hall/tsc-laws/raw/main/docs/media/tslaws-delegation-explainer.mp4" controls muted width="480"></video>
+
+[tslaws-delegation-explainer.mp4](docs/media/tslaws-delegation-explainer.mp4)
 
 What it offers:
 
@@ -107,7 +123,7 @@ npm run build:web
 
 - Node.js 24+ and npm
 - Go 1.26
-- A scriptc host: macOS, Linux, or Windows, with `clang` available for linking (on Windows, [zig](https://ziglang.org), which scriptc links with there and which compiles the `--api --pipe` server, `packages/tsc-ts/native/pipe-win32.c`)
+- A scriptc host: macOS, Linux, or Windows, with `clang` available for linking (on Windows, [zig](https://ziglang.org), which scriptc links with there and which compiles the `--api --pipe` server, `packages/tsc-ts/native/pipe-win32.c`; on macOS and Linux, `clang` also compiles the `--api --listen` server, `packages/tsc-ts/native/listen-posix.c`)
 
 ## Build
 
@@ -118,7 +134,7 @@ npm run build            # the Node build of tsc-ts (packages/tsc-ts/dist) and t
 npm run build:oracle     # tsgo reference builds in packages/tsgo/dist
 ```
 
-`package.json` pins scriptc `0.4.4`, with its `@scriptc/threads` package. The build fails with any other version.
+`package.json` pins scriptc `0.4.8`, with its `@scriptc/threads` package. The build fails with any other version.
 
 ## Compiler
 
@@ -142,7 +158,7 @@ The corpus scripts are in `packages/tsc-ts/scripts` (`*-corpus.mjs`).
 
 ## API server
 
-`tsc-ts --api` serves the same API as TypeScript 7.0.2's `tsc --api`, over stdin and stdout, so tools that drive `tsc --api` (such as scriptc) can run `tsc-ts` instead. On Windows the native executable also serves it over a named pipe it creates (`--pipe \\.\pipe\<name>`), as `tsc --api --pipe` does.
+`tsc-ts --api` serves the same API as TypeScript 7.0.2's `tsc --api`, over stdin and stdout, so tools that drive `tsc --api` (such as scriptc) can run `tsc-ts` instead. On Windows the native executable also serves it over a named pipe it creates (`--pipe \\.\pipe\<name>`), as `tsc --api --pipe` does. On macOS and Linux it serves one client at a time on a Unix socket it creates (`--listen <path>`), keeping parsed files between clients.
 
 ```sh
 npm run build -w tsc-ts
@@ -154,16 +170,22 @@ Native builds read lib files from the executable's directory, or from `TSC_TS_LI
 ```sh
 npm run build:native -w tsc-ts       # packages/tsc-ts/dist/tsc
 npm run build:native:dev -w tsc-ts   # unoptimized, faster to build
-TSC_TS_LIB_DIR=upstream/typescript-go/internal/bundled/libs packages/tsc-ts/dist/tsc -p path/to/project
+TSC_TS_LIB_DIR=upstream/TypeScript/tsc/internal/bundled/libs packages/tsc-ts/dist/tsc -p path/to/project
 ```
 
-`build:native` optimizes with the committed profile `packages/tsc-ts/profiles/tsc-ts.profdata`. `npm run refresh-profile -w tsc-ts -- --project <dir>[:<tsconfig>]` collects it again: it builds an instrumented tsc-ts, checks the tsc-ts sources and each project with it, and merges the results. A profile from older sources still applies to the functions that did not change. A profile from another scriptc version does not: the code scriptc generates changes between versions, so the profile is collected again whenever the pinned scriptc changes. `profiles/scriptc-version` records the scriptc that collected it, and `tests/profile.test.mjs` fails when it differs from the pinned one.
+`build:native` optimizes with a committed profile. `npm run refresh-profile -w tsc-ts` collects it again on Linux: it builds an instrumented tsc-ts, checks the tsc-ts sources and the eight projects in `packages/tsc-ts/profiles/projects.json` with it at `--checkers 1` (tRPC, Playwright, TypeORM, Excalidraw, Sentry, VS Code, T3 Code server and T3 Code web, at pinned commits), and merges the results. The first run clones and installs the projects into `~/.cache/tsc-ts/profile-projects` (`--projects-dir` chooses another directory); later runs reuse them. `--project <dir>[:<tsconfig>]` adds a project, and `--jobs <n>` sets how many checks run at once.
+
+On Linux, the optimized build passes `--exceptions=rare` to scriptc: the check's recursive functions propagate an exception by native unwinding instead of testing a status after each of their calls. The committed profile is collected from builds with the same option (`refresh-profile` passes it to every build), since a profile describes the code of a build with a given setting. Other platforms keep scriptc's status checks.
+
+The pinned scriptc has a second profile phase, so `build:native` builds with the two-phase profile `packages/tsc-ts/profiles/tsc-ts.cs.profdata`, and `refresh-profile` collects only that one. A scriptc without a second phase builds with the one-phase profile `packages/tsc-ts/profiles/tsc-ts.profdata`, which only such a scriptc collects: a scriptc with a second phase instruments different code, though it can report the same version.
+
+`packages/tsc-ts/profiles/tsc-ts.cs.json` and `tsc-ts.json` record the scriptc that collected each profile, whether it has a second profile phase, and the number of functions the profile describes. `tests/profile.test.mjs` fails when neither profile was collected with the pinned scriptc, since the code scriptc generates changes between versions, or when the one-phase profile was collected with a scriptc that has a second profile phase. A profile from older tsc-ts sources still applies to the functions that did not change. `build:native` reports how many of the described functions the build annotates; below 95% it prints a warning, and below 90% it fails when the `CI` environment variable is set. Both messages name `npm run refresh-profile -w tsc-ts`, which takes about 4 minutes on 16 cores once the projects are installed. A scriptc that prints no profile report, or a `tsc-ts.json` without a function count, skips the check with a note. Windows builds print the match as a note without checking it: scriptc inlines its allocator's fast paths on Linux and macOS but not on Windows, so most functions there have different control flow from the profile collected on Linux.
 
 `TSC_TS_BIN=packages/tsc-ts/dist/tsc` runs the tsc-ts tests that take a native build against it.
 
 The server is checked against `tsc --api` 7.0.2 response by response, and scriptc builds the same programs with either. It runs on the tsc-ts compiler, natively or under Node.
 
-Language service methods are supported: `getCompletionsAtPosition`, `getJsDocTags`, `getDocumentationComment`, `getReferencesToSymbolInFile`, `getReferencedSymbolsForNode` and `getSignatureUsages`. Like `tsc --api`, completions that need auto imports (global identifiers, import statements, exhaustive `switch` cases) report `completion list needs auto imports`. The profiling methods (`startCPUProfile`, `stopCPUProfile`, `saveHeapProfile`) are not supported.
+Language service methods are supported: `getCompletionsAtPosition`, `getImportAdderEdits`, `getJsDocTags`, `getDocumentationComment`, `getReferencesToSymbolInFile`, `getReferencedSymbolsForNode` and `getSignatureUsages`. Completions include auto imports from the project and its dependencies, and `getImportAdderEdits` returns the edits that import symbols into a file, as in `tsc --api`. The profiling methods (`startCPUProfile`, `stopCPUProfile`, `saveHeapProfile`) are not supported.
 
 ## Testing
 
