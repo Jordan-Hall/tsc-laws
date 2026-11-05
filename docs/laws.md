@@ -867,3 +867,26 @@ On Windows the native build is `dist/tsc`; copy it to `tsc.exe` to run it.
 [docs/media/tslaws-explained.mp4](media/tslaws-explained.mp4) is a 103-second illustrated explainer of what tslaws is and what it offers: the problem with agent-written code, the law, the gate, a checkout story (a coupon makes a negative total, the law catches it, the fix is proved), the lock, and where it runs. `scripts/demo/explain.mjs` makes it from `scripts/demo/explainer.json`, with the real code from `examples/checkout` and the real output in `scripts/demo/captures/`.
 
 [docs/media/tslaws-intro.mp4](media/tslaws-intro.mp4) is a 79-second narrated recording: the law typed out, the real dashboard running the real laws in `examples/basic`, `examples/react` and `examples/e2e`, and the real `tslaws check` output, including the tamper failure after a law is edited. The voice is [Kokoro](https://huggingface.co/hexgrad/Kokoro-82M) (`scripts/demo/voice.mjs`, open neural text to speech, offline); the music bed and sound cues are synthesised by `scripts/demo/mix.mjs`; `scripts/demo/record.mjs` records the screen. `scripts/demo/captures/` holds the recorded command output.
+
+## Migrating from other test frameworks
+
+`tslaws migrate <from> [files...] [--write] [--out DIR]` reads existing tests and writes them as laws in call style.
+`<from>` is `vitest`, `jest`, `rstest`, `bun`, `node` (`node:test`), `fast-check` or `playwright`. Without files it searches the
+current directory for `*.test.*` and `*.spec.*` files of that framework. It reads the TypeScript syntax tree, never the text.
+
+By default it is a dry run: it prints which files it would write, how many laws each holds, and every construct it could not
+convert, as `file:line`. `--write` creates `<name>.laws.ts` next to each test (Playwright tests become `<name>.browser.laws.ts`),
+or under `--out DIR` with the same folders. It never overwrites a file and never deletes a test. The new laws are not in
+`tsc-laws.lock`: read them, run `tslaws check`, and have a person run `tslaws accept`.
+
+| Source                                  | Becomes                                                                                                  |
+| --------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `it`, `test`                            | `law('describe > nested > test', () => { ... })`; the body is kept, `expect` is imported from its package |
+| `beforeEach`, `afterEach`               | inlined at the start (and in a `finally` at the end) of each law; `beforeAll` and `afterAll` too, with a note |
+| `.skip`, `.todo`, `.only`               | listed in the report; skipped laws are not written, `.only` is dropped                                   |
+| `test.each` tables                      | one law per row, named from the title with `%s`, `%i` and `$name` filled in                              |
+| `fc.assert(fc.property(...))`, `it.prop` | a typed law when every arbitrary has a type: `integer` is `int`, `nat` is `int` plus `assume(n >= 0)`, `string`, `boolean`, `array(x)` is `x[]`, `float` and `double` are `number`; limits such as `min` and `max` become `assume` lines. Otherwise the `fc.assert` is kept in a law with no parameters, and the report says why |
+| Playwright `test(...)`                  | an end-to-end law: `page`, `context` and `baseURL` fixtures become `e2e.page()`, `e2e.context()` and `e2e.baseURL()`, and a relative `page.goto('/x')` becomes `e2e.open('/x')`; fixtures such as `request`, `test.use` and `testInfo` are reported, not guessed |
+
+Matchers are not reimplemented: a converted file keeps importing `expect` from `vitest`, `@jest/globals`, `@rstest/core`,
+`bun:test` or `@playwright/test`, so that package must stay installed.
