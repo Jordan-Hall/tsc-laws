@@ -68,10 +68,7 @@ describe('build cache', () => {
     mkdirSync(dir, { recursive: true });
     writeFileSync(
       join(dir, 'a.laws.ts'),
-      "import { basename } from 'node:path';
-import { law } from 'tslaws';
-law('names are stable', (s: string) => basename(s) === basename(s) && typeof process.platform === 'string');
-",
+      "import { basename } from 'node:path';\nimport { law } from 'tslaws';\nlaw('names are stable', (s: string) => basename(s) === basename(s) && typeof process.platform === 'string');\n",
     );
     const built = build('builtin', ['a.laws.ts'], dir);
     assert.equal(built.diagnostics, '');
