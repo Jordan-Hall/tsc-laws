@@ -2,6 +2,12 @@
 
 The upstream tsc-ts changelog is CHANGELOG.md. Releases of tsc-laws are tagged `laws-v<version>` (see RELEASING-LAWS.md).
 
+## 0.5.1
+
+- Merge pull request #5 from Jordan-Hall/feat/auto-release
+- ci: the release fails when tslaws' version differs from the tag
+- ci: write the GitHub release notes from the changelog section
+
 ## 0.5.0
 
 - Merge pull request #4 from Jordan-Hall/feat/delegated-accept
