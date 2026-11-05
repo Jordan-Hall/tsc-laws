@@ -63,7 +63,11 @@ export const tools: Tool[] = [
       type: 'object',
       properties: {
         name: { type: 'string', description: 'the law name' },
-        source: { type: 'string', description: 'the full `export law ...` declaration, with any imports it needs' },
+        source: {
+          type: 'string',
+          description:
+            "the full law, as `law('name', ...)` or `export law name ...` (the project's syntax), with any imports it needs",
+        },
         file: {
           type: 'string',
           description: `project-relative *.proposed.laws.ts path; default ${defaultProposalFile}`,
@@ -211,14 +215,17 @@ export class Session {
         };
       }
       case 'tslaws_propose': {
-        if (typeof args.name !== 'string' || !/^[A-Za-z_$][\w$]*$/.test(args.name))
-          throw new ToolError('name must be an identifier');
+        if (typeof args.name !== 'string' || args.name.trim() === '' || /[\r\n]/.test(args.name))
+          throw new ToolError("name must be the law name: an identifier, or the text of a law('name', ...) call");
         if (typeof args.source !== 'string') throw new ToolError('source must be a string');
         const file = slash(typeof args.file === 'string' ? args.file : defaultProposalFile);
         const target = proposalPath(cwd, file);
         const proposal = parseLawFile(args.source);
         const mine = proposal.laws.find((l) => l.name === args.name);
-        if (mine === undefined) throw new ToolError(`source must contain \`export law ${args.name}\`…`);
+        if (mine === undefined)
+          throw new ToolError(
+            `source must contain the law '${args.name}', as \`law('${args.name}', ...)\` or \`export law ${args.name}\`…`,
+          );
         let rest = args.source;
         for (const part of [...proposal.laws, ...proposal.imports.map((text) => ({ text }))])
           rest = rest.replace(part.text, '');
