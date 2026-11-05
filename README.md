@@ -1,5 +1,7 @@
 # tsc-laws
 
+<p align="center"><img src="docs/media/brand/logo-512.png" alt="tsc-laws" width="128" height="128"></p>
+
 **Laws for TypeScript, checked the way Bend 2 checks its laws, without leaving TypeScript.**
 
 A person writes `law` declarations. A coding agent writes the code. One command, `tslaws check`, says whether the code
