@@ -10,6 +10,8 @@ const lawFiles = [
   'src/orders/refunds.laws.ts',
   'pkg/a/a.laws.ts',
   'src/x.proposed.laws.ts',
+  'src/shell-layout.browser.proposed.laws.ts',
+  'src/shop.e2e.proposed.laws.ts',
 ];
 
 test('a laws file runs by itself', () => {
@@ -50,6 +52,8 @@ test('files that cannot be laws or covered code, proposed laws and projects with
     'node_modules/x/index.ts',
     '.tslaws/out/a.ts',
     'src/x.proposed.laws.ts',
+    'src/shell-layout.browser.proposed.laws.ts',
+    'src/shop.e2e.proposed.laws.ts',
   ])
     assert.deepEqual(planRun({ file, lawFiles, coverage: null }), { files: [], reason: 'none' }, file);
   assert.deepEqual(planRun({ file: 'src/a.ts', lawFiles: [], coverage: null }), { files: [], reason: 'none' });

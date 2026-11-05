@@ -7,6 +7,7 @@ import { check, exemptionsOf } from './check.ts';
 import type { CheckReport } from './check.ts';
 import { readManifest } from './compile.ts';
 import { hintFor } from './hints.ts';
+import { isProposedLawFile } from './lawNames.ts';
 import { init, nextStep } from './init.ts';
 import { serveMcp } from './mcp.ts';
 import { promoteFiles } from './promote.ts';
@@ -39,10 +40,10 @@ tslaws accept [files...]     record the current laws in tsc-laws.lock (people on
 tslaws delegate grant [--for 1h|8h|1d|7d] [--root DIR]   lend accept to an agent for a limited time (people only; default 8h, max 7d)
 tslaws delegate revoke [--root DIR]   withdraw the delegation for a project (people only)
 tslaws delegate status        list delegations and when they end
-tslaws promote [file] [--all]   move proposed laws (*.proposed.laws.ts) into the accepted *.laws.ts, asking per law (people only: needs a terminal; run accept afterwards)
+tslaws promote [file] [--all]   move proposed laws (*.proposed.laws.ts, *.browser.proposed.laws.ts, *.e2e.proposed.laws.ts) into the accepted file of the same kind, asking per law (people only: needs a terminal; run accept afterwards)
 tslaws mcp [--compiler PATH]   serve check, check_proposed, explain and propose as Model Context Protocol tools on stdio (cannot accept or touch the lock)
 
-Without files, every *.laws.ts under the current directory is checked (*.proposed.laws.ts only with --proposed).
+Without files, every *.laws.ts under the current directory is checked (*.proposed.laws.ts, *.browser.proposed.laws.ts and *.e2e.proposed.laws.ts only with --proposed).
 Exit status is 0 only when every law is proved, bounded or tested and nothing is open, failed, uncovered or tampered with.
   --json      machine-readable report; each result carries a hint with the next action (same as --reporter json)
   --reporter  text (default), json, junit (JUnit XML), github (workflow annotations; appends a table to $GITHUB_STEP_SUMMARY) or ndjson (one JSON event per line as the check proceeds, then the report; for editors)
@@ -61,7 +62,7 @@ function discover(cwd: string, proposed: boolean): string[] {
       if (ignoredDirs.has(entry)) continue;
       const full = join(dir, entry);
       if (statSync(full).isDirectory()) walk(full);
-      else if (entry.endsWith('.laws.ts') && entry.endsWith('.proposed.laws.ts') === proposed) found.push(full);
+      else if (entry.endsWith('.laws.ts') && isProposedLawFile(entry) === proposed) found.push(full);
     }
   };
   walk(cwd);

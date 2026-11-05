@@ -423,7 +423,9 @@ There are three levels of law. All laws that need a browser share one suffix, `*
 | Status      | `proved`, `bounded` or `tested` | `tested`                                       | `tested` (method `e2e`)                                     |
 
 A file that imports both `tslaws/browser` and `tslaws/e2e` is an `error`: it is either component level or end-to-end, not
-both. `*.e2e.laws.ts` is accepted as an alias that always means end-to-end.
+both. `*.e2e.laws.ts` is accepted as an alias that always means end-to-end. A proposed file follows the same rules under its
+own name: `*.browser.proposed.laws.ts` is a proposed component or end-to-end law and `*.e2e.proposed.laws.ts` a proposed
+end-to-end law (see [Naming proposed laws](#naming-proposed-laws)).
 
 An end-to-end law starts from a running app and a Playwright `Page`. Inputs are generated from the parameter types and a
 failure is shrunk to a minimal counterexample, like every other law. Every generated input gets a fresh browser context
@@ -726,7 +728,9 @@ under `.tslaws/out/smt`.
    (`{ "cover": ["src/**/*.ts", "!src/**/*.test.ts"] }`), or, without that file, every module the laws import. A function
    marked `@tslaws-exempt` in its doc comment is exempt only once the exemption is in the lock.
 3. **Agents propose, people promote.** Agents write candidate laws in `*.proposed.laws.ts` and try them with
-   `tslaws check --proposed` (no lock, no coverage gate). A person moves them into a `*.laws.ts` file and accepts.
+   `tslaws check --proposed` (no lock, no coverage gate). A person moves them into a `*.laws.ts` file and accepts. A proposal
+   keeps the kind of the file it proposes (see [Naming proposed laws](#naming-proposed-laws)). A proposed file of any kind is
+   never counted by the lock or the coverage gate: a proposal protects nothing, and a person accepts.
 4. **The gate runs by itself.** `tslaws init` installs a Claude Code hook (`hooks/claude-hook.mjs`) that blocks
    `git commit` and sends the agent back to work when the check fails, plus rules for `AGENTS.md`
    (`hooks/AGENTS.snippet.md`).
@@ -779,6 +783,21 @@ a path outside the project root (also through a symlinked directory) and the `no
 directories, and accepts only imports and `law` declarations as source. The server sets `TSLAWS_AGENT=1`, so nothing it
 spawns can run `accept` or `promote`. A proposed law is still code that `check --proposed` runs, as with any law file.
 
+## Naming proposed laws
+
+A proposed file is the accepted name with `.proposed` before `.laws`, and it keeps the kind of the file it proposes:
+
+| Proposed file                  | Kind                                      | Accepted file         |
+| ------------------------------ | ----------------------------------------- | --------------------- |
+| `foo.proposed.laws.ts`         | node laws                                 | `foo.laws.ts`         |
+| `foo.browser.proposed.laws.ts` | component laws (or end-to-end, by import) | `foo.browser.laws.ts` |
+| `foo.e2e.proposed.laws.ts`     | end-to-end laws                           | `foo.e2e.laws.ts`     |
+
+`tslaws check --proposed` runs each proposed file at the level its name says, so a proposed browser law loads in the browser
+and not in Node. The refusal of a file that imports both `tslaws/browser` and `tslaws/e2e` applies to proposed files too.
+`tslaws_propose` accepts any of these names and refuses the accepted ones. Proposed files of any kind are never counted by
+`tsc-laws.lock` or by the coverage gate.
+
 ## Promoting proposed laws
 
 ### Lending accept to an agent
@@ -818,7 +837,8 @@ file itself; it stops an agent from creating the grant through `tslaws` or the r
 `tslaws promote [file] [--all]` is the person's step after an agent proposes laws. Like `accept`, it refuses without a
 terminal, under `CI`, or with `TSLAWS_AGENT` set. Name one `*.proposed.laws.ts` file, or pass `--all` for every one. For
 each law it shows the name, the source and the current `check --proposed` result, then asks `promote? [y/N]`. Approved
-laws are appended to the matching accepted file (`foo.proposed.laws.ts` to `foo.laws.ts`, created if missing; imports are
+laws are appended to the matching accepted file of the same kind (`foo.proposed.laws.ts` to `foo.laws.ts`,
+`foo.browser.proposed.laws.ts` to `foo.browser.laws.ts`, `foo.e2e.proposed.laws.ts` to `foo.e2e.laws.ts`, created if missing; imports are
 added once) and removed from the proposed file, which is deleted when no law is left. A name the accepted file already
 has is refused. `promote` never writes the lock: review the diff, then run `tslaws accept`.
 

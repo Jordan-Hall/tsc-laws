@@ -36,14 +36,14 @@ after(() => {
   setTimeout(() => process.exit(process.exitCode ?? 0), 100).unref();
 });
 
-function project(name: string, files: Record<string, string>): CheckOptions {
+function project(name: string, files: Record<string, string>, lawsFile = 'src/ui.browser.laws.ts'): CheckOptions {
   const cwd = join(root, name);
   for (const [file, text] of Object.entries(files)) {
     mkdirSync(dirname(join(cwd, file)), { recursive: true });
     writeFileSync(join(cwd, file), text);
   }
   const options: CheckOptions = {
-    files: ['src/ui.browser.laws.ts'],
+    files: [lawsFile],
     cwd,
     runs: 30,
     compiler: compiler!,
@@ -118,6 +118,39 @@ describe(
         assert.equal(r.method, 'browser');
       }
       assert.equal(ok, true, JSON.stringify(results));
+    });
+
+    it('run a proposed browser law in the browser, with no lock, as the accepted name would', async () => {
+      const file = 'src/ui.browser.proposed.laws.ts';
+      const base = project(
+        'proposed',
+        {
+          'src/ui.ts': counter,
+          [file]: [
+            "import type { int } from 'tslaws';",
+            "import { assume } from 'tslaws';",
+            "import { click, mount } from 'tslaws/browser';",
+            "import { createCounter } from './ui';",
+            'export law counterCountsClicks(clicks: int) {',
+            '  assume(clicks >= 0 && clicks <= 5);',
+            '  const { button, label } = createCounter(mount());',
+            '  for (let i = 0; i < clicks; i++) click(button);',
+            '  return label.textContent === String(clicks);',
+            '}',
+            '',
+          ].join('\n'),
+        },
+        file,
+      );
+      // A proposal protects nothing: no lock lists it, and checking it does not need one.
+      const opts: CheckOptions = { ...base, lockFile: join(base.cwd, 'none.lock') };
+      const { results, ok, compileDiagnostics } = await check(opts, false);
+      assert.equal(compileDiagnostics, '');
+      const r = byName(results, 'counterCountsClicks');
+      assert.equal(r.status, 'tested', JSON.stringify(r));
+      assert.equal(r.method, 'browser');
+      assert.equal(ok, true, JSON.stringify(results));
+      assert.ok(!existsSync(opts.lockFile));
     });
 
     it('report a failing browser law with a shrunk counterexample', async () => {
