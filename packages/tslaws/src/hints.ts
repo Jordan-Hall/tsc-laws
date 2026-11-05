@@ -32,7 +32,7 @@ export function hintFor(result: LawResult): string | undefined {
       );
     case 'uncovered':
       return (
-        'No law reaches this exported code. Ask a person for a law, or write a proposal in a `*.proposed.laws.ts` file ' +
+        'No law reaches this exported code. Ask a person for a law, or write a proposal with `tslaws propose` (it lands in `.tslaws/proposals/`) ' +
         'and try it with `tslaws check --proposed`. Never edit a `*.laws.ts` file or add `@tslaws-exempt` yourself.'
       );
     case 'tampered':

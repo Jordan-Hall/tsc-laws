@@ -31,16 +31,22 @@ export interface KindVerdict {
 const browserEntry = /^tslaws\/(?:browser|adapters\/(?:dom|react|angular|element))$/;
 const e2eEntry = 'tslaws/e2e';
 
-interface Specifier {
+export interface Specifier {
   value: string;
+  /** Offsets of the text between the quotes, for a rewrite. */
+  start: number;
+  end: number;
+  /** Used only as a type: erased from the output, so it loads nothing at run time. */
+  typeOnly: boolean;
 }
 
-/** The module specifiers a file loads at run time: static imports, re-exports, `require` and dynamic `import()`. */
-export function runtimeSpecifiers(text: string, fileName = 'laws.ts'): Specifier[] {
+/** Every module specifier of a file: imports, re-exports, `import x = require()`, `require()` and `import()`. */
+export function moduleSpecifiers(text: string, fileName = 'laws.ts'): Specifier[] {
   const source = ts.createSourceFile(fileName, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
   const found: Specifier[] = [];
-  const literal = (node: ts.Node | undefined): void => {
-    if (node !== undefined && ts.isStringLiteralLike(node)) found.push({ value: node.text });
+  const literal = (node: ts.Node | undefined, typeOnly: boolean): void => {
+    if (node !== undefined && ts.isStringLiteralLike(node))
+      found.push({ value: node.text, start: node.getStart(source) + 1, end: node.getEnd() - 1, typeOnly });
   };
   const visit = (node: ts.Node): void => {
     if (ts.isImportDeclaration(node)) {
@@ -54,21 +60,27 @@ export function runtimeSpecifiers(text: string, fileName = 'laws.ts'): Specifier
             ts.isNamedImports(bindings) &&
             bindings.elements.length > 0 &&
             bindings.elements.every((e) => e.isTypeOnly)));
-      if (!typeOnly) literal(node.moduleSpecifier);
+      literal(node.moduleSpecifier, typeOnly);
     } else if (ts.isExportDeclaration(node)) {
-      if (!node.isTypeOnly) literal(node.moduleSpecifier);
+      literal(node.moduleSpecifier, node.isTypeOnly);
     } else if (ts.isImportEqualsDeclaration(node)) {
-      if (!node.isTypeOnly && ts.isExternalModuleReference(node.moduleReference))
-        literal(node.moduleReference.expression);
+      if (ts.isExternalModuleReference(node.moduleReference)) literal(node.moduleReference.expression, node.isTypeOnly);
     } else if (ts.isCallExpression(node) && node.arguments.length >= 1) {
       const callee = node.expression;
       if (callee.kind === ts.SyntaxKind.ImportKeyword || (ts.isIdentifier(callee) && callee.text === 'require'))
-        literal(node.arguments[0]);
+        literal(node.arguments[0], false);
+    } else if (ts.isImportTypeNode(node) && ts.isLiteralTypeNode(node.argument)) {
+      literal(node.argument.literal, true);
     }
     ts.forEachChild(node, visit);
   };
   visit(source);
   return found;
+}
+
+/** The module specifiers a file loads at run time: static imports, re-exports, `require` and dynamic `import()`. */
+export function runtimeSpecifiers(text: string, fileName = 'laws.ts'): Specifier[] {
+  return moduleSpecifiers(text, fileName).filter((s) => !s.typeOnly);
 }
 
 const resolveOptions: ts.CompilerOptions = {
@@ -156,4 +168,23 @@ export function classifyLawFile(cwd: string, file: string): KindVerdict {
     notices,
     error: `${base}: the name says end-to-end, but it reaches the browser API ${via(imports.browser!)} and not tslaws/e2e; rename it or fix its imports`,
   };
+}
+
+/** The project sources a file imports directly, project-relative, in the order they are imported. */
+export function directProjectImports(cwd: string, file: string): string[] {
+  const from = resolve(cwd, file);
+  const found: string[] = [];
+  let text: string;
+  try {
+    text = readFileSync(from, 'utf8');
+  } catch {
+    return found;
+  }
+  for (const { value } of moduleSpecifiers(text, from)) {
+    const target = projectSource(value, from);
+    if (target === undefined) continue;
+    const inside = relative(resolve(cwd), resolve(target)).replaceAll('\\', '/');
+    if (!inside.startsWith('..') && !isAbsolute(inside) && !found.includes(inside)) found.push(inside);
+  }
+  return found;
 }

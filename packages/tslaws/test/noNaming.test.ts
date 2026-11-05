@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { check } from '../dist/check.js';
 import { readManifest } from '../dist/compile.js';
 import { writeLock } from '../dist/lock.js';
+import { addProposal } from '../dist/proposals.js';
 import type { CheckOptions, LawResult } from '../dist/types.js';
 
 const compiler = process.env.TSC_LAWS_BIN;
@@ -189,5 +190,99 @@ describe('laws files without naming conventions', { skip: compiler === undefined
     assert.equal(r.status, 'error', JSON.stringify(r));
     assert.match(r.message ?? '', /either component level \(tslaws\/browser\) or end-to-end \(tslaws\/e2e\), not both/);
     assert.match(r.message ?? '', /browser API reached through src\/h\.ts/);
+  });
+
+  it('run a proposal from .tslaws/proposals with no lock, and count nothing for coverage', async () => {
+    const cwd = project('proposal', {
+      'tslaws.json': JSON.stringify({ cover: ['src/**/*.ts', '!src/**/*.laws.ts'] }),
+      'src/add.ts':
+        'export const add = (a: number, b: number): number => a + b;\nexport const twice = (a: number): number => a * 2;\n',
+      'src/add.laws.ts':
+        "import { add } from './add';\nexport law commutes(a: number, b: number) => add(a, b) === add(b, a);\n",
+    });
+    const tree = options(cwd, ['src/add.laws.ts']);
+    accept(tree);
+    // `twice` is reached by no accepted law, so the tree is uncovered.
+    const before = await check(tree, true);
+    assert.equal(byName(before.results, 'twice').status, 'uncovered');
+    // A proposal that reaches it does not change that, and it needs no lock.
+    const written = addProposal(
+      cwd,
+      'twice.ts',
+      "import { twice } from './src/add';\nexport law twiceDoubles(a: number) => twice(a) === a + a;\n",
+    );
+    assert.equal(written.file, '.tslaws/proposals/twice.ts');
+    const proposed = await check(options(cwd, [written.file]), false);
+    assert.equal(byName(proposed.results, 'twiceDoubles').status, 'proved', JSON.stringify(proposed.results));
+    assert.equal(
+      proposed.results.some((r) => r.status === 'uncovered' || r.status === 'tampered'),
+      false,
+    );
+    assert.equal(proposed.ok, true);
+    const after = await check(tree, true);
+    assert.equal(byName(after.results, 'twice').status, 'uncovered');
+    assert.equal(after.ok, false);
+    // Checked as if it were part of the tree, the same file is refused: it is not in the lock.
+    const strict = await check(options(cwd, [written.file]), true);
+    assert.equal(byName(strict.results, 'twiceDoubles').status, 'tampered');
+  });
+
+  it(
+    'run a proposal at the level its imports give, with project imports resolving',
+    { skip: hasBrowser() ? false : 'needs a browser' },
+    async () => {
+      const cwd = project('proposal-browser', { 'src/ui.ts': counter });
+      const written = addProposal(
+        cwd,
+        'ui.ts',
+        [
+          "import { assume } from 'tslaws';",
+          "import { click, mount } from 'tslaws/browser';",
+          "import { createCounter } from './src/ui';",
+          'export law clicksCount(n: number) {',
+          '  assume(n >= 0 && n <= 4 && Number.isInteger(n));',
+          '  const { button, label } = createCounter(mount());',
+          '  for (let i = 0; i < n; i++) click(button);',
+          '  return label.textContent === String(n);',
+          '}',
+          '',
+        ].join('\n'),
+      );
+      const report = await check(options(cwd, [written.file]), false);
+      const r = byName(report.results, 'clicksCount');
+      assert.equal(r.status, 'tested', JSON.stringify(r));
+      assert.equal(r.method, 'browser');
+    },
+  );
+
+  it('note a deprecated in-tree proposed name, and still run it', async () => {
+    const cwd = project('deprecated', {
+      'src/add.ts': 'export const add = (a: number, b: number): number => a + b;\n',
+      'src/add.proposed.laws.ts':
+        "import { add } from './add';\nexport law commutes(a: number, b: number) => add(a, b) === add(b, a);\n",
+    });
+    const report = await check(options(cwd, ['src/add.proposed.laws.ts']), false);
+    assert.equal(byName(report.results, 'commutes').status, 'proved');
+    assert.equal(report.notices.length, 1);
+    assert.match(report.notices[0]!, /deprecated.*\.tslaws\/proposals/);
+  });
+
+  it('fail check for any unaccepted laws file of the tree, whatever its name', async () => {
+    const cwd = project('unaccepted', {
+      'src/add.ts': 'export const add = (a: number, b: number): number => a + b;\n',
+      'src/add.laws.ts':
+        "import { add } from './add';\nexport law commutes(a: number, b: number) => add(a, b) === add(b, a);\n",
+    });
+    const opts = options(cwd, ['src/add.laws.ts']);
+    accept(opts);
+    // A second laws file appears (a promoted proposal, or an agent's edit): the lock does not know it.
+    writeFileSync(
+      join(cwd, 'src/more.laws.ts'),
+      "import { add } from './add';\nexport law zero(a: number) => add(a, 0) === a;\n",
+    );
+    const both = options(cwd, ['src/add.laws.ts', 'src/more.laws.ts']);
+    const report = await check(both, true);
+    assert.equal(byName(report.results, 'zero').status, 'tampered');
+    assert.equal(report.ok, false);
   });
 });

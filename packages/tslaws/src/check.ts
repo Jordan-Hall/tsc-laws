@@ -19,7 +19,10 @@ import { proveLaw } from './smt.ts';
 import { decodeExample, loadExamples, regressionMessage, saveExample } from './regressions.ts';
 import { closeBrowser, runBrowserLaw } from './browser.ts';
 import { ensureServer, runE2eLaw, stopServer } from './e2e.ts';
+import { inProposals } from './lawFiles.ts';
 import { classifyLawFile, type KindVerdict } from './lawKinds.ts';
+import { isProposedLawFile } from './lawNames.ts';
+import { normaliseProposal } from './proposals.ts';
 import { declarationOf, exercisesOf, markFailing, Sources, type Exercised } from './exercises.ts';
 import type { CheckOptions, LawResult, ManifestLaw } from './types.ts';
 
@@ -50,10 +53,18 @@ export function exemptionsOf(options: CheckOptions): string[] {
 }
 
 export async function check(options: CheckOptions, enforceLock: boolean): Promise<CheckReport> {
+  // A proposal placed in .tslaws/proposals by hand may write its imports from the project root; store them where they resolve.
+  for (const file of options.files) if (inProposals(file)) normaliseProposal(options.cwd, file);
   const laws = readManifest(options.compiler, options.files, options.cwd);
   const results: LawResult[] = [];
   const blocked = new Set<string>();
   const notices: string[] = [];
+  for (const file of options.files) {
+    if (isProposedLawFile(file))
+      notices.push(
+        `${file}: in-tree *.proposed.laws.ts names are deprecated; keep proposals in .tslaws/proposals/ (outside the tree, git-ignored), where \`tslaws propose\` writes them`,
+      );
+  }
   // The level of a laws file comes from what it imports; looked at once per file.
   const verdicts = new Map<string, KindVerdict>();
   const verdictOf = (file: string): KindVerdict => {

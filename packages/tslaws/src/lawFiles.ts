@@ -1,7 +1,7 @@
 // Which files are laws files. Every `*.laws.ts` is one; with a `laws` setting in tslaws.json, so is any file the globs
 // match that declares a top-level `export law`. Proposals are separate: they live in `.tslaws/proposals/`, outside the
 // tree the lock covers (older projects may still have in-tree `*.proposed.laws.ts` files, which keep working).
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, lstatSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { readConfig } from './coverage.ts';
 import { globMatcher } from './globs.ts';
@@ -73,7 +73,7 @@ export function discoverProposals(cwd: string): string[] {
   return readdirSync(dir)
     .filter(
       (entry) =>
-        /\.(ts|mts|cts)$/.test(entry) && !/\.d\.(ts|mts|cts)$/.test(entry) && statSync(join(dir, entry)).isFile(),
+        /\.(ts|mts|cts)$/.test(entry) && !/\.d\.(ts|mts|cts)$/.test(entry) && lstatSync(join(dir, entry)).isFile(),
     )
     .map((entry) => `${proposalsDir}/${entry}`)
     .sort();
@@ -88,4 +88,13 @@ export function isLawsFile(cwd: string, file: string): boolean {
 /** Whether a project-relative path is inside the proposals directory. */
 export function inProposals(file: string): boolean {
   return slash(file).startsWith(`${proposalsDir}/`);
+}
+
+/** Whether a (possibly new) path is a name a laws file may have: `*.laws.ts`, or a path a `laws` glob picks. */
+export function namesLawsFile(cwd: string, file: string): boolean {
+  const name = slash(file);
+  if (isProposedLawFile(name)) return false;
+  if (name.endsWith('.laws.ts')) return true;
+  const globs = readConfig(cwd).laws;
+  return globs !== undefined && /\.(ts|mts|cts)$/.test(name) && globMatcher(globs)(name);
 }
