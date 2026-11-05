@@ -15,3 +15,11 @@ test('a law without parameters that returns false fails', async () => {
   const details = await runProperty(() => false, [], options);
   assert.equal(details.failed, true);
 });
+
+test('a law name with characters Windows refuses still gets a corpus file', async () => {
+  const { regressionFile } = await import('../dist/regressions.js');
+  const odd = regressionFile('/p', 'a.laws.ts', 'describe > test: "x"?');
+  assert.doesNotMatch(odd.split(/[\/]/).at(-1)!, /[<>:"|?*]/);
+  assert.notEqual(odd, regressionFile('/p', 'a.laws.ts', 'describe _ test_ _x__'));
+  assert.match(regressionFile('/p', 'a.laws.ts', 'plain name'), /plain name\.json$/);
+});
