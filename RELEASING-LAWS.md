@@ -65,8 +65,10 @@ Every workflow run tests the extension (`npm test -w vscode-tslaws`), packages i
 `tslaws-vscode-<version>.vsix` (install with `code --install-extension`). The release refuses to proceed when
 `packages/vscode-tslaws/package.json` has a different version from the tag, so bump both together.
 
-To publish it to the Marketplace and Open VSX, set the repository variable `VSCODE_PUBLISH` to `true` and add a
-`VSCE_PAT` secret (an Azure DevOps token for the `tsc-laws` publisher) and/or an `OVSX_PAT` secret (an Open VSX token).
+To publish it to the Marketplace and Open VSX, set the repository variable `VSCODE_PUBLISH` to `true`. The Marketplace uses
+trusted publishing (a policy on the `TS-Laws` publisher; `VSCE_PAT` is only a fallback). Open VSX needs an `OVSX_PAT` secret.
+Open VSX is skipped with a notice when that secret is missing. The full set-up is in
+[docs/publishing-the-extension.md](docs/publishing-the-extension.md).
 
 ## Syncing with upstream
 

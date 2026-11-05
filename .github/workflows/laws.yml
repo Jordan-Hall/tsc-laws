@@ -228,6 +228,7 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       contents: read
+      id-token: write
     steps:
       - uses: actions/setup-node@v4
         with:
@@ -236,11 +237,72 @@ jobs:
         with:
           name: vscode-tslaws
           path: vsix
-      - name: Publish
+      - name: Describe the package
+        id: pkg
+        run: |
+          version="${GITHUB_REF_NAME#laws-v}"
+          flag=""
+          case "$version" in *-*) flag="--pre-release" ;; esac
+          echo "flag=$flag" >> "$GITHUB_OUTPUT"
+          sha="$(sha256sum vsix/tslaws-vscode.vsix | cut -d' ' -f1)"
+          {
+            echo "### VS Code extension $version"
+            echo "- .vsix SHA-256: \`$sha\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Check which tokens exist
+        id: tokens
+        env:
+          HAS_OVSX: ${{ secrets.OVSX_PAT != '' }}
+        run: |
+          echo "ovsx=$HAS_OVSX" >> "$GITHUB_OUTPUT"
+      - name: Publish to the Visual Studio Marketplace
+        id: vsce
+        continue-on-error: true
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: |
+          # A PAT is an explicit fallback: use it when present, trusted publishing (OIDC) otherwise.
+          auth="--oidc"
+          if [ -n "$VSCE_PAT" ]; then auth=""; fi
+          if npx --yes @vscode/vsce@4.1.0 publish $auth --packagePath vsix/tslaws-vscode.vsix --skip-duplicate ${{ steps.pkg.outputs.flag }} > store.log 2>&1; then
+            if grep -qi "already exists" store.log; then
+              echo "::notice::Visual Studio Marketplace already has this version; nothing to do"
+              echo "- Visual Studio Marketplace: already published" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "- Visual Studio Marketplace: published" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          elif grep -qi "already exists" store.log; then
+            echo "::notice::Visual Studio Marketplace already has this version; nothing to do"
+            echo "- Visual Studio Marketplace: already published" >> "$GITHUB_STEP_SUMMARY"
+          else
+            cat store.log
+            echo "- Visual Studio Marketplace: FAILED" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+      - name: Publish to Open VSX
+        id: ovsx
+        if: steps.tokens.outputs.ovsx == 'true'
+        continue-on-error: true
+        env:
           OVSX_PAT: ${{ secrets.OVSX_PAT }}
         run: |
-          [ -n "$VSCE_PAT$OVSX_PAT" ] || { echo "::error::set VSCE_PAT and/or OVSX_PAT"; exit 1; }
-          if [ -n "$VSCE_PAT" ]; then npx --yes @vscode/vsce publish --packagePath vsix/tslaws-vscode.vsix; fi
-          if [ -n "$OVSX_PAT" ]; then npx --yes ovsx publish vsix/tslaws-vscode.vsix -p "$OVSX_PAT"; fi
+          if npx --yes ovsx publish vsix/tslaws-vscode.vsix ${{ steps.pkg.outputs.flag }} > store.log 2>&1; then
+            echo "- Open VSX: published" >> "$GITHUB_STEP_SUMMARY"
+          elif grep -qi "already exists" store.log; then
+            echo "::notice::Open VSX already has this version; nothing to do"
+            echo "- Open VSX: already published" >> "$GITHUB_STEP_SUMMARY"
+          else
+            cat store.log
+            echo "- Open VSX: FAILED" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+      - name: Note a missing Open VSX token
+        if: steps.tokens.outputs.ovsx != 'true'
+        run: |
+          echo "::notice::OVSX_PAT is not set, so Open VSX was skipped"
+          echo "- Open VSX: skipped (no OVSX_PAT)" >> "$GITHUB_STEP_SUMMARY"
+      - name: Fail if a store that was tried failed
+        if: always() && (steps.vsce.outcome == 'failure' || steps.ovsx.outcome == 'failure')
+        run: |
+          echo "::error::a store rejected the extension; see the failed step above"
+          exit 1
