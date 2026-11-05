@@ -1,0 +1,21 @@
+{
+  "name": "tslaws-bench",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Benchmarks tslaws against Vitest, Rstest (@rstest/core), Vitest browser mode and Playwright Test. Bench-only dependencies live here, not in the repository root.",
+  "scripts": {
+    "bench": "node run.mjs",
+    "quick": "node run.mjs --quick"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.1",
+    "@rstest/core": "0.12.6",
+    "@vitest/browser-playwright": "5.1.0",
+    "fast-check": "4.10.2",
+    "playwright": "1.64.1",
+    "tslaws": "file:../packages/tslaws",
+    "typescript": "5.9.3",
+    "vitest": "5.1.0"
+  }
+}
