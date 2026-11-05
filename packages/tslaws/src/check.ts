@@ -19,6 +19,7 @@ import { proveLaw } from './smt.ts';
 import { decodeExample, loadExamples, regressionMessage, saveExample } from './regressions.ts';
 import { closeBrowser, runBrowserLaw } from './browser.ts';
 import { ensureServer, importsBoth, lawMode, runE2eLaw, stopServer } from './e2e.ts';
+import { declarationOf, exercisesOf, markFailing, Sources, type Exercised } from './exercises.ts';
 import type { CheckOptions, LawResult, ManifestLaw } from './types.ts';
 
 export interface CheckReport {
@@ -49,8 +50,26 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
   const laws = readManifest(options.compiler, options.files, options.cwd);
   const results: LawResult[] = [];
   const blocked = new Set<string>();
+  const sources = new Sources(options.cwd);
+  // What a law reaches is syntactic and cheap; a project that cannot be read this way just has no locations.
+  const exercisesFor = (law: ManifestLaw): Exercised[] => {
+    try {
+      return exercisesOf(sources, law);
+    } catch {
+      return [];
+    }
+  };
   const add = (law: ManifestLaw, status: LawResult['status'], method: string, extra: Partial<LawResult> = {}): void => {
-    const result: LawResult = { file: law.file, name: law.name, line: law.line, status, method, ...extra };
+    const exercises = status === 'tampered' ? [] : (extra.exercises ?? exercisesFor(law));
+    const result: LawResult = {
+      file: law.file,
+      name: law.name,
+      line: law.line,
+      status,
+      method,
+      ...extra,
+      ...(exercises.length > 0 ? { exercises } : {}),
+    };
     results.push(result);
     blocked.add(lawKey(law.file, law.name));
     options.onEvent?.({ type: 'result', result });
@@ -189,6 +208,7 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
             ? 'returned false'
             : `threw: ${details.message}`;
         add(law, 'failed', method, {
+          exercises: markFailing(exercisesFor(law), details.stack, built.outDir),
           runs: details.numRuns,
           seed: details.seed,
           counterexample: details.counterexample,
@@ -262,7 +282,7 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
       results.push({
         file,
         name,
-        line: 0,
+        line: declarationOf(sources, file, name)?.line ?? 0,
         status: 'uncovered',
         method: 'coverage',
         message: 'no law reaches this exported function; add a law, or a person can mark it @tslaws-exempt and accept',

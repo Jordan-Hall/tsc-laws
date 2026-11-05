@@ -44,3 +44,18 @@ test('ignores laws inside block comments and handles CRLF', () => {
 test('reports the column of the law keyword', () => {
   assert.equal(findLaws('  export law x(a) {}')[0].column, 9);
 });
+
+test('reports where the name starts and the parameter names, including type parameters and patterns', () => {
+  const text = [
+    'export law proved a<T extends { x: number }>(x: T, y?: Map<string, number>, { z }: P, ...rest: number[]) => 1;',
+    'law b(',
+    '  p: (n: number) => void,',
+    '  q = 3,',
+    ') { return true; }',
+  ].join('\n');
+  const [a, b] = findLaws(text);
+  assert.equal(text.slice(a.nameColumn, a.nameColumn + 1), 'a');
+  assert.deepEqual(a.params, ['x', 'y', 'arg3', 'rest']);
+  assert.equal(b.nameColumn, 4);
+  assert.deepEqual(b.params, ['p', 'q']);
+});

@@ -21,3 +21,11 @@ test('allPass', () => {
   assert.equal(allPass(r('proved', 'open')), false);
   assert.equal(allPass(null), false);
 });
+
+test('progress while running: laws done of expected, and the results so far', () => {
+  assert.equal(summaryText(null, { running: true, done: 0, total: 5 }), 'laws: running 0/5');
+  assert.equal(
+    summaryText(null, { running: true, done: 3, total: 5, fresh: r('proved', 'proved', 'failed') }),
+    'laws: running 3/5 - 2 proved, 1 failed',
+  );
+});
