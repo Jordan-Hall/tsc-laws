@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import * as fc from 'fast-check';
 import { runProperty } from '../dist/property.js';
-import { sequence, withoutRuns } from '../dist/sequence.js';
+import { CANDIDATE_CAP, sequence, withoutElements } from '../dist/sequence.js';
 
 type Op = 'inc' | 'dec' | 'reset';
 
@@ -84,17 +84,124 @@ describe('sequence shrinking', () => {
   });
 });
 
-describe('withoutRuns', () => {
-  it('lists every run removal, shortest runs first', () => {
-    assert.deepEqual(withoutRuns(['a', 'b', 'c'], 0), [['b', 'c'], ['a', 'c'], ['a', 'b'], ['c'], ['a'], []]);
+/** What fast-check ends at: the first failing candidate, again and again, until none fails. */
+function minimise<T>(arb: fc.Arbitrary<T[]>, start: T[], fails: (value: T[]) => boolean): T[] {
+  let current = new fc.Value(start, undefined);
+  for (;;) {
+    const next = arb
+      .shrink(current.value, current.context)
+      .filter((candidate) => fails(candidate.value))
+      .getNthOrLast(0);
+    if (next === null) return current.value;
+    current = next;
+  }
+}
+
+const exactly = (...arrays: string[][]) => {
+  const bad = new Set(arrays.map((a) => a.join('')));
+  return (value: string[]) => bad.has(value.join(''));
+};
+
+describe('shrinking by removing separate spans', () => {
+  const letters = sequence(fc.constantFrom('a', 'b', 'c', 'x', 'y', 'p', 'q', 'r', 's'), { maxLength: 40 });
+
+  it('removes two separate spans when no one span helps', () => {
+    // Fails on a,b,c and on a,x,b,y,c, but passes on every one-span deletion of a,x,b,y,c: x and y are apart.
+    const fails = exactly(['a', 'b', 'c'], ['a', 'x', 'b', 'y', 'c']);
+    assert.deepEqual(minimise(letters, ['a', 'x', 'b', 'y', 'c'], fails), ['a', 'b', 'c']);
   });
 
-  it('keeps at least minLength elements', () => {
-    assert.deepEqual(withoutRuns(['a', 'b', 'c'], 2), [
-      ['b', 'c'],
-      ['a', 'c'],
-      ['a', 'b'],
-    ]);
-    assert.deepEqual(withoutRuns(['a'], 1), []);
+  it('shortens an array of 12 whose shortest failing subsequence needs five spans removed', () => {
+    const shortest = ['p', 'q', 'r', 's'];
+    const long = ['x', 'p', 'x', 'q', 'x', 'r', 'x', 's', 'x', 'x', 'x', 'x'];
+    assert.deepEqual(minimise(letters, long, exactly(shortest, long)), shortest);
+  });
+
+  it('shortens an array of 13 that needs two spans removed', () => {
+    const shortest = ['p', 'q', 'r', 's'];
+    const long = ['p', 'q', 'x', 'x', 'x', 'r', 's', 'x', 'x', 'x', 'x', 'x', 'x'];
+    assert.deepEqual(minimise(letters, long, exactly(shortest, long)), shortest);
+  });
+
+  it('shortens an array of 33, the longest whose pairs of spans all fit in the cap', () => {
+    const shortest = ['p', 'q', 'r', 's'];
+    const long = ['p', 'q', ...Array<string>(20).fill('y'), 'r', 's', ...Array<string>(9).fill('x')];
+    assert.equal(long.length, 33);
+    assert.deepEqual(minimise(letters, long, exactly(shortest, long)), shortest);
+  });
+
+  it('reaches the shortest subsequence for every seed', async () => {
+    // Fails on any array holding 2, 0, 1 in that order, so the shortest failing array is [2, 0, 1].
+    const holds = (xs: number[]) => {
+      const want = [2, 0, 1];
+      let at = 0;
+      for (const x of xs) if (x === want[at]) at++;
+      return at < want.length;
+    };
+    const arb = sequence(fc.integer({ min: 0, max: 2 }), { maxLength: 12 });
+    const wrong: string[] = [];
+    for (let seed = 1; seed <= 300; seed++) {
+      const details = await runProperty(holds as (...args: unknown[]) => unknown, [arb], { runs: 100, seed } as never);
+      if (details.failed && fc.stringify(details.counterexample) !== '[[2,0,1]]')
+        wrong.push(`${seed}: ${fc.stringify(details.counterexample)}`);
+    }
+    assert.deepEqual(wrong, []);
+  });
+});
+
+describe('withoutElements', () => {
+  const unique = (n: number) => Array.from({ length: n }, (_, i) => i);
+
+  it('lists every subset up to 12 elements, fewest remaining first', () => {
+    assert.deepEqual(
+      [...withoutElements(['a', 'b', 'c'], 0)],
+      [[], ['a'], ['b'], ['c'], ['a', 'b'], ['a', 'c'], ['b', 'c']],
+    );
+    const all = [...withoutElements(unique(12), 0)];
+    assert.equal(all.length, 2 ** 12 - 1);
+    assert.deepEqual(
+      all.map((a) => a.length),
+      all.map((a) => a.length).sort((x, y) => x - y),
+    );
+  });
+
+  it('keeps at least minLength elements and skips repeats', () => {
+    assert.deepEqual(
+      [...withoutElements(['a', 'b', 'c'], 2)],
+      [
+        ['a', 'b'],
+        ['a', 'c'],
+        ['b', 'c'],
+      ],
+    );
+    assert.deepEqual([...withoutElements(['a'], 1)], []);
+    assert.deepEqual([...withoutElements([], 0)], []);
+    assert.deepEqual([...withoutElements(['a', 'a'], 0)], [[], ['a']]);
+    assert.deepEqual([...withoutElements([0, -0], 0)], [[], [0], [-0]]);
+  });
+
+  it('is complete up to 33 elements: every run and every pair of runs, once', () => {
+    const n = 33;
+    const runs = (n * (n + 1)) / 2;
+    const pairs = ((n + 1) * n * (n - 1) * (n - 2)) / 24;
+    const all = [...withoutElements(unique(n), 0)];
+    assert.equal(all.length, runs + pairs);
+    assert.equal(new Set(all.map((a) => a.join(','))).size, all.length);
+    assert.ok(all.length <= CANDIDATE_CAP);
+  });
+
+  it('stops at the cap for longer arrays, and builds candidates only when asked', () => {
+    const started = performance.now();
+    const huge = withoutElements(unique(100_000), 0);
+    const first = [huge.next().value, huge.next().value, huge.next().value];
+    assert.equal(first[0]!.length, 99_999);
+    assert.ok(performance.now() - started < 1000);
+
+    let count = 0;
+    for (const candidate of withoutElements(unique(200), 0)) {
+      count++;
+      assert.ok(candidate.length < 200);
+    }
+    assert.equal(count, CANDIDATE_CAP);
   });
 });
