@@ -104,6 +104,45 @@ describe('exercisesOf', () => {
     assert.equal(found[0]?.call?.line, 6);
   });
 
+  it('resolves every form of default export a law can import', () => {
+    const cwd = project('defaults', {
+      'src/assigned.ts': 'function helper(n: number): number {\n  return n;\n}\nexport default helper;\n',
+      'src/inline.ts': 'export default function inline(n: number): number {\n  return n;\n}\n',
+      'src/aliased.ts':
+        'export const made = (n: number): number => n;\nconst other = (n: number): number => n;\nexport { other as default, made };\n',
+      'src/anon.ts': 'export default (n: number): number => n;\n',
+      'src/klass.ts': 'export default class Counter {}\n',
+      'src/chained.ts': "import { made } from './aliased';\nexport default made;\n",
+      'src/m.laws.ts': [
+        "import assigned from './assigned';",
+        "import inline from './inline';",
+        "import aliased from './aliased';",
+        "import anon from './anon';",
+        "import Counter from './klass';",
+        "import chained from './chained';",
+        'export law all(n: number) => assigned(n) === inline(n) && aliased(n) === anon(n) && new Counter() !== null && chained(n) === n;',
+        '',
+      ].join('\n'),
+    });
+    const text =
+      'all(n: number) => assigned(n) === inline(n) && aliased(n) === anon(n) && new Counter() !== null && chained(n) === n;';
+    const found = exercisesOf(new Sources(cwd), law('src/m.laws.ts', 'all', 7, ['n'], text));
+    assert.deepEqual(
+      found.map((e) => [e.name, e.declaration.file, e.declaration.line, e.call?.line]),
+      [
+        ['helper', 'src/assigned.ts', 1, 7],
+        ['inline', 'src/inline.ts', 1, 7],
+        ['other', 'src/aliased.ts', 2, 7],
+        ['default', 'src/anon.ts', 1, 7],
+        ['Counter', 'src/klass.ts', 1, 7],
+        ['made', 'src/aliased.ts', 1, 7],
+      ],
+    );
+    // An anonymous default export is marked at its `default` keyword, not across the whole function.
+    const anon = found.find((e) => e.name === 'default')!;
+    assert.deepEqual([anon.declaration.column, anon.declaration.endColumn], [8, 15]);
+  });
+
   it('gives no locations when the law text is not in the file or the file is missing', () => {
     const cwd = project('gone', { 'src/m.laws.ts': 'export law x(a: number) => a === a;\n' });
     assert.deepEqual(exercisesOf(new Sources(cwd), law('src/m.laws.ts', 'y', 1, ['a'], 'y(a: number) => f(a);')), []);

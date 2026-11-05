@@ -111,18 +111,22 @@ function createTesting(vscode, host) {
         }))
         .filter((j) => j.items.length > 0);
     }
+    // A file whose laws were all excluded has nothing to run; naming no laws would run them all.
+    jobs = jobs.filter((j) => j.items.length > 0);
     for (const job of jobs) for (const item of job.items) run.enqueued(item);
 
     // Everything under one file is one run; a few chosen laws are named so the others are not run.
-    const wholeProject =
-      jobs.length === (await host.lawFiles()).length && jobs.every((j) => j.entry.laws === null) && !mode.failedOnly;
+    // A job is a subset when the person chose some laws, or excluded some of a file's, or only the failed ones run.
+    const subset = (job) =>
+      mode.failedOnly || job.entry.laws !== null || job.items.length < [...flat(job.entry.file.children)].length;
+    const wholeProject = jobs.length === (await host.lawFiles()).length && !jobs.some(subset);
     const requests = wholeProject
       ? [{ job: null, request: { files: null, args: mode.args } }]
       : jobs.map((job) => ({
           job,
           request: {
             files: [job.entry.file.id],
-            ...(job.entry.laws === null && !mode.failedOnly ? {} : { laws: job.items.map((i) => i.label) }),
+            ...(subset(job) ? { laws: job.items.map((i) => i.label) } : {}),
             args: mode.args,
           },
         }));

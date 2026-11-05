@@ -540,3 +540,29 @@ test('Test Explorer: laws are tests, a run reports each at the law and at the co
     s.finish();
   }
 });
+
+test('Test Explorer: excluding a law from a selected file runs only the others, and excluding all runs nothing', async () => {
+  const s = scenario({ answer: emitAll([otherResult], 0) });
+  try {
+    const controller = s.fake.controllers[0];
+    await controller.resolveHandler(undefined);
+    const file = controller.items.get('src/cart.laws.ts');
+    const excluded = file.children.get('src/cart.laws.ts::totalNeverNegative');
+    const token = { isCancellationRequested: false, onCancellationRequested: () => ({ dispose() {} }) };
+
+    await controller.profiles[0].handler({ include: [file], exclude: [excluded] }, token);
+    assert.equal(s.checks.length, 1);
+    assert.match(s.checks[0].args.join(' '), /--law couponNeverRaisesTheTotal src\/cart\.laws\.ts$/);
+    assert.ok(!s.checks[0].args.join(' ').includes('totalNeverNegative'));
+
+    // Selecting the whole file with nothing excluded still runs the file as a whole.
+    await controller.profiles[0].handler({ include: [file], exclude: [] }, token);
+    assert.ok(!s.checks[1].args.includes('--law'));
+
+    // Every law excluded: nothing is asked of tslaws.
+    await controller.profiles[0].handler({ include: [file], exclude: [...file.children].map((i) => i) }, token);
+    assert.equal(s.checks.length, 2);
+  } finally {
+    s.finish();
+  }
+});

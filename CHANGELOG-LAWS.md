@@ -309,6 +309,10 @@ The upstream tsc-ts changelog is CHANGELOG.md. Releases of tsc-laws are tagged `
 - tslaws: `check --reporter ndjson` streams `plan`, `start`, `result` and `report` events; `check --law NAME[,NAME]` runs named laws.
 - tslaws: each result carries `exercises`, the functions the law reaches with their declaration and call ranges, and `failing`
   on the one a thrown error's stack names. An `uncovered` result's `line` is the function's declaration line.
+- tslaws: a law that imports a helper as a default export now resolves for every form: `export default helper;`, `export default function`/`class`,
+  `export { x as default }`, `export default () => ...` and a default re-exported from an imported function. Before, `export default helper` never resolved, so a
+  failing law got no mark on the function.
+- VS Code Test Explorer: running a laws file with some of its laws excluded now runs only the others (`--law`), not every law in the file.
 - The extension still never accepts laws: `tslaws.accept` only types the command into a terminal.
 
 ## 0.5.1

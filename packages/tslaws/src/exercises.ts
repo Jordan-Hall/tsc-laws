@@ -93,6 +93,13 @@ export class Sources {
     const declare = (name: string, nameNode: ts.Node, body: ts.Node): void => {
       module.nodes.set(name, { name, nameNode, body });
     };
+    /** The `default` keyword of a declaration, to point at when the function has no name. */
+    const defaultKeyword = (node: ts.Node): ts.Node =>
+      node.getChildren(source).find((c) => c.kind === ts.SyntaxKind.DefaultKeyword) ??
+      (ts.canHaveModifiers(node)
+        ? ts.getModifiers(node)?.find((m) => m.kind === ts.SyntaxKind.DefaultKeyword)
+        : undefined) ??
+      node;
     const isDefault = (node: ts.Node): boolean =>
       ts.canHaveModifiers(node) && (ts.getModifiers(node) ?? []).some((m) => m.kind === ts.SyntaxKind.DefaultKeyword);
     for (const statement of source.statements) {
@@ -128,7 +135,13 @@ export class Sources {
             );
       } else if (ts.isFunctionDeclaration(statement) || ts.isClassDeclaration(statement)) {
         if (statement.name !== undefined) declare(statement.name.text, statement.name, statement);
-        if (isDefault(statement)) declare('default', statement.name ?? statement, statement);
+        if (isDefault(statement)) declare('default', statement.name ?? defaultKeyword(statement), statement);
+      } else if (ts.isExportAssignment(statement)) {
+        // `export default helper;` and `export = helper;` name a function declared elsewhere; `export default () => ...` is one.
+        const value = statement.expression;
+        if (ts.isIdentifier(value)) module.exports.set('default', value.text);
+        else if (ts.isArrowFunction(value) || ts.isFunctionExpression(value) || ts.isClassExpression(value))
+          declare('default', defaultKeyword(statement), value);
       } else if (ts.isVariableStatement(statement)) {
         for (const declaration of statement.declarationList.declarations) {
           const init = declaration.initializer;
@@ -151,7 +164,15 @@ export class Sources {
     const direct = module.nodes.get(name);
     if (direct !== undefined) return { module, node: direct };
     const exported = module.exports.get(name);
-    if (typeof exported === 'string') return this.find(file, exported, depth + 1);
+    if (typeof exported === 'string') {
+      const local = exported === name ? undefined : this.find(file, exported, depth + 1);
+      if (local !== undefined) return local;
+      // `import { f } from './m'; export default f;` re-exports an imported function.
+      const binding = module.imports.get(exported);
+      return binding === undefined || binding.imported === '*'
+        ? undefined
+        : this.find(binding.module, binding.imported, depth + 1);
+    }
     if (exported !== undefined) return this.find(exported.module, exported.imported, depth + 1);
     for (const star of module.stars) {
       const hit = this.find(star, name, depth + 1);
@@ -211,7 +232,7 @@ export function exercisesOf(sources: Sources, law: ManifestLaw): Exercised[] {
   const queue: { module: Module; node: Declared }[] = [];
 
   const reach = (hit: { module: Module; node: Declared }, call?: SourceSpan): void => {
-    const id = `${hit.module.file}::${hit.node.name}`;
+    const id = `${hit.module.file}::${hit.node.nameNode.getStart(hit.module.source)}`;
     if (seen.has(id)) return;
     seen.add(id);
     const name =
