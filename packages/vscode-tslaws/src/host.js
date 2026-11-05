@@ -19,6 +19,8 @@ const { createShadow } = require('./shadow.js');
 const { resolveRunMode, explicitValue, clampInt } = require('./settings.js');
 const { createEditor } = require('./editor.js');
 const { createTesting } = require('./testing.js');
+const { parseList, fromName, badgeFor } = require('./list.js');
+const { findLaws } = require('./find-laws.js');
 
 const key = (file, name) => `${file}::${name}`;
 
@@ -41,6 +43,8 @@ function activateExtension(vscode, context, io) {
   let progress = null;
   let view = { records: null, ranAt, descs: new Map(), index: new Map(), coverage: new Map() };
   let lawFiles = [];
+  /** What `tslaws list` said about each laws file (or the old name hints), by project-relative path. */
+  let listed = new Map();
   let dashboard = null;
   let active = null;
   let complained = false;
@@ -78,12 +82,15 @@ function activateExtension(vscode, context, io) {
   const knownLawFiles = () => [
     ...new Set([...lawFiles, ...(records ?? []).map((r) => r.file).filter((f) => f.endsWith('.laws.ts'))]),
   ];
+  const isLawsFile = (rel) =>
+    knownLawFiles().includes(rel) || (rel.endsWith('.laws.ts') && !rel.endsWith('.proposed.laws.ts'));
 
   // ---- views ----
   const editor = createEditor(vscode, {
     root,
     view: () => view,
     readText,
+    isLawsFile,
     inlineEnabled: () => config().get('inlineCounterexample', true),
   });
 
@@ -289,6 +296,17 @@ function activateExtension(vscode, context, io) {
     });
   };
 
+  // A file that declares laws (whatever its name) or touches the browser or end-to-end API may have changed which files
+  // are laws files or the level one runs at; ask the tool again.
+  const levelMayHaveChanged = (doc) => {
+    if (doc.uri.scheme !== 'file' || root() === undefined) return;
+    const rel = relativeTo(doc.uri.fsPath, root());
+    if (rel === doc.uri.fsPath.replaceAll('\\', '/')) return;
+    const text = doc.getText();
+    if (isLawsFile(rel) || findLaws(text).length > 0 || /tslaws\/(?:browser|e2e|adapters)/.test(text))
+      ready = refreshLawFiles();
+  };
+
   const runNow = (request) => {
     scheduler.cancel();
     return launch(request).done;
@@ -297,7 +315,10 @@ function activateExtension(vscode, context, io) {
   // ---- Test Explorer ----
   const testing = createTesting(vscode, {
     root,
-    lawFiles: async () => knownLawFiles(),
+    lawFiles: async () => {
+      await loading;
+      return knownLawFiles();
+    },
     readText,
     record: (file, name) => records?.find((r) => r.file === file && r.name === name),
     launch: (request, listener) => {
@@ -395,12 +416,56 @@ function activateExtension(vscode, context, io) {
     terminal.sendText(acceptCommandText(), false);
   };
 
+  /** Asks the project's tslaws which files are laws files; null when it cannot say (not trusted, not installed, too old). */
+  const askList = () =>
+    new Promise((resolve) => {
+      const cmd = userCommand(['list', '--json']);
+      if ('error' in cmd || root() === undefined || !vscode.workspace.isTrusted) return resolve(null);
+      let text = '';
+      const child = spawn(cmd.command, cmd.args, { cwd: root(), shell: false });
+      child.stdout.on('data', (d) => (text += d));
+      child.on('error', () => resolve(null));
+      child.on('close', () => resolve(parseList(text)));
+    });
+
+  let loading = Promise.resolve();
+  const loadLawFiles = async () => {
+    const answer = await askList();
+    if (answer !== null) {
+      // The tool's answer: laws files of the tree by what they import, plus proposals (badged, never run as laws).
+      listed = new Map(answer.map((f) => [f.file, f]));
+      lawFiles = answer.filter((f) => f.status !== 'proposed').map((f) => f.file);
+    } else {
+      // An older tslaws, or none yet: look for the conventional names.
+      const found = await vscode.workspace.findFiles('**/*.laws.ts', '**/{node_modules,.tslaws}/**');
+      lawFiles = found.map((u) => relativeTo(u.fsPath, root() ?? ''));
+      listed = new Map(lawFiles.map((f) => [f, fromName(f)]));
+    }
+  };
+
   const refreshLawFiles = async () => {
-    const found = await vscode.workspace.findFiles('**/*.laws.ts', '**/{node_modules,.tslaws}/**');
-    lawFiles = found.map((u) => relativeTo(u.fsPath, root() ?? ''));
+    loading = loadLawFiles();
+    await loading;
+    decorations.fire(undefined);
     await testing.discover();
   };
+
+  // ---- Explorer badges: the level of each laws file ----
+  const decorations = new vscode.EventEmitter();
+  const decorationProvider = {
+    onDidChangeFileDecorations: decorations.event,
+    provideFileDecoration(uri) {
+      if (uri.scheme !== 'file' || root() === undefined) return undefined;
+      const entry = listed.get(relativeTo(uri.fsPath, root()));
+      if (entry === undefined) return undefined;
+      const { badge, tooltip, color } = badgeFor(entry);
+      return new vscode.FileDecoration(badge, tooltip, new vscode.ThemeColor(color));
+    },
+  };
   const watcher = vscode.workspace.createFileSystemWatcher('**/*.laws.ts');
+  // The "laws" globs of tslaws.json decide which other files are laws files, and proposals show a badge too.
+  const configWatcher = vscode.workspace.createFileSystemWatcher('**/tslaws.json');
+  const proposalWatcher = vscode.workspace.createFileSystemWatcher('**/.tslaws/proposals/*.ts');
 
   context.subscriptions.push(
     output,
@@ -408,6 +473,15 @@ function activateExtension(vscode, context, io) {
     ...editor.disposables,
     ...testing.disposables,
     watcher,
+    configWatcher,
+    proposalWatcher,
+    decorations,
+    vscode.window.registerFileDecorationProvider(decorationProvider),
+    configWatcher.onDidChange(() => void refreshLawFiles()),
+    configWatcher.onDidCreate(() => void refreshLawFiles()),
+    configWatcher.onDidDelete(() => void refreshLawFiles()),
+    proposalWatcher.onDidCreate(() => void refreshLawFiles()),
+    proposalWatcher.onDidDelete(() => void refreshLawFiles()),
     watcher.onDidCreate(() => void refreshLawFiles()),
     watcher.onDidDelete(() => void refreshLawFiles()),
     vscode.commands.registerCommand('tslaws.check', () => runNow({ files: null })),
@@ -429,6 +503,7 @@ function activateExtension(vscode, context, io) {
       if (runMode() === 'onType' && e.contentChanges.length > 0) changed(e.document);
     }),
     vscode.workspace.onDidSaveTextDocument((doc) => {
+      if (/\.[cm]?tsx?$/.test(doc.uri.fsPath)) levelMayHaveChanged(doc);
       if (runMode() !== 'manual' && /\.[cm]?tsx?$/.test(doc.uri.fsPath)) changed(doc);
     }),
     vscode.window.onDidChangeVisibleTextEditors((editors) => editors.forEach((e) => editor.decorate(e))),

@@ -82,9 +82,15 @@ describe('mcp server', { skip: compiler === undefined ? 'set TSC_LAWS_BIN' : fal
     assert.equal((await request('nope')).error.code, -32601);
   });
 
-  it('lists the four tools and none that accepts or touches the lock', async () => {
+  it('lists the five tools and none that accepts or touches the lock', async () => {
     const names = ((await request('tools/list')).result.tools as { name: string }[]).map((t) => t.name);
-    assert.deepEqual(names.sort(), ['tslaws_check', 'tslaws_check_proposed', 'tslaws_explain', 'tslaws_propose']);
+    assert.deepEqual(names.sort(), [
+      'tslaws_check',
+      'tslaws_check_proposed',
+      'tslaws_explain',
+      'tslaws_list',
+      'tslaws_propose',
+    ]);
     assert.ok(!names.some((n) => /accept|lock|promote/.test(n)));
   });
 
@@ -122,6 +128,19 @@ describe('mcp server', { skip: compiler === undefined ? 'set TSC_LAWS_BIN' : fal
     );
     // The tree gained no laws file, and the lock was never written.
     assert.ok(!existsSync(join(root, 'tsc-laws.lock')));
+  });
+
+  it('lists the laws files with their level and status, and the proposals', async () => {
+    const out = await callTool('tslaws_list');
+    assert.equal(out.isError, undefined, out.text);
+    const byFile = new Map<string, { kind: string; status: string }>(out.data.files.map((f: any) => [f.file, f]));
+    assert.deepEqual(byFile.get('src/f.laws.ts'), {
+      file: 'src/f.laws.ts',
+      kind: 'node',
+      status: 'unaccepted',
+      notices: [],
+    });
+    assert.equal(byFile.get('.tslaws/proposals/f.ts')?.status, 'proposed');
   });
 
   it('accepts the default proposal name and any plain .ts name', () => {

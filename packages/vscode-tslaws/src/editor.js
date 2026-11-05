@@ -14,7 +14,7 @@ const MEDIA = path.join(__dirname, '..', 'media');
 const COMMANDS = ['tslaws.runLaw', 'tslaws.copyReproduce', 'tslaws.openLaw', 'tslaws.openSource'];
 
 const commandUri = (command, args) => `command:${command}?${encodeURIComponent(JSON.stringify(args))}`;
-const isLawsFile = (rel) => rel.endsWith('.laws.ts');
+const isNamedLawsFile = (rel) => rel.endsWith('.laws.ts');
 
 /**
  * @param {typeof import('vscode')} vscode
@@ -66,7 +66,7 @@ function createEditor(vscode, host) {
       if (rel === undefined) return [];
       const { records, ranAt, index } = host.view();
       const out = [];
-      if (isLawsFile(rel)) {
+      if ((host.isLawsFile ?? isNamedLawsFile)(rel)) {
         const text = doc.getText();
         const mine = (records ?? []).filter((r) => r.file === rel);
         const first = new vscode.Range(0, 0, 0, 0);

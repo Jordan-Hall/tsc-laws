@@ -10,6 +10,7 @@ import { hintFor } from './hints.ts';
 import { discoverLaws, discoverProposals, ignoredDirs } from './lawFiles.ts';
 import { isProposedLawFile } from './lawNames.ts';
 import { init, nextStep } from './init.ts';
+import { listLawFiles, renderList } from './list.ts';
 import { serveMcp } from './mcp.ts';
 import { promoteFiles, promoteProposal } from './promote.ts';
 import { addProposal, ProposalError } from './proposals.ts';
@@ -44,6 +45,7 @@ tslaws delegate revoke [--root DIR]   withdraw the delegation for a project (peo
 tslaws delegate status        list delegations and when they end
 tslaws propose <file.ts> [--from PATH]   write a proposal into .tslaws/proposals/ from PATH or stdin (outside the tree, git-ignored; never touches the lock or any other file)
 tslaws promote <proposal> [--to PATH]   move a proposal from .tslaws/proposals/ into the tree at a path you confirm (people only: needs a terminal; run accept afterwards). Older in-tree *.proposed.laws.ts files still promote with --all or by name (deprecated)
+tslaws list [--json]   the laws files and proposals of the project: the level each runs at (from its imports) and whether it is accepted, unaccepted or proposed (reads files and the lock; runs nothing)
 tslaws mcp [--compiler PATH]   serve check, check_proposed, explain and propose as Model Context Protocol tools on stdio (cannot accept, promote or touch the lock)
 
 Without files, every *.laws.ts under the current directory (and every file the "laws" globs of tslaws.json pick that declares a law) is checked; with --proposed, the proposals in .tslaws/proposals/ are (and the deprecated in-tree *.proposed.laws.ts files), with no lock and no coverage gate.
@@ -100,6 +102,7 @@ function parse(args: string[]): { command: string; flags: Map<string, string | t
         arg === 'mcp' ||
         arg === 'promote' ||
         arg === 'propose' ||
+        arg === 'list' ||
         arg === 'delegate')
     )
       command = arg;
@@ -515,6 +518,11 @@ export async function main(args: string[]): Promise<number> {
 
   if (command === 'promote')
     return promoteCommand(cwd, flags, files, { isTTY: process.stdin.isTTY === true, env: process.env });
+  if (command === 'list') {
+    const listed = listLawFiles(cwd);
+    process.stdout.write(flags.has('json') ? `${JSON.stringify({ files: listed }, null, 2)}\n` : renderList(listed));
+    return 0;
+  }
   if (command === 'propose')
     return proposeCommand(cwd, flags, files, { isTTY: process.stdin.isTTY === true, env: process.env });
 

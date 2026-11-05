@@ -14,7 +14,7 @@ const dirOf = (rel) => (rel.includes('/') ? rel.slice(0, rel.lastIndexOf('/')) :
 
 /**
  * @param {{file: string, lawFiles: string[], coverage: Map<string, Set<string>> | null}} o
- *   `file` is the changed file relative to the workspace; `lawFiles` every `*.laws.ts` known; `coverage` which law files
+ *   `file` is the changed file relative to the workspace; `lawFiles` every laws file `tslaws list` knows (any name); `coverage` which law files
  *   reached each source file in the last report
  * @returns {{files: string[] | null, reason: 'law' | 'covered' | 'nearby' | 'all' | 'none'}} files null means all laws
  */
@@ -23,7 +23,7 @@ function planRun({ file, lawFiles, coverage }) {
   // Proposed laws run only when asked for with `--proposed`; they are not part of the check.
   if (file.endsWith('.proposed.laws.ts')) return { files: [], reason: 'none' };
   const accepted = lawFiles.filter((f) => !f.endsWith('.proposed.laws.ts'));
-  if (file.endsWith('.laws.ts')) return { files: [file], reason: 'law' };
+  if (file.endsWith('.laws.ts') || accepted.includes(file)) return { files: [file], reason: 'law' };
   if (accepted.length === 0) return { files: [], reason: 'none' };
   const covering = coverage?.get(file);
   if (covering !== undefined && covering.size > 0) return { files: [...covering].sort(), reason: 'covered' };

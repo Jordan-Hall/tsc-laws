@@ -13,6 +13,7 @@ import { readConfig } from './coverage.ts';
 import type { CheckReport } from './check.ts';
 import { hintFor } from './hints.ts';
 import { discoverLaws, discoverProposals, ignoredDirs } from './lawFiles.ts';
+import { listLawFiles } from './list.ts';
 import { parseLawFile } from './promote.ts';
 import { addProposal, mergeProposal, ProposalError } from './proposals.ts';
 import { resolveSettings } from './settings.ts';
@@ -29,6 +30,12 @@ interface Tool {
 }
 
 export const tools: Tool[] = [
+  {
+    name: 'tslaws_list',
+    description:
+      'List the laws files and proposals of the project, as `tslaws list --json`: for each, the level it runs at (node, browser or e2e, from what it imports) and whether it is accepted, unaccepted (in the tree but not in the lock) or proposed. Runs nothing.',
+    inputSchema: { type: 'object', properties: {} },
+  },
   {
     name: 'tslaws_check',
     description:
@@ -174,6 +181,8 @@ export class Session {
         const report = await this.run(files, true);
         return args.summary === true ? summarised(report) : withHints(report);
       }
+      case 'tslaws_list':
+        return { files: listLawFiles(cwd) };
       case 'tslaws_check_proposed':
         return withHints(await this.run(discover(cwd, true), false));
       case 'tslaws_explain': {
