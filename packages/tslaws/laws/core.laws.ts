@@ -41,7 +41,7 @@ law('the lock hash sees a law become proved', (text: string) =>
 
 // Lowering keeps what a person wrote: the name, the line, and a function the runner can load.
 law('a law keeps its name and its line when lowered', (name: string, blank: number) => {
-  assume(blank >= 0 && blank <= 5);
+  assume(Number.isInteger(blank) && blank >= 0 && blank <= 5);
   const text = `${'\n'.repeat(blank)}law(${JSON.stringify(name)}, (a: number) =>\n  a === a);\n`;
   const lowered = lowerLawFile('x.laws.ts', text);
   const found = lowered.laws[0];

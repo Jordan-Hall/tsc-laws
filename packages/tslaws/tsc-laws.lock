@@ -1,7 +1,7 @@
 {
   "version": 1,
   "laws": {
-    "laws/core.laws.ts::a law keeps its name and its line when lowered": "ca95d6ef1f1dea63ca0c58a6e263a1c4fb31ccdbf49a53d1cebd00fee9ede3e9",
+    "laws/core.laws.ts::a law keeps its name and its line when lowered": "b627b14200a89d42b24f91f0085bd14c5604770d36a32327ebdea70e9522b2ed",
     "laws/core.laws.ts::a repeated law name is flagged": "212dc864d465c7abfd8092ba8e885f68304148859b3d770dcd14244f36811a9b",
     "laws/core.laws.ts::call syntax is not mistaken for the keyword syntax": "ae04c6cd805020a0ab8e5eb20f2ae1e73933b672462f3a8fb43bc1772d1e5eb5",
     "laws/core.laws.ts::stored counterexamples decode to themselves": "f2567d6e266250c51d50b5c5b447b8e425dbf078ee598cbf85e196441e3243e6",
