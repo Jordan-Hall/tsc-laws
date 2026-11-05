@@ -1,7 +1,7 @@
 # Publishing the VS Code extension
 
 The `marketplace` job in `.github/workflows/laws.yml` publishes the extension to the Visual Studio Marketplace and to Open VSX
-when a `laws-v*` tag is pushed. It stays off until you set the `VSCODE_PUBLISH` variable. Each store is its own step. Open VSX is skipped with a notice when its token is missing, and a failure at one store does not stop the other from being tried. Running
+when a `laws-v*` tag is pushed. It stays off until you set the `VSCODE_PUBLISH` variable. Each store is its own step. Open VSX publishes with trusted publishing, or with an `OVSX_PAT` token when that secret exists, and a failure at one store does not stop the other from being tried. Running
 the job again for a version that is already live is not a failure.
 
 Do these steps once, in this order. Never paste a token into chat or a commit.
@@ -12,7 +12,7 @@ Trusted publishing needs no stored token. The workflow asks GitHub for a short-l
 exchanges it for a short-lived Marketplace token. The `marketplace` job has `id-token: write` for this, on that job only.
 
 1. Sign in at <https://marketplace.visualstudio.com/manage> with a Microsoft account.
-2. Create the publisher. Choose "Create publisher" and set the ID to `TS-Laws` (the publisher in this repository was created as "TS Laws" with the ID `TS-Laws`). The ID must match the `publisher` field in
+2. Create the publisher. Choose "Create publisher" and set the ID to `ts-laws` (the ID is lowercase, `ts-laws`, so it matches the Open VSX namespace; the display name can be "TS Laws"). The ID must match the `publisher` field in
    `packages/vscode-tslaws/package.json`.
 3. Open the publisher and add a trusted publishing policy with these fields:
    - Policy name: any name, for example `tsc-laws release`.
@@ -48,25 +48,51 @@ Use this only if trusted publishing does not work. When the `VSCE_PAT` secret ex
    gh secret set VSCE_PAT -R Jordan-Hall/tsc-laws
    ```
 
-## Open VSX
+## Open VSX: trusted publishing (recommended)
 
-1. Create an Eclipse Foundation account at <https://accounts.eclipse.org>.
-2. Sign in at <https://open-vsx.org> with it and link your GitHub account.
-3. Sign the Eclipse publisher agreement from your profile page. Publishing is refused until you have signed it.
-4. Create a token at <https://open-vsx.org/user-settings/tokens>.
-5. Create the namespace once. This puts the token on the command line for a moment, so run it from a private terminal:
+Per the [Open VSX Trusted Publishing guide](https://github.com/eclipse-openvsx/openvsx/wiki/Trusted-Publishing), the registry issues a short-lived publishing token (about five minutes) to a workflow that matches a trusted publisher you have registered, so there is no long-lived secret to store. The workflow runs `ovsx@1.3.0 publish --trusted-publishing`, and the `marketplace` job already has `id-token: write`.
+
+This has not been exercised by a real tag run yet. Check the first publish.
+
+The namespace must be exactly `ts-laws`, the `publisher` in `packages/vscode-tslaws/package.json`. The guide lists this as a known limitation: the check that authorises a trusted-publishing token compares the namespace case-sensitively. The Marketplace publisher ID and the Open VSX namespace are both `ts-laws`.
+
+1. Sign in at <https://open-vsx.org> with your GitHub account.
+2. Accept the Eclipse publisher agreement from your profile page. Publishing is refused until you have.
+3. Create the namespace as `ts-laws` (user settings, Namespaces).
+4. Open the `ts-laws` namespace page and click Claim Ownership. This opens a request that the Open VSX team approves. Until it is approved, extensions published there can stay inactive, and you cannot register a trusted publisher.
+5. One-time bootstrap: publish the first version with an access token. The guide says a trusted publisher can only be registered for an extension that already has an active version. Create a token at <https://open-vsx.org/user-settings/tokens>, then do either of these:
+   - Set the secret for exactly one release: `gh secret set OVSX_PAT -R Jordan-Hall/tsc-laws`, push the tag, and delete the secret afterwards.
+   - Or publish the `.vsix` from the GitHub release by hand, typing the token in your own terminal, never in chat: `npx ovsx@1.3.0 publish tslaws-vscode-<version>.vsix -p <token>`
+6. Open Trusted Publishers in the sidebar and add one with these fields:
+   - Provider: GitHub Actions
+   - Repository owner: `Jordan-Hall`
+   - Repository: `tsc-laws`
+   - Workflow: `laws.yml`
+   - Environment: leave empty (the job uses no environment)
+7. Delete the `OVSX_PAT` secret if you set one. From the next release the workflow uses trusted publishing.
+
+Keep at least one version of the extension active. If every version is deleted, the registration stops matching until a version is active again.
+
+If the publish fails with "no trusted publisher matches", the registry gives that one message for every mismatch: a missing first version, a namespace with the wrong casing, or wrong registration fields. The workflow prints an error listing each. If the namespace is not verified, it says to claim it. Only the Open VSX step fails; the Marketplace step is unaffected.
+
+### Fallback: an access token
+
+If a repository secret `OVSX_PAT` exists, the step uses it instead of trusted publishing.
+
+1. Create a token at <https://open-vsx.org/user-settings/tokens>.
+2. Create the namespace once as `ts-laws`, if you have not. This puts the token on the command line for a moment, so run it from a private terminal:
 
    ```sh
-   npx ovsx create-namespace TS-Laws -p <token>
+   npx ovsx create-namespace ts-laws -p <token>
    ```
 
-6. Add the token to the repository:
+3. Add the token to the repository:
 
    ```sh
    gh secret set OVSX_PAT -R Jordan-Hall/tsc-laws
    ```
 
-You can do just one store. Open VSX is skipped with a notice when `OVSX_PAT` is missing.
+You can do just one store.
 
 ## Switch it on
 
@@ -81,12 +107,12 @@ The next `laws-v*` tag publishes. To switch it off again, delete the variable or
 1. Open the workflow run for the tag and read the `marketplace` job summary. It lists the version, the SHA-256 of the
    `.vsix`, and one line per store: published, already published, skipped or FAILED.
 2. Compare the SHA-256 with the `.vsix` attached to the GitHub release (`sha256sum tslaws-vscode-<version>.vsix`).
-3. Open <https://marketplace.visualstudio.com/items?itemName=TS-Laws.vscode-tslaws> and
+3. Open <https://marketplace.visualstudio.com/items?itemName=ts-laws.vscode-tslaws> and
    <https://open-vsx.org/extension/tsc-laws/vscode-tslaws>. The extension name is the `name` field in `package.json`.
 4. Install it from the store, not from the file:
 
    ```sh
-   code --install-extension TS-Laws.vscode-tslaws
+   code --install-extension ts-laws.vscode-tslaws
    ```
 
 The Marketplace scans each upload before the listing appears, which usually takes a few minutes. A brand new publisher also
@@ -111,7 +137,7 @@ the Marketplace step fail with an authentication error, while the Open VSX step 
 
 `packages/vscode-tslaws/package.json` already satisfies most of this:
 
-- Publisher: `publisher` is `TS-Laws`, the ID of the Marketplace publisher (Open VSX needs the namespace to match it).
+- Publisher: `publisher` is `ts-laws`, the ID of the Marketplace publisher (Open VSX needs the namespace to match it).
 - Icon: `icon` points to `icon.png`, and `galleryBanner` sets the colour and theme.
 - Licence: `license` is `Apache-2.0`. The repository has a `LICENSE` file.
 - Repository, homepage and issues: `repository`, `homepage` and `bugs` all point to the GitHub repository.
