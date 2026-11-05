@@ -108,6 +108,11 @@ const workers = new WorkerPool(() => {
   return worker;
 });
 
+/** Starts `n` property workers ahead of the first law, so they load while the code compiles. */
+export function warmWorkers(n: number): void {
+  workers.warm(n);
+}
+
 /** Runs the property test of `law` in a pooled worker, giving up on it after `options.propertyTimeoutMs`. */
 export async function runLawGuarded(
   outDir: string,

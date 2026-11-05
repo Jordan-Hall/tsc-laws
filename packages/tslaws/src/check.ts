@@ -9,11 +9,13 @@ import {
   isDiscard,
   jsPath,
   runLawGuarded,
+  warmWorkers,
   typesOf,
   type LawTypes,
   type PropertyOutcome,
 } from './property.ts';
 import { analyzeCoverage, coverFiles, readConfig } from './coverage.ts';
+import { derivedStore } from './derived.ts';
 import { jobs } from './pool.ts';
 import { compareLock, lawKey, readLock, type Lock } from './lock.ts';
 import { proveLaw } from './smt.ts';
@@ -127,8 +129,17 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
 
   const covered = coverFiles(options.cwd, readConfig(options.cwd).cover ?? []);
   const compiled = [...new Set([...options.files, ...covered])];
+  const sources = new Map<string, string>();
+  const readSource = (file: string): string => {
+    if (!sources.has(file)) sources.set(file, readFileSync(join(options.cwd, file), 'utf8'));
+    return sources.get(file)!;
+  };
+  warmWorkers(laws.filter((law) => law.problems.length === 0 && lawMode(law.file, readSource(law.file)) === 'node').length);
   const built = build(options.compiler, compiled, options.cwd);
-  const program = ts.createProgram(declarationFiles(built.outDir), compilerOptions);
+  // What the type checker works out is kept with the build it came from, so an unchanged project skips the checker.
+  const derived = derivedStore(options.cwd, built.key);
+  let programOf: ts.Program | undefined;
+  const program = (): ts.Program => (programOf ??= ts.createProgram(declarationFiles(built.outDir), compilerOptions));
   const require = createRequire(import.meta.url);
 
   const runOne = async (law: ManifestLaw, index: number): Promise<void> => {
@@ -148,7 +159,7 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
     options.onEvent?.({ type: 'start', file: law.file, name: law.name });
     let types: LawTypes;
     try {
-      types = typesOf(program, built.outDir, law);
+      types = derived.law(law, () => typesOf(program(), built.outDir, law));
     } catch (error) {
       add(law, 'error', 'generators', { message: (error as Error).message });
       return;
@@ -319,13 +330,15 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
   );
 
   if (enforceLock) {
-    const coverage = analyzeCoverage({
-      cwd: options.cwd,
-      outDir: built.outDir,
-      lawFiles: options.files,
-      coverFiles: covered,
-      program,
-    });
+    const coverage = derived.coverage(() =>
+      analyzeCoverage({
+        cwd: options.cwd,
+        outDir: built.outDir,
+        lawFiles: options.files,
+        coverFiles: covered,
+        program: program(),
+      }),
+    );
     for (const { file, name } of coverage.uncovered) {
       results.push({
         file,

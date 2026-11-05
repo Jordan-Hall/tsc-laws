@@ -34,6 +34,14 @@ export class WorkerPool {
     return new Promise((resolve) => this.waiting.push(resolve));
   }
 
+  /** Starts up to `n` workers now, so they finish loading while the caller does other work. */
+  warm(n: number): void {
+    while (this.count < Math.min(n, this.size)) {
+      this.count += 1;
+      this.idle.push(this.start());
+    }
+  }
+
   release(worker: Worker): void {
     const next = this.waiting.shift();
     if (next !== undefined) next(worker);

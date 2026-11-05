@@ -1,5 +1,6 @@
 import { spawnSync, type SpawnSyncOptionsWithStringEncoding, type SpawnSyncReturns } from 'node:child_process';
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { transformSync } from 'esbuild';
 import ts from 'typescript';
@@ -12,6 +13,8 @@ export interface BuildResult {
   /** Diagnostics the compiler printed; empty when the files type-check. */
   diagnostics: string;
   ok: boolean;
+  /** Names this exact build (laws, options, every file read); set when the compiler ran in-process, so derived results can be kept. */
+  key?: string;
 }
 
 /**
@@ -151,10 +154,6 @@ export function compilerFlags(options: Record<string, unknown> | undefined): str
 /** Compiles `files` to CommonJS plus declarations in `.tslaws/out` under `cwd`, so `node_modules` still resolves. */
 export function build(compiler: string, files: string[], cwd: string): BuildResult {
   const outDir = join(cwd, '.tslaws', 'out');
-  rmSync(outDir, { recursive: true, force: true });
-  mkdirSync(outDir, { recursive: true });
-  // The output is CommonJS whatever the project's own package.json says.
-  writeFileSync(join(outDir, 'package.json'), JSON.stringify({ type: 'commonjs' }));
   const extra = compilerFlags(readConfig(cwd).compilerOptions);
   const args = [
     '--ignoreConfig',
@@ -175,7 +174,14 @@ export function build(compiler: string, files: string[], cwd: string): BuildResu
     ...extra,
     ...files,
   ];
-  if (usesBuiltin(compiler, files, cwd)) return buildBuiltin(args, files, cwd, outDir);
+  const builtin = usesBuiltin(compiler, files, cwd);
+  const reused = builtin ? cachedBuild(args, files, cwd, outDir) : undefined;
+  if (reused !== undefined) return reused;
+  rmSync(outDir, { recursive: true, force: true });
+  mkdirSync(outDir, { recursive: true });
+  // The output is CommonJS whatever the project's own package.json says.
+  writeFileSync(join(outDir, 'package.json'), JSON.stringify({ type: 'commonjs' }));
+  if (builtin) return buildBuiltin(args, files, cwd, outDir);
   let run = launch(compiler, args, { cwd, encoding: 'utf8', maxBuffer: 64 << 20, env: compilerEnv(cwd, compiler) });
   // A compiler that dies without a word (out of memory on a busy machine) is run again; a type error always says so.
   for (
@@ -227,5 +233,73 @@ function buildBuiltin(args: string[], files: string[], cwd: string, outDir: stri
     getCurrentDirectory: () => cwd,
     getNewLine: () => String.fromCharCode(10),
   });
-  return { outDir, diagnostics: text.trim(), ok: diagnostics.every((d) => d.category !== ts.DiagnosticCategory.Error) };
+  const result: BuildResult = {
+    outDir,
+    diagnostics: text.trim(),
+    ok: diagnostics.every((d) => d.category !== ts.DiagnosticCategory.Error),
+  };
+  saveBuildCache(args, files, cwd, result, program.getSourceFiles().map((f) => f.fileName).filter((f) => !overrides.has(slash(resolve(f)))));
+  return result;
+}
+
+// A build is reused when the laws, the options and every file the compiler read are as they were: the same answer, without
+// parsing the standard library and the dependencies again.
+interface BuildCache {
+  /** What the laws and options alone make of it. */
+  base: string;
+  result: BuildResult;
+  /** Every file the compiler read, with its size and modification time. */
+  files: Record<string, [number, number]>;
+}
+
+const buildCachePath = (cwd: string): string => join(cwd, '.tslaws', 'build-cache.json');
+
+function buildKey(args: string[], files: string[], cwd: string): string {
+  const hash = createHash('sha256');
+  hash.update(JSON.stringify([args, ts.version, toolStamp]));
+  for (const file of files)
+    if (isLawFile(file) && existsSync(join(cwd, file))) hash.update(`
+${file}
+${lowerFile(file, cwd).text}`);
+  return hash.digest('hex');
+}
+
+/** Changes whenever this compiler code does, so a new tslaws never reuses output made by an old one. */
+const toolStamp = ((): number => {
+  try {
+    return statSync(new URL(import.meta.url)).mtimeMs;
+  } catch {
+    return 0;
+  }
+})();
+
+function cachedBuild(args: string[], files: string[], cwd: string, outDir: string): BuildResult | undefined {
+  try {
+    const cache = JSON.parse(readFileSync(buildCachePath(cwd), 'utf8')) as BuildCache;
+    if (cache.base !== buildKey(args, files, cwd) || !existsSync(join(outDir, 'package.json'))) return undefined;
+    for (const [file, [size, mtime]] of Object.entries(cache.files)) {
+      const stat = statSync(file);
+      if (stat.size !== size || stat.mtimeMs !== mtime) return undefined;
+    }
+    return cache.result;
+  } catch {
+    return undefined;
+  }
+}
+
+function saveBuildCache(args: string[], files: string[], cwd: string, result: BuildResult, read: string[]): void {
+  try {
+    const stats: Record<string, [number, number]> = {};
+    for (const file of read) {
+      const stat = statSync(file);
+      stats[file] = [stat.size, stat.mtimeMs];
+    }
+    const base = buildKey(args, files, cwd);
+    // The key also names the files read, so anything worked out from this build is dropped when one of them changes.
+    result.key = createHash('sha256').update(base).update(JSON.stringify(stats)).digest('hex');
+    const cache: BuildCache = { base, result, files: stats };
+    writeFileSync(buildCachePath(cwd), JSON.stringify(cache));
+  } catch {
+    // No cache is only slower.
+  }
 }
