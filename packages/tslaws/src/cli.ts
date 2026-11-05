@@ -16,6 +16,17 @@ import { readConfig } from './coverage.ts';
 import { mutate, renderMutation } from './mutate.ts';
 import { mutateDefaults, resolveSettings } from './settings.ts';
 import { serveUi } from './ui.ts';
+import {
+  acceptGate,
+  defaultDuration,
+  describeGrants,
+  fileHash,
+  grantFor,
+  logDelegatedAccept,
+  parseDuration,
+  personOnly,
+  revokeFor,
+} from './delegation.ts';
 import { writeLock } from './lock.ts';
 import type { CheckOptions, LawResult } from './types.ts';
 
@@ -24,7 +35,10 @@ tslaws check [files...] [--reporter text|json|junit|github] [--json] [--summary]
 tslaws ui [files...] [--port N] [--no-open] [--tab]   open a dashboard of the laws in its own desktop window (--tab: a browser tab): tree, filters, search, source, live reruns on save
 tslaws mutate [files...] [--max N] [--seed N] [--runs N] [--bound N] [--proof-timeout MS] [--property-timeout MS] [--browser ENGINE] [--json]   mutation-test the laws: mutate covered code, report mutants no law kills
 tslaws regressions [list|clear]   show or delete the stored counterexamples (.tslaws/regressions); check replays them first, --no-regressions skips them
-tslaws accept [files...]     record the current laws in tsc-laws.lock (people only: needs a terminal)
+tslaws accept [files...]     record the current laws in tsc-laws.lock (people only: needs a terminal, or a live delegation; never under CI)
+tslaws delegate grant [--for 1h|8h|1d|7d] [--root DIR]   lend accept to an agent for a limited time (people only; default 8h, max 7d)
+tslaws delegate revoke [--root DIR]   withdraw the delegation for a project (people only)
+tslaws delegate status        list delegations and when they end
 tslaws promote [file] [--all]   move proposed laws (*.proposed.laws.ts) into the accepted *.laws.ts, asking per law (people only: needs a terminal; run accept afterwards)
 tslaws mcp [--compiler PATH]   serve check, check_proposed, explain and propose as Model Context Protocol tools on stdio (cannot accept or touch the lock)
 
@@ -68,6 +82,8 @@ function parse(args: string[]): { command: string; flags: Map<string, string | t
     'port',
     'reporter',
     'max',
+    'for',
+    'root',
   ]);
   for (let i = 0; i < args.length; i += 1) {
     const arg = args[i]!;
@@ -84,7 +100,8 @@ function parse(args: string[]): { command: string; flags: Map<string, string | t
         arg === 'mutate' ||
         arg === 'regressions' ||
         arg === 'mcp' ||
-        arg === 'promote')
+        arg === 'promote' ||
+        arg === 'delegate')
     )
       command = arg;
     else files.push(arg);
@@ -253,8 +270,9 @@ export async function main(args: string[]): Promise<number> {
       process.stderr.write('no laws files found (looking for *.laws.ts)\n');
       return 1;
     }
-    if (!process.stdin.isTTY || process.env.TSLAWS_AGENT !== undefined || process.env.CI !== undefined) {
-      process.stderr.write('accept records laws as correct and needs a person at a terminal; it will not run here\n');
+    const gate = acceptGate({ isTTY: process.stdin.isTTY === true, env: process.env, root: cwd });
+    if (!gate.ok) {
+      process.stderr.write(`${gate.message}\n`);
       return 1;
     }
     const opts = options(cwd, flags, chosen);
@@ -262,14 +280,63 @@ export async function main(args: string[]): Promise<number> {
     process.stdout.write(
       `${laws.length} laws in ${chosen.length} files:\n${laws.map((l) => `  ${l.file}:${l.line} ${l.name}`).join('\n')}\n`,
     );
-    const rl = createInterface({ input: process.stdin, output: process.stdout });
-    const answer = await rl.question('Type ACCEPT to write tsc-laws.lock: ');
-    rl.close();
-    if (answer.trim() !== 'ACCEPT') return 1;
+    if (!gate.delegated) {
+      const rl = createInterface({ input: process.stdin, output: process.stdout });
+      const answer = await rl.question('Type ACCEPT to write tsc-laws.lock: ');
+      rl.close();
+      if (answer.trim() !== 'ACCEPT') return 1;
+    }
+    const before = fileHash(opts.lockFile);
     const exempt = exemptionsOf(opts);
     if (exempt.length > 0) process.stdout.write(`exempt from coverage:\n${exempt.map((e) => `  ${e}`).join('\n')}\n`);
     writeLock(opts.lockFile, laws, exempt);
     process.stdout.write('tsc-laws.lock written\n');
+    if (gate.delegated) {
+      logDelegatedAccept(cwd, gate.grant, before, fileHash(opts.lockFile), new Date());
+      process.stdout.write(
+        `DELEGATED ACCEPT: a person lent this act until ${gate.grant.expires}; recorded in .tslaws/accept.log\n`,
+      );
+    }
+    return 0;
+  }
+
+  if (command === 'delegate') {
+    const [action] = files;
+    if (action === 'status') {
+      process.stdout.write(`${describeGrants(new Date()).join('\n')}\n`);
+      return 0;
+    }
+    if (action !== 'grant' && action !== 'revoke') {
+      process.stderr.write('usage: tslaws delegate grant|revoke|status\n');
+      return 1;
+    }
+    if (!personOnly({ isTTY: process.stdin.isTTY === true, env: process.env })) {
+      process.stderr.write(`delegate ${action} is a person's decision and needs a terminal; it will not run here\n`);
+      return 1;
+    }
+    const rootFlag = flags.get('root');
+    const target = rootFlag === undefined || rootFlag === true ? cwd : resolve(cwd, rootFlag);
+    if (action === 'revoke') {
+      const removed = revokeFor(target);
+      if (typeof removed === 'string') {
+        process.stderr.write(`${removed}\n`);
+        return 1;
+      }
+      process.stdout.write(`${removed} delegation${removed === 1 ? '' : 's'} revoked\n`);
+      return 0;
+    }
+    const lengthFlag = flags.get('for');
+    const ms = parseDuration(lengthFlag === undefined ? defaultDuration : String(lengthFlag));
+    if (ms === undefined) {
+      process.stderr.write('--for takes 1h, 8h, 1d or 7d (the most is 7d)\n');
+      return 1;
+    }
+    const granted = grantFor(target, ms, new Date());
+    if (typeof granted === 'string') {
+      process.stderr.write(`${granted}\n`);
+      return 1;
+    }
+    process.stdout.write(`accept is lent to agents for ${granted.root} until ${granted.expires}\n`);
     return 0;
   }
 

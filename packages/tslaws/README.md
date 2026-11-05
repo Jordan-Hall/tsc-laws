@@ -165,7 +165,7 @@ See [docs/laws.md](../../docs/laws.md#the-dashboard).
 
 `tsc-laws.lock` holds a hash of every law declaration and the list of coverage exemptions. A change, an added law, a removed
 law or a new `@tslaws-exempt` fails the check until a person runs `tslaws accept`, which refuses to run without a terminal,
-under `CI`, or with `TSLAWS_AGENT` set. Agents propose laws in `*.proposed.laws.ts` and try them with `tslaws check
+under `CI`, or with `TSLAWS_AGENT` set, unless a person has lent it for a limited time with `tslaws delegate grant`. Agents propose laws in `*.proposed.laws.ts` and try them with `tslaws check
 --proposed` (no lock, no coverage gate); a person moves them into a `*.laws.ts` file and accepts.
 
 `hooks/claude-hook.mjs` is a Claude Code hook that blocks `git commit` and sends an agent back to work when the check fails;
@@ -176,6 +176,9 @@ under `CI`, or with `TSLAWS_AGENT` set. Agents propose laws in `*.proposed.laws.
 ```
 tslaws init [--force]
 tslaws accept [files...]
+tslaws delegate grant [--for 1h|8h|1d|7d] [--root DIR]
+tslaws delegate revoke [--root DIR]
+tslaws delegate status
 tslaws check [files...] [--json] [--summary] [--watch] [--runs N] [--seed N] [--no-prove] [--bound N]
              [--proof-timeout MS] [--property-timeout MS] [--proposed] [--compiler PATH]
 ```
@@ -183,7 +186,12 @@ tslaws check [files...] [--json] [--summary] [--watch] [--runs N] [--seed N] [--
 - `init` scaffolds `tslaws.json`, the `.tslaws` ignore entry, the agent rules in `AGENTS.md`, the Claude Code hook in
   `.claude/settings.json`, and a starter law if none exists. It never writes the lock; a person then runs `accept`.
 - `accept` records the laws and the `@tslaws-exempt` functions in `tsc-laws.lock`. It refuses to run without a terminal,
-  under `CI`, or with `TSLAWS_AGENT` set.
+  under `CI`, or with `TSLAWS_AGENT` set, unless a live delegation covers the project (never under `CI`).
+- `delegate grant` lends `accept` to agents for 1h, 8h (default), 1d or 7d (the most), for one project root. `delegate revoke`
+  withdraws it and `delegate status` lists grants; `grant` and `revoke` need a terminal and refuse under `CI` or
+  `TSLAWS_AGENT`. The grant lives in `~/.tslaws/delegation.json`, outside the repository (`TSLAWS_HOME` moves that
+  directory and is for tests only). A delegated `accept` appends to `.tslaws/accept.log` and prints `DELEGATED ACCEPT`.
+  A grant is a person's decision, bounded in time, outside the repo, audited in `accept.log`. See [docs/laws.md](../../docs/laws.md#lending-accept-to-an-agent).
 - `check` exits 0 only when every law is `proved`, `bounded` or `tested`, nothing is `uncovered`, the files compile and the
   lock matches. `--json` adds a `hint` to each result, the concrete next action for an agent. `--summary` prints only the
   results that do not pass, plus the totals. `--watch` re-runs on every `.ts` change.

@@ -8,17 +8,17 @@ difference is that it stays TypeScript, so any human can read, run and fix every
 
 ## What it offers
 
-| Offer                            | What you get                                                                                                                                                                           |
-| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **`law` declarations**           | A statement of the language, type-checked like a function, that says what must hold for all inputs.                                                                                    |
-| **Verdicts, not opinions**       | Each law ends `proved`, `bounded`, `tested`, `failed`, `open`, `uncovered`, `tampered` or `error`. One exit status.                                                                    |
-| **Real proofs**                  | Z3 proves laws over exact integers, bigints, booleans, strings and records, and over IEEE doubles where it can decide. Loop invariants extend this to loops for every iteration count. |
-| **Bounded proofs**               | Arrays, plain loops and recursion are checked exhaustively up to a stated bound.                                                                                                       |
-| **Property tests as the floor**  | Anything the prover cannot lower is tested with `fast-check`; inputs are generated from your declared types, and failures shrink to a minimal counterexample with a seed.              |
-| **Laws the agent cannot weaken** | `tsc-laws.lock` hashes every law. Changing, adding or removing one, or exempting code, fails the check until a person runs `tslaws accept`, which refuses to run without a terminal.   |
-| **Coverage**                     | Every exported function and class must be reached by a law, so new code cannot slip through unchecked.                                                                                 |
-| **Agent ergonomics**             | `tslaws init` scaffolds the rules and a Claude Code hook; `--json` and `--summary` give structured, compact output with a next-action `hint` per result; `--watch` re-checks on save.  |
-| **Human ergonomics**             | A VS Code grammar for `law`, plain TypeScript output, and counterexamples you can paste into a test.                                                                                   |
+| Offer                            | What you get                                                                                                                                                                                                                                                                       |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`law` declarations**           | A statement of the language, type-checked like a function, that says what must hold for all inputs.                                                                                                                                                                                |
+| **Verdicts, not opinions**       | Each law ends `proved`, `bounded`, `tested`, `failed`, `open`, `uncovered`, `tampered` or `error`. One exit status.                                                                                                                                                                |
+| **Real proofs**                  | Z3 proves laws over exact integers, bigints, booleans, strings and records, and over IEEE doubles where it can decide. Loop invariants extend this to loops for every iteration count.                                                                                             |
+| **Bounded proofs**               | Arrays, plain loops and recursion are checked exhaustively up to a stated bound.                                                                                                                                                                                                   |
+| **Property tests as the floor**  | Anything the prover cannot lower is tested with `fast-check`; inputs are generated from your declared types, and failures shrink to a minimal counterexample with a seed.                                                                                                          |
+| **Laws the agent cannot weaken** | `tsc-laws.lock` hashes every law. Changing, adding or removing one, or exempting code, fails the check until a person runs `tslaws accept`, which refuses to run without a terminal unless that person has lent it for a limited time ([delegation](#lending-accept-to-an-agent)). |
+| **Coverage**                     | Every exported function and class must be reached by a law, so new code cannot slip through unchecked.                                                                                                                                                                             |
+| **Agent ergonomics**             | `tslaws init` scaffolds the rules and a Claude Code hook; `--json` and `--summary` give structured, compact output with a next-action `hint` per result; `--watch` re-checks on save.                                                                                              |
+| **Human ergonomics**             | A VS Code grammar for `law`, plain TypeScript output, and counterexamples you can paste into a test.                                                                                                                                                                               |
 
 ## How it compares with Bend 2
 
@@ -649,7 +649,8 @@ under `.tslaws/out/smt`.
 
 1. **Laws are the person's.** `tsc-laws.lock` holds a hash of every law declaration and every coverage exemption. Any
    difference fails the check as `tampered`. `tslaws accept` refuses to run without a terminal, under `CI`, or with
-   `TSLAWS_AGENT` set.
+   `TSLAWS_AGENT` set, unless a person has lent it to agents for a limited time with `tslaws delegate grant`
+   ([below](#lending-accept-to-an-agent)). Under `CI` it never runs.
 2. **No code escapes.** Every exported function or class in the covered modules must be reached by a law, directly or
    through the functions a law calls. Covered modules are the `cover` globs of `tslaws.json`
    (`{ "cover": ["src/**/*.ts", "!src/**/*.test.ts"] }`), or, without that file, every module the laws import. A function
@@ -665,6 +666,9 @@ under `.tslaws/out/smt`.
 ```
 tslaws init [--force]
 tslaws accept [files...]
+tslaws delegate grant [--for 1h|8h|1d|7d] [--root DIR]
+tslaws delegate revoke [--root DIR]
+tslaws delegate status
 tslaws regressions [list|clear]
 tslaws mutate [files...] [--max N] [--seed N] [--runs N] [--bound N] [--proof-timeout MS] [--property-timeout MS] [--json]
 tslaws check [files...] [--json] [--summary] [--watch] [--runs N] [--seed N] [--no-prove] [--no-regressions] [--bound N]
@@ -706,6 +710,37 @@ directories, and accepts only imports and `law` declarations as source. The serv
 spawns can run `accept` or `promote`. A proposed law is still code that `check --proposed` runs, as with any law file.
 
 ## Promoting proposed laws
+
+### Lending accept to an agent
+
+A person can lend `accept` to agents for a limited time, without removing the guard for anyone else.
+
+```
+tslaws delegate grant [--for 1h|8h|1d|7d] [--root DIR]   # default 8h, never more than 7d
+tslaws delegate revoke [--root DIR]
+tslaws delegate status
+```
+
+`grant` and `revoke` need a terminal and refuse under `CI` or with `TSLAWS_AGENT` set, exactly as `accept` does. `status`
+only reads, so it works anywhere. The grant is written to `<home>/.tslaws/delegation.json`, in the person's home directory
+and never in the project, so nothing an agent can edit in the repository can create one:
+
+```json
+{ "grants": [{ "root": "/abs/real/path/of/project", "expires": "2030-01-01T08:00:00.000Z", "note": "optional" }] }
+```
+
+With a live grant for the project's real path, `accept` runs without a terminal or with `TSLAWS_AGENT` set. It skips the
+`ACCEPT` prompt, appends a line to `<project>/.tslaws/accept.log` (time, `delegated`, the grant expiry, the lock hash
+before and after) and prints a `DELEGATED ACCEPT` line. An expired, missing, malformed or other-project grant refuses and
+points to `tslaws delegate grant`. Under `CI`, `accept` refuses even with a grant. `promote`, the MCP server and the editor
+extension never use a grant.
+
+Hardening: the file is rejected on POSIX when group or others can write it, or another user owns it; a grant that names a
+symlink never matches, and `grant` refuses to record one; roots are compared by real path; the grant is never read from the
+project or from any environment variable except `TSLAWS_HOME`, which moves the home directory and exists for tests only.
+
+A grant is a person's decision, bounded in time, outside the repo, audited in `accept.log`. It is not a defence against code running as the same operating-system user as the person, which can write the
+file itself; it stops an agent from creating the grant through `tslaws` or the repository.
 
 `tslaws promote [file] [--all]` is the person's step after an agent proposes laws. Like `accept`, it refuses without a
 terminal, under `CI`, or with `TSLAWS_AGENT` set. Name one `*.proposed.laws.ts` file, or pass `--all` for every one. For
