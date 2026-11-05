@@ -2,6 +2,297 @@
 
 The upstream tsc-ts changelog is CHANGELOG.md. Releases of tsc-laws are tagged `laws-v<version>` (see RELEASING-LAWS.md).
 
+## 0.5.2
+
+- Merge pull request #6 from Jordan-Hall/chore/sync-upstream
+- fix(ci): a sync branch without an open PR no longer blocks the weekly sync
+- Merge origin/main into chore/sync-upstream
+- ci: sync with the upstream tsc-ts every week
+- Merge remote-tracking branch 'upstream/main' into chore/sync-upstream
+- Merge pull request #411 from vercel-labs/ctate/prepare-v0-1-ccd382
+- Remove a blank line from the changelog
+- Prepare v0.1.2 release
+- Make @scriptc/threads an optional peer dependency (#410)
+- Order package.json fields as the formatter does
+- Make @scriptc/threads an optional peer dependency
+- Optimize macOS builds with the two-phase profile (#407)
+- Create three checker collections only when they get an entry (#409)
+- Find an intersection's duplicate types by scanning its list (#408)
+- Check out the profile block counts byte for byte
+- Create three checker collections only when they get an entry
+- Find an intersection's duplicate types by scanning its list
+- Optimize macOS builds with the two-phase profile
+- Count every checker in --extendedDiagnostics (#406)
+- Keep the Memory allocs row
+- Count every checker in --extendedDiagnostics
+- Store kind, flags and pos as node fields (#405)
+- Format check-int32-fields.mjs
+- Store kind, flags and pos as fields of a node
+- Pack kind, flags and pos of a node into two words (#404)
+- Pack kind, flags and pos of a node into two words
+- Run a file's grammar checks in its parse thread (#400)
+- Merge main
+- Merge pull request #403 from vercel-labs/ctate/prepare-v0-1-d9c6e5
+- Fix the security finding and CI, and merge main
+- Prepare v0.1.1 release
+- Build with scriptc 0.4.8 and a profile collected with it (#402)
+- Build with scriptc 0.4.8 and a profile collected with it
+- Collect the two-phase profile with the scriptc the build uses (#401)
+- Collect the two-phase profile with the scriptc the build uses
+- Run a file's grammar checks in its parse thread
+- Build the native tsc-ts to unwind exceptions on Linux (#399)
+- Build the native tsc-ts to unwind exceptions on Linux
+- Pick the shared queue's files by their share of the program (#398)
+- Pick the shared queue's files by their share of the program
+- Reuse the type of a completed check for context-free expressions (#397)
+- Mark the finally case as differing from the 7.0.2 oracle
+- Keep the completed-check record out of reduced flow
+- Remove the completed-check record environment switch
+- Reuse the type of a completed check for context-free expressions
+- Reuse the union a list of types was created from (#396)
+- Report a union that is too complex to represent at each expression
+- Reuse the union a list of types was created from
+- Read shared checker results where they wrote them (#395)
+- Name a union origin's field and a property's alias arguments as they are
+- Compute a wildcard module pattern's prefix and suffix once (#394)
+- Read a shared result where the checker that exported it wrote it
+- Format the pattern match the way oxfmt does
+- Compute a wildcard module pattern's parts once
+- Choose the run configuration from paired runs, and date the adoption from any sample (#393)
+- Read three pairs from three runs of each arm, and keep the paired verdict
+- Choose the run configuration from paired runs, and date the adoption from any sample
+- Add `TSC_TS_SHARE_PRICE`, a per-checker log of what result sharing costs, built only on request (#392)
+- Pair each translation with the computation its producer made
+- Price the replay's posts, takes and wall time from what the run measured
+- Build the result-sharing price log only on request
+- Read the CPUs an automatic configuration may use from the cgroup CPU quota (#391)
+- Read the cgroup v1 quota of a parent cgroup too
+- Lower the CPU count to the cgroup quota
+- Choose a run's configuration from what earlier runs of the project measured (#390)
+- Keep a rejected configuration rejected, and read the sharing fit wherever a count is learned
+- Correct the comment on what the memory estimate costs
+- Adopt a reverted or pinned configuration only from a comparison
+- Decide a project's next configuration from what its earlier runs measured
+- Measure a project's run configuration with `tsc-ts doctor (#388)
+- Report sharing's gain at the count doctor recommends, not the count's
+- Merge main
+- Merge main
+- Turn result sharing on where it pays, and stop it where it stops paying (#389)
+- Print the sharing-signals test as the formatter does
+- Keep the signals the library-bound cut reads, and compare sharing with runs that pin it off
+- Turn result sharing on where it pays, and stop it where it stops paying
+- Mark `tsc-ts doctor` experimental in its usage and the README
+- Measure a project's run configuration with `tsc-ts doctor`
+- Write a record of each eligible run, and name it in the section (#387)
+- Write a build project's record, and only for a full check
+- Write a run record after each eligible run, and name it in the section
+- Give each run a configuration, and print it under `--extendedDiagnostics (#386)
+- Give each run a configuration, and print it under --extendedDiagnostics
+- Check that every run configuration prints what one checker prints (#385)
+- Write an emit run's declarations where its tree is compared
+- Check that every run configuration prints what one checker prints
+- Hold an identifier's text in a shared name (#384)
+- Generate an identifier that stores its name
+- Hold an identifier's text in a shared name
+- Prepare v0.1.0 release (#383)
+- Prepare v0.1.0 release
+- Create a shared instantiation's resolved return types right after it (#382)
+- Keep an instantiation's failed export failed when its return types are exported
+- Create a shared instantiation's resolved return types right after it
+- Share results between checker threads behind TSC_TS_SHARE (#381)
+- Name a posted result's checker by the checker count, and give each checker its own forbidden bit
+- Refresh the two-phase profile
+- Write the installed executable once with one write on Linux (#380)
+- Create the launcher's copy exclusively, with mode 0600
+- Keep the executable's mode when the launcher writes it again
+- Write the installed executable once with one write on Linux
+- Target TypeScript 7.1.0-beta: upstream layout, oracles and generated files (#325)
+- Print a mapped type written without a type as tsgo 7.1 does (#379)
+- Print a mapped type written without a type as tsgo 7.1 does
+- Import no export whose name is not an identifier
+- Insert no declaration text as code in completions
+- Keep the recursion identities of invokeOnce's stack entries (#376)
+- Offer only tag names in opening-tag completions
+- Merge main
+- Build with scriptc 0.4.6 and a two-phase profile collected with it (#378)
+- Build with scriptc 0.4.6 and a two-phase profile collected with it
+- Resolve type reference directives against their type root as tsgo does (#377)
+- Resolve type reference directives against their type root as tsgo does
+- Keep the recursion identities of invokeOnce's stack entries
+- Keep CompactLinkTable values only for the pages stored
+- Adapt the contextual return-type inference memo to the TypeScript 7.1 checker
+- Merge main
+- Memoize contextual return type inference walks (#375)
+- Memoize contextual return type inference walks
+- Merge main
+- Restore the one-phase profile collected with scriptc 0.4.5 (#374)
+- Restore the one-phase profile collected with scriptc 0.4.5
+- Keep the one-phase profile's record with the branch's profile
+- Merge main
+- Relate without reporting before relating with an error node (#373)
+- Refresh the profiles with scriptc main e2b95cdee (#372)
+- Relate without reporting before relating with an error node
+- Refresh the profiles with scriptc main e2b95cdee
+- Resolve deferred type arguments before measuring variances for inference
+- Merge main
+- Record block counts beside the two-phase profile (#371)
+- Record block counts beside the two-phase profile
+- Run the object references test on the TypeScript 7.1 API
+- Merge main
+- Name objects the client already holds by their ids in API replies (#370)
+- Format the initialize case of the session's dispatch
+- Name objects the client already holds by their ids in API replies
+- Merge main
+- Keep the one-phase profile for scriptc without a second profile phase (#369)
+- Keep the one-phase profile for scriptc without a second profile phase (#368)
+- Keep the one-phase profile for scriptc without a second profile phase
+- Keep the one-phase profile for scriptc without a second profile phase
+- Merge main
+- Collect the profile in two phases (#367)
+- Collect the profile in two phases (#366)
+- Refresh the profile with both phases
+- Refresh the profile with both phases
+- Keep sparse symbol link columns in pages of present ids (#365)
+- Keep sparse symbol link columns in pages of present ids
+- Collect the tsc-ts profile again after the compact link table change (#363)
+- Test that escaping wildcard exports targets are not searched outside their package (#364)
+- Test that escaping wildcard exports targets are not searched outside their package
+- Collect the tsc-ts profile again after the compact link table change
+- Keep compact link pages' presence bits in 32-bit fields and update their counts at once (#362)
+- Keep compact link pages' presence bits in 32-bit fields and update their counts at once
+- Merge main
+- Choose the cannot-find-name message on failure and walk ahead past dropped JavaScript files (#361)
+- Walk ahead past JavaScript files the loader drops
+- Look up an inference pair's visited status once per invokeOnce (#359)
+- Keep resolved types and signatures in pages of present ids and their values (#360)
+- Narrow uniform primitive unions by === and case without comparing every constituent (#358)
+- Keep resolved types and signatures in pages of present ids and their values
+- Look up an inference pair's visited status once per invokeOnce
+- Merge main
+- Narrow uniform primitive unions by === and case without comparing every constituent
+- Restart a file's references at a lower depth only within maxNodeModuleJsDepth (#357)
+- Restart a file's references at a lower depth only when it is within maxNodeModuleJsDepth
+- Key the program's maps of a loaded file by its own path (#356)
+- Merge main
+- Key the program's maps of a loaded file by its own path
+- Stop the native API test from hanging on a cold build cache (#355)
+- Stop the native API test from hanging on a cold build cache
+- Load the first --watch build on parse threads (#354)
+- Merge main into the TypeScript 7.1.0-beta branch
+- Load the first --watch build on parse threads
+- Reuse printed type and symbol strings within a checker (#352)
+- Check the profile match in build:native and refresh the profile with one command (#350)
+- Share a rebuilt watch program with checker threads again (#349)
+- Build instantiated member lists from the source's cached order (#353)
+- Key kept type prints by the variance check in progress
+- Build instantiated member lists from the source's cached order
+- Reuse printed type and symbol strings within a checker
+- Search the active mappers by id (#351)
+- Search the active mappers by id
+- Check the profile match in build:native and refresh the profile with one command
+- Share a rebuilt watch program with checker threads again
+- Keep Node, Type and Symbol number fields as 32-bit integers (#348)
+- Keep Node, Type and Symbol number fields as 32-bit integers
+- Infer alias and reference type arguments once, as tsgo 7.1 does (#347)
+- Infer alias and reference type arguments once, as tsgo 7.1 does
+- Match tsgo 7.1 on the last node builder and emit rows (#346)
+- Replay a file's JavaScript transforms before its declarations on threads
+- Match tsgo 7.1 on the last node builder and emit rows
+- Fail CI test runs that lack the reference compilers
+- Add getImportAdderEdits to tsc-ts --api (#345)
+- Write a trailing comment after an added list separator as tsc --api does
+- Add getImportAdderEdits to tsc-ts --api
+- Report unused locals after a top-level return
+- Fix source phase import emit and the union order test for TypeScript 7.1 (#344)
+- Fix source phase import emit and the union order test for TypeScript 7.1
+- Keep wildcard export targets inside their package
+- Complete exhaustive switch cases over enums in tsc-ts --api (#342)
+- Complete exhaustive switch cases over enums in tsc-ts --api
+- Offer auto-imports from packages in node_modules in tsc-ts --api completions (#341)
+- Stop the native API test from hanging on a cold build cache
+- Refresh the tsc-ts profile for the TypeScript 7.1 parts E and B
+- Port TypeScript 7.1's checker changes for statements, grammar, JSDoc and JavaScript (#340)
+- Offer auto-imports from packages in node_modules in tsc-ts --api completions
+- Offer auto-imports from the project's files in tsc-ts --api completions (#339)
+- Address review feedback
+- Fix the completions fixture failure and review feedback
+- Port TypeScript 7.1's checker changes for statements, grammar, JSDoc and JavaScript
+- Offer auto-imports from the project's files in tsc-ts --api completions
+- Serve TypeScript 7.1's API protocol from tsc-ts --api (#338)
+- Look up a descriptor in the newest snapshot that retains it
+- Keep older snapshots' symbol references resolvable and hash each file once
+- Serve TypeScript 7.1's API protocol from tsc-ts --api
+- Port TypeScript 7.1's command line, tsconfig, path and incremental build changes (#337)
+- Report a root file matched by both files and include once
+- Count declaration emit for signatures as emit time
+- Port TypeScript 7.1's command line, tsconfig, path and incremental build changes
+- Port TypeScript 7.1's parser, scanner, binder and program loading changes (#336)
+- Merge the TypeScript 7.1.0-beta branch and refresh the tsc-ts profile
+- Encode source files in TypeScript 7.1's binary AST format (#335)
+- Format the protocol 9 encoder test
+- Refresh the tsc-ts profile for the TypeScript 7.1 checker changes
+- Merge main into the TypeScript 7.1.0-beta branch, and cache the reference tsc with the oracle builds
+- Compare check-corpus diagnostics after deduplicating them, as tsgo does (#332)
+- Decode a private name on the right of a qualified name
+- Port TypeScript 7.1.0-beta checker relations, inference and types (#334)
+- Port TypeScript 7.1's parser, scanner, binder and program loading changes
+- Test constructing a protected base from a class expression subclass
+- Encode source files in TypeScript 7.1's binary AST format
+- Port TypeScript 7.1.0-beta checker relations, inference and types
+- Refresh the tsc-ts profile for TypeScript 7.1
+- Report tsgo's arity errors for calling a new Promise's resolve without an argument (#333)
+- Fetch upstream TypeScript before packaging in CI
+- Merge main
+- Report tsgo's arity errors for calling a new Promise's resolve without an argument
+- Compare check-corpus diagnostics after deduplicating them, as tsgo does
+- Report cycles and truncation in the node builder as TypeScript 7.1 does (#328)
+- Port TypeScript 7.1's declaration emit fixes (#329)
+- Port TypeScript 7.1's JavaScript emit fixes (#330)
+- Instantiate generic value import type queries with their type arguments (#331)
+- Instantiate generic value import type queries with their type arguments
+- Bound deferred array and tuple references by their node
+- Port TypeScript 7.1's JavaScript emit fixes
+- Port TypeScript 7.1's declaration emit fixes
+- Report cycles and truncation in the node builder as TypeScript 7.1 does
+- Look up each path once in the loader's walk and collect (#326)
+- Look up each path once in the loader's walk and collect
+- Target TypeScript 7.1.0-beta: upstream layout, oracles and generated files
+- Prepare v0.0.10 release (#324)
+- Prepare v0.0.10 release
+- Build with scriptc 0.4.5 and a refreshed profile (#323)
+- Take the printer and output writes off slow paths (#322)
+- Build with scriptc 0.4.5 and a refreshed profile
+- Write output files before creating their directories
+- Skip comment lookups in source ranges without comments (#321)
+- Skip comment lookups in source ranges without comments
+- Bound each chunk of files for parse threads by its text (#320)
+- Bound each chunk of files for parse threads by its text
+- Read the default library files from disk on request in `--api (#319)
+- Resolve the library directory as the file loader does
+- Read the default library files from disk on request in --api
+- Emit on emit threads in incremental and -b builds (#317)
+- Emit a -b project once when its pending emit is too little for emit threads
+- Keep each source file's encoding in a --listen server (#318)
+- Keep each source file's encoding in a --listen server
+- Skip work in hot checker paths whose result is already known (#316)
+- Emit on emit threads in incremental and -b builds that emit every file
+- Publish each file on its parse thread right after binding it
+- Find declaration errors on the declaration thread under noEmit at --checkers 1 (#315)
+- Find declaration errors on the declaration thread under noEmit at --checkers 1
+- Shorten the main thread's work around checking on threads (#314)
+- Shorten the main thread's work around checking on threads
+- Emit declarations on a declaration thread at up to 8 checkers (#313)
+- Expect a declaration thread with 2 checkers only on more than 2 CPUs
+- Serve the API to one client at a time on a Unix socket (#312)
+- Emit declarations on a declaration thread while the program is checked
+- Probe an existing socket without waiting before replacing it
+- Serve the clients that connected before a --listen server stops
+- Serve the API to one client at a time on a Unix socket
+- Emit decorated files on the emit threads with metadata answers from the checker (#311)
+- Emit decorated files on the emit threads with metadata answers from the checker
+- Emit JavaScript on threads while the main thread checks at --checkers 1 (#310)
+- Emit JavaScript on threads while the main thread checks at --checkers 1
+
 ## 0.5.1
 
 - Merge pull request #5 from Jordan-Hall/feat/auto-release
