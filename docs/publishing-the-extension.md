@@ -12,7 +12,7 @@ Trusted publishing needs no stored token. The workflow asks GitHub for a short-l
 exchanges it for a short-lived Marketplace token. The `marketplace` job has `id-token: write` for this, on that job only.
 
 1. Sign in at <https://marketplace.visualstudio.com/manage> with a Microsoft account.
-2. Create the publisher. Choose "Create publisher" and set the ID to `tsc-laws`. The ID must match the `publisher` field in
+2. Create the publisher. Choose "Create publisher" and set the ID to `TS-Laws` (the publisher in this repository was created as "TS Laws" with the ID `TS-Laws`). The ID must match the `publisher` field in
    `packages/vscode-tslaws/package.json`.
 3. Open the publisher and add a trusted publishing policy with these fields:
    - Policy name: any name, for example `tsc-laws release`.
@@ -57,7 +57,7 @@ Use this only if trusted publishing does not work. When the `VSCE_PAT` secret ex
 5. Create the namespace once. This puts the token on the command line for a moment, so run it from a private terminal:
 
    ```sh
-   npx ovsx create-namespace tsc-laws -p <token>
+   npx ovsx create-namespace TS-Laws -p <token>
    ```
 
 6. Add the token to the repository:
@@ -81,12 +81,12 @@ The next `laws-v*` tag publishes. To switch it off again, delete the variable or
 1. Open the workflow run for the tag and read the `marketplace` job summary. It lists the version, the SHA-256 of the
    `.vsix`, and one line per store: published, already published, skipped or FAILED.
 2. Compare the SHA-256 with the `.vsix` attached to the GitHub release (`sha256sum tslaws-vscode-<version>.vsix`).
-3. Open <https://marketplace.visualstudio.com/items?itemName=tsc-laws.vscode-tslaws> and
+3. Open <https://marketplace.visualstudio.com/items?itemName=TS-Laws.vscode-tslaws> and
    <https://open-vsx.org/extension/tsc-laws/vscode-tslaws>. The extension name is the `name` field in `package.json`.
 4. Install it from the store, not from the file:
 
    ```sh
-   code --install-extension tsc-laws.vscode-tslaws
+   code --install-extension TS-Laws.vscode-tslaws
    ```
 
 The Marketplace scans each upload before the listing appears, which usually takes a few minutes. A brand new publisher also
@@ -111,7 +111,7 @@ the Marketplace step fail with an authentication error, while the Open VSX step 
 
 `packages/vscode-tslaws/package.json` already satisfies most of this:
 
-- Publisher: `publisher` is `tsc-laws`.
+- Publisher: `publisher` is `TS-Laws`, the ID of the Marketplace publisher (Open VSX needs the namespace to match it).
 - Icon: `icon` points to `icon.png`, and `galleryBanner` sets the colour and theme.
 - Licence: `license` is `Apache-2.0`. The repository has a `LICENSE` file.
 - Repository, homepage and issues: `repository`, `homepage` and `bugs` all point to the GitHub repository.

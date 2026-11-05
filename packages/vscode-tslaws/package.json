@@ -28,7 +28,7 @@
     "url": "https://github.com/Jordan-Hall/tsc-laws.git",
     "directory": "packages/vscode-tslaws"
   },
-  "publisher": "tsc-laws",
+  "publisher": "TS-Laws",
   "main": "./src/extension.js",
   "scripts": {
     "test": "node --test test/grammar.test.mjs test/find-laws.test.mjs test/parse-report.test.mjs test/summary.test.mjs test/command.test.mjs test/extension.test.mjs"
