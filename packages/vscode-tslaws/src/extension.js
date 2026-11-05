@@ -4,11 +4,12 @@
 
 const vscode = require('vscode');
 const fs = require('node:fs');
+const os = require('node:os');
 const { spawn } = require('node:child_process');
 const { activateExtension } = require('./host.js');
 
 function activate(context) {
-  activateExtension(vscode, context, { spawn, fs });
+  activateExtension(vscode, context, { spawn, fs, cpus: os.cpus });
 }
 
 function deactivate() {}

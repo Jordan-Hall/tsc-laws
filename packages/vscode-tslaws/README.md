@@ -23,6 +23,25 @@ Take a checkout whose total can go below zero, with the law `totalNeverNegative`
 
 Other results show too: `tampered`, `error` and `open` laws on the law, and `uncovered` exported functions on the function's name.
 
+## Law syntax in the editor
+
+VS Code's TypeScript server does not know `law`, so without help every `export law name(params) { ... }` shows red squiggles. The
+extension fixes that with a TypeScript server plugin (`tslaws-ts-plugin`, contributed as `typescriptServerPlugins`). It needs no
+setting and does not change how other files are edited.
+
+- A file that declares a law is shown to the TypeScript server with each `law` declaration written as a function (`law proved` and
+  `async law` too; the arrow form `law name(a: A) => e;` as a `const` arrow function). Every answer is mapped back to your text, so
+  hover, go to definition, find references, rename, completions, signature help, the outline and semantic colours land on the
+  right characters, and real type errors in a law body appear where you wrote them.
+- `law` stays an ordinary identifier everywhere else (`const law = 1`, `obj.law`, `law(1)`). A file without a law declaration is not
+  touched at all.
+- `assume`, `invariant`, `forall`, `exists` and `int` are typed from the `tslaws` package you installed.
+- The compiler's own rules (TS9101 to TS9106: boolean or void result, exported, typed parameters, plain parameters, not called by
+  application code) come from `tslaws check` and appear in the Problems view after a run, on the law's name or parameter.
+- Format Document leaves the `law` line itself alone; the rest of the file is formatted as usual.
+- Limits: `.tsx` files are not rewritten; the first time the extension runs it copies the plugin into its own folder and restarts the
+  TypeScript server once. See [docs/editor-law-syntax.md](../../docs/editor-law-syntax.md) for how it works and what it cannot do.
+
 ## Features
 
 - **Runs as you work.** A debounced run of only the laws that cover the file you changed. See [Running](#running).
@@ -76,6 +95,39 @@ in the `tslaws` output. Runs started by a command, a CodeLens, a quick fix or th
 A subset run reads only part of the project, so its `uncovered` results and its "law was removed" tampering results are
 dropped; the last full run's stay.
 
+## Live results
+
+With `tslaws.liveBackground` on, the laws that cover the code you are editing run in the background after you stop typing, on the
+text of your open buffers (a copy under `.tslaws/shadow`; your files are not written). A run never blocks typing: it is debounced,
+a newer edit stops the one that is going, only one check runs at a time, and results stream in as they arrive.
+
+- **Status after each function.** A theme-coloured line after the signature, with a gutter icon: `proved`, `bounded`,
+  `tested 24 runs`, `failing: counterexample (price=0, coupon=1)`, `running…`, or `stale · ran 3m ago` once you have edited since the
+  last run. It shows without hovering; the hover links to the laws.
+- **Uncovered functions.** An exported function no law reaches shows `uncovered` as a hint, not an error. The hover, the quick fix and
+  the Problems entry offer _Write a law for this function_, which writes a first law into `<file>.proposed.laws.ts`. It never writes an
+  accepted laws file or the lock; you check it with `tslaws check --proposed` and promote it yourself.
+- **Laws view.** In the Explorer: every law and uncovered function grouped by status (failing first), with its file and the age of its
+  last run. A click opens it. The status bar item shows the live counts and opens this view.
+- **Guard.** Background runs wait while the machine is busy (`tslaws.liveCpuLimit`), stop by themselves when a run took longer than
+  `tslaws.liveMaxSeconds`, and can be paused: _tslaws: pause/resume live results_.
+- **Reload.** The last report is kept in `.tslaws/last-report.json` (git ignores `.tslaws/`), so results show at once when the folder
+  opens; files edited since are marked stale.
+
+## Navigation
+
+- **Go to Laws** (`tslaws.goToLaws`, in the editor context menu and the CodeLens click) on a function: opens its law, or a Quick Pick
+  with each law's status icon and counterexample when there are several. **Peek Laws** (`tslaws.peekLaws`) shows them in the peek
+  widget without leaving the file. Suggested keys, which the extension does not bind for you:
+  `{ "key": "alt+l", "command": "tslaws.goToLaws", "when": "editorTextFocus" }` and
+  `{ "key": "alt+shift+l", "command": "tslaws.peekLaws", "when": "editorTextFocus" }`.
+- **Go to Implementation** (Ctrl+F12) and **Find All References** on a function list the laws that exercise it. They come from the last
+  report, and from the laws file's imports when no run has covered a law yet.
+- **From a law**, F12 on its name, or _tslaws: Go to the function this law exercises_, goes to the function under test.
+- **Outline and Ctrl+T.** Laws are document symbols (status in the detail) and workspace symbols named `law:<name>`, so `law:` lists every
+  law and a fuzzy name finds one. _tslaws: Go to law..._ is the same list in a Quick Pick.
+- All of it works in `.laws.ts` and its `.proposed`, `.browser` and `.e2e` variants, with the positions the law-syntax plugin maps.
+
 ## Settings
 
 | Setting                       | Default  | Meaning                                                                                                                            |
@@ -86,6 +138,9 @@ dropped; the last full run's stay.
 | `tslaws.runOnOpen`            | `false`  | Run every law once when the folder opens, so failures show before the first edit.                                                  |
 | `tslaws.inlineCounterexample` | `true`   | Show the counterexample after the failing line. The Problems panel and the hover carry the same text.                              |
 | `tslaws.executable`           | empty    | Path of `tslaws.js` or a native executable (`.cmd`/`.bat` shims are refused). Empty uses `node_modules/tslaws`. A machine setting. |
+| `tslaws.liveBackground`       | `auto`   | `auto` (on for a project with a `tslaws.json`, unless you chose `tslaws.run`), `on` or `off`. See [Live results](#live-results).   |
+| `tslaws.liveCpuLimit`         | `85`     | Live results wait while the machine is busier than this many percent.                                                              |
+| `tslaws.liveMaxSeconds`       | `30`     | Live results stop by themselves when a run takes longer than this many seconds.                                                    |
 | `tslaws.args`                 | `[]`     | Extra arguments for every `tslaws` call, such as `["--compiler", "path/to/tsc"]`. A machine setting.                               |
 
 The extension runs the workspace's code, so it does not run in an untrusted workspace.
@@ -100,7 +155,9 @@ are SVG files with a title and light and dark variants. Turn the inline text off
 
 ## Structure
 
-The logic is in plain modules that do not load `vscode` (`parse-report`, `find-laws`, `model`, `ranges`, `diagnostics`,
+The tsserver plugin is in `ts-plugin/` (`transform.js` rewrites the laws and keeps the position map, `index.js` wraps the
+language service); `src/plugin.js` puts it where tsserver looks. The logic is in plain modules that do not load `vscode`
+(`parse-report`, `find-laws`, `model`, `ranges`, `diagnostics`, `compile-diagnostics`,
 `format`, `plan`, `scheduler`, `runner`, `shadow`, `settings`, `summary`, `command`). `src/host.js`, `src/editor.js` and
 `src/testing.js` take the `vscode` API as an argument; `src/extension.js` is the only file that requires it. There is no
 bundler and there are no runtime dependencies.
@@ -132,5 +189,5 @@ Or run VS Code with `--extensionDevelopmentPath` pointing at this directory.
 
 `npm test -w vscode-tslaws` (after `npm ci`). The tests run the whole extension under a small fake of the `vscode` API
 (`test/fake-vscode.mjs`) with a scripted `tslaws`, and `test/real-cli.test.mjs` runs the real `tslaws` on a copy of
-`examples/checkout` when `TSC_LAWS_BIN` names the compiler. They prove the wiring and the data (what is published to the
+`examples/checkout` when `TSC_LAWS_BIN` names the compiler. `test/tsserver-plugin.test.mjs` starts a real `tsserver` with the plugin on a fixture project (no GUI). They prove the wiring and the data (what is published to the
 Problems panel, the lenses, the hover, the quick fixes, the decoration options and the test results), not how VS Code draws them.

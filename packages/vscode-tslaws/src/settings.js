@@ -26,3 +26,21 @@ function clampInt(value, min, max, fallback) {
 }
 
 module.exports = { RUN_MODES, resolveRunMode, explicitValue, clampInt };
+
+const LIVE_MODES = ['auto', 'on', 'off'];
+
+/**
+ * Whether live results run in the background. `tslaws.liveBackground` is `auto` (the default: on for a project that has a
+ * `tslaws.json`, unless the person chose when to run with `tslaws.run`), `on` or `off`. A pause by command wins.
+ * @param {{setting?: unknown, hasConfig: boolean, runExplicit: boolean, paused?: boolean}} s
+ */
+function liveEnabled(s) {
+  if (s.paused === true) return false;
+  const mode = LIVE_MODES.includes(s.setting) ? s.setting : 'auto';
+  if (mode === 'off') return false;
+  if (mode === 'on') return true;
+  return s.hasConfig && !s.runExplicit;
+}
+
+module.exports.LIVE_MODES = LIVE_MODES;
+module.exports.liveEnabled = liveEnabled;

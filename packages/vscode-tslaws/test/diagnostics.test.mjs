@@ -152,7 +152,7 @@ test('an uncovered function is marked on its name, from the declaration line the
   );
   const [d] = out.get('src/cart.ts');
   assert.equal(textOf(files['src/cart.ts'], d.range), 'total');
-  assert.equal(d.severity, 'warning');
+  assert.equal(d.severity, 'hint');
   assert.equal(d.lawFile, undefined);
 });
 
