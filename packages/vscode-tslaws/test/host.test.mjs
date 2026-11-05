@@ -83,7 +83,7 @@ const stream = (results) => {
 };
 
 /** A project on disk, the extension under the fake, and a `tslaws` that answers `check` with `answer(call)`. */
-function scenario({ settings = {}, help = HELP, answer, trusted = true } = {}) {
+function scenario({ settings = {}, help = HELP, answer, trusted = true, listing, found } = {}) {
   const root = fs.realpathSync(mkdtempSync(path.join(tmpdir(), 'tslaws-host-')));
   const put = (rel, text) => {
     mkdirSync(path.dirname(path.join(root, rel)), { recursive: true });
@@ -97,12 +97,26 @@ function scenario({ settings = {}, help = HELP, answer, trusted = true } = {}) {
     root,
     settings: { debounceMs: 100, ...settings },
     trusted,
-    lawFiles: [path.join(root, 'src/cart.laws.ts')],
+    lawFiles: (found ?? ['src/cart.laws.ts']).map((f) => path.join(root, f)),
   });
   const checks = [];
+  const lists = [];
   const { spawn, calls } = makeSpawn((call) => {
     if (call.args.includes('--help')) {
       call.child.stdout.emit('data', help);
+      return call.child.emit('close', 0);
+    }
+    if (call.args.includes('list')) {
+      lists.push(call);
+      // `listing: null` is a tslaws too old to know `list`: it prints usage text.
+      call.child.stdout.emit(
+        'data',
+        listing === null
+          ? 'unknown command'
+          : JSON.stringify({
+              files: listing ?? [{ file: 'src/cart.laws.ts', kind: 'node', status: 'accepted', notices: [] }],
+            }),
+      );
       return call.child.emit('close', 0);
     }
     checks.push(call);
@@ -117,6 +131,7 @@ function scenario({ settings = {}, help = HELP, answer, trusted = true } = {}) {
     api,
     calls,
     checks,
+    lists,
     abs,
     put,
     context,
@@ -565,4 +580,87 @@ test('Test Explorer: excluding a law from a selected file runs only the others, 
   } finally {
     s.finish();
   }
+});
+
+const entry = (file, kind, status = 'accepted') => ({ file, kind, status, notices: [] });
+
+test('laws files come from tslaws list, whatever they are called, and each gets a badge for its level', async () => {
+  const s = scenario({
+    listing: [
+      entry('src/cart.laws.ts', 'node'),
+      entry('specs/page.ts', 'browser', 'unaccepted'),
+      entry('src/shop.laws.ts', 'e2e'),
+      entry('.tslaws/proposals/idea.ts', 'browser', 'proposed'),
+    ],
+    // The file search would find only the conventional name; the answer from the tool is what counts.
+    found: ['src/cart.laws.ts'],
+  });
+  await settle(20);
+  assert.equal(s.lists.length, 1);
+  assert.deepEqual(s.lists[0].args.slice(-2), ['list', '--json']);
+  assert.equal(s.fake.fileDecorators.length, 1);
+  const decorate = (rel) => s.fake.fileDecorators[0].provideFileDecoration(s.fake.vscode.Uri.file(s.abs(rel)));
+  assert.equal(decorate('src/cart.laws.ts').badge, 'N');
+  assert.equal(decorate('specs/page.ts').badge, 'B');
+  assert.match(decorate('specs/page.ts').tooltip, /browser laws.*not in tsc-laws\.lock/);
+  assert.equal(decorate('src/shop.laws.ts').badge, 'E');
+  assert.equal(decorate('.tslaws/proposals/idea.ts').badge, 'P');
+  assert.match(decorate('.tslaws/proposals/idea.ts').tooltip, /^proposed browser laws/);
+  assert.equal(decorate('src/cart.ts'), undefined);
+  s.finish();
+});
+
+test('a laws file the tool names is run when it changes, and a proposal is never run as a law', async () => {
+  const s = scenario({
+    listing: [
+      entry('src/cart.laws.ts', 'node'),
+      entry('specs/page.ts', 'node'),
+      entry('.tslaws/proposals/idea.ts', 'node', 'proposed'),
+    ],
+    answer: emitAll([provedResult('totalNeverNegative', 3)], 0),
+  });
+  await settle(20);
+  s.put('specs/page.ts', 'export law pageOk(n: number) => n === n;\n');
+  s.save('specs/page.ts');
+  await until(() => s.checks.length >= 1, 'a check');
+  assert.ok(s.checks[0].args.includes('specs/page.ts'), s.checks[0].args.join(' '));
+  assert.ok(!s.checks[0].args.includes('src/cart.laws.ts'));
+  s.put('.tslaws/proposals/idea.ts', 'export law idea(n: number) => n === n;\n');
+  const before = s.checks.length;
+  s.save('.tslaws/proposals/idea.ts');
+  await settle(250);
+  assert.equal(s.checks.length, before);
+  s.finish();
+});
+
+test('saving a file that declares a law asks tslaws list again', async () => {
+  const s = scenario({ answer: emitAll([provedResult('totalNeverNegative', 3)], 0) });
+  await settle(20);
+  assert.equal(s.lists.length, 1);
+  s.put('specs/new.ts', 'export law fresh(n: number) => n === n;\n');
+  s.save('specs/new.ts');
+  await until(() => s.lists.length === 2, 'a second list');
+  s.finish();
+});
+
+test('an older tslaws without list falls back to the file names, with the old suffix hints as badges', async () => {
+  const s = scenario({
+    listing: null,
+    found: ['src/cart.laws.ts', 'src/ui.browser.laws.ts', 'src/shop.e2e.laws.ts'],
+  });
+  await settle(20);
+  const decorate = (rel) => s.fake.fileDecorators[0].provideFileDecoration(s.fake.vscode.Uri.file(s.abs(rel)));
+  assert.equal(decorate('src/cart.laws.ts').badge, 'N');
+  assert.equal(decorate('src/ui.browser.laws.ts').badge, 'B');
+  assert.equal(decorate('src/shop.e2e.laws.ts').badge, 'E');
+  s.finish();
+});
+
+test('an untrusted workspace never runs tslaws list, and still finds the conventional names', async () => {
+  const s = scenario({ trusted: false });
+  await settle(20);
+  assert.equal(s.lists.length, 0);
+  const uri = s.fake.vscode.Uri.file(s.abs('src/cart.laws.ts'));
+  assert.equal(s.fake.fileDecorators[0].provideFileDecoration(uri).badge, 'N');
+  s.finish();
 });

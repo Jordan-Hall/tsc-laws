@@ -38,7 +38,7 @@
   "publisher": "TS-Laws",
   "main": "./src/extension.js",
   "scripts": {
-    "test": "node --test test/grammar.test.mjs test/find-laws.test.mjs test/parse-report.test.mjs test/summary.test.mjs test/command.test.mjs test/model.test.mjs test/ranges.test.mjs test/format.test.mjs test/diagnostics.test.mjs test/plan.test.mjs test/settings.test.mjs test/scheduler.test.mjs test/runner.test.mjs test/shadow.test.mjs test/host.test.mjs test/extension.test.mjs test/real-cli.test.mjs"
+    "test": "node --test test/grammar.test.mjs test/find-laws.test.mjs test/parse-report.test.mjs test/summary.test.mjs test/command.test.mjs test/model.test.mjs test/ranges.test.mjs test/format.test.mjs test/diagnostics.test.mjs test/plan.test.mjs test/settings.test.mjs test/scheduler.test.mjs test/runner.test.mjs test/shadow.test.mjs test/list.test.mjs test/host.test.mjs test/extension.test.mjs test/real-cli.test.mjs"
   },
   "devDependencies": {
     "vscode-oniguruma": "^2.0.1",
@@ -182,7 +182,8 @@
   },
   "activationEvents": [
     "onLanguage:typescript",
-    "workspaceContains:**/*.laws.ts"
+    "workspaceContains:**/*.laws.ts",
+    "workspaceContains:**/tslaws.json"
   ],
   "icon": "icon.png",
   "galleryBanner": {

@@ -9,7 +9,7 @@ export const nextStep = 'Next, a person at a terminal runs `tslaws accept` to re
 
 const hooksDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'hooks');
 
-const starterLaws = `// A starter law. A person owns this file: agents propose laws in *.proposed.laws.ts instead.
+const starterLaws = `// A starter law. A person owns this file: agents propose laws in .tslaws/proposals/ instead.
 // Replace it with laws about your own code, then run \`tslaws accept\`.
 import type { int } from 'tslaws';
 
@@ -141,14 +141,14 @@ export function init(options: InitOptions): string[] {
   const ignore = join(cwd, '.gitignore');
   const ignoreText = existsSync(ignore) ? readFileSync(ignore, 'utf8') : '';
   // `.tslaws/regressions` is left out on purpose: a team may commit the counterexamples it has found.
-  const ignored = ['.tslaws/out', '.tslaws/mutants', '.tslaws/screenshots'];
+  const ignored = ['.tslaws/out', '.tslaws/mutants', '.tslaws/screenshots', '.tslaws/proposals'];
   const listed = ignoreText.split(/\r?\n/).map((l) => l.trim().replace(/^\//, '').replace(/\/$/, ''));
   const missing = listed.includes('.tslaws') ? [] : ignored.filter((entry) => !listed.includes(entry));
   if (missing.length === 0) out.push('kept     .gitignore (.tslaws already listed)');
   else {
     const lead = ignoreText === '' || ignoreText.endsWith('\n') ? '' : '\n';
     writeFile(ignore, `${ignoreText}${lead}${missing.join('\n')}\n`);
-    out.push('updated  .gitignore (.tslaws/out, mutants, screenshots)');
+    out.push('updated  .gitignore (.tslaws/out, mutants, screenshots, proposals)');
   }
 
   out.push(initAgents(cwd, force));

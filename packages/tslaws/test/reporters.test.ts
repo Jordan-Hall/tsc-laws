@@ -23,6 +23,7 @@ const report = (results: LawResult[], over: Partial<CheckReport> = {}): CheckRep
   compileDiagnostics: '',
   compileOk: true,
   lockMissing: false,
+  notices: [],
   ok: results.every((r) => ['proved', 'bounded', 'tested'].includes(r.status)),
   ...over,
 });
@@ -81,6 +82,7 @@ describe('junit', () => {
         compileOk: false,
         compileDiagnostics: 'x.ts(1,1): error TS1 <bad>',
         lockMissing: true,
+        notices: [],
         ok: false,
       }),
     );

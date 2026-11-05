@@ -2,6 +2,16 @@
 
 The upstream tsc-ts changelog is CHANGELOG.md. Releases of tsc-laws are tagged `laws-v<version>` (see RELEASING-LAWS.md).
 
+## Unreleased
+
+- **A laws file's level comes from what it imports.** A file that reaches `tslaws/browser` (or an adapter) through its own import graph is a browser law, one that reaches `tslaws/e2e` is an end-to-end law, both is an error that names the chains, neither is a Node law. Type-only imports and `node_modules` do not count. The `.browser.laws.ts` and `.e2e.laws.ts` names are hints; one the imports do not back is reported as a notice (`report.notices`), and `.e2e.laws.ts` that reaches only the browser API is an error.
+- **`"laws"` in `tslaws.json`:** globs for laws files with other names (a file counts when it declares a top-level `export law`). Default unchanged; every laws file of the tree stays locked.
+- **Proposals live in `.tslaws/proposals/`**, outside the tree and git-ignored (`tslaws init` adds it). New: `tslaws propose <file.ts> [--from PATH]` (stdin or a file; writes only that directory and refuses links that leave the project). `check --proposed` runs every proposal at the level its imports give, with no lock and no coverage gate. `tslaws promote <proposal> [--to PATH]` (people only, as before; a delegation does not cover it) moves one into the tree at a confirmed path, rewrites its imports and never writes the lock. Imports written `./` in a proposal are relative to the project root. The MCP `tslaws_propose` writes there too.
+- **Deprecated:** in-tree `*.proposed.laws.ts`, `*.browser.proposed.laws.ts` and `*.e2e.proposed.laws.ts` keep working through `check --proposed` and `promote` and print a notice recommending `.tslaws/proposals/`.
+- **`tslaws list [--json]`** and the MCP tool `tslaws_list`: every laws file and proposal with its level and whether it is accepted, unaccepted or proposed.
+- **VS Code:** laws files are found by asking `tslaws list` (falling back to names for an older tslaws), and each shows an Explorer badge for its level (N, B, E, or P for a proposal).
+- **Fix:** the property worker reused its TypeScript program across checks in one process, so a file added between two checks (a new proposal) failed with "no declaration output".
+
 ## 0.6.4
 
 - Merge pull request #13 from Jordan-Hall/chore/vscode-listing-metadata

@@ -53,9 +53,11 @@ Other results show too: `tampered`, `error` and `open` laws on the law, and `unc
 | `onType`           | The same delay after you stop typing, on the text of the open buffers.     |
 | `manual`           | Only when you ask: a command, a CodeLens, a quick fix or the Testing view. |
 
+Each laws file shows a badge in the Explorer for its level: `N` Node, `B` browser, `E` end to end, `P` a proposal (hover for the words, and for a note when the file is not in `tsc-laws.lock` yet). The level comes from what the file imports, so the badge replaces the cue the `.browser.laws.ts` suffix gave.
+
 Only the laws that cover the changed file run:
 
-1. A laws file runs itself.
+1. A laws file runs itself. Which files are laws files comes from `tslaws list --json` (any file name a project lists under `"laws"` in `tslaws.json` counts; its level comes from its imports). An older `tslaws`, or an untrusted workspace, falls back to `*.laws.ts`. Proposals in `.tslaws/proposals/` are never run as part of the check.
 2. A source file runs the laws that reached it in the last report (each result lists the functions the law exercises).
 3. Otherwise the laws file beside it (`cart.ts`, `cart.laws.ts`), or the laws files of the nearest folder that has any.
 4. Otherwise every law.
