@@ -128,7 +128,7 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
     // A browser law touches the DOM when it loads, so only the browser loads it.
     if (!browser) {
       try {
-        fn = (require(jsPath(built.outDir, law.file)) as Record<string, (...args: unknown[]) => unknown>)[law.name];
+        fn = (require(jsPath(built.outDir, law.file)) as Record<string, (...args: unknown[]) => unknown>)[law.symbol ?? law.name];
       } catch (error) {
         add(law, 'error', 'load', { message: `cannot load compiled law: ${(error as Error).message}` });
         continue;
@@ -160,7 +160,7 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
           )
         : browser
           ? await runBrowserLaw(
-              { file: law.file, name: law.name, jsFile: jsPath(built.outDir, law.file), generators: types.generators },
+              { file: law.file, name: law.name, symbol: law.symbol, jsFile: jsPath(built.outDir, law.file), generators: types.generators },
               lawOptions,
             )
           : await runLawGuarded(built.outDir, law, lawOptions);

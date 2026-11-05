@@ -387,7 +387,7 @@ async function attempt(input: ProveInput, intLimit: bigint | undefined): Promise
       ts.ScriptKind.JS,
     );
     const fn = source.statements.find(
-      (s): s is ts.FunctionDeclaration => ts.isFunctionDeclaration(s) && s.name?.text === input.law.name,
+      (s): s is ts.FunctionDeclaration => ts.isFunctionDeclaration(s) && s.name?.text === (input.law.symbol ?? input.law.name),
     );
     if (fn === undefined || fn.body === undefined)
       throw new Unsupported('law function not found in the compiled output');

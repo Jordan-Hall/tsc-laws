@@ -190,6 +190,8 @@ async function bundleOf(jsFile: string, cwd: string): Promise<string> {
 export interface BrowserLaw {
   file: string;
   name: string;
+  /** The exported function the law lowers to; defaults to `name`. */
+  symbol?: string;
   jsFile: string;
   generators: fc.Arbitrary<unknown>[];
 }
@@ -214,7 +216,7 @@ async function capture(
           input as unknown[],
           true,
         ),
-      [law.name, toWire(args)] as const,
+      [law.symbol ?? law.name, toWire(args)] as const,
     );
     const relative = `.tslaws/screenshots/${law.name.replace(/[^\w-]/g, '_')}.png`;
     mkdirSync(join(options.cwd, '.tslaws/screenshots'), { recursive: true });
@@ -267,7 +269,7 @@ export async function runBrowserLaw(law: BrowserLaw, options: CheckOptions): Pro
               __runLaw: (n: string, a: unknown[], keep: boolean, pause: number) => Promise<unknown>;
             }
           ).__runLaw(name as string, input as unknown[], false, pause as number),
-        [law.name, toWire(args), calls++ < 12 ? (options.browserPauseMs ?? 0) : 0] as const,
+        [law.symbol ?? law.name, toWire(args), calls++ < 12 ? (options.browserPauseMs ?? 0) : 0] as const,
       )) as PageOutcome;
       if (outcome.error !== undefined) {
         const error = new Error(outcome.error.message);

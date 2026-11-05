@@ -1,6 +1,8 @@
 import { spawnSync, type SpawnSyncOptionsWithStringEncoding, type SpawnSyncReturns } from 'node:child_process';
-import { existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
+import ts from 'typescript';
+import { lowerLawFile, usesLegacySyntax, type Lowered } from './lower.ts';
 import { readConfig } from './coverage.ts';
 import type { ManifestLaw } from './types.ts';
 
@@ -58,7 +60,37 @@ function cannotRun(compiler: string, error: Error): string {
   return `cannot run ${compiler}: ${error.message}`;
 }
 
+/** The compiler name that selects the built-in path: stock TypeScript, with laws written as `law(...)` calls. */
+export const builtinCompiler = 'builtin';
+
+const slash = (path: string): string => path.replaceAll(String.fromCharCode(92), '/');
+const lowered = new Map<string, { text: string; result: Lowered }>();
+
+/** Lowers `file` (project-relative), reusing the last result while its text is unchanged. */
+function lowerFile(file: string, cwd: string): Lowered {
+  const text = readFileSync(join(cwd, file), 'utf8');
+  const key = slash(resolve(cwd, file));
+  const cached = lowered.get(key);
+  if (cached?.text === text) return cached.result;
+  const result = lowerLawFile(slash(file), text);
+  lowered.set(key, { text, result });
+  return result;
+}
+
+const isLawFile = (file: string): boolean => /\.laws\.tsx?$/.test(file);
+
+/**
+ * Whether these files go through the built-in path. An explicit `builtin` always does; otherwise a project that
+ * still writes `law name(...)` keeps using the tsc-laws compiler, the only parser of that syntax.
+ */
+export function usesBuiltin(compiler: string, files: string[], cwd: string): boolean {
+  if (compiler === builtinCompiler) return true;
+  return !files.some((f) => isLawFile(f) && existsSync(join(cwd, f)) && usesLegacySyntax(readFileSync(join(cwd, f), 'utf8')));
+}
+
 export function readManifest(compiler: string, files: string[], cwd: string): ManifestLaw[] {
+  if (usesBuiltin(compiler, files, cwd))
+    return files.filter(isLawFile).flatMap((f) => (existsSync(join(cwd, f)) ? lowerFile(f, cwd).laws : []));
   const run = launch(compiler, ['--laws-manifest', ...files], {
     cwd,
     encoding: 'utf8',
@@ -142,6 +174,7 @@ export function build(compiler: string, files: string[], cwd: string): BuildResu
     ...extra,
     ...files,
   ];
+  if (usesBuiltin(compiler, files, cwd)) return buildBuiltin(args, files, cwd, outDir);
   let run = launch(compiler, args, { cwd, encoding: 'utf8', maxBuffer: 64 << 20, env: compilerEnv(cwd, compiler) });
   // A compiler that dies without a word (out of memory on a busy machine) is run again; a type error always says so.
   for (
@@ -155,4 +188,36 @@ export function build(compiler: string, files: string[], cwd: string): BuildResu
     run = launch(compiler, args, { cwd, encoding: 'utf8', maxBuffer: 64 << 20, env: compilerEnv(cwd, compiler) });
   if (run.error !== undefined) throw new Error(cannotRun(compiler, run.error));
   return { outDir, diagnostics: `${run.stdout ?? ''}${run.stderr ?? ''}`.trim(), ok: run.status === 0 };
+}
+
+/** Compiles in-process with stock TypeScript: law files are lowered in memory, nothing is written next to them. */
+function buildBuiltin(args: string[], files: string[], cwd: string, outDir: string): BuildResult {
+  const at = args.indexOf('--moduleResolution');
+  const parsed = ts.parseCommandLine(at < 0 ? args : [...args.slice(0, at), ...args.slice(at + 2)]);
+  // Stock TypeScript pairs `bundler` resolution only with ES modules; the CommonJS output resolves the node10 way.
+  const options: ts.CompilerOptions = {
+    ...parsed.options,
+    moduleResolution: ts.ModuleResolutionKind.Node10,
+    noEmitOnError: false,
+  };
+  const overrides = new Map<string, string>();
+  for (const file of files)
+    if (isLawFile(file) && existsSync(join(cwd, file))) overrides.set(slash(resolve(cwd, file)), lowerFile(file, cwd).text);
+  const host = ts.createCompilerHost(options);
+  const getSourceFile = host.getSourceFile.bind(host);
+  host.getSourceFile = (name, languageVersion, onError, shouldCreate) => {
+    const text = overrides.get(slash(resolve(name)));
+    return text === undefined
+      ? getSourceFile(name, languageVersion, onError, shouldCreate)
+      : ts.createSourceFile(name, text, languageVersion, true);
+  };
+  const program = ts.createProgram(parsed.fileNames.map((f) => resolve(cwd, f)), options, host);
+  program.emit();
+  const diagnostics = ts.getPreEmitDiagnostics(program);
+  const text = ts.formatDiagnostics(diagnostics, {
+    getCanonicalFileName: (f) => f,
+    getCurrentDirectory: () => cwd,
+    getNewLine: () => String.fromCharCode(10),
+  });
+  return { outDir, diagnostics: text.trim(), ok: diagnostics.every((d) => d.category !== ts.DiagnosticCategory.Error) };
 }

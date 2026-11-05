@@ -72,7 +72,7 @@ export function typesOf(program: ts.Program, outDir: string, law: ManifestLaw): 
   const exported =
     moduleSymbol === undefined
       ? undefined
-      : checker.getExportsOfModule(moduleSymbol).find((s) => s.getName() === law.name);
+      : checker.getExportsOfModule(moduleSymbol).find((s) => s.getName() === (law.symbol ?? law.name));
   if (exported === undefined) throw new UnsupportedType(`law ${law.name} is not in the declaration output`);
   const signature = checker.getTypeOfSymbol(exported).getCallSignatures()[0];
   if (signature === undefined) throw new UnsupportedType(`law ${law.name} is not a function`);
