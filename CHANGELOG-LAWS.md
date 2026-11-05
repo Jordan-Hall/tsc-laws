@@ -2,6 +2,11 @@
 
 The upstream tsc-ts changelog is CHANGELOG.md. Releases of tsc-laws are tagged `laws-v<version>` (see RELEASING-LAWS.md).
 
+## 0.6.4
+
+- Merge pull request #13 from Jordan-Hall/chore/vscode-listing-metadata
+- chore(vscode): listing metadata for the Marketplace: keywords, GitHub-flavoured readme, Q&A and pricing
+
 ## 0.6.3
 
 - Merge pull request #10 from Jordan-Hall/ci/extension-publish
