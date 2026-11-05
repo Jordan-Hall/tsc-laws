@@ -59,9 +59,14 @@ lose every `tsserver` feature in law files. Rejected.
 ## Option B: a `tsserver` plugin from the extension (chosen)
 
 VS Code lets an extension contribute `typescriptServerPlugins`. `typescript-language-features` passes the extension's folder
-to `tsserver` as a plugin probe location, and `tsserver` `require`s `<extension>/node_modules/<name>` for it. The plugin
-runs inside the `tsserver` that VS Code already starts, so there is no setting, no second server and no change for files
-that are not laws.
+to `tsserver` as a plugin probe location, and `tsserver` loads `<extension>/node_modules/<name>` (only a package name is
+allowed as a plugin name). The plugin runs inside the `tsserver` that VS Code already starts, so there is no setting, no
+second server and no change for files that are not laws.
+
+The plugin source is `ts-plugin/`. `vsce package --no-dependencies` (what CI runs) never packs the extension's root
+`node_modules` (checked with vsce 4.1.0), so the .vsix carries `ts-plugin/` and `src/plugin.js` copies it to
+`node_modules/tslaws-ts-plugin` the first time the extension activates, then runs `typescript.restartTsServer` once. Later
+activations find it current and do nothing.
 
 How it works (`packages/vscode-tslaws/ts-plugin`):
 
@@ -75,7 +80,8 @@ How it works (`packages/vscode-tslaws/ts-plugin`):
 3. **Wrapped language service.** Requests carry original offsets. The plugin maps them in, calls the real service, and maps
    every returned span (diagnostics, hover, definitions, references, rename locations, completions, signature help,
    navigation tree, semantic classifications, code-fix edits) back, per file, because a result can sit in another file.
-   Formatting is not offered for transformed files: an edit across `function` would map onto text that is not there.
+   Formatting edits that would cut into text the rewrite wrote (the `function` that stands for `law`) are dropped; the rest
+   are mapped.
 4. **Syntax errors.** Because `tsserver` sees valid text, the `law` syntax errors never exist. Real type errors in a law
    body arrive at their original positions. Errors whose range falls wholly in text the transform replaced are dropped.
 5. **Ordinary identifiers.** The plugin only rewrites the exact `law [proved] identifier (` or `<` shape, found with a lexer
@@ -85,9 +91,10 @@ How it works (`packages/vscode-tslaws/ts-plugin`):
 6. **The compiler's own diagnostics.** `tslaws check` already compiles the project with the fork. Its
    `compileDiagnostics` text carries `error TS9101` to `TS9106` lines with original positions. The extension parses those
    lines into a diagnostic collection on the same ranges. They arrive after a run (on save by default), not per keystroke.
-7. **Highlighting.** The TextMate injection in `syntaxes/tslaws.injection.json` already scopes `law` and `proved`. It is
-   extended to the `async` and generic forms and tested for every file name (`.laws.ts` and its proposed, browser and e2e
-   variants are TypeScript files to VS Code, so the injection into `source.ts` covers them).
+7. **Highlighting.** The TextMate injection in `syntaxes/tslaws.injection.json` scopes `law`, `proved` and the name, after `export`
+   and `async`, with generics, and not inside comments or strings. A `.laws.ts` file and its proposed, browser and e2e
+   variants are TypeScript files to VS Code, so the injection into `source.ts` covers them (`test/grammar.test.mjs`).
+   `bounded` and `tested` are statuses, not keywords, so they have no scope.
 
 ### Costs and limits of the plugin
 
@@ -106,4 +113,6 @@ How it works (`packages/vscode-tslaws/ts-plugin`):
 The tests drive a real `tsserver` (the `typescript` package in `node_modules`) with the plugin and a fixture project, with
 no GUI. They cannot prove that `typescript-language-features` finds the plugin in the installed `.vsix`, that it is enabled
 for a workspace TypeScript version, how VS Code draws the results, or that the `.vsix` includes the staged plugin folder.
-The report that accompanies this change lists exactly what remains to check by hand.
+The remaining checks by hand: open a `.laws.ts` file in a window with the packaged extension; install the .vsix and confirm
+the first activation restarts the TypeScript server and the squiggles go; select a workspace TypeScript version; look at the
+colours and squiggles themselves.

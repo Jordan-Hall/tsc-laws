@@ -118,6 +118,7 @@ function items() {
 
 export function makeFake({ root, settings = {}, trusted = true, lawFiles = [] } = {}) {
   const commands = new Map();
+  const executed = [];
   const collections = [];
   const providers = { lens: [], hover: [], actions: [] };
   const terminals = [];
@@ -163,6 +164,7 @@ export function makeFake({ root, settings = {}, trusted = true, lawFiles = [] } 
     TestRunProfileKind: { Run: 1 },
     commands: {
       registerCommand: (id, fn) => (commands.set(id, fn), { dispose() {} }),
+      executeCommand: async (id, ...args) => void executed.push([id, ...args]),
     },
     languages: {
       createDiagnosticCollection: () => {
@@ -289,6 +291,7 @@ export function makeFake({ root, settings = {}, trusted = true, lawFiles = [] } 
   return {
     vscode,
     commands,
+    executed,
     collections,
     providers,
     terminals,

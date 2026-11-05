@@ -6,9 +6,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { stagePlugin } from '../scripts/stage-plugin.mjs';
 
 const require = createRequire(import.meta.url);
+const { ensurePlugin } = require('../src/plugin.js');
 export const tsserverPath = require.resolve('typescript/lib/tsserver.js');
 const here = path.dirname(fileURLToPath(import.meta.url));
 export const tslawsPackage = path.resolve(here, '../../tslaws');
@@ -54,7 +54,8 @@ export function makeProject(files, { link = true } = {}) {
  */
 export function startTsserver({ plugin = true } = {}) {
   const extension = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'tslaws-ext-')));
-  stagePlugin(extension);
+  fs.cpSync(path.join(here, '..', 'ts-plugin'), path.join(extension, 'ts-plugin'), { recursive: true });
+  ensurePlugin({ fs, path, extensionPath: extension });
   const args = [tsserverPath, '--suppressDiagnosticEvents', '--disableAutomaticTypingAcquisition'];
   if (plugin) args.push('--globalPlugins', 'tslaws-ts-plugin', '--pluginProbeLocations', extension);
   const child = spawn(process.execPath, args, { stdio: ['pipe', 'pipe', 'pipe'] });

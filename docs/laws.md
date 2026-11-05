@@ -597,6 +597,11 @@ laws: `tslaws accept` stays a person's act at a terminal.
 
 ## Editor integration
 
+**The `law` keyword.** The extension ships a TypeScript server plugin, so VS Code's own TypeScript understands `law` declarations: no
+squiggles on `law`, the name or the parameters, with hover, go to definition, rename, references and completions on your text, and
+the compiler's TS9101 to TS9106 in the Problems view after a run. How it works and its limits are in
+[editor-law-syntax.md](editor-law-syntax.md).
+
 `packages/vscode-tslaws` is a VS Code extension with no bundled dependencies. When a law fails it says so, as you work, on the
 law and on the code the law exercises.
 

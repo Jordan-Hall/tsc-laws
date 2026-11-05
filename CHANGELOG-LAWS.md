@@ -2,6 +2,12 @@
 
 The upstream tsc-ts changelog is CHANGELOG.md. Releases of tsc-laws are tagged `laws-v<version>` (see RELEASING-LAWS.md).
 
+## Unreleased
+
+- feat(vscode): a TypeScript server plugin so the editor understands `law` declarations: no red squiggles, with hover, definition, references, rename and completions mapped to the original text
+- feat(vscode): the compiler's law rules (TS9101 to TS9106) are shown as diagnostics after a run
+- docs: how the editor and the `law` keyword fit together (docs/editor-law-syntax.md)
+
 ## 0.6.4
 
 - Merge pull request #13 from Jordan-Hall/chore/vscode-listing-metadata

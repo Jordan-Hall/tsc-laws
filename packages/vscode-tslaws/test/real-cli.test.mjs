@@ -86,7 +86,39 @@ test(
       assert.doesNotMatch(fake.statuses[0].text, /failed/);
     } finally {
       rmSync(root, { recursive: true, force: true });
-      setTimeout(() => process.exit(process.exitCode ?? 0), 100).unref();
     }
   },
 );
+
+test('the real compiler: a law that breaks a language rule is marked with its TS91xx code', { skip }, async () => {
+  const root = fs.realpathSync(mkdtempSync(path.join(here, '..', '.tmp-real-')));
+  try {
+    cpSync(path.join(repo, 'examples', 'checkout', 'src'), path.join(root, 'src'), { recursive: true });
+    cpSync(path.join(repo, 'examples', 'checkout', 'tsc-laws.lock'), path.join(root, 'tsc-laws.lock'));
+    const laws = path.join(root, 'src', 'cart.laws.ts');
+    writeFileSync(laws, readFileSync(laws, 'utf8') + '\nexport law returnsNumber(a: number) { return 1; }\n');
+    const fake = makeFake({
+      root,
+      settings: { debounceMs: 100, executable: bin, args: ['--no-prove'] },
+      lawFiles: [laws],
+    });
+    activateExtension(fake.vscode, { subscriptions: [] }, { spawn, fs });
+    fake.events.save.fire(fake.makeDoc(laws));
+    await until(
+      () => (fake.collections[0].store.get(laws) ?? []).some((d) => d.code === 'TS9101'),
+      'the compiler rule to be marked',
+      90_000,
+    );
+    const text = readFileSync(laws, 'utf8');
+    const d = fake.collections[0].store.get(laws).find((x) => x.code === 'TS9101');
+    assert.equal(d.source, 'tsc-laws');
+    assert.match(d.message, /A law must return boolean or void, not 'number'/);
+    assert.equal(
+      textOf(text, { line: d.range.start.line, start: d.range.start.character, end: d.range.end.character }),
+      'returnsNumber',
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+    setTimeout(() => process.exit(process.exitCode ?? 0), 100).unref();
+  }
+});

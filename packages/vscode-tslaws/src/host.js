@@ -19,6 +19,8 @@ const { createShadow } = require('./shadow.js');
 const { resolveRunMode, explicitValue, clampInt } = require('./settings.js');
 const { createEditor } = require('./editor.js');
 const { createTesting } = require('./testing.js');
+const { ensurePlugin } = require('./plugin.js');
+const { compileDiagnostics } = require('./compile-diagnostics.js');
 
 const key = (file, name) => `${file}::${name}`;
 
@@ -36,6 +38,8 @@ function activateExtension(vscode, context, io) {
 
   /** @type {object[] | null} */
   let records = null;
+  /** What the compiler printed in the last run: its law rules (TS9101 to TS9106) are shown as diagnostics. */
+  let compilerText = '';
   /** @type {Map<string, number>} */
   const ranAt = new Map();
   let progress = null;
@@ -103,6 +107,13 @@ function activateExtension(vscode, context, io) {
     status.show();
   };
 
+  const withCompiler = (descs, read) => {
+    if (compilerText === '' || root() === undefined) return descs;
+    for (const [file, list] of compileDiagnostics(compilerText, read, (f) => relativeTo(f, root())))
+      descs.set(file, [...(descs.get(file) ?? []), ...list]);
+    return descs;
+  };
+
   /** Rebuild everything shown from the records and the text as it is now. */
   const rebuild = () => {
     const memo = new Map();
@@ -110,7 +121,7 @@ function activateExtension(vscode, context, io) {
     view = {
       records,
       ranAt,
-      descs: records === null ? new Map() : buildDiagnostics(records, read),
+      descs: withCompiler(records === null ? new Map() : buildDiagnostics(records, read), read),
       index: records === null ? new Map() : functionIndex(records),
       coverage: records === null ? new Map() : coverageMap(records),
     };
@@ -246,6 +257,7 @@ function activateExtension(vscode, context, io) {
       const outcome = await run.done;
       progress = null;
       if (outcome.report !== null && !outcome.cancelled) {
+        compilerText = outcome.report.compileDiagnostics;
         records = merge(snapshot ?? [], outcome.report.records, { files: request.files, laws: request.laws ?? null });
         for (const r of outcome.report.records) ranAt.set(key(r.file, r.name), ranAt.get(key(r.file, r.name)) ?? now());
       } else if (outcome.error !== undefined) {
@@ -444,6 +456,14 @@ function activateExtension(vscode, context, io) {
       },
     },
   );
+
+  // tsserver loads the law-syntax plugin from the extension's node_modules; put it there, and restart the server once so
+  // it picks the plugin up.
+  if (typeof context.extensionPath === 'string') {
+    const plugin = ensurePlugin({ fs, path: nodePath, extensionPath: context.extensionPath });
+    if (plugin.state === 'error') output.appendLine(`tslaws: could not install the TypeScript plugin: ${plugin.error}`);
+    else if (plugin.changed) void vscode.commands.executeCommand('typescript.restartTsServer');
+  }
 
   updateStatus();
   ready = refreshLawFiles();

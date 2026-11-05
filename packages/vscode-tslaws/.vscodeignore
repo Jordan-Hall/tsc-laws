@@ -1,8 +1,5 @@
 test/**
-scripts/**
-ts-plugin/**
 node_modules/**
-!node_modules/tslaws-ts-plugin/**
 **/*.test.mjs
 .vscode-test/**
 *.vsix

@@ -23,6 +23,25 @@ Take a checkout whose total can go below zero, with the law `totalNeverNegative`
 
 Other results show too: `tampered`, `error` and `open` laws on the law, and `uncovered` exported functions on the function's name.
 
+## Law syntax in the editor
+
+VS Code's TypeScript server does not know `law`, so without help every `export law name(params) { ... }` shows red squiggles. The
+extension fixes that with a TypeScript server plugin (`tslaws-ts-plugin`, contributed as `typescriptServerPlugins`). It needs no
+setting and does not change how other files are edited.
+
+- A file that declares a law is shown to the TypeScript server with each `law` declaration written as a function (`law proved` and
+  `async law` too; the arrow form `law name(a: A) => e;` as a `const` arrow function). Every answer is mapped back to your text, so
+  hover, go to definition, find references, rename, completions, signature help, the outline and semantic colours land on the
+  right characters, and real type errors in a law body appear where you wrote them.
+- `law` stays an ordinary identifier everywhere else (`const law = 1`, `obj.law`, `law(1)`). A file without a law declaration is not
+  touched at all.
+- `assume`, `invariant`, `forall`, `exists` and `int` are typed from the `tslaws` package you installed.
+- The compiler's own rules (TS9101 to TS9106: boolean or void result, exported, typed parameters, plain parameters, not called by
+  application code) come from `tslaws check` and appear in the Problems view after a run, on the law's name or parameter.
+- Format Document leaves the `law` line itself alone; the rest of the file is formatted as usual.
+- Limits: `.tsx` files are not rewritten; the first time the extension runs it copies the plugin into its own folder and restarts the
+  TypeScript server once. See [docs/editor-law-syntax.md](../../docs/editor-law-syntax.md) for how it works and what it cannot do.
+
 ## Features
 
 - **Runs as you work.** A debounced run of only the laws that cover the file you changed. See [Running](#running).
@@ -100,7 +119,9 @@ are SVG files with a title and light and dark variants. Turn the inline text off
 
 ## Structure
 
-The logic is in plain modules that do not load `vscode` (`parse-report`, `find-laws`, `model`, `ranges`, `diagnostics`,
+The tsserver plugin is in `ts-plugin/` (`transform.js` rewrites the laws and keeps the position map, `index.js` wraps the
+language service); `src/plugin.js` puts it where tsserver looks. The logic is in plain modules that do not load `vscode`
+(`parse-report`, `find-laws`, `model`, `ranges`, `diagnostics`, `compile-diagnostics`,
 `format`, `plan`, `scheduler`, `runner`, `shadow`, `settings`, `summary`, `command`). `src/host.js`, `src/editor.js` and
 `src/testing.js` take the `vscode` API as an argument; `src/extension.js` is the only file that requires it. There is no
 bundler and there are no runtime dependencies.
@@ -132,5 +153,5 @@ Or run VS Code with `--extensionDevelopmentPath` pointing at this directory.
 
 `npm test -w vscode-tslaws` (after `npm ci`). The tests run the whole extension under a small fake of the `vscode` API
 (`test/fake-vscode.mjs`) with a scripted `tslaws`, and `test/real-cli.test.mjs` runs the real `tslaws` on a copy of
-`examples/checkout` when `TSC_LAWS_BIN` names the compiler. They prove the wiring and the data (what is published to the
+`examples/checkout` when `TSC_LAWS_BIN` names the compiler. `test/tsserver-plugin.test.mjs` starts a real `tsserver` with the plugin on a fixture project (no GUI). They prove the wiring and the data (what is published to the
 Problems panel, the lenses, the hover, the quick fixes, the decoration options and the test results), not how VS Code draws them.
