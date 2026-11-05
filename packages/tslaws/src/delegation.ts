@@ -12,7 +12,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { homedir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join, resolve, sep } from 'node:path';
 
 export interface Grant {
   root: string;
@@ -26,14 +26,9 @@ const durations: Record<string, number> = { '1h': hour, '8h': 8 * hour, '1d': 24
 
 const regrant = 'run `tslaws delegate grant` at a terminal to lend accept for a limited time';
 
-/** Home for the grant file. TSLAWS_HOME exists for tests only; a person never sets it. */
-export function homeDir(env: NodeJS.ProcessEnv = process.env): string {
-  const override = env.TSLAWS_HOME;
-  return override !== undefined && override !== '' ? override : homedir();
-}
-
-export function delegationFile(env: NodeJS.ProcessEnv = process.env): string {
-  return join(homeDir(env), '.tslaws', 'delegation.json');
+/** The grants file under a home directory: the real one by default, a temp directory in unit tests. */
+export function delegationFile(home: string = homedir()): string {
+  return join(home, '.tslaws', 'delegation.json');
 }
 
 export function parseDuration(text: string): number | undefined {
@@ -53,6 +48,17 @@ function same(a: string, b: string): boolean {
   return process.platform === 'win32' || process.platform === 'darwin' ? a.toLowerCase() === b.toLowerCase() : a === b;
 }
 
+/** The grants directory must resolve inside the real home directory, not through a symlink elsewhere. */
+function grantsDirProblem(home: string): string | undefined {
+  const dir = join(home, '.tslaws');
+  if (!existsSync(dir)) return undefined;
+  const base = realRoot(home);
+  const real = realRoot(dir);
+  if (base === undefined || real === undefined) return `${dir} cannot be resolved`;
+  const inside = real.length > base.length && same(real.slice(0, base.length), base) && real[base.length] === sep;
+  return inside ? undefined : `${dir} resolves outside the home directory (${real})`;
+}
+
 export type Grants = { ok: true; grants: Grant[] } | { ok: false; reason: string };
 
 function isGrant(value: unknown): value is Grant {
@@ -67,8 +73,10 @@ function isGrant(value: unknown): value is Grant {
 }
 
 /** Reads the grants. A missing file is an empty list; an unsafe or malformed one is an error. */
-export function readGrants(env: NodeJS.ProcessEnv = process.env): Grants {
-  const file = delegationFile(env);
+export function readGrants(home: string = homedir()): Grants {
+  const file = delegationFile(home);
+  const place = grantsDirProblem(home);
+  if (place !== undefined) return { ok: false, reason: place };
   if (!existsSync(file)) return { ok: true, grants: [] };
   try {
     const info = statSync(file);
@@ -87,21 +95,24 @@ export function readGrants(env: NodeJS.ProcessEnv = process.env): Grants {
   }
 }
 
-function writeGrants(grants: Grant[], env: NodeJS.ProcessEnv): void {
-  const file = delegationFile(env);
-  mkdirSync(join(homeDir(env), '.tslaws'), { recursive: true, mode: 0o700 });
+function writeGrants(grants: Grant[], home: string): string | undefined {
+  const file = delegationFile(home);
+  mkdirSync(join(home, '.tslaws'), { recursive: true, mode: 0o700 });
+  const place = grantsDirProblem(home);
+  if (place !== undefined) return place;
   const temp = `${file}.${process.pid}.tmp`;
   writeFileSync(temp, `${JSON.stringify({ grants }, null, 2)}\n`, { mode: 0o600 });
   renameSync(temp, file);
+  return undefined;
 }
 
 export type Verdict = { ok: true; grant: Grant } | { ok: false; reason: string };
 
 /** The live grant for a project root. Real paths are compared, and a grant naming a symlink never matches. */
-export function findGrant(root: string, now: Date, env: NodeJS.ProcessEnv = process.env): Verdict {
+export function findGrant(root: string, now: Date, home: string = homedir()): Verdict {
   const real = realRoot(root);
   if (real === undefined) return { ok: false, reason: 'the project root does not exist' };
-  const read = readGrants(env);
+  const read = readGrants(home);
   if (!read.ok) return { ok: false, reason: read.reason };
   const named = read.grants.filter((g) => same(g.root, real) && realRoot(g.root) !== undefined);
   if (named.length === 0) return { ok: false, reason: 'no delegation covers this project' };
@@ -116,6 +127,8 @@ export interface GateInput {
   env: NodeJS.ProcessEnv;
   root: string;
   now?: Date;
+  /** Home directory holding the grants; unit tests pass a temp directory. */
+  home?: string;
 }
 
 export type Gate =
@@ -129,7 +142,7 @@ export function acceptGate(input: GateInput): Gate {
   if (env.CI !== undefined)
     return { ok: false, message: 'accept records laws as correct and never runs under CI, even with a delegation' };
   if (input.isTTY && env.TSLAWS_AGENT === undefined) return { ok: true, delegated: false };
-  const verdict = findGrant(input.root, input.now ?? new Date(), env);
+  const verdict = findGrant(input.root, input.now ?? new Date(), input.home);
   if (verdict.ok) return { ok: true, delegated: true, grant: verdict.grant };
   return {
     ok: false,
@@ -143,30 +156,33 @@ export function personOnly(input: { isTTY: boolean; env: NodeJS.ProcessEnv }): b
 }
 
 /** Records a grant for a project; returns it, or the reason it was refused. */
-export function grantFor(root: string, ms: number, now: Date, env: NodeJS.ProcessEnv = process.env): Grant | string {
+export function grantFor(root: string, ms: number, now: Date, home: string = homedir()): Grant | string {
   const real = realRoot(root);
   if (real === undefined) return `${root} does not exist`;
   if (!same(resolve(root), real)) return `${root} is a symlink to ${real}; name the real directory`;
-  const read = readGrants(env);
+  const read = readGrants(home);
   if (!read.ok) return read.reason;
   const grant: Grant = { root: real, expires: new Date(now.getTime() + ms).toISOString() };
-  writeGrants([...read.grants.filter((g) => !same(g.root, real)), grant], env);
-  return grant;
+  const problem = writeGrants([...read.grants.filter((g) => !same(g.root, real)), grant], home);
+  return problem ?? grant;
 }
 
 /** Removes the grants for a project; returns how many, or the reason it was refused. */
-export function revokeFor(root: string, env: NodeJS.ProcessEnv = process.env): number | string {
+export function revokeFor(root: string, home: string = homedir()): number | string {
   const real = realRoot(root);
   if (real === undefined) return `${root} does not exist`;
-  const read = readGrants(env);
+  const read = readGrants(home);
   if (!read.ok) return read.reason;
   const kept = read.grants.filter((g) => !same(g.root, real));
-  if (kept.length !== read.grants.length) writeGrants(kept, env);
+  if (kept.length !== read.grants.length) {
+    const problem = writeGrants(kept, home);
+    if (problem !== undefined) return problem;
+  }
   return read.grants.length - kept.length;
 }
 
-export function describeGrants(now: Date, env: NodeJS.ProcessEnv = process.env): string[] {
-  const read = readGrants(env);
+export function describeGrants(now: Date, home: string = homedir()): string[] {
+  const read = readGrants(home);
   if (!read.ok) return [`delegation unusable: ${read.reason}`];
   if (read.grants.length === 0) return ['no delegations'];
   return read.grants.map(

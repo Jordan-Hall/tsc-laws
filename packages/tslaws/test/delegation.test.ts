@@ -52,17 +52,19 @@ const writeGrantFile = (home: string, content: unknown): string => {
   chmodSync(file, 0o600);
   return file;
 };
+// os.homedir() honours HOME and USERPROFILE, so a child process gets a temp home through them.
+const homeEnv = (home: string): Record<string, string> => ({ HOME: home, USERPROFILE: home });
 const now = new Date('2030-01-01T00:00:00Z');
 const hours = (n: number): string => new Date(now.getTime() + n * 3_600_000).toISOString();
 
 describe('acceptGate', () => {
   it('refuses with no grant and tells the person how to grant', () => {
-    const gate = acceptGate({ isTTY: false, env: { TSLAWS_HOME: fresh('home') }, root: fresh('proj'), now });
+    const gate = acceptGate({ isTTY: false, env: {}, home: fresh('home'), root: fresh('proj'), now });
     assert.ok(!gate.ok && /tslaws delegate grant/.test(gate.message));
   });
 
   it('lets a person at a terminal through without a grant', () => {
-    const gate = acceptGate({ isTTY: true, env: { TSLAWS_HOME: fresh('home') }, root: fresh('proj'), now });
+    const gate = acceptGate({ isTTY: true, env: {}, home: fresh('home'), root: fresh('proj'), now });
     assert.deepEqual(gate, { ok: true, delegated: false });
   });
 
@@ -70,7 +72,7 @@ describe('acceptGate', () => {
     const home = fresh('home');
     const root = fresh('proj');
     writeGrantFile(home, { grants: [{ root, expires: hours(2) }] });
-    const gate = acceptGate({ isTTY: false, env: { TSLAWS_HOME: home }, root, now });
+    const gate = acceptGate({ isTTY: false, env: {}, home, root, now });
     assert.ok(gate.ok && gate.delegated);
   });
 
@@ -78,14 +80,14 @@ describe('acceptGate', () => {
     const home = fresh('home');
     const root = fresh('proj');
     writeGrantFile(home, { grants: [{ root, expires: hours(-1) }] });
-    const gate = acceptGate({ isTTY: false, env: { TSLAWS_HOME: home }, root, now });
+    const gate = acceptGate({ isTTY: false, env: {}, home, root, now });
     assert.ok(!gate.ok && /expired/.test(gate.message));
   });
 
   it('refuses a grant for another root', () => {
     const home = fresh('home');
     writeGrantFile(home, { grants: [{ root: fresh('other'), expires: hours(2) }] });
-    const gate = acceptGate({ isTTY: false, env: { TSLAWS_HOME: home }, root: fresh('proj'), now });
+    const gate = acceptGate({ isTTY: false, env: {}, home, root: fresh('proj'), now });
     assert.equal(gate.ok, false);
   });
 
@@ -94,7 +96,7 @@ describe('acceptGate', () => {
     const root = fresh('proj');
     writeGrantFile(home, { grants: [{ root, expires: hours(2) }] });
     for (const isTTY of [true, false]) {
-      const gate = acceptGate({ isTTY, env: { TSLAWS_HOME: home, CI: '1' }, root, now });
+      const gate = acceptGate({ isTTY, env: { CI: '1' }, home, root, now });
       assert.ok(!gate.ok && /CI/.test(gate.message));
     }
   });
@@ -102,10 +104,10 @@ describe('acceptGate', () => {
   it('treats TSLAWS_AGENT like no terminal: only a live grant helps', () => {
     const home = fresh('home');
     const root = fresh('proj');
-    const env = { TSLAWS_HOME: home, TSLAWS_AGENT: '1' };
-    assert.equal(acceptGate({ isTTY: true, env, root, now }).ok, false);
+    const env = { TSLAWS_AGENT: '1' };
+    assert.equal(acceptGate({ isTTY: true, env, home, root, now }).ok, false);
     writeGrantFile(home, { grants: [{ root, expires: hours(1) }] });
-    const gate = acceptGate({ isTTY: true, env, root, now });
+    const gate = acceptGate({ isTTY: true, env, home, root, now });
     assert.ok(gate.ok && gate.delegated);
   });
 
@@ -120,7 +122,7 @@ describe('acceptGate', () => {
     for (const content of bad) {
       const home = fresh('home');
       writeGrantFile(home, content);
-      assert.equal(acceptGate({ isTTY: false, env: { TSLAWS_HOME: home }, root, now }).ok, false, content);
+      assert.equal(acceptGate({ isTTY: false, env: {}, home, root, now }).ok, false, content);
     }
   });
 
@@ -128,7 +130,7 @@ describe('acceptGate', () => {
     const home = fresh('home');
     const root = fresh('proj');
     writeGrantFile(root, { grants: [{ root, expires: hours(2) }] });
-    assert.equal(acceptGate({ isTTY: false, env: { TSLAWS_HOME: home }, root, now }).ok, false);
+    assert.equal(acceptGate({ isTTY: false, env: {}, home, root, now }).ok, false);
   });
 
   it('refuses a grants file that others can write', { skip: process.platform === 'win32' }, () => {
@@ -136,7 +138,7 @@ describe('acceptGate', () => {
     const root = fresh('proj');
     const file = writeGrantFile(home, { grants: [{ root, expires: hours(2) }] });
     chmodSync(file, 0o666);
-    assert.equal(acceptGate({ isTTY: false, env: { TSLAWS_HOME: home }, root, now }).ok, false);
+    assert.equal(acceptGate({ isTTY: false, env: {}, home, root, now }).ok, false);
   });
 
   it('matches by real path and ignores a grant that names a symlink', () => {
@@ -148,23 +150,38 @@ describe('acceptGate', () => {
     } catch {
       return;
     }
-    const env = { TSLAWS_HOME: home };
     writeGrantFile(home, { grants: [{ root: link, expires: hours(2) }] });
-    assert.equal(findGrant(root, now, env).ok, false);
-    assert.equal(findGrant(link, now, env).ok, false);
-    assert.match(String(grantFor(link, 3_600_000, now, env)), /symlink/);
+    assert.equal(findGrant(root, now, home).ok, false);
+    assert.equal(findGrant(link, now, home).ok, false);
+    assert.match(String(grantFor(link, 3_600_000, now, home)), /symlink/);
+  });
+});
+
+describe('grants directory', () => {
+  it('is refused when .tslaws resolves outside the home directory', () => {
+    const home = fresh('home');
+    const elsewhere = fresh('elsewhere');
+    const root = fresh('proj');
+    writeFileSync(join(elsewhere, 'delegation.json'), JSON.stringify({ grants: [{ root, expires: hours(2) }] }));
+    try {
+      symlinkSync(elsewhere, join(home, '.tslaws'), 'junction');
+    } catch {
+      return;
+    }
+    assert.equal(acceptGate({ isTTY: false, env: {}, home, root, now }).ok, false);
+    assert.match(String(grantFor(root, 3_600_000, now, home)), /outside the home directory/);
   });
 });
 
 describe('grants', () => {
   it('writes, finds and revokes a grant', () => {
-    const env = { TSLAWS_HOME: fresh('home') };
+    const home = fresh('home');
     const root = fresh('proj');
-    assert.equal(typeof grantFor(root, parseDuration('1h')!, now, env), 'object');
-    assert.ok(findGrant(root, now, env).ok);
-    assert.ok(existsSync(delegationFile(env)));
-    assert.equal(revokeFor(root, env), 1);
-    assert.equal(findGrant(root, now, env).ok, false);
+    assert.equal(typeof grantFor(root, parseDuration('1h')!, now, home), 'object');
+    assert.ok(findGrant(root, now, home).ok);
+    assert.ok(existsSync(delegationFile(home)));
+    assert.equal(revokeFor(root, home), 1);
+    assert.equal(findGrant(root, now, home).ok, false);
   });
 
   it('allows only 1h, 8h, 1d and 7d', () => {
@@ -196,23 +213,23 @@ describe('tslaws CLI', () => {
     const root = fresh('proj');
     for (const extra of [{}, { CI: '1' }, { TSLAWS_AGENT: '1' }])
       for (const action of ['grant', 'revoke']) {
-        const result = run(root, ['delegate', action], { TSLAWS_HOME: home, ...extra });
+        const result = run(root, ['delegate', action], { ...homeEnv(home), ...extra });
         assert.equal(result.status, 1);
         assert.match(result.stderr, /needs a terminal/);
       }
-    assert.ok(!existsSync(delegationFile({ TSLAWS_HOME: home })));
+    assert.ok(!existsSync(delegationFile(home)));
   });
 
   it('status is read-only and works without a terminal', () => {
     const home = fresh('home');
     const root = fresh('proj');
-    assert.match(run(root, ['delegate', 'status'], { TSLAWS_HOME: home, CI: '1' }).stdout, /no delegations/);
+    assert.match(run(root, ['delegate', 'status'], { ...homeEnv(home), CI: '1' }).stdout, /no delegations/);
     writeGrantFile(home, { grants: [{ root, expires: '2001-01-01T00:00:00.000Z' }] });
-    assert.match(run(root, ['delegate', 'status'], { TSLAWS_HOME: home }).stdout, /expired/);
+    assert.match(run(root, ['delegate', 'status'], { ...homeEnv(home) }).stdout, /expired/);
   });
 
   it('accept refuses with no grant, with the grant hint', () => {
-    const result = run(project(), ['accept'], { TSLAWS_HOME: fresh('home') });
+    const result = run(project(), ['accept'], { ...homeEnv(fresh('home')) });
     assert.equal(result.status, 1);
     assert.match(result.stderr, /tslaws delegate grant/);
   });
@@ -221,7 +238,7 @@ describe('tslaws CLI', () => {
     const home = fresh('home');
     const root = project();
     writeGrantFile(home, { grants: [{ root, expires: inAnHour() }] });
-    const result = run(root, ['accept'], { TSLAWS_HOME: home, CI: '1' });
+    const result = run(root, ['accept'], { ...homeEnv(home), CI: '1' });
     assert.equal(result.status, 1);
     assert.ok(!existsSync(join(root, 'tsc-laws.lock')));
   });
@@ -231,7 +248,7 @@ describe('tslaws CLI', () => {
     const root = project();
     const expires = inAnHour();
     writeGrantFile(home, { grants: [{ root, expires }] });
-    const result = run(root, ['accept'], { TSLAWS_HOME: home, TSLAWS_AGENT: '1' });
+    const result = run(root, ['accept'], { ...homeEnv(home), TSLAWS_AGENT: '1' });
     assert.equal(result.status, 0, result.stderr);
     assert.match(result.stdout, /DELEGATED ACCEPT/);
     assert.ok(existsSync(join(root, 'tsc-laws.lock')));

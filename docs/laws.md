@@ -737,10 +737,12 @@ extension never use a grant.
 
 Hardening: the file is rejected on POSIX when group or others can write it, or another user owns it; a grant that names a
 symlink never matches, and `grant` refuses to record one; roots are compared by real path; the grant is never read from the
-project or from any environment variable except `TSLAWS_HOME`, which moves the home directory and exists for tests only.
+project or from any `tslaws` environment variable. The home directory is always the one `os.homedir()` returns, and the
+`.tslaws` directory in it must resolve to a real path inside that home, or the grant is refused. There is no `tslaws`-specific
+override. `os.homedir()` follows `HOME` (`USERPROFILE` on Windows), and a same-user agent can change its own `HOME`.
 
 A grant is a person's decision, bounded in time, outside the repo, audited in `accept.log`. It is not a defence against code running as the same operating-system user as the person, which can write the
-file itself; it stops an agent from creating the grant through `tslaws` or the repository.
+file itself or point its own `HOME` at a file it wrote; it stops an agent from creating the grant through `tslaws` or the repository.
 
 `tslaws promote [file] [--all]` is the person's step after an agent proposes laws. Like `accept`, it refuses without a
 terminal, under `CI`, or with `TSLAWS_AGENT` set. Name one `*.proposed.laws.ts` file, or pass `--all` for every one. For
