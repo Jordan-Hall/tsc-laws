@@ -199,10 +199,13 @@ export function build(compiler: string, files: string[], cwd: string): BuildResu
   return { outDir, diagnostics: `${run.stdout ?? ''}${run.stderr ?? ''}`.trim(), ok: run.status === 0 };
 }
 
-function nodeTypesPresent(cwd: string): boolean {
+/** Every `node_modules/@types` from `cwd` upwards: where the compiler looks for global declarations by default. */
+function typeRootsOf(cwd: string): string[] {
+  const roots: string[] = [];
   for (let dir = resolve(cwd); ; dir = dirname(dir)) {
-    if (existsSync(join(dir, 'node_modules', '@types', 'node'))) return true;
-    if (dirname(dir) === dir) return false;
+    const candidate = join(dir, 'node_modules', '@types');
+    if (existsSync(candidate)) roots.push(candidate);
+    if (dirname(dir) === dir) return roots;
   }
 }
 
@@ -217,7 +220,7 @@ function buildBuiltin(args: string[], files: string[], cwd: string, outDir: stri
     moduleResolution: ts.ModuleResolutionKind.Bundler,
     noEmitOnError: false,
     // Every @types package in the tree is a parse the laws rarely need; none is read unless `types` says so or the laws fail
-    // to compile without node's (below).
+    // to compile without them (below).
     ...(parsed.options.types === undefined ? { types: [] } : {}),
     // The DOM declarations are a megabyte to parse; only laws that run in a page (or an `lib` setting) ask for them.
     ...(parsed.options.lib === undefined && !files.some((f) => /\.(browser|e2e)\.laws\.[cm]?ts$/.test(f))
@@ -238,14 +241,16 @@ function buildBuiltin(args: string[], files: string[], cwd: string, outDir: stri
   const roots = parsed.fileNames.map((f) => resolve(cwd, f));
   let program = ts.createProgram(roots, options, host);
   let diagnostics = ts.getPreEmitDiagnostics(program);
-  // An error may only be a missing `process` or `node:fs`: try again with node's types before reporting it.
+  // An error may only be a global the narrow setup left out (`process`, `document`, a test runner's types): check again
+  // with exactly what the compiler's own defaults include before reporting it, so no law is judged on less than before.
   if (
-    parsed.options.types === undefined &&
-    diagnostics.some((d) => d.category === ts.DiagnosticCategory.Error) &&
-    nodeTypesPresent(cwd)
+    (options.types !== parsed.options.types || options.lib !== parsed.options.lib) &&
+    diagnostics.some((d) => d.category === ts.DiagnosticCategory.Error)
   ) {
-    const withNode = ts.createProgram(roots, { ...options, types: ['node'] }, host);
-    program = withNode;
+    // `@types` is looked up from the project, not from wherever the process happens to be (the compiler remembers the first directory it saw).
+    const typeRoots = parsed.options.typeRoots ?? typeRootsOf(cwd);
+    const full: ts.CompilerOptions = { ...options, types: parsed.options.types, lib: parsed.options.lib, typeRoots };
+    program = ts.createProgram(roots, full, host);
     diagnostics = ts.getPreEmitDiagnostics(program);
   }
   program.emit(undefined, (name, text) => {

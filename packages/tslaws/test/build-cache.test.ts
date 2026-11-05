@@ -8,7 +8,7 @@ import { build } from '../dist/compile.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = mkdtempSync(join(here, '..', '.tmp-cache-'));
-after(() => rmSync(root, { recursive: true, force: true }));
+after(() => rmSync(root, { recursive: true, force: true, maxRetries: 5 }));
 
 function project(name: string): string {
   const dir = join(root, name);
@@ -73,6 +73,29 @@ describe('build cache', () => {
     const built = build('builtin', ['a.laws.ts'], dir);
     assert.equal(built.diagnostics, '');
     assert.equal(built.ok, true);
+  });
+
+  it('judges a law on every global the compiler would include by default', () => {
+    const dir = join(root, 'globals');
+    mkdirSync(join(dir, 'node_modules', '@types', 'fake'), { recursive: true });
+    writeFileSync(join(dir, 'node_modules', '@types', 'fake', 'index.d.ts'), 'declare const fakeGlobal: number;\n');
+    writeFileSync(join(dir, 'node_modules', '@types', 'fake', 'package.json'), '{"name":"@types/fake","version":"1.0.0","types":"index.d.ts"}');
+    writeFileSync(
+      join(dir, 'a.laws.ts'),
+      "import { law } from 'tslaws';\nlaw('globals are visible', (n: number) => typeof document === 'undefined' && fakeGlobal === fakeGlobal && n === n);\n",
+    );
+    const built = build('builtin', ['a.laws.ts'], dir);
+    assert.equal(built.diagnostics, '');
+    assert.equal(built.ok, true);
+  });
+
+  it('still reports a type error that no setup fixes', () => {
+    const dir = join(root, 'real-error');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'a.laws.ts'), "import { law } from 'tslaws';\nlaw('wrong', (n: number) => nope(n));\n");
+    const built = build('builtin', ['a.laws.ts'], dir);
+    assert.equal(built.ok, false);
+    assert.match(built.diagnostics, /nope/);
   });
 
   it('still reports a type error on the second run', () => {
