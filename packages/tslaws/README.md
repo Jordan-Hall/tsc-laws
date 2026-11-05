@@ -189,8 +189,8 @@ tslaws check [files...] [--json] [--summary] [--watch] [--runs N] [--seed N] [--
   under `CI`, or with `TSLAWS_AGENT` set, unless a live delegation covers the project (never under `CI`).
 - `delegate grant` lends `accept` to agents for 1h, 8h (default), 1d or 7d (the most), for one project root. `delegate revoke`
   withdraws it and `delegate status` lists grants; `grant` and `revoke` need a terminal and refuse under `CI` or
-  `TSLAWS_AGENT`. The grant lives in `~/.tslaws/delegation.json`, outside the repository (always the real home directory;
-  there is no `tslaws` override, though a same-user agent can change its own `HOME`). A delegated `accept` appends to `.tslaws/accept.log` and prints `DELEGATED ACCEPT`.
+  `TSLAWS_AGENT`. The grant lives in `~/.tslaws/delegation.json`, outside the repository (found through the operating
+  system's user record, not `HOME`; an agent running as the same user can still write that file). A delegated `accept` appends to `.tslaws/accept.log` and prints `DELEGATED ACCEPT`.
   A grant is a person's decision, bounded in time, outside the repo, audited in `accept.log`. See [docs/laws.md](../../docs/laws.md#lending-accept-to-an-agent).
 - `check` exits 0 only when every law is `proved`, `bounded` or `tested`, nothing is `uncovered`, the files compile and the
   lock matches. `--json` adds a `hint` to each result, the concrete next action for an agent. `--summary` prints only the

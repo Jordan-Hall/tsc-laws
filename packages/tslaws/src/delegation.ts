@@ -11,7 +11,7 @@ import {
   statSync,
   writeFileSync,
 } from 'node:fs';
-import { homedir } from 'node:os';
+import { userInfo } from 'node:os';
 import { join, resolve, sep } from 'node:path';
 
 export interface Grant {
@@ -26,8 +26,20 @@ const durations: Record<string, number> = { '1h': hour, '8h': 8 * hour, '1d': 24
 
 const regrant = 'run `tslaws delegate grant` at a terminal to lend accept for a limited time';
 
+/**
+ * The person's home directory from the operating system's user record (getpwuid on POSIX, the profile directory of the
+ * user token on Windows). HOME and USERPROFILE are ignored on purpose. An empty string means it cannot be found.
+ */
+export function userHome(): string {
+  try {
+    return userInfo().homedir;
+  } catch {
+    return '';
+  }
+}
+
 /** The grants file under a home directory: the real one by default, a temp directory in unit tests. */
-export function delegationFile(home: string = homedir()): string {
+export function delegationFile(home: string = userHome()): string {
   return join(home, '.tslaws', 'delegation.json');
 }
 
@@ -50,6 +62,7 @@ function same(a: string, b: string): boolean {
 
 /** The grants directory must resolve inside the real home directory, not through a symlink elsewhere. */
 function grantsDirProblem(home: string): string | undefined {
+  if (home === '') return 'the home directory is unknown (the user database gave none)';
   const dir = join(home, '.tslaws');
   if (!existsSync(dir)) return undefined;
   const base = realRoot(home);
@@ -57,6 +70,15 @@ function grantsDirProblem(home: string): string | undefined {
   if (base === undefined || real === undefined) return `${dir} cannot be resolved`;
   const inside = real.length > base.length && same(real.slice(0, base.length), base) && real[base.length] === sep;
   return inside ? undefined : `${dir} resolves outside the home directory (${real})`;
+}
+
+/** A home directory that is the project root, or inside it, is project-controlled and never a trust root. */
+function homeInsideRoot(home: string, root: string): string | undefined {
+  const h = home === '' ? undefined : realRoot(home);
+  if (h === undefined) return undefined;
+  const inside =
+    same(h, root) || (h.length > root.length && same(h.slice(0, root.length), root) && h[root.length] === sep);
+  return inside ? `the home directory ${h} is inside the project root` : undefined;
 }
 
 export type Grants = { ok: true; grants: Grant[] } | { ok: false; reason: string };
@@ -73,7 +95,7 @@ function isGrant(value: unknown): value is Grant {
 }
 
 /** Reads the grants. A missing file is an empty list; an unsafe or malformed one is an error. */
-export function readGrants(home: string = homedir()): Grants {
+export function readGrants(home: string = userHome()): Grants {
   const file = delegationFile(home);
   const place = grantsDirProblem(home);
   if (place !== undefined) return { ok: false, reason: place };
@@ -97,6 +119,8 @@ export function readGrants(home: string = homedir()): Grants {
 
 function writeGrants(grants: Grant[], home: string): string | undefined {
   const file = delegationFile(home);
+  const unknown = grantsDirProblem(home);
+  if (unknown !== undefined) return unknown;
   mkdirSync(join(home, '.tslaws'), { recursive: true, mode: 0o700 });
   const place = grantsDirProblem(home);
   if (place !== undefined) return place;
@@ -109,9 +133,11 @@ function writeGrants(grants: Grant[], home: string): string | undefined {
 export type Verdict = { ok: true; grant: Grant } | { ok: false; reason: string };
 
 /** The live grant for a project root. Real paths are compared, and a grant naming a symlink never matches. */
-export function findGrant(root: string, now: Date, home: string = homedir()): Verdict {
+export function findGrant(root: string, now: Date, home: string = userHome()): Verdict {
   const real = realRoot(root);
   if (real === undefined) return { ok: false, reason: 'the project root does not exist' };
+  const inside = homeInsideRoot(home, real);
+  if (inside !== undefined) return { ok: false, reason: inside };
   const read = readGrants(home);
   if (!read.ok) return { ok: false, reason: read.reason };
   const named = read.grants.filter((g) => same(g.root, real) && realRoot(g.root) !== undefined);
@@ -156,10 +182,12 @@ export function personOnly(input: { isTTY: boolean; env: NodeJS.ProcessEnv }): b
 }
 
 /** Records a grant for a project; returns it, or the reason it was refused. */
-export function grantFor(root: string, ms: number, now: Date, home: string = homedir()): Grant | string {
+export function grantFor(root: string, ms: number, now: Date, home: string = userHome()): Grant | string {
   const real = realRoot(root);
   if (real === undefined) return `${root} does not exist`;
   if (!same(resolve(root), real)) return `${root} is a symlink to ${real}; name the real directory`;
+  const inside = homeInsideRoot(home, real);
+  if (inside !== undefined) return inside;
   const read = readGrants(home);
   if (!read.ok) return read.reason;
   const grant: Grant = { root: real, expires: new Date(now.getTime() + ms).toISOString() };
@@ -168,7 +196,7 @@ export function grantFor(root: string, ms: number, now: Date, home: string = hom
 }
 
 /** Removes the grants for a project; returns how many, or the reason it was refused. */
-export function revokeFor(root: string, home: string = homedir()): number | string {
+export function revokeFor(root: string, home: string = userHome()): number | string {
   const real = realRoot(root);
   if (real === undefined) return `${root} does not exist`;
   const read = readGrants(home);
@@ -181,7 +209,7 @@ export function revokeFor(root: string, home: string = homedir()): number | stri
   return read.grants.length - kept.length;
 }
 
-export function describeGrants(now: Date, home: string = homedir()): string[] {
+export function describeGrants(now: Date, home: string = userHome()): string[] {
   const read = readGrants(home);
   if (!read.ok) return [`delegation unusable: ${read.reason}`];
   if (read.grants.length === 0) return ['no delegations'];
