@@ -166,7 +166,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" release/* --title "$GITHUB_REF_NAME" --generate-notes
+          # Notes come from this version's CHANGELOG-LAWS.md section; a hand-made tag without one falls back to generated notes.
+          rm -f release-notes.md
+          node scripts/ci/laws-auto-release.mjs notes "${GITHUB_REF_NAME#laws-v}" release-notes.md
+          if [ -s release-notes.md ]; then notes=(--notes-file release-notes.md); else notes=(--generate-notes); fi
+          gh release create "$GITHUB_REF_NAME" release/* --title "$GITHUB_REF_NAME" "${notes[@]}"
 
   # Publishes to npm on a release tag, using the repository secret NPM_TOKEN (Settings > Secrets and variables > Actions),
   # or npm trusted publishing if you set that up instead. See RELEASING-LAWS.md.

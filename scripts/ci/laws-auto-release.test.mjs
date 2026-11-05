@@ -6,6 +6,7 @@ import {
   insertSection,
   nextVersion,
   parseMessage,
+  releaseNotes,
   plan,
   renderSection,
   skipReason,
@@ -123,4 +124,15 @@ test('the triggering commit decides [skip release], not a newer head', () => {
   assert.equal(run({ head: newer, trigger: undefined }).release, false);
   // release commits skip either way
   assert.equal(run({ trigger: parseMessage('chore(release): tslaws 0.3.3') }).release, false);
+});
+
+test('release notes are the version section without its heading', () => {
+  const log = '# T\n\nIntro.\n\n## 0.3.3\n\n- fix: a\n- feat: b\n\n## 0.3.2\n\n- old\n';
+  assert.equal(releaseNotes(log, '0.3.3'), '- fix: a\n- feat: b\n');
+  assert.equal(releaseNotes(log, '0.3.2'), '- old\n');
+  assert.equal(releaseNotes(log.replaceAll('\n', '\r\n'), '0.3.3'), '- fix: a\n- feat: b\n');
+  // a missing section, a version that is only a prefix of another, and an empty section give nothing
+  assert.equal(releaseNotes(log, '0.3'), undefined);
+  assert.equal(releaseNotes(log, '9.9.9'), undefined);
+  assert.equal(releaseNotes('## 1.0.0\n\n## 0.9.0\n\n- x\n', '1.0.0'), undefined);
 });
