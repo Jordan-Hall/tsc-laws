@@ -395,6 +395,8 @@ export default ({ cwd }) => ({
 });
 ```
 
+A plugin for `.tsrx` templates compiled by the public `@tsrx/ripple` compiler is in `packages/tslaws/test/fixtures/tsrx/tsrx-plugin.mjs`.
+
 The plugins run before the built-in resolver and apply to every browser law (`check`, `ui`, `mcp`), including the
 component laws that mount a component. End-to-end laws bundle nothing: they drive your running app. `mutate` copies only
 compiled output, so a file the compiler does not emit (a template, a stylesheet) resolves to the file beside the source. Keep in mind that laws

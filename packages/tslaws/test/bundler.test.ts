@@ -1,7 +1,6 @@
 // Bundler plugins: tslaws.json `bundlerPlugins` teaches the browser bundler a source format. The unit tests need only
-// the build in dist/. The browser tests prove it with Crown's `.tsrx` templates and also need Chrome, Edge or Chromium
-// (or TSLAWS_BROWSER), the built compiler in TSC_LAWS_BIN, and CROWN_TSRX_DIST: the `dist` directory of
-// packages/framework/tsrx in a Crown checkout, built (its node_modules must hold @crown/framework).
+// the build in dist/. The browser tests prove it with `.tsrx` templates compiled by the public @tsrx/ripple compiler and
+// also need Chrome, Edge or Chromium (or TSLAWS_BROWSER) and the built compiler in TSC_LAWS_BIN.
 import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
@@ -114,21 +113,7 @@ describe('loadBundlerPlugins', () => {
   });
 });
 
-const distValue = process.env.CROWN_TSRX_DIST;
-const tsrxDist =
-  distValue === undefined || distValue === ''
-    ? undefined
-    : distValue.startsWith('file:')
-      ? fileURLToPath(distValue)
-      : distValue;
-const skip =
-  compiler === undefined || !hasBrowser()
-    ? 'needs TSC_LAWS_BIN and a browser'
-    : tsrxDist === undefined
-      ? 'set CROWN_TSRX_DIST to the built dist directory of packages/framework/tsrx in a Crown checkout (not set)'
-      : !existsSync(join(tsrxDist, 'index.js'))
-        ? `CROWN_TSRX_DIST (${tsrxDist}) has no index.js: build @crown/tsrx first`
-        : false;
+const skip = compiler === undefined || !hasBrowser() ? 'needs TSC_LAWS_BIN and a browser' : false;
 
 function project(name: string, config: Record<string, unknown> | undefined): CheckOptions {
   const cwd = join(root, name);
@@ -138,20 +123,20 @@ function project(name: string, config: Record<string, unknown> | undefined): Che
     'src/styled.css': readFileSync(join(fixtures, 'styled.css'), 'utf8'),
     'src/dot.png': readFileSync(join(fixtures, 'dot.png')),
     'src/badge.browser.laws.ts': [
-      "import { mount as render, flushSync } from '@crown/framework/dom';",
+      "import { mount as render, flushSync } from 'ripple';",
       "import { mount } from 'tslaws/browser';",
       "import Badge from './Badge.tsrx';",
       "import Styled from './Styled.tsrx';",
       'export law badgeShowsItsLabel(label: string) {',
       '  const holder = mount();',
-      "  render(Badge({ classes: 'badge', label }), holder);",
+      "  render(Badge, { target: holder, props: { classes: 'badge', label } });",
       '  flushSync();',
       "  const span = holder.querySelector('span');",
       "  return span !== null && span.className === 'badge' && span.textContent === label;",
       '}',
       'export async law styledBadgeKeepsItsCssAndImage(label: string) {',
       '  const holder = mount();',
-      '  render(Styled({ label }), holder);',
+      '  render(Styled, { target: holder, props: { label } });',
       '  flushSync();',
       "  const span = holder.querySelector('span');",
       "  const img = holder.querySelector('img');",
@@ -161,7 +146,7 @@ function project(name: string, config: Record<string, unknown> | undefined): Che
       '}',
       'export law badgeShowsTheWrongText(label: string) {',
       '  const holder = mount();',
-      "  render(Badge({ classes: 'badge', label }), holder);",
+      "  render(Badge, { target: holder, props: { classes: 'badge', label } });",
       '  flushSync();',
       '  return holder.textContent === `Label: ${label}`;',
       '}',
