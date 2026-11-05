@@ -113,7 +113,7 @@ export function coverFiles(cwd: string, globs: string[]): string[] {
       else {
         const file = relative(cwd, full).replaceAll('\\', '/');
         if (!(js ? /\.(ts|tsx|mts|cts|js)$/ : /\.(ts|tsx|mts|cts)$/).test(file)) continue;
-        if (/\.d\.(ts|mts|cts)$/.test(file) || /\.laws\.ts$/.test(file)) continue;
+        if (/\.d\.(ts|mts|cts)$/.test(file) || file.endsWith('.laws.ts')) continue;
         if (covered(file) && !isLaws(file)) found.push(file);
       }
     }
