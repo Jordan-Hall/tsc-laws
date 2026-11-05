@@ -549,6 +549,13 @@ shrunk. If `reset` fails to reset when the count is exactly 3, the counterexampl
 the long sequence that first failed. Keep the operation union small so shrinking can reach a minimal sequence. Stateful
 laws are `tested`: the prover does not model `apply` callbacks.
 
+What shrinking guarantees for an array input such as the operations, for the same seed always giving the same result: a
+failing array of up to 12 elements shrinks to a shortest failing subsequence of it, because every subset of its elements
+is tried, fewest remaining first. A longer array shrinks until removing any one run of consecutive elements, or any two
+separate runs, no longer fails, which is checked in full up to 33 elements; beyond that the search is cut at 50,000 smaller
+arrays for each step, so the result may be longer than a two-run minimum. The generators produce up to 8 elements for an array type, so
+there the result is always a shortest failing subsequence.
+
 In a browser law the operations are clicks and `apply` waits for the page to settle:
 
 ```ts
