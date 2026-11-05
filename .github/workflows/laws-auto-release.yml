@@ -72,11 +72,26 @@ jobs:
             moved)
               echo "::notice::main moved before the release push, so nothing was pushed. The newer push releases."
               ;;
-            protected)
-              msg="main is protected, so no release was made for tslaws $VERSION (nothing was pushed, no tag). To release automatically, allow the Actions bot to bypass the ruleset (Settings > Rules > the main ruleset > Bypass list > add the GitHub Actions app or a repository role), or release through a pull request. See RELEASING-LAWS.md."
+            protected-*)
+              bypass='allow the Actions bot to bypass it (Settings > Rules > Rulesets > the ruleset > Bypass list > add the GitHub Actions app or a repository role)'
+              case "$kind" in
+                protected-branch)
+                  why="the ruleset on main rejected the release commit, so the main ruleset needs a bypass for the Actions bot (Settings > Rules > the main ruleset > Bypass list > add the GitHub Actions app or a repository role), or releases must go through a pull request."
+                  ;;
+                protected-tag)
+                  why="the ruleset on tags rejected $TAG, so the tag ruleset (Settings > Rules, the ruleset targeting tags matching laws-v*) needs a bypass for the Actions bot, or must not block creation of laws-v* tags."
+                  ;;
+                protected-both)
+                  why="rulesets rejected both the release commit on main and the tag $TAG. The main ruleset needs a bypass for the Actions bot (or releases must go through a pull request), and the tag ruleset (the one targeting tags matching laws-v*) needs a bypass for the Actions bot or must not block creation of laws-v* tags."
+                  ;;
+                *)
+                  why="a repository rule blocked the push, and the git output does not say which ref. Check the rulesets for main and for tags matching laws-v*, and $bypass."
+                  ;;
+              esac
+              msg="No release was made for tslaws $VERSION (nothing was pushed, no tag): $why See RELEASING-LAWS.md."
               echo "::warning::$msg"
               {
-                echo '### Release not made: main is protected'
+                echo '### Release not made: a ruleset blocked the push'
                 echo
                 echo "$msg"
               } >>"$GITHUB_STEP_SUMMARY"

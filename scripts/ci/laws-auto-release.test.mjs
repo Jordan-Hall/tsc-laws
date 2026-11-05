@@ -138,16 +138,50 @@ test('release notes are the version section without its heading', () => {
   assert.equal(releaseNotes('## 1.0.0\n\n## 0.9.0\n\n- x\n', '1.0.0'), undefined);
 });
 
-test('classifyPushFailure: a repository rule violation is protected', () => {
+const branchLog = [
+  'remote: error: GH013: Repository rule violations found for refs/heads/main.',
+  'remote: - Changes must be made through a pull request.',
+  'To https://github.com/Jordan-Hall/tsc-laws',
+  ' ! [remote rejected] HEAD -> main (push declined due to repository rule violations)',
+  ' ! [remote rejected] laws-v0.6.5 -> laws-v0.6.5 (atomic transaction failed)',
+  'error: failed to push some refs to https://github.com/Jordan-Hall/tsc-laws',
+].join('\n');
+const tagLog = [
+  'remote: error: GH013: Repository rule violations found for refs/tags/laws-v0.6.5.',
+  'remote: - Cannot create ref due to creations being restricted.',
+  'To https://github.com/Jordan-Hall/tsc-laws',
+  ' ! [remote rejected] HEAD -> main (atomic transaction failed)',
+  ' ! [remote rejected] laws-v0.6.5 -> laws-v0.6.5 (push declined due to repository rule violations)',
+  'error: failed to push some refs to https://github.com/Jordan-Hall/tsc-laws',
+].join('\n');
+
+test('classifyPushFailure: the owner log (rule on main, tag only atomic) is protected-branch', () => {
+  assert.equal(classifyPushFailure(branchLog), 'protected-branch');
+});
+
+test('classifyPushFailure: a tag-only rule violation is protected-tag', () => {
+  assert.equal(classifyPushFailure(tagLog), 'protected-tag');
+});
+
+test('classifyPushFailure: both refs rejected by rules is protected-both', () => {
   const log = [
-    'remote: error: GH013: Repository rule violations found for refs/heads/main.',
-    'remote: - Changes must be made through a pull request.',
-    'To https://github.com/Jordan-Hall/tsc-laws',
     ' ! [remote rejected] HEAD -> main (push declined due to repository rule violations)',
-    ' ! [remote rejected] laws-v0.6.5 -> laws-v0.6.5 (atomic transaction failed)',
-    'error: failed to push some refs to https://github.com/Jordan-Hall/tsc-laws',
+    ' ! [remote rejected] laws-v0.6.5 -> laws-v0.6.5 (push declined due to repository rule violations)',
   ].join('\n');
-  assert.equal(classifyPushFailure(log), 'protected');
+  assert.equal(classifyPushFailure(log), 'protected-both');
+});
+
+test('classifyPushFailure: GH013 without per-ref lines falls back to the named refs', () => {
+  assert.equal(
+    classifyPushFailure('remote: error: GH013: Repository rule violations found for refs/heads/main.\nremote: - x'),
+    'protected-branch',
+  );
+  assert.equal(
+    classifyPushFailure('remote: error: GH013: Repository rule violations found for refs/tags/laws-v1.0.0.'),
+    'protected-tag',
+  );
+  assert.equal(classifyPushFailure('remote: error: GH013: Repository rule violations found.'), 'protected-unknown');
+  assert.equal(classifyPushFailure('remote: Changes must be made through a pull request.'), 'protected-unknown');
 });
 
 test('classifyPushFailure: a non-fast-forward push means main moved', () => {

@@ -39,21 +39,26 @@ code, it releases (the manual steps above are then only a fallback):
 Setup: the workflow pushes to `main` as `github-actions[bot]`, so Actions need read and write workflow permissions, and the
 bot must be able to push to `main`.
 
-### When main is protected
+### When a ruleset blocks the release
 
-A version bump is a commit, and it cannot be pushed to a `main` whose ruleset requires a pull request. While the ruleset has no
-bypass for the bot, the workflow cannot release. It does not fail: it tries the push, sees GitHub refuse it (`GH013`, "Changes
-must be made through a pull request"), prints one warning, writes it to the job summary, and stops. Nothing is pushed, no tag is
-made, `laws.yml` is not started, and the run is green. The local release commit and tag exist only in that run's checkout and are
+A version bump is a commit, and the release tags it. A ruleset can block either. While a ruleset that requires a pull request
+has no bypass for the bot, or a tag ruleset restricts creating `laws-v*` tags, the workflow cannot release. It does not fail: it
+pushes the commit and tag atomically, reads which ref GitHub rejected from git's per-ref lines (`GH013`, "push declined due
+to repository rule violations"), prints one warning, writes it to the job summary, and stops. Nothing is pushed, no tag is made,
+`laws.yml` is not started, and the run is green. The local release commit and tag exist only in that run's checkout and are
 discarded; a re-run starts from a clean checkout and plans again.
 
-To release automatically, choose one:
+The warning names the ref that was rejected:
 
-- Allow the bot to bypass: Settings > Rules > Rulesets > the `main` ruleset > Bypass list > add the GitHub Actions app (or a
-  repository role the bot holds). The next push to `main` then releases.
-- Release through a pull request: bump the versions and `CHANGELOG-LAWS.md` in a pull request, merge it, then tag the merge
-  commit by hand (`git tag -a laws-v<version> -m "tsc-laws <version>" && git push origin laws-v<version>`; the tag rule must
-  allow it) or run `gh workflow run laws.yml --ref laws-v<version>`.
+- **main** (the commit): the `main` ruleset needs a bypass for the bot (Settings > Rules > Rulesets > the `main` ruleset >
+  Bypass list > add the GitHub Actions app or a repository role the bot holds), or releases must go through a pull request: bump
+  the versions and `CHANGELOG-LAWS.md` in a pull request, merge it, then tag the merge commit by hand
+  (`git tag -a laws-v<version> -m "tsc-laws <version>" && git push origin laws-v<version>`) or run
+  `gh workflow run laws.yml --ref laws-v<version>`.
+- **the tag**: the ruleset that targets tags matching `laws-v*` (Settings > Rules) needs a bypass for the bot, or must not block
+  creating those tags.
+- **both**: do both.
+- **unknown**: a repository rule blocked the push but git did not say which ref. Check both rulesets.
 
 A push refused because `main` moved (not a fast-forward) ends with a notice and nothing pushed; the newer push releases. Any
 other failure (authentication, network) still fails the run and shows git's output.
