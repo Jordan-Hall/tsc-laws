@@ -42,10 +42,30 @@ export function hasCodeChange(paths) {
   return paths.some(isCode);
 }
 
-/** The reason not to release for the head commit, or undefined. */
-export function skipReason(head) {
+/** Splits a full commit message into { subject, body }. */
+export function parseMessage(message) {
+  const [subject = '', ...rest] = (message ?? '').replace(/\r\n/g, '\n').split('\n');
+  return { subject, body: rest.join('\n').trim() };
+}
+
+/**
+ * The reason not to release, or undefined.
+ *
+ * `trigger` is the commit that started the run (github.event.head_commit, absent on workflow_dispatch). The run checks out
+ * the latest main, which may be newer than the trigger when another push landed first, so:
+ *  - a release commit at HEAD never releases (the tag is on it, nothing is left to release);
+ *  - `[skip release]` is read from the trigger when there is one, so a marker on the triggering merge is honoured even if
+ *    HEAD moved, and a marker only on a newer HEAD does not cancel the trigger's release (that newer push has its own run,
+ *    which honours its own marker; this one then also ships the newer commit, as it would without any marker);
+ *  - with no trigger (manual run) the marker is read from HEAD.
+ */
+export function skipReason(head, trigger) {
   if (RELEASE_SUBJECT.test(head.subject)) return 'the head commit is a release commit';
-  if (SKIP_MARKER.test(`${head.subject}\n${head.body ?? ''}`)) return 'the head commit says [skip release]';
+  if (trigger && RELEASE_SUBJECT.test(trigger.subject)) return 'the triggering commit is a release commit';
+  const marked = trigger ?? head;
+  if (SKIP_MARKER.test(`${marked.subject}\n${marked.body ?? ''}`)) {
+    return `the ${trigger ? 'triggering' : 'head'} commit says [skip release]`;
+  }
   return undefined;
 }
 
@@ -85,8 +105,8 @@ export function insertSection(changelog, section) {
 }
 
 /** The whole decision, from plain data. */
-export function plan({ currentVersion, head, commits, paths, tagExists }) {
-  const skip = skipReason(head);
+export function plan({ currentVersion, head, trigger, commits, paths, tagExists }) {
+  const skip = skipReason(head, trigger);
   if (skip) return { release: false, reason: `no release: ${skip}` };
   if (!hasCodeChange(paths)) {
     return {
@@ -143,8 +163,9 @@ function main(argv) {
     const head = readCommits('-1')[0] ?? { author: '', subject: '', body: '' };
     const base = last ?? git('hash-object', '-t', 'tree', '/dev/null');
     const paths = git('diff', '--name-only', base, 'HEAD').split('\n').filter(Boolean);
+    const trigger = process.env.TRIGGER_MESSAGE?.trim() ? parseMessage(process.env.TRIGGER_MESSAGE) : undefined;
     const currentVersion = JSON.parse(readFileSync('packages/tslaws/package.json', 'utf8')).version;
-    const result = plan({ currentVersion, head, commits, paths, tagExists: (tag) => tags.includes(tag) });
+    const result = plan({ currentVersion, head, trigger, commits, paths, tagExists: (tag) => tags.includes(tag) });
     const outputs = {
       release: result.release,
       version: result.version ?? '',

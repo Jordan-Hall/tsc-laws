@@ -27,7 +27,7 @@ code, it releases (the manual steps above are then only a fallback):
   `chore(release): tslaws <version>`, tags `laws-v<version>`, pushes both to `main`, and runs `laws.yml` on the tag (a tag
   pushed with the default token starts no workflow by itself). That run tests, builds, publishes the GitHub release and
   publishes to npm. The auto-release workflow never publishes to npm itself.
-- To skip a release, put `[skip release]` in the head commit message (the merge or squash commit). The release commit is
+- To skip a release, put `[skip release]` in the message of the merge or squash commit that triggers the run (a manual run reads it from the latest main commit instead). If main moves before the release push, the push fails loudly and nothing is pushed; the newer push's own run releases. The release commit is
   never released again.
 - To retry: if the tag exists but the pipeline failed, run `gh workflow run laws.yml --ref laws-v<version>` (or re-run it in
   the Actions tab). If no tag was pushed, re-run the `tslaws auto release` workflow. It does nothing when the tag exists.

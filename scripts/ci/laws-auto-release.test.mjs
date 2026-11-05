@@ -5,6 +5,7 @@ import {
   hasCodeChange,
   insertSection,
   nextVersion,
+  parseMessage,
   plan,
   renderSection,
   skipReason,
@@ -106,4 +107,20 @@ test('versions and changelog', () => {
   assert.equal(renderSection('0.3.3', []), '## 0.3.3\n\n- Maintenance release.\n');
   const out = insertSection('# T\n\nIntro.\n\n## 0.3.2\n\n- old\n', section);
   assert.match(out, /Intro\.\n\n## 0\.3\.3\n\n- fix: a\n- feat: b\n\n## 0\.3\.2/);
+});
+
+test('the triggering commit decides [skip release], not a newer head', () => {
+  const marked = parseMessage('Merge pull request #9\n\ndocs tweak [skip release]');
+  assert.deepEqual(parseMessage('a\r\nb\r\n'), { subject: 'a', body: 'b' });
+  // marker on the trigger, newer unmarked head: skip
+  const a = run({ trigger: marked });
+  assert.equal(a.release, false);
+  assert.match(a.reason, /triggering commit says \[skip release\]/);
+  // marker only on a newer head: the triggering merge still releases
+  const newer = { ...head, subject: 'fix: later [skip release]' };
+  assert.equal(run({ head: newer, trigger: parseMessage('fix: code merge') }).release, true);
+  // no trigger (workflow_dispatch): the head marker applies
+  assert.equal(run({ head: newer, trigger: undefined }).release, false);
+  // release commits skip either way
+  assert.equal(run({ trigger: parseMessage('chore(release): tslaws 0.3.3') }).release, false);
 });
