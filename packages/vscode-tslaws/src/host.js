@@ -187,6 +187,8 @@ function activateExtension(vscode, context, io) {
   };
 
   /** Rebuild everything shown from the records and the text as it is now. */
+  const setHasLaws = () =>
+    vscode.commands.executeCommand('setContext', 'tslaws.hasLaws', lawFiles.length > 0 || (records?.length ?? 0) > 0);
   const rebuild = () => {
     const memo = new Map();
     const read = (rel) => (memo.has(rel) ? memo.get(rel) : (memo.set(rel, readText(rel)), memo.get(rel)));
@@ -202,11 +204,7 @@ function activateExtension(vscode, context, io) {
     for (const e of vscode.window.visibleTextEditors) statusDecor.decorate(e);
     lawsTree.refresh();
     lawsTree.setSummary(failingSummary());
-    void vscode.commands.executeCommand(
-      'setContext',
-      'tslaws.hasLaws',
-      lawFiles.length > 0 || (records?.length ?? 0) > 0,
-    );
+    void setHasLaws();
     updateStatus();
   };
   const rebuildSoon = () => {
@@ -406,16 +404,20 @@ function activateExtension(vscode, context, io) {
 
   /** A file changed: choose the laws that cover it and ask for a run. */
   let busyTimer = null;
+  const busyDocs = new Map();
   const changed = (doc, live = false) => {
     if (doc.uri.scheme !== 'file' || root() === undefined) return;
     if (live) {
       const verdict = guard.check();
       if (!verdict.ok && verdict.reason === 'busy') {
         // The machine is busy: look again in a few seconds, once.
+        busyDocs.set(doc.uri.fsPath, doc);
         if (busyTimer === null)
           busyTimer = setTimeout(() => {
             busyTimer = null;
-            changed(doc, true);
+            const waiting = [...busyDocs.values()];
+            busyDocs.clear();
+            for (const d of waiting) changed(d, true);
           }, 4000);
         return;
       }
@@ -579,6 +581,7 @@ function activateExtension(vscode, context, io) {
   const refreshLawFiles = async () => {
     const found = await vscode.workspace.findFiles('**/*.laws.ts', '**/{node_modules,.tslaws}/**');
     lawFiles = found.map((u) => relativeTo(u.fsPath, root() ?? ''));
+    void setHasLaws(); // the Laws view is gated on tslaws.hasLaws, which depends on this list
     await testing.discover();
   };
   const watcher = vscode.workspace.createFileSystemWatcher('**/*.laws.ts');
