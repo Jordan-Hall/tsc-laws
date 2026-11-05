@@ -208,7 +208,7 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
               { file: law.file, name: law.name, symbol: law.symbol, jsFile: jsPath(built.outDir, law.file), generators: types.generators },
               lawOptions,
             )
-          : await runLawGuarded(built.outDir, law, lawOptions);
+          : await runLawGuarded(built.outDir, law, lawOptions, types.plans);
     } catch (error) {
       add(law, 'error', method, { message: (error as Error).message });
       return;

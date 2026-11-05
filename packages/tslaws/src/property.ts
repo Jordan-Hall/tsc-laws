@@ -1,16 +1,21 @@
 import { Worker } from 'node:worker_threads';
 import { readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import * as fc from 'fast-check';
+import type * as fc from 'fast-check';
 import ts from 'typescript';
-import { GeneratorFactory, UnsupportedType } from './generators.ts';
+import { GeneratorFactory } from './generators.ts';
+import { arbitraryOf, UnsupportedType, type Plan } from './plan.ts';
+import { type PropertyOutcome } from './propertyRun.ts';
 import { WorkerPool } from './pool.ts';
 import type { Shape } from './smt.ts';
-import { decodeExample, encodeExample } from './regressions.ts';
 import type { CheckOptions, ManifestLaw } from './types.ts';
+
+export { isDiscard, jsPath, runLaw, runProperty, summarise, type PropertyOutcome } from './propertyRun.ts';
 
 export interface LawTypes {
   generators: fc.Arbitrary<unknown>[];
+  /** The generators as data, for a worker that does not load TypeScript. */
+  plans: Plan[];
   shapes: Shape[];
 }
 
@@ -31,10 +36,6 @@ export function declarationFiles(outDir: string): string[] {
 
 export function dtsPath(outDir: string, file: string): string {
   return join(outDir, file.replace(/\.(ts|tsx|mts|cts)$/, '.d.ts'));
-}
-
-export function jsPath(outDir: string, file: string): string {
-  return join(outDir, file.replace(/\.(ts|tsx|mts|cts)$/, '.js'));
 }
 
 /** What the prover models of `type`: numbers, `int`s, bigints, strings, booleans, arrays and records of them. */
@@ -78,7 +79,7 @@ export function typesOf(program: ts.Program, outDir: string, law: ManifestLaw): 
   const signature = checker.getTypeOfSymbol(exported).getCallSignatures()[0];
   if (signature === undefined) throw new UnsupportedType(`law ${law.name} is not a function`);
   const factory = new GeneratorFactory(checker);
-  const generators: fc.Arbitrary<unknown>[] = [];
+  const plans: Plan[] = [];
   const shapes: Shape[] = [];
   for (const parameter of signature.getParameters()) {
     const declaration = parameter.valueDeclaration ?? parameter.declarations?.[0];
@@ -86,43 +87,10 @@ export function typesOf(program: ts.Program, outDir: string, law: ManifestLaw): 
     const type = checker.getTypeOfSymbolAtLocation(parameter, declaration);
     shapes.push(shapeOf(checker, type));
     const optional = (parameter.flags & ts.SymbolFlags.Optional) !== 0;
-    generators.push(factory.of(optional ? checker.getNonNullableType(type) : type));
+    plans.push(factory.plan(optional ? checker.getNonNullableType(type) : type));
   }
-  return { generators, shapes };
+  return { generators: plans.map(arbitraryOf), plans, shapes };
 }
-
-export function isDiscard(error: unknown): boolean {
-  return error instanceof Error && error.name === 'LawDiscard';
-}
-
-/** Runs `call` on generated inputs. `call` may be async (a law that waits, or one that runs in a browser). */
-export async function runProperty(
-  call: (...args: unknown[]) => unknown,
-  generators: fc.Arbitrary<unknown>[],
-  options: CheckOptions,
-): Promise<fc.RunDetails<unknown[]>> {
-  // fast-check needs at least one arbitrary: a law without parameters gets a stand-in and runs once.
-  const none = generators.length === 0;
-  const property = fc.asyncProperty(...((none ? [fc.constant(undefined)] : generators) as [fc.Arbitrary<unknown>]), async (...args: unknown[]) => {
-    try {
-      return (await call(...(none ? [] : args))) !== false;
-    } catch (error) {
-      if (isDiscard(error)) {
-        fc.pre(false);
-        return true;
-      }
-      throw error;
-    }
-  });
-  return (await fc.check(property as unknown as fc.IAsyncProperty<unknown[]>, {
-    numRuns: none ? 1 : options.runs,
-    seed: options.seed,
-    maxSkipsPerRun: 100,
-    ...(!none && options.regressionExamples?.length ? { examples: options.regressionExamples.map(decodeExample) } : {}),
-  })) as fc.RunDetails<unknown[]>;
-}
-
-export const runLaw = runProperty;
 
 export const compilerOptions: ts.CompilerOptions = {
   skipLibCheck: true,
@@ -132,42 +100,6 @@ export const compilerOptions: ts.CompilerOptions = {
   moduleResolution: ts.ModuleResolutionKind.Bundler,
   types: [],
 };
-
-/** The outcome of a law's property test, without the generated values' prototypes so it can cross a thread. */
-export interface PropertyOutcome {
-  failed: boolean;
-  numRuns: number;
-  seed: number;
-  /** Absent when the law failed because `assume` discarded nearly every input. */
-  counterexample?: string;
-  message?: string;
-  screenshot?: string;
-  /** The counterexample in the regression corpus's encoding; absent when it cannot be stored. */
-  encoded?: string;
-  /** Whether the counterexample is one that was replayed from the corpus. */
-  regression?: boolean;
-}
-
-export function summarise(details: fc.RunDetails<unknown[]>, options?: CheckOptions): PropertyOutcome {
-  const message = details.errorInstance instanceof Error ? details.errorInstance.message : undefined;
-  let encoded: string | undefined;
-  if (details.failed && details.counterexample !== null) {
-    try {
-      encoded = encodeExample(details.counterexample);
-    } catch {
-      // Not storable (a class instance, a function): it is reported but not kept.
-    }
-  }
-  return {
-    encoded,
-    regression: encoded !== undefined && options?.regressionExamples?.includes(encoded) === true,
-    failed: details.failed,
-    numRuns: details.numRuns,
-    seed: details.seed,
-    counterexample: details.counterexample === null ? undefined : fc.stringify(details.counterexample),
-    message,
-  };
-}
 
 const workers = new WorkerPool(() => {
   const ext = import.meta.url.endsWith('.ts') ? '.ts' : '.js';
@@ -181,6 +113,7 @@ export async function runLawGuarded(
   outDir: string,
   law: ManifestLaw,
   options: CheckOptions,
+  plans: Plan[],
 ): Promise<PropertyOutcome | 'timeout'> {
   const current = await workers.acquire();
   return new Promise((resolve, reject) => {
@@ -197,6 +130,6 @@ export async function runLawGuarded(
     };
     current.once('message', onMessage);
     // Functions cannot cross to the worker; it needs only the numbers.
-    current.postMessage({ outDir, law, options: { ...options, onEvent: undefined } });
+    current.postMessage({ outDir, law, plans, options: { ...options, onEvent: undefined } });
   });
 }
