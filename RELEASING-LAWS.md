@@ -14,6 +14,27 @@ The `tsc-laws` workflow then:
 3. publishes a GitHub release with those builds and the `tslaws` tarball,
 4. publishes to npm, if enabled (below).
 
+## Automatic releases
+
+Every push to `main` runs `.github/workflows/laws-auto-release.yml`. When the commits since the latest `laws-v*` tag change
+code, it releases (the manual steps above are then only a fallback):
+
+- Code is anything under `packages/tslaws`, `packages/tsc-ts`, `packages/vscode-tslaws` or `scripts`, plus `upstream.json`,
+  `package.json`, `package-lock.json` and `.github/workflows/laws.yml`. Markdown, `docs/`, `examples/`, `LICENSE`, `CHANGELOG*`
+  and other workflow files do not count, so a merge with only those releases nothing.
+- The bump is patch, minor if a commit subject starts with `feat`, major for `type!:` or a `BREAKING CHANGE:` footer.
+- It sets the version in both packages and the lockfile, adds a section to `CHANGELOG-LAWS.md`, commits
+  `chore(release): tslaws <version>`, tags `laws-v<version>`, pushes both to `main`, and runs `laws.yml` on the tag (a tag
+  pushed with the default token starts no workflow by itself). That run tests, builds, publishes the GitHub release and
+  publishes to npm. The auto-release workflow never publishes to npm itself.
+- To skip a release, put `[skip release]` in the head commit message (the merge or squash commit). The release commit is
+  never released again.
+- To retry: if the tag exists but the pipeline failed, run `gh workflow run laws.yml --ref laws-v<version>` (or re-run it in
+  the Actions tab). If no tag was pushed, re-run the `tslaws auto release` workflow. It does nothing when the tag exists.
+
+Setup: the workflow pushes to `main` as `github-actions[bot]`, so branch protection must let that actor push (a ruleset
+bypass for it), and Actions need read and write workflow permissions.
+
 ## npm
 
 `npm i -D tslaws` installs the runner and, as an optional dependency, the compiler for the machine
