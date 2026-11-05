@@ -367,6 +367,48 @@ The law file is `.ts`, so it calls `createElement` rather than writing JSX; `Cou
 
 Bootstrap the component inside `mount(...)` as you do in your app; decorators and metadata are emitted by the compiler.
 
+### Bundler plugins
+
+The browser bundler is esbuild, which loads `.ts`, `.tsx`, `.js` and `.json`. A project that writes components in another source
+format (`.tsrx`, `.svelte`, `.vue`) teaches the bundler that format with an esbuild plugin, listed in `tslaws.json`:
+
+```json
+{ "bundlerPlugins": ["./tools/tsrx-plugin.mjs"] }
+```
+
+Paths are relative to `tslaws.json`. Each module default-exports an esbuild `Plugin`, or a function (sync or async) that takes
+`{ cwd }`, the project root, and returns one:
+
+```js
+import { readFileSync } from 'node:fs';
+import { compile } from './my-compiler.mjs';
+
+export default ({ cwd }) => ({
+  name: 'my-format',
+  setup(build) {
+    build.onLoad({ filter: /\.tsrx$/ }, (args) => ({
+      contents: compile(readFileSync(args.path, 'utf8'), args.path),
+      loader: 'js',
+      resolveDir: cwd,
+    }));
+  },
+});
+```
+
+A plugin for `.tsrx` templates compiled by the public `@tsrx/ripple` compiler is in `packages/tslaws/test/fixtures/tsrx/tsrx-plugin.mjs`.
+
+The plugins run before the built-in resolver and apply to every browser law (`check`, `ui`, `mcp`), including the
+component laws that mount a component. End-to-end laws bundle nothing: they drive your running app. `mutate` copies only
+compiled output, so a file the compiler does not emit (a template, a stylesheet) resolves to the file beside the source. Keep in mind that laws
+are compiled to CommonJS, so a bare import reaches the bundler as `require()`: a package whose `exports` offer only the `import`
+condition needs the plugin to resolve it (`build.resolve(path, { kind: 'import-statement', resolveDir })`).
+
+A stylesheet a law imports (directly or through a template) is added to the page in a `<style>` element before the law's script runs, and an image or font it imports (`.png`, `.jpg`, `.svg`, `.woff2` and so on) is inlined as a data URL, so computed styles and images match the app.
+
+A plugin that cannot be loaded, or whose factory throws, makes each browser law of the run report `error`, naming the setting and
+the module. Without a plugin for the extension, a law that imports such a file reports an `error` that names the extension and
+the `bundlerPlugins` setting. The compiler does not know the format either: it reports the import as TS2307 in `compileDiagnostics`, which does not stop the bundle from running, and the imported value is untyped in the law.
+
 ## End-to-end laws
 
 There are three levels of law. All laws that need a browser share one suffix, `*.browser.laws.ts`; the import selects the level.
@@ -754,7 +796,7 @@ first failing law; raise the timeouts when it timed out.
 
 ## Settings
 
-`tslaws.json` takes optional run settings besides `cover`, `compilerOptions` and `e2e`:
+`tslaws.json` takes optional run settings besides `cover`, `compilerOptions`, `bundlerPlugins` and `e2e`:
 
 | Key                 | Meaning                                    | Default (`check`) |
 | ------------------- | ------------------------------------------ | ----------------- |
