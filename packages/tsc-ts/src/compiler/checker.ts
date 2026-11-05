@@ -29,13 +29,27 @@
 // | checker-elaboration.ts          | reporting relation errors at the failing subexpression  |
 // | checker-grammar.ts              | grammar checks                                          |
 // | checker-flow.ts                 | control flow narrowing                                  |
-import type { DeferredCollisionCheck } from './checker-generated-code.js';
+import type { ModuleSpecifierResult } from './node-builder-names.js';
 import type { EmitHelperFileLinks } from './checker-emit-helpers.js';
 import { sideOf } from './side-state.js';
 import type { Node, PatternAmbientModule, SourceFile } from './ast.js';
-import { CompactSymbolLinkTable, IntLinkTable, LinkTable, PagedIdSet, SparseLinkTable } from './link-tables.js';
+import {
+  CompactIntLinkTable,
+  CompactLinkTable,
+  IntLinkTable,
+  LinkTable,
+  PagedIdSet,
+  SparseLinkTable,
+} from './link-tables.js';
+import { ExprCheckRecord } from './expr-record.js';
 import { getErrorRangeForNode, getSourceFileOfNode } from './binder-utilities.js';
-import { Diagnostic, type DiagnosticMessage, Diagnostics, compareDiagnostics } from './diagnostics.js';
+import {
+  Diagnostic,
+  type DiagnosticMessage,
+  Diagnostics,
+  compareDiagnostics,
+  equalDiagnostics,
+} from './diagnostics.js';
 import {
   type CompilerOptions,
   ModuleKind,
@@ -51,6 +65,7 @@ import {
   IntrinsicType,
   LiteralType,
   MemberNames,
+  NamedMemberOrder,
   NodeLinks,
   ObjectFlags,
   ObjectType,
@@ -70,6 +85,8 @@ import {
   type ConditionalType,
   type InterfaceType,
   type TypeChecking,
+  type ConditionalResultKey,
+  type DistributedConditional,
 } from './checker-types.js';
 import { getBaseTypes } from './checker-declared-types.js';
 import type { ModuleResolution } from './checker-modules.js';
@@ -101,19 +118,28 @@ import {
   mergeAmbientModulesAndAugmentations,
 } from './checker-symbols.js';
 import { PermissiveMapper, ReportingMapper, RestrictiveMapper, UniqueLiteralMapper } from './instantiation.js';
-import { Relation, RelationKey, type InternedRelationKey, type Relater, TypeComparer } from './relations.js';
-import { TypeNodeVisitor, checkSourceFile } from './checker-source-file.js';
+import {
+  Relation,
+  RelationKey,
+  type InternedRelationKey,
+  type Relater,
+  TypeComparer,
+  type VarianceStackEntry,
+} from './relations.js';
+import { TypeNodeVisitor, checkSourceFile, produceDeferredDiagnostics } from './checker-source-file.js';
+import { checkObjectLiteralDeprecations } from './checker-deprecation.js';
 import { InferenceCaches } from './checker-inference.js';
 import { AssignmentMarker, type FlowLoopInfo, type FlowState, type FlowWalk } from './checker-narrowing.js';
 import type { FlowNode, FlowReduceLabel } from './flow.js';
 import { JsxState } from './checker-jsx.js';
-import type { DeferredIterationError, IterationTypes } from './checker-iteration.js';
+import type { IterationTypes } from './checker-iteration.js';
 import type { SpreadIndices } from './checker-contextual.js';
 import { SourceFileMetadata, getEmitModuleFormatOfFile } from './program-utilities.js';
 import type { GrammarChecker } from './checker-grammar.js';
 import type { ResolvedModule } from './module-resolution-types.js';
 import type { ModuleSpecifierHost } from './module-specifiers.js';
 import type { PropertyListIndex } from './checker-members.js';
+import { startThreadSharing, type ThreadSharing } from './shared-results.js';
 
 /** What the checker needs from a program. */
 export abstract class CheckerHost {
@@ -186,22 +212,36 @@ export abstract class CheckerHost {
   }
 }
 
-/** Per-file and global diagnostics, sorted on read like tsgo's DiagnosticsCollection. */
+/**
+ * Per-file and global diagnostics, sorted on read like tsgo's DiagnosticsCollection, which keeps one of
+ * each set of equal diagnostics.
+ */
 class DiagnosticCollection {
   private readonly byFile = new Map<string, Diagnostic[]>();
   private readonly sortedFiles = new Set<string>();
   private readonly global: Diagnostic[] = [];
   private globalSorted = true;
-  /** The diagnostics added since `startLog`, while recording. */
+  /** The diagnostics at each file, position, end and code, to find an equal one when adding. */
+  private readonly byLocation = new Map<string, Diagnostic[]>();
+  /** The diagnostics reported since `startLog`, while recording, also those equal to one already added. */
   private log: Diagnostic[] | undefined = undefined;
 
-  add(diagnostic: Diagnostic): void {
+  /** Adds `diagnostic` unless an equal one was added; returns the one the collection holds. */
+  add(diagnostic: Diagnostic): Diagnostic {
     if (this.log !== undefined) this.log.push(diagnostic);
+    if (this.added !== undefined) this.added.push(diagnostic);
     const file = diagnostic.file;
+    const key = `${file === undefined ? '' : file.fileName}\0${diagnostic.pos}\0${diagnostic.end}\0${diagnostic.code}`;
+    const existing = this.byLocation.get(key);
+    if (existing === undefined) this.byLocation.set(key, [diagnostic]);
+    else {
+      for (const d of existing) if (equalDiagnostics(d, diagnostic)) return d;
+      existing.push(diagnostic);
+    }
     if (file === undefined) {
       this.global.push(diagnostic);
       this.globalSorted = false;
-      return;
+      return diagnostic;
     }
     let list = this.byFile.get(file.fileName);
     if (list === undefined) {
@@ -210,6 +250,7 @@ class DiagnosticCollection {
     }
     list.push(diagnostic);
     this.sortedFiles.delete(file.fileName);
+    return diagnostic;
   }
 
   forFile(fileName: string): Diagnostic[] {
@@ -247,6 +288,8 @@ class DiagnosticCollection {
 
   /** The global diagnostics `withoutNewGlobals` removed. */
   removedGlobals = 0;
+  /** Where results are shared between checker threads (shared-results.ts): every diagnostic added, in order. */
+  added: Diagnostic[] | undefined = undefined;
 
   /** Runs `run`, then removes the global diagnostics it added. */
   withoutNewGlobals<T>(run: () => T): T {
@@ -261,12 +304,24 @@ class DiagnosticCollection {
       const globals = new Set<Diagnostic>();
       for (const d of added) if (d.file === undefined) globals.add(d);
       if (globals.size > 0) {
-        this.removedGlobals += globals.size;
         let kept = 0;
-        for (const d of this.global) if (!globals.has(d)) this.global[kept++] = d;
+        for (const d of this.global) {
+          if (!globals.has(d)) this.global[kept++] = d;
+          else this.forget(d);
+        }
+        this.removedGlobals += this.global.length - kept;
         this.global.length = kept;
       }
     }
+  }
+
+  /** Removes the global diagnostic `diagnostic` from the location index. */
+  private forget(diagnostic: Diagnostic): void {
+    const key = `\0${diagnostic.pos}\0${diagnostic.end}\0${diagnostic.code}`;
+    const existing = this.byLocation.get(key);
+    if (existing === undefined) return;
+    const at = existing.indexOf(diagnostic);
+    if (at >= 0) existing.splice(at, 1);
   }
 
   /** Records the diagnostics added from now on. */
@@ -356,14 +411,26 @@ export class Checker implements TypeChecking {
   // Counters for type and signature ids.
   typeCount = 0;
   signatureCount = 0;
+  /** Transient symbols the checker created (statistics), as tsgo's `Checker.SymbolCount`. */
+  symbolCount = 0;
   /** Positions of members by name in the tables and lists that lazily instantiated members come from. */
   readonly memberPositionsInLists = new Map<Symbol[], Map<string, number>>();
   /** The property names of the last instantiation of each such list whose table is built on demand. */
   readonly memberNamesOfLists = new Map<Symbol[], MemberNames>();
+  /** The property order of the instantiations of each such list (`NamedMemberOrder`); null where it has none. */
+  readonly namedMemberOrdersOfLists = new Map<Symbol[], NamedMemberOrder | null>();
   /** Long lists of inherited properties, by name. */
   readonly propertiesByName = new Map<Symbol[], Map<string, Symbol>>();
   /** Number of `typeToString` calls in progress. */
   serializationLevel = 0;
+  /**
+   * `typeToString` results by type, enclosing declaration, flags and the type parameter of the variance check in
+   * progress: the prints that created no types, which a later print with the same inputs repeats exactly
+   * (`typeToString`).
+   */
+  readonly typeStrings = new Map<string, string>();
+  /** `symbolToString` results by symbol, then by enclosing declaration and flags, kept as `typeStrings` are. */
+  readonly symbolStrings = new Map<Symbol, Map<string, string>>();
   /** Whether `globalObjectType` is set; global type lookups before it can't suggest `typeof`. */
   hasGlobalObjectType = false;
   /** The node being checked, for errors with no better location. */
@@ -381,7 +448,7 @@ export class Checker implements TypeChecking {
    */
   modulesMerged = false;
   /** Module specifiers of `import("…")` types, by module symbol id, importing file path and resolution mode. */
-  readonly moduleSpecifiers = new Map<string, string>();
+  readonly moduleSpecifiers = new Map<string, ModuleSpecifierResult>();
   /** Specifier generation for hosts without a program. */
   fallbackModuleSpecifierHost: ModuleSpecifierHost | undefined = undefined;
 
@@ -399,6 +466,9 @@ export class Checker implements TypeChecking {
    * so far; null where a list repeats a name.
    */
   readonly propertyListIndexes = new Map<Symbol[], PropertyListIndex | number | null>();
+  // Types, targets and mappers of symbols keep a slot per id: they are dense enough, and read on hot
+  // paths. The other symbol columns, which most symbols leave empty, keep only their values
+  // (CompactLinkTable).
   /** The type of a value symbol. */
   readonly symbolTypes = new LinkTable<Type>();
   /** For instantiated and synthetic symbols, the symbol they come from. */
@@ -406,24 +476,26 @@ export class Checker implements TypeChecking {
   /** The mapper of an instantiated symbol or a mapped type property. */
   readonly symbolMappers = new LinkTable<TypeMapper>();
   /** The literal type of a property name. */
-  readonly symbolNameTypes = new LinkTable<Type>();
+  readonly symbolNameTypes = new CompactLinkTable<Type>();
   /** The mapped type of a mapped type property, or the union/intersection of a synthetic property. */
-  readonly symbolContainingTypes = new LinkTable<Type>();
+  readonly symbolContainingTypes = new CompactLinkTable<Type>();
   /** The key type of a mapped type property. */
-  readonly symbolKeyTypes = new LinkTable<Type>();
+  readonly symbolKeyTypes = new CompactLinkTable<Type>();
   /** The property a mapped, spread or synthetic property comes from. */
-  readonly symbolSyntheticOrigins = new LinkTable<Symbol>();
+  readonly symbolSyntheticOrigins = new CompactLinkTable<Symbol>();
   /** The left and right properties a spread property combines. */
-  readonly symbolLeftSpreads = new LinkTable<Symbol>();
-  readonly symbolRightSpreads = new LinkTable<Symbol>();
+  readonly symbolLeftSpreads = new CompactLinkTable<Symbol>();
+  readonly symbolRightSpreads = new CompactLinkTable<Symbol>();
   /** Bits of SymbolFlags for the meanings in which a symbol was referenced. */
-  readonly symbolReferenceKinds = new IntLinkTable();
+  readonly symbolReferenceKinds = new CompactIntLinkTable();
   /** The resolved symbol of an identifier, entity name or call. */
-  readonly resolvedSymbols = new CompactSymbolLinkTable();
+  readonly resolvedSymbols = new CompactLinkTable<Symbol>();
   /** The resolved type of a type node or expression. */
-  readonly resolvedTypes = new SparseLinkTable<Type>();
+  readonly resolvedTypes = new CompactLinkTable<Type>();
+  /** The type the last completed check of each expression key produced (expr-record.ts). */
+  readonly exprCheckRecord = new ExprCheckRecord();
   /** The resolved signature of a call-like node or a signature declaration. */
-  readonly resolvedSignatures = new SparseLinkTable<Signature>();
+  readonly resolvedSignatures = new CompactLinkTable<Signature>();
   /** Merged symbols, indexed by the id of the symbol merged into them. */
   readonly mergedSymbols: Map<number, Symbol>;
   /**
@@ -475,6 +547,7 @@ export class Checker implements TypeChecking {
   readonly unionOfUnionTypes = new Map<string, Type>();
   /** `unionOfUnionTypes` without an alias, by both ids and the reduction packed into one number. */
   readonly unionOfUnionTypesById = new Map<number, Type>();
+  readonly unionTypesByInputList = new TypeListCache<Type>();
   readonly intersectionTypes = new TypeListCache<Type>();
   readonly tupleTypes = new Map<string, Type>();
   readonly indexedAccessTypes = new Map<string, Type>();
@@ -600,15 +673,21 @@ export class Checker implements TypeChecking {
 
   // Resolution stacks for cycle detection (see pushTypeResolution).
   resolutionStart = 0;
-  inVarianceComputation = false;
+  /** The generic types whose variances are being computed, outermost first. */
+  varianceStack: VarianceStackEntry[] = [];
 
   // Instantiation
   instantiationDepth = 0;
+  /** The types being instantiated, outermost first: the first `instantiationDepth` entries are current. */
+  readonly instantiationStack: Type[] = [];
+  /** The calls being resolved, outermost first: the first `callResolutionDepth` entries are current. */
+  readonly callResolutionStack: Node[] = [];
+  callResolutionDepth = 0;
   instantiationCount = 0;
   /** Instantiations over the checker's lifetime (statistics). */
   totalInstantiations = 0;
-  /** Mappers of the instantiations in progress: the first `activeMapperDepth` entries are live. */
-  readonly activeMappers: TypeMapper[] = [];
+  /** Ids of the mappers of the instantiations in progress: the first `activeMapperDepth` entries are live. */
+  activeMapperIds = new Int32Array(16);
   activeMapperDepth = 0;
   /** Per active mapper: its instantiations by type id, created on the first nested write. */
   readonly activeMapperCaches: (Map<number, Type> | undefined)[] = [];
@@ -623,21 +702,35 @@ export class Checker implements TypeChecking {
   /** Empty lists for type arguments that are compared with cached instantiations before any is kept. */
   readonly freeTypeLists: Type[][] = [];
   /**
-   * 1 by type id for the anonymous and mapped types whose declaration has no outer type parameters
+   * The ids of the anonymous and mapped types whose declaration has no outer type parameters
    * to instantiate (`getObjectTypeInstantiation`).
    */
-  readonly withoutOuterTypeParameters = new IntLinkTable();
+  readonly withoutOuterTypeParameters = new PagedIdSet();
   conditionalConstraintDepth = 0;
 
   readonly suggestionResolver: SuggestionNameResolver;
   readonly awaitedTypeStack: number[] = [];
   /** Iteration types by type id and iteration use. */
   readonly iterationTypesCache = new Map<number, IterationTypes>();
-  /** Whether diagnostics can be deferred to the end of the file being checked. */
-  saveDeferredDiagnostics = false;
-  deferredIterationErrors: DeferredIterationError[] = [];
-  /** Collision checks waiting for the end of the file (checker-generated-code.ts). */
-  deferredCollisionChecks: DeferredCollisionCheck[] = [];
+  /**
+   * Diagnostics reported after the checks of the file being checked, or before the next global
+   * diagnostics are read, in the order they were deferred. Reporting them earlier could resolve types
+   * that are being resolved.
+   */
+  deferredDiagnostics: (() => void)[] = [];
+
+  /** Defers the diagnostic `report` reports at `node` (`deferredDiagnostics`). */
+  deferDiagnostic(node: Node, report: () => void): void {
+    this.deferredDiagnostics.push(report);
+    if (this.deferredDiagnosticFiles !== undefined)
+      this.deferredDiagnosticFiles.push(this.fileIndex.get(getSourceFileOfNode(node)) ?? -1);
+  }
+
+  /**
+   * The checked object literals of each file whose members may set deprecated properties of their contextual
+   * types, reported when the file's suggestion diagnostics are asked for (`checkObjectLiteralDeprecations`).
+   */
+  readonly objectLiteralsForDeprecations = new Map<SourceFile, Node[]>();
   /** Binding patterns whose implied type is being computed as a contextual type. */
   readonly contextualBindingPatterns: Node[] = [];
   /** The binding pattern or assignment pattern that implied each type. */
@@ -690,11 +783,13 @@ export class Checker implements TypeChecking {
   flowTypeCache: Map<Node, Type> | undefined = undefined;
   flowInvocationCount = 0;
   /** The reduce labels being passed, innermost last; each limits its target label's antecedents. */
-  readonly flowReduceLabels: FlowReduceLabel[] = [];
+  flowReduceLabels: FlowReduceLabel[] = [];
   readonly flowNodeReachable = new Map<FlowNode, boolean>();
   readonly flowNodePostSuper = new Map<FlowNode, boolean>();
   lastFlowNode: FlowNode | undefined = undefined;
   lastFlowNodeReachable = false;
+  /** Symbols whose explicit type is being found, for flow analysis of self-referential `for...of`. */
+  readonly resolvingExplicitTypeOfSymbol = new Set<Symbol>();
   readonly assignmentMarker: AssignmentMarker;
   readonly primitiveTypeAliasSuggestions = new Map<string, Symbol>();
 
@@ -721,6 +816,9 @@ export class Checker implements TypeChecking {
   readonly ambientModuleSymbols: Symbol[] = [];
   readonly patternAmbientModules: PatternAmbientModule[] = [];
   readonly patternAmbientModuleAugmentations = new Map<string, Symbol>();
+  /** The pattern module each entry of `patternAmbientModuleAugmentations` augments. */
+  readonly patternAmbientModuleAugmentationTargets = new Map<string, Symbol>();
+  readonly moduleImportAttributesTypes = new Map<Symbol, Type>();
 
   readonly inferenceCaches = new InferenceCaches();
   /** The type resolution stack: the first `resolutionDepth` entries are live, later slots are reused. */
@@ -730,6 +828,28 @@ export class Checker implements TypeChecking {
   resolutionDepth = 0;
   /** The number of resolution cycles found (`pushTypeResolution`). */
   resolutionCycleCount = 0;
+  /**
+   * While an `inferTypesFromUnstarted` walk runs: the unions and intersections whose properties
+   * `hasUnmatchedProperty` searched before they were resolved. Such a search creates fewer types
+   * than one of the resolved properties.
+   */
+  unresolvedPropertySearches: Type[] | undefined = undefined;
+  // The fields of shared results come last, so the fields before keep their places.
+  /** TSC_TS_SHARE: the checker thread's sharing with the other checker threads. */
+  threadSharing: ThreadSharing | undefined = undefined;
+  /**
+   * Where results are shared (shared-results.ts): for each conditional type made as a member of the distribution of a
+   * conditional type instantiation, that instantiation and the constituent it is for.
+   */
+  distributedConditionals: Map<Type, DistributedConditional> | undefined = undefined;
+  /** The same members by `distributedKey`. */
+  distributedByKey: Map<string, Type> | undefined = undefined;
+  /** The conditional types conditional type instantiations resolved to, with the instantiation's root and key. */
+  conditionalResults: Map<Type, ConditionalResultKey> | undefined = undefined;
+  /** The access flags of the key `getIndexedAccessTypeEx` keeps each indexed access type by. */
+  indexedAccessKeyFlags: Map<Type, number> | undefined = undefined;
+  /** Where results are shared between checker threads (shared-results.ts): the file of each diagnostic deferred. */
+  deferredDiagnosticFiles: number[] | undefined = undefined;
 
   constructor(host: CheckerHost) {
     this.host = host;
@@ -942,6 +1062,15 @@ export class Checker implements TypeChecking {
     mergeAmbientModulesAndAugmentations(this);
     this.modulesMerged = true;
     this.mergeDiagnostics.push(this.diagnostics.takeLog(), this.suggestionDiagnostics.takeLog());
+    // Returns unless this thread was given sharing data (`ThreadSharingData` in its worker data): the
+    // main thread, and every thread of a run that didn't share.
+    startThreadSharing(this);
+    if (this.threadSharing !== undefined) {
+      this.distributedConditionals = new Map<Type, DistributedConditional>();
+      this.distributedByKey = new Map<string, Type>();
+      this.conditionalResults = new Map<Type, ConditionalResultKey>();
+      this.indexedAccessKeyFlags = new Map<Type, number>();
+    }
   }
 
   // ---- Public API
@@ -956,11 +1085,13 @@ export class Checker implements TypeChecking {
   /** Checks `file`, including unused identifiers, and returns its suggestion diagnostics. */
   getSuggestionDiagnostics(file: SourceFile): Diagnostic[] {
     checkSourceFile(this, file, true);
+    checkObjectLiteralDeprecations(this, file);
     return this.suggestionDiagnostics.forFile(file.fileName);
   }
 
   /** Diagnostics without a file, such as missing global types. */
   getGlobalDiagnostics(): Diagnostic[] {
+    produceDeferredDiagnostics(this);
     return this.diagnostics.globals();
   }
 
@@ -1044,11 +1175,13 @@ export class Checker implements TypeChecking {
   }
 
   newSymbol(flags: SymbolFlags, name: string): Symbol {
+    this.symbolCount++;
     const symbol = new Symbol(flags | SymbolFlags.Transient, name);
     return symbol;
   }
 
   newSymbolWithCheckFlags(flags: SymbolFlags, name: string, checkFlags: CheckFlags): Symbol {
+    this.symbolCount++;
     const symbol = new Symbol(flags | SymbolFlags.Transient, name);
     symbol.checkFlags = checkFlags;
     return symbol;
@@ -1080,15 +1213,15 @@ export class Checker implements TypeChecking {
 
   /** Reports `message` at `node`, or as a global diagnostic without a node. */
   error(node: Node | undefined, message: DiagnosticMessage, ...args: string[]): Diagnostic {
-    const diagnostic = createDiagnosticForNode(node, message, args);
-    this.addDiagnostic(diagnostic);
-    return diagnostic;
+    return this.addDiagnostic(createDiagnosticForNode(node, message, args));
   }
 
-  addDiagnostic(diagnostic: Diagnostic): void {
+  /** Reports `diagnostic`; returns the equal diagnostic already reported, if any, else `diagnostic`. */
+  addDiagnostic(diagnostic: Diagnostic): Diagnostic {
     this.reports++;
     // Discard diagnostics created while at the maximum number of nested typeToString calls.
-    if (this.serializationLevel < maxSerializationLevel) this.diagnostics.add(diagnostic);
+    if (this.serializationLevel < maxSerializationLevel) return this.diagnostics.add(diagnostic);
+    return diagnostic;
   }
 
   addSuggestion(diagnostic: Diagnostic): void {
@@ -1134,6 +1267,7 @@ export function disposeChecker(c: Checker): void {
   c.sharedSymbolCopies.clear();
   c.memberPositionsInLists.clear();
   c.memberNamesOfLists.clear();
+  c.namedMemberOrdersOfLists.clear();
   c.propertiesByName.clear();
   c.symbolAccessibilityCaches = undefined;
   c.unresolvedSymbols.clear();
@@ -1147,6 +1281,7 @@ export function disposeChecker(c: Checker): void {
   c.unionTypes.clear();
   c.unionOfUnionTypes.clear();
   c.unionOfUnionTypesById.clear();
+  c.unionTypesByInputList.clear();
   c.intersectionTypes.clear();
   c.tupleTypes.clear();
   c.indexedAccessTypes.clear();
@@ -1159,8 +1294,8 @@ export function disposeChecker(c: Checker): void {
   c.cachedTypesById.clear();
   c.cachedTypesByPair.clear();
   c.iterationTypesCache.clear();
-  c.deferredIterationErrors = [];
-  c.deferredCollisionChecks = [];
+  c.deferredDiagnostics = [];
+  c.objectLiteralsForDeprecations.clear();
   c.errorTypes.clear();
   c.globalTypeCache.clear();
   c.globalSymbolCache.clear();
@@ -1171,8 +1306,11 @@ export function disposeChecker(c: Checker): void {
   c.flowNodePostSuper.clear();
   c.primitiveTypeAliasSuggestions.clear();
   c.patternAmbientModuleAugmentations.clear();
+  c.patternAmbientModuleAugmentationTargets.clear();
+  c.moduleImportAttributesTypes.clear();
   c.sharedFlowTypes.length = 0;
   c.relationComparers = [];
+  c.inferenceCaches.unstartedInferences.clear();
 }
 
 export const enum VarianceReporting {

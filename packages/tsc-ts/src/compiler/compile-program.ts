@@ -13,7 +13,11 @@ import { CheckerDeclarationEmitResolver, CheckerEmitResolver } from './checker-e
 import { getEmitModuleFormatOfFile } from './program-utilities.js';
 import { DeclarationGlobals, SyntacticDeclarationEmitResolver } from './transformers/declarations-syntactic.js';
 import { mark } from './timeline.js';
-import type { EmitResolver } from './transformers/emit-resolver.js';
+import { DecoratorMetadata } from './transformers/decorator-metadata.js';
+import { SyntaxFacts } from './transformers/syntax-facts.js';
+import type { TypeReferenceSerializationKind } from './transformers/type-serialization.js';
+import { EmitContext } from './printer/emit-context.js';
+import { type EmitResolver, SyntacticEmitResolver } from './transformers/emit-resolver.js';
 import { ModuleFormatHost } from './transformers/module.js';
 import { type MergedGlobals, ModuleLookup, ReferenceResolver } from './transformers/reference-resolver.js';
 
@@ -193,6 +197,100 @@ export class EmitIndexes {
   }
 }
 
+/**
+ * The JavaScript emit of a program's files without a checker, for emit threads (parallel-emit.ts).
+ * JavaScript emit asks the checker only how decorator metadata serializes a type
+ * (`CheckerEmitResolver`): with `kinds`, the answers the main thread's checker gave
+ * (`recordMetadataKinds`), else files with decorator metadata are emitted by a `ProgramEmitter`.
+ */
+export class JavaScriptEmitter {
+  private readonly host: ProgramEmitHost;
+  private readonly recorded: RecordedKindsEmitResolver | undefined;
+
+  constructor(program: Program, kinds: readonly number[] = []) {
+    const options = program.options;
+    const indexes = program.emitIndexes;
+    const references = new ReferenceResolver(
+      options,
+      program.getSourceFiles(),
+      new ProgramModules(program),
+      indexes !== undefined ? indexes.globals : undefined,
+    );
+    this.recorded = kinds.length > 0 ? new RecordedKindsEmitResolver(options, references, kinds) : undefined;
+    this.host = new ProgramEmitHost(program, this.recorded ?? new SyntacticEmitResolver(options, references));
+  }
+
+  /**
+   * Emits `file`, or returns undefined if its decorator metadata asked for a kind that wasn't recorded: what
+   * was written is then not the file's emit, and it must be emitted with the checker.
+   */
+  emit(file: SourceFile, writer: OutputWriter): EmitResult | undefined {
+    const host = this.host;
+    const recorded = this.recorded;
+    if (recorded !== undefined) recorded.missed = false;
+    host.writer = writer;
+    const result = emitFiles(host, [file], EmitOnly.Js);
+    host.writer = undefined;
+    return recorded !== undefined && recorded.missed ? undefined : result;
+  }
+}
+
+/**
+ * The serialization kinds of decorator metadata that the checker of `checked` gives the type references of
+ * `files`, in the order JavaScript emit asks for them: the type name's node id, the location's node id (-1 for
+ * none) and the kind, for each. Only the decorator metadata transform runs, as the first transform of emit.
+ */
+export function recordMetadataKinds(checked: CheckedProgram, files: readonly SourceFile[]): number[] {
+  const program = checked.program;
+  const options = program.options;
+  const indexes = program.emitIndexes;
+  const references = new ReferenceResolver(
+    options,
+    program.getSourceFiles(),
+    new ProgramModules(program),
+    indexes !== undefined ? indexes.globals : undefined,
+  );
+  const resolver = new RecordingEmitResolver(options, references, checked.checker);
+  for (const file of files)
+    new DecoratorMetadata(new EmitContext(), options, resolver, new SyntaxFacts()).transformSourceFile(file);
+  return resolver.kinds;
+}
+
+/** A `CheckerEmitResolver` that records the serialization kinds it gives (`recordMetadataKinds`). */
+class RecordingEmitResolver extends CheckerEmitResolver {
+  readonly kinds: number[] = [];
+
+  getTypeReferenceSerializationKind(typeName: Node, location: Node | undefined): TypeReferenceSerializationKind {
+    const kind = super.getTypeReferenceSerializationKind(typeName, location);
+    this.kinds.push(typeName.id, location === undefined ? -1 : location.id, kind);
+    return kind;
+  }
+}
+
+/** Answers serialization kinds from those recorded on the main thread; `missed` once one wasn't. */
+class RecordedKindsEmitResolver extends SyntacticEmitResolver {
+  /** The kind and location of each type name, by the type name's node id. */
+  private readonly byName = new Map<number, number>();
+  missed = false;
+
+  constructor(
+    options: CompilerOptions,
+    referenceResolver: ReferenceResolver,
+    private readonly kinds: readonly number[],
+  ) {
+    super(options, referenceResolver);
+    for (let i = 0; i < kinds.length; i += 3) if (!this.byName.has(kinds[i]!)) this.byName.set(kinds[i]!, i);
+  }
+
+  getTypeReferenceSerializationKind(typeName: Node, location: Node | undefined): TypeReferenceSerializationKind {
+    const at = this.byName.get(typeName.id);
+    if (at !== undefined && this.kinds[at + 1] === (location === undefined ? -1 : location.id))
+      return this.kinds[at + 2]! as TypeReferenceSerializationKind;
+    this.missed = true;
+    return super.getTypeReferenceSerializationKind(typeName, location);
+  }
+}
+
 /** A checked program and the emit of its files. */
 export class ProgramEmitter {
   private host: ProgramEmitHost | undefined = undefined;
@@ -277,6 +375,20 @@ export abstract class CompilerProgram {
     this.emitter = new ProgramEmitter(checked);
   }
 
+  /**
+   * Whether this run checked the program, which `getDiagnosticsOfProgram` sets when it checks it. A run
+   * stopped before checking, by syntax errors or `--noCheck`, keeps no record (`run-records.ts`).
+   */
+  checkedTheProgram = false;
+
+  /**
+   * The time spent in declaration emit while checking, to count as emit time rather than check time, since
+   * the last call. Only an incremental program emits while checking, to compute signatures.
+   */
+  takeNestedEmitTime(): number {
+    return 0;
+  }
+
   get program(): Program {
     return this.checked.program;
   }
@@ -300,6 +412,15 @@ export abstract class CompilerProgram {
   /** See `CheckedProgram.getGlobalDiagnostics`. */
   getGlobalDiagnostics(withCheckerThreads = true): Diagnostic[] {
     return this.checked.getGlobalDiagnostics(withCheckerThreads);
+  }
+
+  /**
+   * Whether the global diagnostics found by checking are reported after the semantic diagnostics. An
+   * incremental program has them in the semantic diagnostics of the files they were found in
+   * (`CheckedProgram.globalsInFileDiagnostics`).
+   */
+  reportsGlobalDiagnosticsOfChecking(): boolean {
+    return !this.checked.globalsInFileDiagnostics;
   }
 
   /** Semantic diagnostics of every file. */
@@ -347,32 +468,37 @@ export class PlainProgram extends CompilerProgram {
 
   emit(writer: OutputWriter): EmitResult {
     const options = this.options;
-    if (options.noEmit !== true) {
-      const skipped = handleNoEmitOnError(this);
-      if (skipped !== undefined) return skipped;
-    }
+    // A `noEmit` program emits nothing, and its emit is not skipped (tsgo's `HandleNoEmitOptions`): its
+    // declaration errors come with its other diagnostics (`getDiagnosticsOfProgram`).
+    if (options.noEmit === true) return new EmitResult();
+    const skipped = handleNoEmitOnError(this);
+    if (skipped !== undefined) return skipped;
     const program = this.program;
     const files = program.getSourceFiles();
     const parallel = this.checked.emittedInParallel;
-    // Checker threads emitted the files they checked (parallel-check.ts); the others are emitted here, in order.
+    // Checker threads emitted the files they checked (parallel-check.ts), or emit threads their JavaScript
+    // (parallel-emit.ts); the rest is emitted here, in order.
     const result =
       parallel === undefined
         ? this.emitter.emit(files, EmitOnly.All, writer)
         : combineEmitResults(
             files.map((file, i) => {
               const emitted = parallel[i];
-              return emitted !== undefined
-                ? writeHeldOutputs(emitted, writer)
-                : this.emitter.emit([file], EmitOnly.All, writer);
+              // The declaration thread emitted the declarations of the files it could (parallel-emit.ts).
+              const ahead = this.checked.declarationsEmittedAhead;
+              // The file's JavaScript is emitted too, here or on an emit thread.
+              const declarations = (): EmitResult =>
+                ahead?.[i] ?? this.emitter.emit([file], EmitOnly.DtsAfterJs, writer);
+              if (emitted === undefined)
+                return ahead !== undefined
+                  ? combineEmitResults([this.emitter.emit([file], EmitOnly.Js, writer), declarations()])
+                  : this.emitter.emit([file], EmitOnly.All, writer);
+              const written = writeHeldOutputs(emitted, writer);
+              // Emit threads emit JavaScript only.
+              if (!this.checked.javaScriptEmittedOnThreads || !getEmitDeclarations(options)) return written;
+              return combineEmitResults([written, declarations()]);
             }),
           );
-    if (options.noEmit === true) {
-      // Emit is skipped only for files that would have been emitted.
-      result.emitSkipped = files.some((file) => program.sourceFileMayBeEmitted(file, false));
-      // Declaration emit still runs for its errors, as in tsgo, also when other errors were found.
-      if (getEmitDeclarations(options) && options.noEmitOnError !== true)
-        for (const d of this.getDeclarationDiagnostics()) result.diagnostics.push(d);
-    }
     return result;
   }
 }
@@ -389,10 +515,15 @@ export function handleNoEmitOnError(program: CompilerProgram): EmitResult | unde
 }
 
 /**
- * Config and syntax errors; without syntax errors, program, global and semantic errors too, and
- * declaration errors under `noEmit` (or `withDeclarationDiagnostics`).
+ * Config and syntax errors; without syntax errors, program, global and semantic errors too, and, when
+ * there are none of these, declaration errors under `noEmit` (or `withDeclarationDiagnostics`). With
+ * `declarationsLater`, the declaration errors are left to the caller (`declarationDiagnosticsDue`).
  */
-export function getDiagnosticsOfProgram(program: CompilerProgram, withDeclarationDiagnostics: boolean): Diagnostic[] {
+export function getDiagnosticsOfProgram(
+  program: CompilerProgram,
+  withDeclarationDiagnostics: boolean,
+  declarationsLater: boolean = false,
+): Diagnostic[] {
   const result: Diagnostic[] = [...program.getConfigFileParsingDiagnostics()];
   const configCount = result.length;
   for (const d of program.getSyntacticDiagnostics()) result.push(d);
@@ -405,22 +536,39 @@ export function getDiagnosticsOfProgram(program: CompilerProgram, withDeclaratio
   // Those found by checking come after the semantic diagnostics, as with a single checker.
   for (const d of program.getGlobalDiagnostics(false)) result.push(d);
   if (result.length === configCount) {
+    // With `--noCheck` the checker skips every file: the run checked nothing to sample (`run-records.ts`).
+    if (options.noCheck !== true) program.checkedTheProgram = true;
     const checkStart = performance.now();
     const semantic = program.getSemanticDiagnostics();
-    program.times.checkTime = performance.now() - checkStart;
+    // Declaration emit that computed signatures while checking counts as emit time, as in TypeScript 7.1.
+    const nestedEmitTime = program.takeNestedEmitTime();
+    program.times.checkTime = Math.max(0, performance.now() - checkStart - nestedEmitTime);
+    program.times.emitTime += nestedEmitTime;
     for (const d of semantic) result.push(d);
     // Checking may have found more, such as missing global types.
-    for (const d of program.getGlobalDiagnostics()) result.push(d);
+    if (program.reportsGlobalDiagnosticsOfChecking()) for (const d of program.getGlobalDiagnostics()) result.push(d);
     mark('semantic diagnostics');
   }
-  if (
+  if (!declarationsLater && declarationDiagnosticsDue(program, result, withDeclarationDiagnostics))
+    for (const d of program.getDeclarationDiagnostics()) result.push(d);
+  return result;
+}
+
+/**
+ * Whether `getDiagnosticsOfProgram` adds the declaration errors to `diagnostics`: under `noEmit` (or
+ * `withDeclarationDiagnostics`) with declarations, when only config errors were found.
+ */
+export function declarationDiagnosticsDue(
+  program: CompilerProgram,
+  diagnostics: readonly Diagnostic[],
+  withDeclarationDiagnostics: boolean,
+): boolean {
+  const options = program.options;
+  return (
     (withDeclarationDiagnostics || options.noEmit === true) &&
     getEmitDeclarations(options) &&
-    result.length === configCount
-  ) {
-    for (const d of program.getDeclarationDiagnostics()) result.push(d);
-  }
-  return result;
+    diagnostics.length === program.getConfigFileParsingDiagnostics().length
+  );
 }
 
 /** Combines emit results in order. */

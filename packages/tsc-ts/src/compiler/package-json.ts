@@ -8,8 +8,8 @@
 import { Diagnostics, messageWithArgs, type MessageWithArgs } from './diagnostics.js';
 import { toPath, type Path } from './path.js';
 
-export const typeScriptVersion = '7.0.2';
-export const typeScriptVersionMajorMinor = '7.0';
+export const typeScriptVersion = '7.1.0-beta';
+export const typeScriptVersionMajorMinor = '7.1';
 
 //// JSON values
 
@@ -679,10 +679,10 @@ export class PackageJsonInfoCache {
 
   /**
    * Called before the cache is shared with other threads, which makes it immutable: from then on,
-   * each thread keeps the lookups it adds in a table of its own.
+   * each thread keeps the lookups it adds in a table of its own. A cache already shared is immutable.
    */
   prepareForSharing(): void {
-    this.shared = true;
+    if (!this.shared) this.shared = true;
   }
 
   get(packageJsonPath: string): PackageJsonInfo | undefined {

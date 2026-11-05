@@ -33,8 +33,10 @@ import { Colors, defaultIsPretty, header, printBuildHelp, printHelp, printVersio
 import { generateTSConfig } from './init.js';
 import { isIncremental, type CompilerOptions } from './options.js';
 import { combinePaths, getDirectoryPath, normalizePath } from './path.js';
-import { checkerThreads, parseThreads } from './parallel-check.js';
+import { checkerThreads } from './parallel-check.js';
 import { ParseSession, parallelParse, reportPreparedFiles } from './parallel-parse.js';
+import { preParseConfig, type RunConfig } from './run-config.js';
+import { openRecord } from './run-record-read.js';
 import { showConfig, type ShowConfigInput } from './show-config.js';
 import { assignSymbolIdsAtCreation } from './symbol.js';
 import { sharesPublishedGraphs } from '@scriptc/threads';
@@ -64,6 +66,8 @@ export abstract class System extends CommandLineHost {
 
   /** Returns `''` for unset variables. */
   abstract getEnvironmentVariable(name: string): string;
+  /** Whether the variable is set, perhaps to `''`. */
+  abstract hasEnvironmentVariable(name: string): boolean;
   abstract write(text: string): void;
   abstract fileExists(path: string): boolean;
   abstract directoryExists(path: string): boolean;
@@ -161,6 +165,8 @@ export type CommandLineResult =
       readonly errorSummary: ErrorSummaryReporter;
       /** The build info of an incremental program, read while threads parsed its files; `undefined` if not read yet. */
       readonly buildInfo?: EarlyBuildInfo;
+      /** How the run is configured: parse threads, checker count and sharing (run-config.ts). */
+      readonly config: RunConfig;
     }
   /** Threads are preparing the program's files; `run` calls back with the result once they are done. */
   | { readonly kind: 'deferred'; readonly run: (done: (result: CommandLineResult) => void) => void }
@@ -197,6 +203,11 @@ export class DiagnosticReporter {
     if (this.quiet) return;
     if (this.pretty) this.sys.write(formatDiagnosticWithColorAndContext(diagnostic, this.format) + '\n');
     else this.sys.write(formatDiagnostic(diagnostic, this.format));
+  }
+
+  /** The format `reportAll` writes diagnostics in, where it writes them plainly; undefined otherwise. */
+  plainFormat(): DiagnosticFormatOptions | undefined {
+    return this.quiet || this.pretty ? undefined : this.format;
   }
 
   /** Writes the diagnostics at once: a write for each costs more than formatting it. */
@@ -356,6 +367,31 @@ function executeCompile(sys: System, commandLine: ParsedCommandLine): CommandLin
   const configStart = performance.now();
   mark('config start');
   const errors: Diagnostic[] = [];
+  // The run's configuration, made once the config's options are known: its parse threads are needed
+  // before the first file is parsed.
+  let run: RunConfig | undefined = undefined;
+  const runConfigOf = (projectOptions: CompilerOptions): RunConfig => {
+    if (run === undefined) {
+      const opened = openRecord({
+        configFile: projectOptions.configFilePath ?? (configFileName === '' ? undefined : configFileName),
+        rootNames: fileNames,
+        options: projectOptions,
+      });
+      const made = preParseConfig(
+        projectOptions,
+        checkerThreads(projectOptions.checkers, projectOptions.singleThreaded),
+        process.env,
+        opened?.record,
+      );
+      if (opened !== undefined) {
+        made.recordDirectory = opened.directory;
+        made.recordKey = opened.key;
+        made.recordFile = opened.file;
+      }
+      run = made;
+    }
+    return run;
+  };
   // Where threads parse and bind the program's files ahead of it (parallel-parse.ts), they start with
   // the libraries and the root files found so far while the config's `include` patterns are matched.
   let session: ParseSession | undefined = undefined;
@@ -363,7 +399,7 @@ function executeCompile(sys: System, commandLine: ParsedCommandLine): CommandLin
     if (projectOptions.watch === true || options.showConfig === true || !parsesAhead(projectOptions)) return undefined;
     assignSymbolIdsAtCreation();
     const started = new ParseSession(
-      parseThreads(checkerThreads(projectOptions.checkers, projectOptions.singleThreaded)),
+      runConfigOf(projectOptions).parseThreads,
       projectOptions,
       sys.currentDirectory,
       configFileName,
@@ -417,20 +453,20 @@ function executeCompile(sys: System, commandLine: ParsedCommandLine): CommandLin
       reporter,
       errorSummary,
       buildInfo,
+      config: runConfigOf(config.options),
     };
   };
   if (parsesAhead(config.options)) {
     // Threads parse and bind the files the program is expected to load first (parallel-parse.ts), and
     // share the program it becomes: its symbols get their ids when they are created.
     assignSymbolIdsAtCreation();
-    const threads = checkerThreads(config.options.checkers, config.options.singleThreaded);
     return {
       kind: 'deferred',
       run: (done: (result: CommandLineResult) => void) => {
         const session =
           early ??
           new ParseSession(
-            parseThreads(threads),
+            runConfigOf(config.options).parseThreads,
             config.options,
             sys.currentDirectory,
             configFileName,

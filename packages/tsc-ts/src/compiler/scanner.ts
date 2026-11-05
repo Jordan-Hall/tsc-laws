@@ -13,6 +13,7 @@ import {
   isWhiteSpaceSingleLine,
 } from './character-codes.js';
 import { Diagnostics } from './diagnostic-messages.js';
+import { IdentifierName } from './identifier-name.js';
 import type { DiagnosticMessage } from './diagnostics.js';
 import { parsePseudoBigInt } from './pseudo-bigint.js';
 import {
@@ -98,6 +99,7 @@ const textToKeyword: Map<string, SyntaxKind> = new Map<string, SyntaxKind>([
   ['return', SyntaxKind.ReturnKeyword],
   ['satisfies', SyntaxKind.SatisfiesKeyword],
   ['set', SyntaxKind.SetKeyword],
+  ['source', SyntaxKind.SourceKeyword],
   ['static', SyntaxKind.StaticKeyword],
   ['string', SyntaxKind.StringKeyword],
   ['super', SyntaxKind.SuperKeyword],
@@ -357,59 +359,60 @@ function finishHash(hash: number): number {
   return hash ^ (hash >>> 15);
 }
 
-/** Strings for ranges of one text, keyed by their code units: equal identifiers share one string. */
+/**
+ * Names for ranges of one text, keyed by their code units: equal identifiers share one
+ * `IdentifierName`.
+ */
 class IdentifierTable {
-  private text: string;
   // Pairs of (entry index + 1, hash) per slot, (0, 0) when empty; linear probing.
   private slots: Int32Array;
   // Each entry's length in code units.
   private lengths: Int32Array;
-  private texts: string[];
+  private names: IdentifierName[];
   private count: number;
-  // Per entry: 1 once its text was recorded among the file's identifier texts (`markRecorded`).
+  // Per entry: 1 once its name was recorded among the file's identifier texts (`markRecorded`).
   private recorded: Uint8Array;
-  // The entry the last `intern` returned.
-  private lastEntry: number;
 
-  constructor(text: string) {
-    this.text = text;
+  constructor() {
     this.slots = new Int32Array(512);
     this.lengths = new Int32Array(128);
-    this.texts = [];
+    this.names = [];
     this.count = 0;
     this.recorded = new Uint8Array(128);
-    this.lastEntry = -1;
+  }
+
+  /** Empties the table for a new text. */
+  clear(): void {
+    if (this.count === 0) return;
+    this.slots.fill(0);
+    this.names.length = 0;
+    this.recorded.fill(0, 0, this.count);
+    this.count = 0;
   }
 
   /**
-   * Whether `text`, just returned by `intern`, still needs recording among the file's identifier
-   * texts; marks it recorded. Texts the table doesn't know are always recorded.
+   * Whether `text`, the text of the entry `entry` that `intern` returned (-1 for none), still needs
+   * recording among the file's identifier texts; marks it recorded. Texts the table doesn't know are
+   * always recorded.
    */
-  markRecorded(text: string): boolean {
-    const entry = this.lastEntry;
-    if (entry < 0 || this.texts[entry] !== text) return true;
+  markRecorded(entry: number, text: string): boolean {
+    if (entry < 0 || this.names[entry]!.text !== text) return true;
     if (this.recorded[entry] !== 0) return false;
     this.recorded[entry] = 1;
     return true;
   }
 
-  /** Empties the table for a new text. */
-  setText(text: string): void {
-    this.text = text;
-    if (this.count === 0) return;
-    this.slots.fill(0);
-    this.recorded.fill(0, 0, this.count);
-    this.texts.length = 0;
-    this.count = 0;
-    this.lastEntry = -1;
+  /** The name of the entry `intern` returned. */
+  name(entry: number): IdentifierName {
+    return this.names[entry]!;
   }
 
   /**
-   * `text.substring(start, end)`, or the string interned for an equal range; `hash` is its `rangeHash`.
-   * A candidate of the same hash and length is compared with `startsWith`, which natively compares
-   * the bytes of both strings at once.
+   * The entry of `text.substring(start, end)`, added when the table has no equal range; `hash` is its
+   * `rangeHash`. A candidate of the same hash and length is compared with `startsWith`, which natively
+   * compares the bytes of both strings at once.
    */
-  intern(start: number, end: number, hash: number): string {
+  intern(text: string, start: number, end: number, hash: number): number {
     start = start | 0;
     end = end | 0;
     hash = hash | 0;
@@ -421,15 +424,10 @@ class IdentifierTable {
       const entry = slots[(slot * 2) | 0] | 0;
       if (entry === 0) break;
       if ((slots[(slot * 2 + 1) | 0] | 0) === hash && (this.lengths[(entry - 1) | 0] | 0) === length) {
-        const candidate = this.texts[(entry - 1) | 0]!;
-        if (this.text.startsWith(candidate, start)) {
-          this.lastEntry = (entry - 1) | 0;
-          return candidate;
-        }
+        if (text.startsWith(this.names[(entry - 1) | 0]!.text, start)) return (entry - 1) | 0;
       }
       slot = (slot + 1) & mask;
     }
-    const value = this.text.substring(start, end);
     const index = this.count | 0;
     if (index === this.lengths.length) {
       const lengths = new Int32Array(index * 2);
@@ -440,13 +438,12 @@ class IdentifierTable {
       this.recorded = recorded;
     }
     this.lengths[index] = length;
-    this.texts.push(value);
+    this.names.push(new IdentifierName(text.substring(start, end)));
     this.count = (index + 1) | 0;
-    this.lastEntry = index;
     slots[(slot * 2) | 0] = (index + 1) | 0;
     slots[(slot * 2 + 1) | 0] = hash;
     if (this.count * 2 > mask + 1) this.slots = rehash(slots);
-    return value;
+    return index;
   }
 }
 
@@ -618,6 +615,8 @@ export class Scanner {
   // so identifiers and keywords don't allocate until their value is read.
   /** @internal */ tokenValue: string;
   /** @internal */ valueStart: number;
+  // The name `getIdentifierValue` last interned, whose text `tokenValue` then holds.
+  private tokenName: IdentifierName | undefined;
   /** @internal */ valueEnd: number;
   // `rangeHash` of `chars[hashStart, hashEnd)`, which the ASCII identifier scan computes as it goes.
   private valueHash: number;
@@ -628,6 +627,8 @@ export class Scanner {
   // The code units zeroed by `setTextEnd`.
   private readonly cutUnits: Uint16Array;
   private readonly identifiers: IdentifierTable;
+  // The entry `getIdentifierValue` last interned, -1 for none.
+  private lastEntry: number;
   // With code units on demand: per block of `unitBlockSize` code units, 1 once `chars` holds them
   // (`loadUnits`); `chars` is zero elsewhere.
   private loadedBlocks: Uint8Array | undefined;
@@ -666,6 +667,7 @@ export class Scanner {
     this.tokenFlags = TokenFlags.None;
     this.tokenValue = '';
     this.valueStart = -1;
+    this.tokenName = undefined;
     this.valueEnd = -1;
     this.valueHash = 0;
     this.hashStart = -1;
@@ -673,7 +675,8 @@ export class Scanner {
     this.commentDirectives = [];
     this.skipJSDocLeadingAsterisks = 0;
     this.cutUnits = new Uint16Array(4);
-    this.identifiers = new IdentifierTable(text);
+    this.identifiers = new IdentifierTable();
+    this.lastEntry = -1;
     this.textKind = TextKind.Unknown;
     this.lineFeedFrom = -1;
     this.lineFeedAt = -1;
@@ -686,7 +689,8 @@ export class Scanner {
     this.text = text;
     this.chars = toCodeUnits(text);
     this.loadedBlocks = undefined;
-    this.identifiers.setText(text);
+    this.identifiers.clear();
+    this.lastEntry = -1;
     this.textKind = TextKind.Unknown;
     this.lineFeedFrom = -1;
     this.lineFeedAt = -1;
@@ -819,7 +823,7 @@ export class Scanner {
    * file to be recorded; files record each identifier text once.
    */
   recordIdentifierValue(text: string): boolean {
-    return this.identifiers.markRecorded(text);
+    return this.identifiers.markRecorded(this.lastEntry, text);
   }
 
   /** @internal Like `getTokenValue`, but identifiers with the same text share one string. */
@@ -829,10 +833,23 @@ export class Scanner {
       const end = this.valueEnd;
       const hash =
         start === this.hashStart && end === this.hashEnd ? this.valueHash : rangeHash(this.chars, start, end);
-      this.tokenValue = this.identifiers.intern(start, end, hash);
+      const entry = this.identifiers.intern(this.text, start, end, hash);
+      this.lastEntry = entry;
+      this.tokenName = this.identifiers.name(entry);
+      this.tokenValue = this.tokenName.text;
       this.valueStart = -1;
     }
     return this.tokenValue;
+  }
+
+  /**
+   * The identifier value as a name that identifiers with the same text share, after
+   * `getIdentifierValue`; a cooked value (with escapes) gets a name of its own.
+   */
+  getIdentifierName(): IdentifierName {
+    const name = this.tokenName;
+    if (name !== undefined && name.text === this.tokenValue) return name;
+    return new IdentifierName(this.tokenValue);
   }
 
   getCommentDirectives(): readonly CommentDirective[] {
@@ -1316,15 +1333,10 @@ export class Scanner {
         case CharacterCodes.at:
           this.pos = (this.pos + 1) | 0;
           return (this.token = SyntaxKind.AtToken);
-        case CharacterCodes.backslash: {
-          const codePoint = this.peekUnicodeEscape();
-          if (codePoint >= 0 && isIdentifierStart(codePoint)) {
-            const head = String.fromCodePoint(this.scanUnicodeEscape(true));
-            this.setValue(head + this.scanIdentifierParts());
+        case CharacterCodes.backslash:
+          if (this.scanIdentifier(0, IdentifierVariant.Standard))
             return (this.token = getIdentifierToken(this.tokenValue));
-          }
           return this.scanInvalidCharacter();
-        }
         case CharacterCodes.hash:
           if ((chars[this.pos + 1] | 0) === CharacterCodes.exclamation) {
             if (this.pos === 0) {
@@ -1332,27 +1344,17 @@ export class Scanner {
               continue;
             }
             this.errorAt(Diagnostics.X_can_only_be_used_at_the_start_of_a_file, this.pos, 2, noArgs);
-            this.pos = (this.pos + 1) | 0;
+            this.pos = (this.pos + 2) | 0;
             return (this.token = SyntaxKind.Unknown);
           }
-          if ((chars[this.pos + 1] | 0) === CharacterCodes.backslash) {
-            this.pos = (this.pos + 1) | 0;
-            const codePoint = this.peekUnicodeEscape();
-            if (codePoint >= 0 && isIdentifierStart(codePoint)) {
-              const head = '#' + String.fromCodePoint(this.scanUnicodeEscape(true));
-              this.setValue(head + this.scanIdentifierParts());
-              return (this.token = SyntaxKind.PrivateIdentifier);
-            }
-            this.pos = (this.pos - 1) | 0;
-          }
-          if (!this.scanIdentifier(1)) {
+          if (!this.scanIdentifier(1, IdentifierVariant.Standard)) {
             this.errorAt(Diagnostics.Invalid_character, this.pos - 1, 1, noArgs);
             this.setValue('#');
           }
           return (this.token = SyntaxKind.PrivateIdentifier);
         default: {
           if (ch < 0) return (this.token = SyntaxKind.EndOfFile);
-          if (this.scanIdentifier(0)) return (this.token = this.identifierKind());
+          if (this.scanIdentifier(0, IdentifierVariant.Standard)) return (this.token = this.identifierKind());
           const codePoint = this.codePoint();
           if (codePoint === CharacterCodes.replacementCharacter) {
             this.errorAt(Diagnostics.File_appears_to_be_binary, 0, 0, noArgs);
@@ -1534,14 +1536,36 @@ export class Scanner {
     this.commentDirectives.push(new CommentDirective(start, end, kind));
   }
 
-  /** @internal Scans an identifier after `prefixLength` units; sets the token value. */
-  scanIdentifier(prefixLength: number): boolean {
+  /**
+   * @internal Scans an identifier after `prefixLength` units; sets the token value. `variant`
+   * decides the identifier parts: JSX and JSDoc names also take `-`, and regular expression group
+   * names take a surrogate pair written as two `\u` escapes.
+   */
+  scanIdentifier(prefixLength: number, variant: IdentifierVariant): boolean {
     const text = this.text;
     const chars = this.chars;
     const start = this.pos;
     this.pos = (this.pos + prefixLength) | 0;
+    const identifierStart = this.pos;
     let ch = this.char();
-    if (isASCIILetter(ch) || ch === CharacterCodes._ || ch === CharacterCodes.$) {
+    if (variant === IdentifierVariant.JSX) {
+      if (isASCIILetter(ch) || ch === CharacterCodes._ || ch === CharacterCodes.$) {
+        // ASCII names, as the general loop below scans them.
+        let pos = (this.pos + 1) | 0;
+        const end = this.end;
+        while (pos < end) {
+          const c = chars[pos] | 0;
+          if (!isASCIIIdentifierPart(c) && c !== CharacterCodes.minus) break;
+          pos = (pos + 1) | 0;
+        }
+        const next = pos < end ? chars[pos] | 0 : CharacterCodes.EOF;
+        if (next <= CharacterCodes.maxAsciiCharacter && next !== CharacterCodes.backslash) {
+          this.pos = pos;
+          this.setValueSlice(start, pos);
+          return true;
+        }
+      }
+    } else if (isASCIILetter(ch) || ch === CharacterCodes._ || ch === CharacterCodes.$) {
       // Fast path for ASCII identifiers, which also hashes the units for interning.
       let pos = (this.pos + 1) | 0;
       const end = this.end;
@@ -1563,33 +1587,47 @@ export class Scanner {
         this.hashEnd = pos;
         return true;
       }
-      this.pos = (start + prefixLength) | 0;
     }
+    this.pos = identifierStart;
+    const languageVariant = variant === IdentifierVariant.JSX ? LanguageVariant.JSX : LanguageVariant.Standard;
     ch = this.codePoint();
-    if (!isIdentifierStart(ch)) return false;
-    do {
-      this.pos = (this.pos + charSize(ch)) | 0;
-      ch = this.codePoint();
-    } while (isIdentifierPart(ch));
-    if (ch === CharacterCodes.backslash) this.setValue(text.substring(start, this.pos) + this.scanIdentifierParts());
-    else this.setValueSlice(start, this.pos);
-    return true;
+    if (isIdentifierStart(ch)) {
+      do {
+        this.pos = (this.pos + charSize(ch)) | 0;
+        ch = this.codePoint();
+      } while (isIdentifierPart(ch, languageVariant));
+      if (ch === CharacterCodes.backslash)
+        this.setValue(text.substring(start, this.pos) + this.scanIdentifierParts(variant));
+      else this.setValueSlice(start, this.pos);
+      return true;
+    }
+    if (ch === CharacterCodes.backslash) {
+      const escaped = this.scanIdentifierEscape(true, variant);
+      if (escaped >= 0) {
+        const head = text.substring(start, identifierStart) + String.fromCodePoint(escaped);
+        this.setValue(head + this.scanIdentifierParts(variant));
+        return true;
+      }
+    }
+    return false;
   }
 
   /** Scans identifier parts including `\u` escapes and returns their cooked text. */
-  private scanIdentifierParts(): string {
+  private scanIdentifierParts(variant: IdentifierVariant): string {
+    const languageVariant = variant === IdentifierVariant.JSX ? LanguageVariant.JSX : LanguageVariant.Standard;
     let result = '';
     let start = this.pos;
     for (;;) {
       const ch = this.codePoint();
-      if (isIdentifierPart(ch)) {
+      if (isIdentifierPart(ch, languageVariant)) {
         this.pos = (this.pos + charSize(ch)) | 0;
         continue;
       }
       if (ch === CharacterCodes.backslash) {
-        const escaped = this.peekUnicodeEscape();
-        if (escaped >= 0 && isIdentifierPart(escaped)) {
-          result += this.text.substring(start, this.pos) + String.fromCodePoint(this.scanUnicodeEscape(true));
+        const escapeStart = this.pos;
+        const escaped = this.scanIdentifierEscape(false, variant);
+        if (escaped >= 0) {
+          result += this.text.substring(start, escapeStart) + String.fromCodePoint(escaped);
           start = this.pos;
           continue;
         }
@@ -1597,6 +1635,39 @@ export class Scanner {
       break;
     }
     return start === this.pos ? result : result + this.text.substring(start, this.pos);
+  }
+
+  /**
+   * At `\`: scans a `\u` escape of an identifier start (`isStart`) or part and returns its code point,
+   * or returns -1 and leaves the scanner unchanged.
+   */
+  private scanIdentifierEscape(isStart: boolean, variant: IdentifierVariant): number {
+    const languageVariant = variant === IdentifierVariant.JSX ? LanguageVariant.JSX : LanguageVariant.Standard;
+    const escaped = this.peekUnicodeEscape();
+    if (escaped >= 0 && (isStart ? isIdentifierStart(escaped) : isIdentifierPart(escaped, languageVariant)))
+      return this.scanUnicodeEscape(true);
+    // Group names in regular expressions, in Unicode mode or not, take `\u` HexLeadSurrogate `\u`
+    // HexTrailSurrogate as part of RegExpIdentifierName (tc39/ecma262#1869), but not the braced form.
+    if (
+      variant === IdentifierVariant.RegExpGroupName &&
+      this.peek(2) !== CharacterCodes.openBrace &&
+      escaped >= 0xd800 &&
+      escaped <= 0xdbff
+    ) {
+      const pos = this.pos;
+      const flags = this.tokenFlags;
+      this.scanUnicodeEscape(false);
+      if (this.peek(2) !== CharacterCodes.openBrace) {
+        const low = this.scanLowSurrogateEscape();
+        if (low >= 0) {
+          const codePoint = (escaped - 0xd800) * 0x400 + (low - 0xdc00) + 0x10000;
+          if (isStart ? isIdentifierStart(codePoint) : isIdentifierPart(codePoint, languageVariant)) return codePoint;
+        }
+      }
+      this.pos = pos | 0;
+      this.tokenFlags = flags;
+    }
+    return -1;
   }
 
   private scanInvalidCharacter(): SyntaxKind {
@@ -2080,7 +2151,7 @@ export class Scanner {
     }
     if (isIdentifierStart(this.codePoint())) {
       const idStart = this.pos;
-      const id = this.scanIdentifierParts();
+      const id = this.scanIdentifierParts(IdentifierVariant.Standard);
       if (result !== SyntaxKind.BigIntLiteral && id.length === 1 && this.chars[idStart] === CharacterCodes.n) {
         if ((this.tokenFlags & TokenFlags.Scientific) !== 0) {
           this.errorAt(Diagnostics.A_bigint_literal_cannot_use_exponential_notation, start, this.pos - start, noArgs);
@@ -2472,17 +2543,8 @@ export class Scanner {
   /** Extends an identifier or keyword with `-` and further parts, as JSX names allow. */
   scanJsxIdentifier(): SyntaxKind {
     if (!tokenIsIdentifierOrKeyword(this.token)) return this.token;
-    let value = this.getTokenValue();
-    while (this.pos < this.end) {
-      if (this.char() === CharacterCodes.minus) {
-        value += '-';
-        this.pos = (this.pos + 1) | 0;
-        continue;
-      }
-      const pos = this.pos;
-      value += this.scanIdentifierParts();
-      if (this.pos === pos) break;
-    }
+    // An identifier or keyword is scanned: append a following `-` and the rest of the name.
+    const value = this.getTokenValue() + this.scanIdentifierParts(IdentifierVariant.JSX);
     this.setValue(value);
     return (this.token = getIdentifierToken(value));
   }
@@ -2556,7 +2618,6 @@ export class Scanner {
   scanJSDocToken(): SyntaxKind {
     this.fullStartPos = this.pos | 0;
     this.tokenFlags = TokenFlags.None;
-    const text = this.text;
     const chars = this.chars;
     if (this.pos >= this.end) return (this.token = SyntaxKind.EndOfFile);
     this.tokenStart = this.pos | 0;
@@ -2605,37 +2666,22 @@ export class Scanner {
         return (this.token = SyntaxKind.BacktickToken);
       case CharacterCodes.hash:
         return (this.token = SyntaxKind.HashToken);
-      case CharacterCodes.backslash: {
-        this.pos = (this.pos - 1) | 0;
-        const codePoint = this.peekUnicodeEscape();
-        if (codePoint >= 0 && isIdentifierStart(codePoint)) {
-          const head = String.fromCodePoint(this.scanUnicodeEscape(true));
-          this.setValue(head + this.scanIdentifierParts());
-          return (this.token = getIdentifierToken(this.tokenValue));
-        }
-        this.pos = (this.pos + 1) | 0;
-        return (this.token = SyntaxKind.Unknown);
-      }
     }
-    if (!isIdentifierStart(ch)) return (this.token = SyntaxKind.Unknown);
-    let last = ch;
-    while (this.pos < this.end) {
-      const unit = this.chars[this.pos] | 0;
-      if (unit < 0x80) {
-        last = unit;
-        if (!isASCIIIdentifierPart(unit) && unit !== CharacterCodes.minus) break;
-        this.pos = (this.pos + 1) | 0;
-        continue;
-      }
-      last = this.codePointAt(this.pos, this.end);
-      if (!isIdentifierPart(last) && last !== CharacterCodes.minus) break;
-      this.pos = (this.pos + charSize(last)) | 0;
-    }
-    if (last === CharacterCodes.backslash)
-      this.setValue(text.substring(this.tokenStart, this.pos) + this.scanIdentifierParts());
-    else this.setValueSlice(this.tokenStart, this.pos);
-    return (this.token = this.identifierKind());
+    // JSDoc names take `-`, as JSX names do.
+    this.pos = this.tokenStart;
+    if (this.scanIdentifier(0, IdentifierVariant.JSX)) return (this.token = this.identifierKind());
+    this.pos = (this.tokenStart + charSize(ch)) | 0;
+    return (this.token = SyntaxKind.Unknown);
   }
+}
+
+/** Which characters an identifier scan takes after its start. */
+export const enum IdentifierVariant {
+  Standard,
+  /** JSX and JSDoc names, which take `-`. */
+  JSX,
+  /** Regular expression group names, which take a surrogate pair written as two `\u` escapes. */
+  RegExpGroupName,
 }
 
 const mergeConflictMarkerLength = 7;

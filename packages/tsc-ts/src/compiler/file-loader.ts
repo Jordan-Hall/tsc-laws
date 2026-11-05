@@ -13,7 +13,7 @@ import {
   type Node,
   type SourceFile,
 } from './ast.js';
-import { Diagnostics, type DiagnosticMessage, type MessageWithArgs } from './diagnostics.js';
+import { Diagnostics, type DiagnosticMessage, type MessageWithArgs, messageWithArgs } from './diagnostics.js';
 import { FileIncludeKind, FileIncludeReason, IncludeProcessor, ProcessingDiagnostic } from './file-include.js';
 import type { FileSystem } from './file-system.js';
 import { ModuleResolutionHost, Resolver, getAutomaticTypeDirectiveNames } from './module-resolution.js';
@@ -42,7 +42,7 @@ import {
   takePreparedFile,
 } from './parallel-parse.js';
 import type { PackageJsonLookup } from './package-json.js';
-import { parseSourceFile } from './parser.js';
+import { parseSourceFile, getScriptKindFromFileName } from './parser.js';
 import { mark } from './timeline.js';
 import {
   combinePaths,
@@ -59,6 +59,7 @@ import {
   supportedTSExtensionsWithJsonFlat,
   toFileNameLowerCase,
   toPath,
+  isNetworkPath,
 } from './path.js';
 import {
   getDefaultLibFileName,
@@ -76,6 +77,7 @@ import {
   SourceFileMetadata,
 } from './program-utilities.js';
 import { SyntaxKind } from './syntax-kind.js';
+import { isSourcePhaseImport } from './ast-utilities.js';
 import { hasExtension } from './vfs-match.js';
 import { TokenFlags } from './types.js';
 import {
@@ -129,6 +131,12 @@ export class CompilerHost extends ModuleResolutionHost {
     return this.fs.getAccessibleEntries(path).directories;
   }
 
+  /**
+   * The metadata of the file `FileLoader` is parsing, which it computes from the file's package scope
+   * before it parses it; a host that walks the grammar of the parsed file reads it (parse-thread.ts).
+   */
+  loadingSourceFileMetadata: SourceFileMetadata | undefined = undefined;
+
   /** Parses a file, or returns `undefined` if it can't be read. */
   getSourceFile(
     fileName: string,
@@ -140,7 +148,10 @@ export class CompilerHost extends ModuleResolutionHost {
     if (prepared !== undefined) return prepared;
     const text = this.fs.readFile(fileName);
     if (text === undefined) return undefined;
-    return parseSourceFile(fileName, text, new ParseOptions(path, ScriptKind.Unknown, externalModuleIndicatorOptions));
+    // A file without a known extension (with allowNonTsExtensions) parses as TypeScript.
+    const kind = getScriptKindFromFileName(fileName);
+    const scriptKind = kind === ScriptKind.Unknown ? ScriptKind.TS : kind;
+    return parseSourceFile(fileName, text, new ParseOptions(path, scriptKind, externalModuleIndicatorOptions));
   }
 
   /** The config of a referenced project, or `undefined` if it can't be read. */
@@ -246,6 +257,8 @@ class ParseTask {
   subTasks: ParseTask[] | undefined = undefined;
   loaded = false;
   startedSubTasks = false;
+  /** A root file name that resolved to no supported file: the task only carries its processing diagnostic. */
+  failedLookup = false;
   metadata: SourceFileMetadata = libFileMetadata;
   resolutionsInFile: ModeAwareCache<ResolvedModule> | undefined = undefined;
   resolutionsTrace: MessageWithArgs[] | undefined = undefined;
@@ -256,6 +269,10 @@ class ParseTask {
   jsxRuntimeImport: JsxRuntimeImport | undefined = undefined;
   /** The task of the same file name that was loaded instead of this one. */
   loadedTask: ParseTask | undefined = undefined;
+  /** The index in `FileLoader.taskData` of the tasks of this task's path, once known; -1 before. */
+  dataIndex = -1;
+  /** Whether an import or a type reference directive adds the file (`ProcessedFiles.addedFiles`). */
+  readonly byImport: boolean;
 
   constructor(
     readonly normalizedFilePath: string,
@@ -266,7 +283,10 @@ class ParseTask {
     /** A JavaScript file found in `node_modules`, loaded only within `maxNodeModuleJsDepth`. */
     readonly elideOnDepth: boolean,
     readonly packageId: PackageId | undefined,
-  ) {}
+  ) {
+    const kind = includeReason !== undefined ? includeReason.kind : -1;
+    this.byImport = kind === FileIncludeKind.Import || kind === FileIncludeKind.TypeReferenceDirective;
+  }
 
   addSubTask(
     fileName: string,
@@ -296,16 +316,45 @@ class ParseTask {
   }
 }
 
+const noData: readonly ParseTaskData[] = [];
+
+/** The resolution of a module the importing file declares itself: none. */
+const locallyDeclaredModule: ResolvedModule = {
+  resolvedFileName: '',
+  originalPath: '',
+  extension: '',
+  resolvedUsingTsExtension: false,
+  packageId: undefined,
+  isExternalLibraryImport: false,
+  alternateResult: '',
+  resolutionDiagnostics: [],
+};
+
 /** The tasks of one path, by file name casing. */
 class ParseTaskData {
   readonly tasks = new Map<string, ParseTask>();
+  /** Whether a task of the path is queued (`start`). */
+  queued = false;
+  /** The path's first queued task, the first of `tasks`. */
+  first: ParseTask | undefined = undefined;
+  /**
+   * Whether every task of `tasks` is loaded (`run`): then more work of the path does nothing unless it
+   * reaches the path at a lower depth.
+   */
+  settled = false;
   lowestDepth = Number.MAX_SAFE_INTEGER;
   startedSubTasks = false;
   packageId: PackageId | undefined = undefined;
-
-  constructor(task: ParseTask) {
-    this.tasks.set(task.normalizedFilePath, task);
-  }
+  /** The index of this path's file in the program's files, once collected; -1 for none. */
+  index = -1;
+  /** For a deduplicated package's path, the tasks of the copy kept (`collect`). */
+  keptCopy: ParseTaskData | undefined = undefined;
+  /** The paths the file's imports and type reference directives add, once collected. */
+  added: readonly ParseTaskData[] = noData;
+  /** The file name `collect` reached the path by first, once it did. */
+  collectedName: string | undefined = undefined;
+  /** The path's include reasons, once `collect` found one: the list in `IncludeProcessor.fileIncludeReasons`. */
+  reasons: FileIncludeReason[] | undefined = undefined;
 }
 
 /** Pending processing of `tasks[index]`. */
@@ -419,6 +468,11 @@ export class ProcessedFiles {
      * threads (`preparedPackageJsonLookups`); `undefined` where they may miss some.
      */
     readonly preparedPackageJsons: readonly PackageJsonLookup[] | undefined,
+    /**
+     * The files each file's imports and type reference directives added to the program, by index into
+     * `files`, without the file itself.
+     */
+    readonly addedFiles: readonly (readonly number[])[],
   ) {}
 }
 
@@ -446,6 +500,8 @@ export function withReplacedFile(processed: ProcessedFiles, file: SourceFile): P
     processed.redirectFilesByPath,
     processed.projectReferenceMapper,
     processed.preparedPackageJsons,
+    // The file has the same references (`canReplaceFile`), and keeps its index.
+    processed.addedFiles,
   );
 }
 
@@ -457,7 +513,7 @@ export function needsImportHelpersImportSpecifier(file: SourceFile, options: Com
 
 /** The module `file` imports the JSX runtime from under `options`, or '' if it imports none. */
 export function jsxRuntimeImportOf(file: SourceFile, options: CompilerOptions): string {
-  if (file.scriptKind !== ScriptKind.JSX && file.scriptKind !== ScriptKind.TSX) return '';
+  if (!isSourceFileJS(file) && file.scriptKind !== ScriptKind.TSX) return '';
   return getJSXRuntimeImport(getJSXImplicitImportBase(options, file), options);
 }
 
@@ -537,7 +593,10 @@ export class FileLoader {
   private readonly supportedExtensionsWithJson: readonly (readonly string[])[];
   private readonly maxNodeModuleJsDepth: number;
   private readonly rootTasks: ParseTask[] = [];
-  private readonly taskDataByPath = new Map<string, ParseTaskData>();
+  /** The tasks of each path, created when a task of the path is first queued or built ahead. */
+  private readonly taskData: ParseTaskData[] = [];
+  /** The index in `taskData` of each path's tasks. */
+  private readonly taskDataByPath = new Map<string, number>();
   /** Work queued by `start`, run last-in first-out like tsgo's single-threaded work group. */
   private readonly work: ParseWork[] = [];
   private readonly libFileCache = new Map<string, LibFile>();
@@ -607,7 +666,11 @@ export class FileLoader {
       const loaded = prepared.loaded;
       if (loaded === undefined) continue;
       const subTasks = this.subTasksOf(loaded);
-      for (const task of subTasks) task.path = this.toPath(task.normalizedFilePath);
+      // Their paths and tasks, found here while threads parse rather than when the walk reaches them.
+      for (const task of subTasks) {
+        task.path = this.toPath(task.normalizedFilePath);
+        task.dataIndex = this.dataIndexOf(task.path);
+      }
       this.subTasksAhead.set(prepared.fileName, new SubTasksAhead(loaded, subTasks));
     }
   }
@@ -685,7 +748,7 @@ export class FileLoader {
 
   private walk(): void {
     for (let work = this.work.pop(); work !== undefined; work = this.work.pop()) {
-      if (this.walkingAhead && this.parsesUnprepared(work.tasks[work.index], work.data)) {
+      if (this.walkingAhead && !this.elides(work) && this.parsesUnprepared(work.tasks[work.index], work.data)) {
         this.work.push(work);
         return;
       }
@@ -701,6 +764,7 @@ export class FileLoader {
    */
   release(): void {
     this.rootTasks.length = 0;
+    this.taskData.length = 0;
     this.taskDataByPath.clear();
     this.work.length = 0;
     this.subTasksAhead.clear();
@@ -880,6 +944,7 @@ export class FileLoader {
       return;
     }
     const task = new ParseTask(absolute, undefined, reason, false, false, false, undefined);
+    task.failedLookup = true;
     task.addProcessingDiagnostic(
       ProcessingDiagnostic.explainingFileInclude('', reason, resolved.message, resolved.args),
     );
@@ -906,6 +971,8 @@ export class FileLoader {
   ): string | ReferenceDiagnostic {
     const allowNonTsExtensions = this.options.allowNonTsExtensions === true;
     const diagnosticFileName = normalizeSlashes(referenceText);
+    if (isNetworkPath(fileName))
+      return new ReferenceDiagnostic(Diagnostics.Network_path_0_is_not_supported, [diagnosticFileName]);
     const fs = this.host.fs;
     if (hasExtension(fileName)) {
       const canonicalFileName = getCanonicalFileName(fileName, fs.useCaseSensitiveFileNames);
@@ -1006,18 +1073,36 @@ export class FileLoader {
   // ---- Loading
 
   private start(tasks: ParseTask[], depth: number): void {
+    const taskData = this.taskData;
     for (let i = 0; i < tasks.length; i++) {
       const task = tasks[i];
-      // Sub-tasks built ahead have their paths.
-      if (task.path === '') task.path = this.toPath(task.normalizedFilePath);
-      let data = this.taskDataByPath.get(task.path);
-      const loaded = data !== undefined;
-      if (data === undefined) {
-        data = new ParseTaskData(task);
-        this.taskDataByPath.set(task.path, data);
+      // Sub-tasks built ahead have their paths and tasks.
+      let k = task.dataIndex;
+      if (k < 0) {
+        if (task.path === '') task.path = this.toPath(task.normalizedFilePath);
+        k = this.dataIndexOf(task.path);
+        task.dataIndex = k;
+      }
+      const data = taskData[k];
+      const loaded = data.queued;
+      if (!loaded) {
+        data.queued = true;
+        data.first = task;
+        data.tasks.set(task.normalizedFilePath, task);
       }
       this.work.push(new ParseWork(tasks, i, data, loaded, depth));
     }
+  }
+
+  /** The index in `taskData` of the tasks of `path`, created if needed. */
+  private dataIndexOf(path: string): number {
+    let k = this.taskDataByPath.get(path);
+    if (k === undefined) {
+      k = this.taskData.length;
+      this.taskData.push(new ParseTaskData());
+      this.taskDataByPath.set(path, k);
+    }
+    return k;
   }
 
   private run(work: ParseWork): void {
@@ -1025,24 +1110,30 @@ export class FileLoader {
     const data = work.data;
     let startSubTasks = false;
     if (work.loaded) {
-      const existing = data.tasks.get(task.normalizedFilePath);
+      const name = task.normalizedFilePath;
+      const first = data.first;
+      const existing = first !== undefined && first.normalizedFilePath === name ? first : data.tasks.get(name);
       if (existing !== undefined) {
         task.loadedTask = existing;
       } else {
-        data.tasks.set(task.normalizedFilePath, task);
+        data.tasks.set(name, task);
+        data.settled = false;
         // A new casing of a file: load its references if another casing's were.
         startSubTasks = data.startedSubTasks;
       }
     }
     if (data.packageId === undefined && task.packageId !== undefined) data.packageId = task.packageId;
     const depth = task.increaseDepth ? work.depth + 1 : work.depth;
-    if (depth < data.lowestDepth) {
+    const lowered = depth < data.lowestDepth;
+    if (lowered) {
       // Reached at a lower depth than before: load references again.
       data.lowestDepth = depth;
       startSubTasks = true;
       data.startedSubTasks = true;
     }
     if (task.elideOnDepth && depth > this.maxNodeModuleJsDepth) return;
+    // Most work reaches a path already loaded, at no lower depth.
+    if (data.settled && !startSubTasks) return;
     for (const taskByFileName of data.tasks.values()) {
       let loadSubTasks = startSubTasks;
       if (!taskByFileName.loaded) {
@@ -1052,11 +1143,23 @@ export class FileLoader {
           data.startedSubTasks = true;
         }
       }
-      if (!taskByFileName.startedSubTasks && loadSubTasks) {
+      // A lower depth restarts references already started, which may now be loaded past `maxNodeModuleJsDepth`.
+      // Every file reached from them is at least as deep, so a depth past it changes nothing they load.
+      if (loadSubTasks && ((lowered && depth <= this.maxNodeModuleJsDepth) || !taskByFileName.startedSubTasks)) {
         taskByFileName.startedSubTasks = true;
         if (taskByFileName.subTasks !== undefined) this.start(taskByFileName.subTasks, data.lowestDepth);
       }
     }
+    data.settled = true;
+  }
+
+  /**
+   * Whether `run` drops `work` without loading its file: a JavaScript file past `maxNodeModuleJsDepth`,
+   * which no parse thread prepares, so the walk ahead does not wait for it.
+   */
+  private elides(work: ParseWork): boolean {
+    const task = work.tasks[work.index];
+    return task.elideOnDepth && (task.increaseDepth ? work.depth + 1 : work.depth) > this.maxNodeModuleJsDepth;
   }
 
   /**
@@ -1076,6 +1179,7 @@ export class FileLoader {
       this.loadAutomaticTypeDirectives(task);
       return;
     }
+    if (task.failedLookup) return;
     const redirect = this.mapper.getParseFileRedirect(task.path);
     if (redirect !== '') {
       const redirected = new ParseTask(
@@ -1124,6 +1228,8 @@ export class FileLoader {
         ? libFileMetadata
         : (loaded?.metadata ?? this.loadSourceFileMetadata(task.normalizedFilePath));
     const options = this.mapper.getCompilerOptionsForFile(task.path, task.normalizedFilePath);
+    // For the host that walks the grammar of the file as it parses it (parse-thread.ts).
+    this.host.loadingSourceFileMetadata = task.metadata;
     const file = this.host.getSourceFile(
       task.normalizedFilePath,
       task.path,
@@ -1324,8 +1430,24 @@ export class FileLoader {
     for (let index = 0; index < moduleNames.length; index++) {
       const entry = moduleNames[index];
       const moduleName = getText(entry);
-      if (moduleName === '') continue;
+      // A source phase import loads no module declarations.
+      if (moduleName === '' || isSourcePhaseImport(entry.parent!)) continue;
       const mode = getModeForUsageLocation(file.fileName, task.metadata, entry, options);
+      // A module the file declares itself (`declare module "m"`) isn't resolved.
+      if (file.ambientModuleNames.includes(moduleName)) {
+        if (options.traceResolution === true)
+          task
+            .moduleTraces(true)!
+            .push(
+              messageWithArgs(
+                Diagnostics.Module_0_was_resolved_as_locally_declared_ambient_module_in_file_1,
+                moduleName,
+                file.fileName,
+              ),
+            );
+        resolutions.set(modeAwareKey(moduleName, mode), locallyDeclaredModule);
+        continue;
+      }
       const resolved = this.resolver.resolveModuleName(
         moduleName,
         containingFile,
@@ -1392,20 +1514,28 @@ export class FileLoader {
     const redirectFilesByPath = new Map<string, RedirectFile>();
     const packageIdToSourceFile = new Map<string, SourceFile>();
     const checkCasing = this.options.forceConsistentCasingInFileNames !== false;
-    const seen = new Map<ParseTaskData, string>();
+    const taskData = this.taskData;
+    // The paths each file's imports and type reference directives add (the tasks of each path), for
+    // `ProcessedFiles.addedFiles`: recorded while collecting visits them, as their files are only known
+    // once every file is collected.
+    const fileData: ParseTaskData[] = [];
+    const libData = new Map<SourceFile, ParseTaskData>();
+    const packageIdToData = new Map<string, ParseTaskData>();
 
-    const collectFiles = (tasks: readonly ParseTask[]): void => {
+    const collectFiles = (tasks: readonly ParseTask[], added: ParseTaskData[] | undefined): void => {
       for (let task of tasks) {
         const includeReason = task.includeReason;
+        const byImport = task.byImport;
         // Automatic type directive tasks are an implementation detail, not a reason.
         if (task.redirectedParseTask === undefined && !task.isForAutomaticTypeDirective) {
           if (task.loadedTask !== undefined) task = task.loadedTask;
-          if (includeReason !== undefined) addIncludeReason(includeProcessor, task, includeReason);
+          if (includeReason !== undefined) addIncludeReason(includeProcessor, taskData, task, includeReason);
         }
-        const data = this.taskDataByPath.get(task.path);
+        const data = task.dataIndex >= 0 ? taskData[task.dataIndex] : undefined;
+        if (added !== undefined && data !== undefined && byImport) added.push(data);
         if (!task.loaded || data === undefined) continue;
 
-        const checkedName = seen.get(data);
+        const checkedName = data.collectedName;
         if (checkedName !== undefined) {
           // The same name normalizes the same: only another spelling needs comparing.
           if (
@@ -1418,7 +1548,7 @@ export class FileLoader {
           }
           continue;
         }
-        seen.set(data, task.normalizedFilePath);
+        data.collectedName = task.normalizedFilePath;
 
         if (tasksSeenByNameIgnoreCase !== undefined) {
           const lowerCasePath = toFileNameLowerCase(task.path);
@@ -1457,13 +1587,18 @@ export class FileLoader {
               ),
             );
             filesByPath.set(task.path, packageIdFile);
+            data.keptCopy = packageIdToData.get(key);
             if (data.lowestDepth > 0) sourceFilesFoundSearchingNodeModules.add(task.path);
             continue;
           }
-          if (file !== undefined) packageIdToSourceFile.set(key, file);
+          if (file !== undefined) {
+            packageIdToSourceFile.set(key, file);
+            packageIdToData.set(key, data);
+          }
         }
 
-        if (task.subTasks !== undefined && task.subTasks.length > 0) collectFiles(task.subTasks);
+        let own: ParseTaskData[] | undefined = undefined;
+        if (task.subTasks !== undefined && task.subTasks.length > 0) collectFiles(task.subTasks, (own = []));
 
         const redirected = task.redirectedParseTask;
         if (redirected !== undefined) {
@@ -1476,19 +1611,24 @@ export class FileLoader {
             includeProcessor.addProcessingDiagnostic(diagnostic);
           continue;
         }
-        const path = task.path;
         for (const diagnostic of task.processingDiagnostics ?? noProcessingDiagnostics)
           includeProcessor.addProcessingDiagnostic(diagnostic);
         if (file === undefined) {
           missingFiles.push(task.normalizedFilePath);
           continue;
         }
+        // The program's maps of the file are keyed by the file's own path: lookups by `file.path` then find
+        // the same string, also for a file a parse thread created, whose path is another string than the task's.
+        const path = file.path === task.path ? file.path : task.path;
         if (task.libFile !== undefined) {
           libFiles.push(file);
+          libData.set(file, data);
           libFilesByPath.set(path, task.libFile);
         } else {
           files.push(file);
+          fileData.push(data);
         }
+        if (own !== undefined) data.added = own;
         filesByPath.set(path, file);
         resolvedModules.set(path, task.resolutionsInFile);
         typeResolutionsInFile.set(path, task.typeResolutionsInFile);
@@ -1500,13 +1640,28 @@ export class FileLoader {
         if (data.lowestDepth > 0) sourceFilesFoundSearchingNodeModules.add(path);
       }
     };
-    collectFiles(this.rootTasks);
+    collectFiles(this.rootTasks, undefined);
 
     const priorities = new Map<SourceFile, number>();
     for (const file of libFiles) priorities.set(file, this.libFilePriority(file));
     libFiles.sort((a, b) => (priorities.get(a) ?? 0) - (priorities.get(b) ?? 0));
     const allFiles = [...libFiles, ...files];
     for (const redirect of redirectFilesByPath.values()) redirect.index += libFiles.length;
+    // The files a file adds, without reading its resolutions again or looking up their paths.
+    const dataOfFiles: ParseTaskData[] = [];
+    for (const file of libFiles) dataOfFiles.push(libData.get(file)!);
+    for (const data of fileData) dataOfFiles.push(data);
+    for (let i = 0; i < dataOfFiles.length; i++) dataOfFiles[i]!.index = i;
+    const addedFiles: number[][] = [];
+    for (let i = 0; i < dataOfFiles.length; i++) {
+      const added: number[] = [];
+      for (const data of dataOfFiles[i]!.added) {
+        const kept = data.keptCopy;
+        const k = kept !== undefined ? kept.index : data.index;
+        if (k >= 0 && k !== i) added.push(k);
+      }
+      addedFiles.push(added);
+    }
 
     const keys = [...this.libResolutions.keys()].sort();
     for (const key of keys) {
@@ -1536,6 +1691,7 @@ export class FileLoader {
       redirectFilesByPath,
       this.mapper,
       this.tookPreparedResolutions ? preparedPackageJsonLookups() : noPackageJsonLookups,
+      addedFiles,
     );
   }
 }
@@ -1547,10 +1703,21 @@ export function releaseLater(loader: FileLoader): void {
   setImmediate(() => loader.release());
 }
 
-function addIncludeReason(processor: IncludeProcessor, task: ParseTask, reason: FileIncludeReason): void {
+function addIncludeReason(
+  processor: IncludeProcessor,
+  taskData: readonly ParseTaskData[],
+  task: ParseTask,
+  reason: FileIncludeReason,
+): void {
   const redirected = task.redirectedParseTask;
-  if (redirected !== undefined) addIncludeReason(processor, redirected, reason);
-  else if (task.loaded) processor.addReason(task.path, reason);
+  if (redirected !== undefined) addIncludeReason(processor, taskData, redirected, reason);
+  else if (task.loaded) {
+    // The path's list, without looking the path up for each reference to the file.
+    const data = task.dataIndex >= 0 ? taskData[task.dataIndex] : undefined;
+    if (data === undefined) processor.addReason(task.path, reason);
+    else if (data.reasons !== undefined) data.reasons.push(reason);
+    else data.reasons = processor.addReason(task.path, reason);
+  }
 }
 
 function createProjectReferenceTasks(paths: readonly string[]): ProjectReferenceTask[] {

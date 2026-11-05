@@ -33,7 +33,14 @@ import {
   type OutputWriter,
   ProgramEmitter,
 } from './compile-program.js';
-import { Diagnostic, DiagnosticFile, RepopulateInfo } from './diagnostics.js';
+import {
+  Diagnostic,
+  DiagnosticFile,
+  type DiagnosticFormatOptions,
+  formatDiagnostic,
+  formattedReports,
+  RepopulateInfo,
+} from './diagnostics.js';
 import { EmitOnly, EmitResult } from './emitter.js';
 import { getEmitDeclarations, isIncremental } from './options.js';
 import { DeclarationSignatureWriter } from './incremental.js';
@@ -43,8 +50,78 @@ import type { Program } from './program.js';
 import type { SourceFile } from './ast.js';
 import { lastSymbolIdValue } from './symbol.js';
 import { shareMergedGlobals } from './checker-symbols.js';
+import { availableCpus, cgroupMemoryLimit } from './cgroup.js';
 import { readFileSync } from 'node:fs';
-import { availableParallelism, totalmem } from 'node:os';
+import { totalmem } from 'node:os';
+import {
+  forbiddenWords,
+  isForbidden,
+  maxSharingCheckers,
+  numberLogSize,
+  recordTableSize,
+  resultTableSize,
+  shareStatColumns,
+  shareStatExport,
+  shareStatPosted,
+  shareStatSaved,
+  shareStatTranslation,
+  shareStatTranslated,
+  stringLogSize,
+  usedStride,
+  type ThreadSharingData,
+} from './shared-results.js';
+import {
+  autoCheckers,
+  Automaticity,
+  CheckSignals,
+  checkersPolicy,
+  decideCheck,
+  learns,
+  libraryBoundCount,
+  maxAutoCheckers,
+  minSharingCheckers,
+  sharePin,
+  sharingCandidate,
+  sharingPeakShare,
+  Source,
+  tsgoCheckers,
+  type CheckDecision,
+  type CheckFit,
+  type RunConfig,
+} from './run-config.js';
+import type { RecordShape } from './run-records.js';
+
+// The tests of the scheduler read these here, next to the plans they choose between.
+export { autoCheckers, libraryBoundCount };
+
+/**
+ * `TSC_TS_SHARE` for a run without a run configuration (the emit threads, which share no program to
+ * translate against): `1` shares, `0` does not, and unset shares nothing (`sharePin`).
+ */
+const shareThreads = sharePin(process.env);
+
+/**
+ * TSC_TS_SHARE_STOP_AT_MS: `t` or `t:level` stops a sharing run's sharing `t` milliseconds in, whatever
+ * the run's numbers say, to check the switch: `2` (the default) stops posting and translating, `1`
+ * stops posting. Testing only.
+ */
+function shareStopHook(): { readonly at: number; readonly level: number } | undefined {
+  const value = process.env.TSC_TS_SHARE_STOP_AT_MS;
+  if (value === undefined || value === '') return undefined;
+  const colon = value.indexOf(':');
+  const at = Number(colon < 0 ? value : value.substring(0, colon));
+  if (!Number.isFinite(at) || at < 0) return undefined;
+  return { at, level: colon >= 0 && value.substring(colon + 1) === '1' ? 1 : 2 };
+}
+
+const shareStop = shareStopHook();
+
+/**
+ * The window a run without a configuration uses before the main thread weighs what sharing saved against
+ * what it cost (`sharingNumbers`): 300 ms. A run with one uses the larger of 200 ms and a tenth of the
+ * check time its record measured (`RunConfig.shareWindowMs`, `shareWindowOf`).
+ */
+const shareWindowMs = 300;
 
 /** With TSC_TS_CHECKERS_TRACE: the process's resident and peak resident set in MB (Linux), else 0. */
 export function residentMB(): number[] {
@@ -66,7 +143,8 @@ export function residentMB(): number[] {
  * the main thread emits the program (`checkersEmit`). `emitKinds`, by file index, is what the emit of
  * each file includes (an `EmitOnly`, or -1 for none) where not every output of every file is emitted
  * (an incremental program's rebuild); `undefined` for all of them. `units` are the statement ranges of
- * declaration files the order has positions for (`CheckPlan.units`).
+ * declaration files the order has positions for (`CheckPlan.units`). `globalsInFileDiagnostics` is the main
+ * thread's `CheckedProgram.globalsInFileDiagnostics`.
  */
 export type CheckerSpawn = (
   program: Program | undefined,
@@ -80,6 +158,8 @@ export type CheckerSpawn = (
   emitKinds: number[] | undefined,
   checking: boolean,
   units: number[],
+  globalsInFileDiagnostics: boolean,
+  sharing: ThreadSharingData | undefined,
 ) => Worker;
 
 export class ParallelCheck {
@@ -119,6 +199,11 @@ export class CheckerResult {
     readonly units: number[] = [],
     /** Those of `units` after which its checker had diagnostics in their file (`checkSourceFileRange`). */
     readonly reportingUnits: number[] = [],
+    /**
+     * The types, instantiations and transient symbols its checker created, which `--diagnostics` adds to
+     * the main thread's (`CheckedProgram.addCheckerCounts`); empty for a result without a checker of its own.
+     */
+    readonly counts: number[] = [],
   ) {}
 }
 
@@ -144,10 +229,13 @@ export const recycleFiles: number = Math.max(0, Number(process.env.TSC_TS_RECYCL
  * text (index, -1 when the program has the file), pos, end, code, category, message,
  * skippedOnNoEmit, the argument count and indices, its repopulate kind (0 for none) followed by the
  * module reference (index), mode and package name (index) of other kinds, then its message chain and
- * related information as lists. An emit result is emitSkipped, the emitted files, errors and
- * unsupported files as lists of indices, then its diagnostics and its declaration signatures as a list
- * of indices. `files` and `nums` are typed arrays, which postMessage copies as one block of memory
- * each; it copies an array of numbers element by element.
+ * related information as lists. A diagnostic of a reported list (the files' diagnostic and declaration
+ * diagnostic lists, the global diagnostics and an emit result's diagnostics) is followed by its text in
+ * the main thread's report format (`Diagnostic.formatted`, an index, -1 for none). An emit result is
+ * emitSkipped, the emitted files, errors and unsupported files as lists of indices, then its
+ * diagnostics and its declaration signatures as a list of indices. `files` and `nums` are typed
+ * arrays, which postMessage copies as one block of memory each; it copies an array of numbers element
+ * by element.
  */
 export type PackedResult = {
   readonly index: number;
@@ -160,6 +248,7 @@ export type PackedResult = {
   readonly reserved: number[];
   readonly units: Int32Array;
   readonly reportingUnits: Int32Array;
+  readonly counts: number[];
 };
 
 class ResultPacker {
@@ -167,7 +256,11 @@ class ResultPacker {
   readonly strs: string[] = [];
   private readonly indices = new Map<string, number>();
 
-  constructor(private readonly program: Program) {}
+  constructor(
+    private readonly program: Program,
+    /** The main thread's report format, which this thread formats the reported diagnostics in. */
+    private readonly format: DiagnosticFormatOptions | undefined,
+  ) {}
 
   private str(text: string): number {
     let k = this.indices.get(text);
@@ -184,6 +277,21 @@ class ResultPacker {
     for (const d of diagnostics) this.diagnostic(d);
   }
 
+  /** A list the main thread reports: each diagnostic with its text in the report format. */
+  reported(diagnostics: readonly Diagnostic[]): void {
+    const nums = this.nums;
+    const format = this.format;
+    nums.push(diagnostics.length);
+    for (const d of diagnostics) {
+      this.diagnostic(d);
+      if (format === undefined) nums.push(-1);
+      else {
+        nums.push(this.strs.length);
+        this.strs.push(formatDiagnostic(d, format));
+      }
+    }
+  }
+
   private strList(texts: readonly string[]): void {
     this.nums.push(texts.length);
     for (const text of texts) this.nums.push(this.str(text));
@@ -194,7 +302,7 @@ class ResultPacker {
     this.strList(result.emittedFiles);
     this.strList(result.errors);
     this.strList(result.unsupported);
-    this.list(result.diagnostics);
+    this.reported(result.diagnostics);
     this.strList(result.declarationSignatures);
     this.strList(result.heldOutputs);
   }
@@ -226,11 +334,11 @@ class ResultPacker {
 
 /** Packs `result` (on the checker thread) for `postMessage`. */
 export function packResult(result: CheckerResult, program: Program): PackedResult {
-  const packer = new ResultPacker(program);
-  for (const list of result.diagnostics) packer.list(list);
+  const packer = new ResultPacker(program, formattedReports.format);
+  for (const list of result.diagnostics) packer.reported(list);
   packer.nums.push(result.declarations.length);
-  for (const list of result.declarations) packer.list(list);
-  packer.list(result.globals);
+  for (const list of result.declarations) packer.reported(list);
+  packer.reported(result.globals);
   packer.nums.push(result.emits.length);
   for (const emit of result.emits) packer.emit(emit);
   return {
@@ -244,6 +352,7 @@ export function packResult(result: CheckerResult, program: Program): PackedResul
     reserved: result.reserved,
     units: Int32Array.from(result.units),
     reportingUnits: Int32Array.from(result.reportingUnits),
+    counts: result.counts,
   };
 }
 
@@ -269,6 +378,19 @@ class ResultUnpacker {
     const n = this.next();
     const result: Diagnostic[] = [];
     for (let k = 0; k < n; k++) result.push(this.diagnostic());
+    return result;
+  }
+
+  /** A list `ResultPacker.reported` packed. */
+  reported(): Diagnostic[] {
+    const n = this.next();
+    const result: Diagnostic[] = [];
+    for (let k = 0; k < n; k++) {
+      const d = this.diagnostic();
+      const text = this.next();
+      if (text >= 0) d.formatted = this.packed.strs[text]!;
+      result.push(d);
+    }
     return result;
   }
 
@@ -325,7 +447,7 @@ class ResultUnpacker {
     this.strList(result.emittedFiles);
     this.strList(result.errors);
     this.strList(result.unsupported);
-    for (const d of this.list()) result.diagnostics.push(d);
+    for (const d of this.reported()) result.diagnostics.push(d);
     this.strList(result.declarationSignatures);
     this.strList(result.heldOutputs);
     return result;
@@ -339,11 +461,11 @@ export function unpackResult(
 ): CheckerResult {
   const unpacker = new ResultUnpacker(packed, program, files);
   const diagnostics: Diagnostic[][] = [];
-  for (let k = 0; k < packed.files.length; k++) diagnostics.push(unpacker.list());
+  for (let k = 0; k < packed.files.length; k++) diagnostics.push(unpacker.reported());
   const declarations: Diagnostic[][] = [];
   const nd = unpacker.count();
-  for (let k = 0; k < nd; k++) declarations.push(unpacker.list());
-  const globals = unpacker.list();
+  for (let k = 0; k < nd; k++) declarations.push(unpacker.reported());
+  const globals = unpacker.reported();
   const emits: EmitResult[] = [];
   const ne = unpacker.count();
   for (let k = 0; k < ne; k++) emits.push(unpacker.emit());
@@ -360,6 +482,7 @@ export function unpackResult(
     emits,
     Array.from(packed.units),
     Array.from(packed.reportingUnits),
+    packed.counts,
   );
 }
 
@@ -399,22 +522,8 @@ function checkersEmit(checked: CheckedProgram, emits: boolean): boolean {
 }
 
 /**
- * How the number of checkers is chosen without `--checkers`: `auto` (the default) uses every CPU
- * this process may run on (`os.availableParallelism()`, at most `maxAutoCheckers`), and at least
- * tsgo's four; fewer than the CPUs, but never fewer than four, when the estimated peak memory of more
- * checkers would not fit (`memoryCheckers`). `fixed` (TSC_TS_CHECKERS=fixed) uses tsgo's four.
- */
-export const checkerPolicy: 'fixed' | 'auto' = process.env.TSC_TS_CHECKERS === 'fixed' ? 'fixed' : 'auto';
-
-/** tsgo's number of checkers, and the fewest `auto` starts. */
-const tsgoCheckers = 4;
-
-/** The most checkers `auto` starts (measured up to 16 CPUs). */
-const maxAutoCheckers = 16;
-
-/**
  * The number of checker threads for `checkers` (`--checkers`), or 1 to check on this thread. Without
- * the option, native builds follow `checkerPolicy` (with `program`, the memory estimate of `auto`
+ * the option, native builds follow the checker policy (with `program`, the memory estimate of `auto`
  * applies); under Node.js, where every thread builds its own copy of the program, tsc-ts checks on
  * one thread.
  */
@@ -431,8 +540,8 @@ export function checkerThreads(
 function defaultCheckers(program: Program | undefined): number {
   if (!sharesPublishedGraphs) return 1;
   if (program !== undefined && checksLittle(program)) return 1;
-  if (checkerPolicy === 'fixed') return tsgoCheckers;
-  const cpus = Math.min(availableParallelism(), maxAutoCheckers);
+  if (checkersPolicy(process.env) === 'fixed') return tsgoCheckers;
+  const cpus = Math.min(availableCpus(), maxAutoCheckers);
   return autoCheckers(cpus, program === undefined ? Number.MAX_SAFE_INTEGER : memoryCheckers(program));
 }
 
@@ -456,24 +565,6 @@ function checksLittle(program: Program): boolean {
     if (text >= littleText) return false;
   }
   return true;
-}
-
-/** `auto` with `cpus` CPUs when the memory estimate fits `fit` checkers: tsgo's four at least. */
-export function autoCheckers(cpus: number, fit: number): number {
-  return Math.max(tsgoCheckers, Math.min(cpus, fit));
-}
-
-/**
- * The number of threads that parse ahead of a program checked by `checkers` checkers: every CPU this
- * process may run on, as tsgo parses on every core whatever its checker count (parse threads hand
- * their files to the shared program; what else they allocate is reused by the checker threads), but
- * one. The main thread hands out the chunks they load: with a thread on every CPU, it waits for a CPU
- * each time a thread returns a chunk, and so does that thread for its next chunk (VS Code's parse took
- * 18-57 ms longer with 16 threads on 16 CPUs than with 15).
- */
-export function parseThreads(checkers: number): number {
-  const cpus = availableParallelism();
-  return Math.max(1, Math.min(cpus - 1, Math.max(checkers, Math.min(cpus, maxAutoCheckers))));
 }
 
 /**
@@ -511,9 +602,14 @@ const lastResortShare = 0.95;
  * bytes, for a program of `programBytes` (`firstCheckerShare`, `checkerBytesPerDeclarationChar`);
  * at least 1.
  */
-export function checkersFittingMemory(programBytes: number, declarationChars: number, memory: number): number {
-  const peak = programBytes * (1 + firstCheckerShare);
-  const perChecker = Math.max(1, declarationChars * checkerBytesPerDeclarationChar);
+export function checkersFittingMemory(
+  programBytes: number,
+  declarationChars: number,
+  memory: number,
+  peakShare: number = 1,
+): number {
+  const peak = programBytes * (1 + firstCheckerShare) * peakShare;
+  const perChecker = Math.max(1, declarationChars * checkerBytesPerDeclarationChar * peakShare);
   return Math.max(1, 1 + Math.floor((memoryShare * memory - peak) / perChecker));
 }
 
@@ -528,59 +624,6 @@ export function memoryLimit(): number {
   const cgroup = cgroupMemoryLimit();
   if (cgroup > 0 && cgroup < limit) limit = cgroup;
   return limit;
-}
-
-/**
- * The smallest memory limit of this process's cgroup and its ancestors (Linux), or 0 where there is
- * none or it is unknown: `memory.max` and `memory.high` under cgroup v2, `memory.limit_in_bytes`
- * under v1. `process.constrainedMemory()` does not always see these: libuv reads only the process's
- * own cgroup, and scriptc's runtime only the root of the cgroup mount, which is the process's own
- * cgroup only inside a cgroup namespace.
- */
-export function cgroupMemoryLimit(): number {
-  let membership: string;
-  try {
-    membership = readFileSync('/proc/self/cgroup', 'utf8');
-  } catch {
-    return 0;
-  }
-  let limit = 0;
-  const lower = (value: number): void => {
-    if (value > 0 && (limit === 0 || value < limit)) limit = value;
-  };
-  for (const line of membership.split('\n')) {
-    // "0::/path" (v2), "N:memory:/path" or "N:cpu,memory:/path" (v1).
-    const first = line.indexOf(':');
-    const second = line.indexOf(':', first + 1);
-    if (first < 0 || second < 0) continue;
-    const controllers = line.substring(first + 1, second);
-    const path = line.substring(second + 1);
-    if (controllers === '') {
-      for (let dir = path; ; dir = dir.substring(0, dir.lastIndexOf('/'))) {
-        const base = '/sys/fs/cgroup' + (dir === '/' ? '' : dir);
-        lower(cgroupLimitValue(base + '/memory.max'));
-        lower(cgroupLimitValue(base + '/memory.high'));
-        if (dir === '/' || dir === '' || dir.lastIndexOf('/') < 0) break;
-      }
-    } else if (controllers.split(',').indexOf('memory') >= 0) {
-      lower(cgroupLimitValue('/sys/fs/cgroup/memory' + (path === '/' ? '' : path) + '/memory.limit_in_bytes'));
-    }
-  }
-  return limit;
-}
-
-/** A cgroup memory limit file's value in bytes, or 0 for `max`, an unreadable file or no number. */
-function cgroupLimitValue(file: string): number {
-  let text: string;
-  try {
-    text = readFileSync(file, 'utf8').trim();
-  } catch {
-    return 0;
-  }
-  if (text === '' || text === 'max') return 0;
-  const value = Number(text);
-  // cgroup v1 reports no limit as a page-aligned value near 2^63.
-  return Number.isFinite(value) && value > 0 && value < 2 ** 62 ? value : 0;
 }
 
 /** The program whose text lengths `textLengths` holds. */
@@ -608,6 +651,27 @@ export function textLengths(program: Program): number[] {
  * or an estimate from its text where that is unknown.
  */
 export function memoryCheckers(program: Program): number {
+  const estimate = memoryEstimate(program);
+  const fit = checkersFittingMemory(estimate.programBytes, estimate.declarationChars, estimate.memory);
+  if (process.env.TSC_TS_CHECKERS_TRACE !== undefined)
+    process.stderr.write(
+      `checkers: ${estimate.chars} source chars (${estimate.declarationChars} in declaration files), program ${Math.round(estimate.programBytes / 1048576)}MB${estimate.resident > 0 ? '' : ' (estimated)'}, memory ${Math.round(estimate.memory / 1048576)}MB fits ${fit} checkers\n`,
+    );
+  return fit;
+}
+
+/** What the memory fit reads of a program: its text, the declarations in it, and this process's memory. */
+interface MemoryEstimate {
+  readonly chars: number;
+  readonly declarationChars: number;
+  readonly programBytes: number;
+  /** Whether `programBytes` is the resident set (`0` where it is an estimate from the text). */
+  readonly resident: number;
+  readonly memory: number;
+}
+
+/** The memory estimate of `program`, of its text (`textLengths`, computed once) and this process's memory. */
+function memoryEstimate(program: Program): MemoryEstimate {
   let chars = 0;
   let declarationChars = 0;
   const files = program.getSourceFiles();
@@ -617,14 +681,24 @@ export function memoryCheckers(program: Program): number {
     if (files[i]!.isDeclarationFile) declarationChars += length[i]!;
   }
   const resident = residentBytes();
-  const programBytes = resident > 0 ? resident : chars * programBytesPerChar;
-  const memory = memoryLimit();
-  const fit = checkersFittingMemory(programBytes, declarationChars, memory);
-  if (process.env.TSC_TS_CHECKERS_TRACE !== undefined)
-    process.stderr.write(
-      `checkers: ${chars} source chars (${declarationChars} in declaration files), program ${Math.round(programBytes / 1048576)}MB${resident > 0 ? '' : ' (estimated)'}, memory ${Math.round(memory / 1048576)}MB fits ${fit} checkers\n`,
-    );
-  return fit;
+  return {
+    chars,
+    declarationChars,
+    programBytes: resident > 0 ? resident : chars * programBytesPerChar,
+    resident,
+    memory: memoryLimit(),
+  };
+}
+
+/**
+ * The checkers whose estimated peak memory fits `program` (`checkersFittingMemory`), without sharing and
+ * with the peak sharing adds (`sharingPeakShare`), which the sharing rule requires of the count it keeps.
+ */
+export function memoryFit(program: Program): CheckFit {
+  const estimate = memoryEstimate(program);
+  return {
+    sharing: checkersFittingMemory(estimate.programBytes, estimate.declarationChars, estimate.memory, sharingPeakShare),
+  };
 }
 
 /**
@@ -650,8 +724,8 @@ class CheckCosts {
     readonly libraries: number[][],
     /** What resolving a library costs a checker the first time (`libraryFirstUseShare` of the text it reaches), by index. */
     readonly libraryCost: number[],
-    /** The program files (indices) each file of `order` imports, by index. */
-    readonly imports: (number[] | undefined)[],
+    /** The program files (indices) each file imports (`ProcessedFiles.addedFiles`), by index. */
+    readonly imports: readonly (readonly number[])[],
   ) {}
 }
 
@@ -696,34 +770,18 @@ function checkCosts(checked: CheckedProgram, order: number[]): CheckCosts {
   }
   const length = textLengths(program);
   for (const i of order) cost[i] = length[i]!;
-  const indexOf = new Map<SourceFile, number>();
-  for (let i = 0; i < files.length; i++) indexOf.set(files[i]!, i);
-  // A file resolved by its own file name is that file (its path is the path of that name).
-  const byFileName = new Map<string, SourceFile>();
-  for (const file of files) byFileName.set(file.fileName, file);
   const checkedFile: boolean[] = [];
   for (let i = 0; i < files.length; i++) checkedFile.push(false);
   for (const i of order) checkedFile[i] = true;
   // Libraries: unchecked modules that are not default libraries (globals every checker has).
   const isLibrary = (i: number): boolean =>
     !checkedFile[i]! && !program.isSourceFileDefaultLibrary(files[i]!.path) && isExternalModuleFile(files[i]!);
-  const edges: (number[] | undefined)[] = [];
-  const edgesOf = (i: number): number[] => {
-    let result = edges[i];
-    if (result === undefined) {
-      result = [];
-      for (const target of program.getResolvedFilesOf(files[i]!, byFileName)) {
-        const k = indexOf.get(target);
-        if (k !== undefined && k !== i) result.push(k);
-      }
-      edges[i] = result;
-    }
-    return result;
-  };
+  // The files each file imports: those it added to the program (`ProcessedFiles.addedFiles`).
+  const edges = program.addedFiles();
   const importers = new Map<number, number>();
   for (const i of order) {
     const libraries: number[] = [];
-    for (const k of edgesOf(i)) if (isLibrary(k) && libraries.indexOf(k) < 0) libraries.push(k);
+    for (const k of edges[i]!) if (isLibrary(k) && libraries.indexOf(k) < 0) libraries.push(k);
     librariesOf[i] = libraries;
     for (const k of libraries) importers.set(k, (importers.get(k) ?? 0) + 1);
   }
@@ -738,7 +796,7 @@ function checkCosts(checked: CheckedProgram, order: number[]): CheckCosts {
     while (stack.length > 0) {
       const k = stack.pop()!;
       total += length[k]!;
-      for (const t of edgesOf(k))
+      for (const t of edges[k]!)
         if (!seen.has(t) && isLibrary(t)) {
           seen.add(t);
           stack.push(t);
@@ -1424,10 +1482,13 @@ export function planSchedule(
   }
   let all = 0;
   for (const i of order) all += cost[i]!;
-  // Files that cost more than a 32nd of a checker's share go first, costliest first: at the end of
-  // a range they would make its checker finish last.
+  // Files that cost more than a 128th of the program go first, costliest first: at the end of a range
+  // they would make its checker finish last. A fixed fraction of the program, rather than of a
+  // checker's share, keeps the cut in proportion to how many checkers drain the shared queue: it is a
+  // 32nd of a share at 4 checkers and an eighth at 16, where a range is shorter and a file of the
+  // same size would otherwise sit in it.
   let heavyCount = count;
-  while (heavyCount < order.length && cost[order[heavyCount]!]! * count * 32 >= all) heavyCount++;
+  while (heavyCount < order.length && cost[order[heavyCount]!]! * 128 >= all) heavyCount++;
   // The groups go to the shared queue as one entry each, among the costliest files, by total cost.
   const groups = checkGroups(checked, count, groupLoad, costs);
   const grouped = new Set<number>();
@@ -1523,6 +1584,149 @@ export function traceSingleChecker(checked: CheckedProgram): void {
   );
 }
 
+/** The file a position of the order checks: a file index, or for a statement range, its file's. */
+function fileOfPosition(order: readonly number[], units: readonly number[], k: number): number {
+  const i = order[k]!;
+  return i >= 0 ? i : units[3 * (-1 - i)]!;
+}
+
+/**
+ * Hands position `k` of the order on to another checker (TSC_TS_SHARE). The handed-on positions are a list in
+ * `handoff`: a lock, their number, the number of checkers that may still hand positions on, then the positions.
+ */
+function handOff(handoff: Int32Array, k: number): void {
+  while (Atomics.compareExchange(handoff, 0, 0, 1) !== 0) {
+    // Another checker hands a position on or takes one.
+  }
+  const n = handoff[1]!;
+  handoff[3 + n] = k;
+  Atomics.store(handoff, 1, n + 1);
+  Atomics.store(handoff, 0, 0);
+  // Checkers with nothing else to check wait for handed-on positions.
+  Atomics.notify(handoff, 1);
+}
+
+/**
+ * Once checker `index` has no more positions of its own: a handed-on position it may check, waiting while other
+ * checkers may still hand some on; -1 when none is left for it.
+ */
+function waitForHandedOff(
+  handoff: Int32Array,
+  forbidden: Int32Array,
+  count: number,
+  order: readonly number[],
+  units: readonly number[],
+  index: number,
+): number {
+  Atomics.sub(handoff, 2, 1);
+  const start = performance.now();
+  for (;;) {
+    const n = Atomics.load(handoff, 1);
+    const k = takeHandedOff(handoff, forbidden, count, order, units, index);
+    if (k >= 0) {
+      // Checking it, this checker may hand positions on again.
+      Atomics.add(handoff, 2, 1);
+      return k;
+    }
+    // The main thread checks what is handed on later, as it does the files of a thread that failed.
+    if (Atomics.load(handoff, 2) === 0 || performance.now() - start > 2000) return -1;
+    Atomics.wait(handoff, 1, n, 1);
+  }
+}
+
+/**
+ * A handed-on position checker `index` of `count` may check, removed from the handed-on positions; -1 if there is
+ * none.
+ */
+function takeHandedOff(
+  handoff: Int32Array,
+  forbidden: Int32Array,
+  count: number,
+  order: readonly number[],
+  units: readonly number[],
+  index: number,
+): number {
+  if (Atomics.load(handoff, 1) === 0) return -1;
+  while (Atomics.compareExchange(handoff, 0, 0, 1) !== 0) {
+    // Another checker hands a position on or takes one.
+  }
+  const n = handoff[1]!;
+  let found = -1;
+  for (let j = 0; j < n; j++) {
+    const k = handoff[3 + j]!;
+    if (!isForbidden(forbidden, count, fileOfPosition(order, units, k), index)) {
+      found = k;
+      handoff[3 + j] = handoff[3 + n - 1]!;
+      Atomics.store(handoff, 1, n - 1);
+      break;
+    }
+  }
+  Atomics.store(handoff, 0, 0);
+  return found;
+}
+
+/** TSC_TS_SHARE: the sharing data of each of `count` checker threads. */
+function threadSharingOf(
+  count: number,
+  order: readonly number[],
+  units: readonly number[],
+  files: number,
+  bounded: boolean,
+): ThreadSharingData[] {
+  const takers = new SharedArrayBuffer(4 * files);
+  const forbidden = new SharedArrayBuffer(4 * files * forbiddenWords(count));
+  // The checkers that missed on a key in each file, which a post requires (`ThreadSharing.demanded`). An unbounded
+  // run posts as Phase 1 does and never reads it, so it gets a word rather than a bit per checker per file.
+  const wanted = bounded ? new SharedArrayBuffer(4 * files * forbiddenWords(count)) : new SharedArrayBuffer(4);
+  const handoff = new SharedArrayBuffer(4 * (3 + order.length));
+  new Int32Array(handoff)[2] = count;
+  const taken = new Int32Array(takers);
+  taken.fill(-2);
+  for (let k = 0; k < order.length; k++) {
+    const i = order[k]!;
+    if (i >= 0) {
+      if (taken[i] === -2) taken[i] = 0;
+    } else taken[units[3 * (-1 - i)]!] = -1;
+  }
+  const typeTable = new SharedArrayBuffer(8 * resultTableSize);
+  const returnTable = new SharedArrayBuffer(8 * resultTableSize);
+  const numberLogs: SharedArrayBuffer[] = [];
+  const recordTables: SharedArrayBuffer[] = [];
+  const stringLogs: SharedArrayBuffer[] = [];
+  for (let i = 0; i < count; i++) {
+    numberLogs.push(new SharedArrayBuffer(4 * numberLogSize));
+    recordTables.push(new SharedArrayBuffer(4 * recordTableSize));
+    stringLogs.push(new SharedArrayBuffer(2 * stringLogSize));
+  }
+  const used = new SharedArrayBuffer(4 * usedStride * count);
+  // The stop switch (0 runs, 1 stops posting, 2 stops posting and translating) and the counters the
+  // main thread reads at its window, a row per checker.
+  const control = new SharedArrayBuffer(4);
+  const stats = new SharedArrayBuffer(8 * shareStatColumns * count);
+  const data: ThreadSharingData[] = [];
+  for (let i = 0; i < count; i++)
+    data.push({
+      index: i,
+      count,
+      bounded,
+      takers,
+      forbidden,
+      wanted,
+      handoff,
+      typeTable,
+      returnTable,
+      nodeIds: lastNodeIdValue(),
+      symbolIds: lastSymbolIdValue(),
+      numberLogs,
+      recordTables,
+      stringLogs,
+      used,
+      control,
+      stats,
+    });
+  return data;
+}
+
 /**
  * Checks files from the shared queue until it is empty; the main thread and checker threads alike.
  * A checker thread (`onMainThread` false) also sends back its global diagnostics. At `limit` files
@@ -1544,8 +1748,14 @@ export function checkFromQueue(
   emitKinds: readonly number[] | undefined = undefined,
   checking: boolean = true,
   units: readonly number[] = [],
+  sharing: ThreadSharingData | undefined = undefined,
 ): CheckerResult {
   const start = performance.now();
+  // TSC_TS_SHARE: each file's taker, which other checkers then take the results of its declarations from.
+  const takers = sharing === undefined ? undefined : new Int32Array(sharing.takers);
+  const forbidden = sharing === undefined ? undefined : new Int32Array(sharing.forbidden);
+  const handoff = sharing === undefined ? undefined : new Int32Array(sharing.handoff);
+  const sharingCount = sharing === undefined ? 0 : sharing.count;
   const readyAt = Date.now();
   const verbose = process.env.TSC_TS_CHECKERS_TRACE === '3';
   mark('checking');
@@ -1587,16 +1797,29 @@ export function checkFromQueue(
     if (limit > 0 && done.length >= limit) {
       more = true;
       left = reservedBy(index).splice(0);
+      // The thread that continues doesn't share results, so it hands nothing on.
+      if (handoff !== undefined) Atomics.sub(handoff, 2, 1);
       break;
     }
     // Except on checker 0, read the process's memory every 20 ms at most.
     if (retirement > 0 && performance.now() - memoryReadAt >= 20) {
       memoryReadAt = performance.now();
-      if (retires(counter, index, retirement)) break;
+      if (retires(counter, index, retirement)) {
+        if (handoff !== undefined) Atomics.sub(handoff, 2, 1);
+        break;
+      }
     }
-    const k = takePosition(counter, order.length, index, plan);
+    let k = handoff !== undefined ? takeHandedOff(handoff, forbidden!, sharingCount, order, units, index) : -1;
+    if (k < 0) k = takePosition(counter, order.length, index, plan);
+    if (k < 0 && handoff !== undefined) k = waitForHandedOff(handoff, forbidden!, sharingCount, order, units, index);
     if (k < 0) break;
     const i = order[k]!;
+    // A file this checker took results for before anyone took it goes to another checker.
+    if (forbidden !== undefined && i >= 0 && isForbidden(forbidden, sharingCount, i, index)) {
+      handOff(handoff!, k);
+      continue;
+    }
+    if (takers !== undefined && i >= 0) Atomics.store(takers, i, index + 1);
     if (i < 0) {
       // A statement range of a declaration file, which has nothing to emit.
       const u = -1 - i;
@@ -1672,8 +1895,9 @@ export function checkFromQueue(
     }
   }
   mark(`checked ${done.length} files, ${unitsDone.length} ranges`);
-  // The main thread reports its own global diagnostics (CheckedProgram.getGlobalDiagnostics).
-  const globals = onMainThread ? [] : checked.getGlobalDiagnostics().slice();
+  // On the main thread, those from before checking are the program's own (`ownGlobalDiagnostics`), and
+  // CheckedProgram.getGlobalDiagnostics deduplicates them with these.
+  const globals = (onMainThread ? checked.checker.getGlobalDiagnostics() : checked.getGlobalDiagnostics()).slice();
   let stats: number[] = [];
   if (process.env.TSC_TS_CHECKERS_TRACE !== undefined) {
     const cpu = process.threadCpuUsage();
@@ -1712,6 +1936,7 @@ export function checkFromQueue(
     emits,
     unitsDone,
     reportingUnits,
+    onMainThread ? [] : [checked.checker.typeCount, checked.checker.totalInstantiations, checked.checker.symbolCount],
   );
 }
 
@@ -1729,50 +1954,179 @@ export function mainThreadChecks(shared: boolean): boolean {
 }
 
 /**
- * When a checker's own files are a small part of what it resolves (`libraryBoundCheckers`): the least
- * text, in characters, of the libraries the files of a checker's range reach, on average over the
- * ranges, and the least multiple of the text of the range's own files it is.
- */
-const libraryBoundText = 6_000_000;
-const libraryBoundShare = 5;
-
-/**
- * The number of checkers for `count` checkers whose ranges reach `library` characters of libraries
- * and check `own` characters each, on average: three quarters of them (tsgo's four at least) where
- * every checker spends most of its time resolving the same large libraries (`libraryBoundText`,
- * `libraryBoundShare`), else `count`.
+ * Whether the run reads the memory fit of sharing (`checkDecisionOf`): the static rule reads it where
+ * the signals point at sharing, and a run the learning rules read may adopt sharing the static rule
+ * leaves off, or explore it, when its samples show the configuration faster (DESIGN 4.3-4.4).
  *
- * Each checker resolves the declarations its files reach, whatever else it checks. Where they are
- * millions of characters, such as an Effect-based project's, and much more than the checker's own
- * files, a checker costs seconds of CPU and hundreds of MB before its files get cheap, and the last
- * quarter of the checkers (on 16 CPUs of 8 cores, the ones sharing a core with another) repeat that
- * work rather than save time: T3 Code's web and server projects ran 3% and 1% faster with 12
- * checkers than with 16, and used 16% and 8% less memory. Where checkers resolve less, or mostly
- * check their own files, 12 of 16 checkers were slower: Excalidraw (1.4M library and 0.15M own
- * characters per range) by 6%, Sentry (5.7M and 3.0M) and the tsc-ts sources by about 11%.
+ * A pin on sharing chooses sharing without a rule, but where it pins sharing on the learning rules still
+ * compare checker counts with it, and every count they may adopt reads how many fit memory with sharing's
+ * peak: a pinned count that no rule can change, and `TSC_TS_AUTO=0`, read nothing.
  */
-export function libraryBoundCount(count: number, library: number, own: number): number {
-  return library >= libraryBoundText && library >= libraryBoundShare * own
-    ? Math.max(tsgoCheckers, Math.ceil((count * 3) / 4))
-    : count;
+export function sharingFitNeeded(config: RunConfig, signals: CheckSignals): boolean {
+  if (config.automaticity === Automaticity.Off) return false;
+  if (config.shareSource === Source.Pinned) {
+    return (
+      config.share &&
+      config.checkersSource !== Source.Pinned &&
+      learns(config.automaticity) &&
+      config.record !== undefined
+    );
+  }
+  if (sharingCandidate(signals)) return true;
+  return learns(config.automaticity) && config.record !== undefined;
 }
 
 /**
- * The number of checkers for `plan`, made with `count` checkers that `auto` chose
- * (`libraryBoundCount` of what its ranges reach and check).
+ * What `decideCheck` needs of the run besides its signals: whether the checker threads of a shared
+ * program may share results (`startParallelCheck` makes the same test), and, where sharing is possible
+ * and a rule that may choose it reads the estimate, how many checkers fit memory with sharing's peak
+ * (`sharingFitNeeded`). The estimate costs a pass over the program's files and its memory limit, so it
+ * is computed only where a rule reads it: a run without a record pays only where the static rule's
+ * signals point at sharing, and one checker, a program that is not shared, a pinned run or
+ * `TSC_TS_AUTO=0` pay nothing.
  */
-function libraryBoundCheckers(checked: CheckedProgram, plan: CheckPlan, costs: CheckCosts, count: number): number {
-  if (checkerPolicy !== 'auto' || checked.program.options.checkers !== undefined || count <= tsgoCheckers) return count;
+function checkDecisionOf(config: RunConfig, signals: CheckSignals, program: Program, shared: boolean): CheckDecision {
+  // `mainThreadChecks` is false whenever the program is shared (`!shared`), as sharing needs.
+  const possible = shared && signals.count > 1 && signals.count <= maxSharingCheckers;
+  const fit = possible && sharingFitNeeded(config, signals) ? memoryFit(program) : undefined;
+  // A run whose record the learning rules read also names the shape its samples describe, the CPUs a
+  // count may use, the memory a configuration may not exceed and the time a control sample ages from.
+  const learning = config.records || config.record !== undefined;
+  return {
+    possible,
+    fit,
+    shape: learning ? recordShapeOf(program, signals) : undefined,
+    cpus: Math.min(availableCpus(), maxAutoCheckers),
+    memoryBytes: memoryLimit(),
+    now: Math.floor(Date.now() / 1000),
+  };
+}
+
+/** The program's shape for its record (`RecordShape`), with the shares the sharing rule reads as `F`. */
+function recordShapeOf(program: Program, signals: CheckSignals): RecordShape {
+  const files = program.getSourceFiles();
+  let chars = 0;
+  let declarationChars = 0;
+  for (const file of files) {
+    chars += file.end;
+    if (file.isDeclarationFile) declarationChars += file.end;
+  }
+  return {
+    files: files.length,
+    chars,
+    declarationChars,
+    checkChars: chars - declarationChars,
+    library: Math.round(signals.library),
+    own: Math.round(signals.own),
+    redundancy: signals.redundancy,
+    fileShare: Math.max(signals.declarationShare, signals.nodeModulesShare),
+  };
+}
+
+/** What the counters of `count` checkers say at the sharing window: milliseconds saved and spent. */
+interface SharingNumbers {
+  /** What taking posted results saved, over the checkers: the computations they did not repeat. */
+  readonly saved: number;
+  /**
+   * What posting cost: exporting and translating results. Translating a result reads its records in
+   * place inside `ThreadSharing.translatePosted`'s timed translation, so `translationMs` holds that
+   * reading too; counting a separate unpacking time would charge the window for it twice.
+   */
+  readonly spent: number;
+  readonly posted: number;
+  readonly translated: number;
+}
+
+/**
+ * The counters of `count` checkers' rows of `stats` (`ThreadSharing.writeStats`), summed. The tests read
+ * this, next to the window it feeds.
+ */
+export function sharingNumbers(stats: Float64Array, count: number): SharingNumbers {
+  let saved = 0;
+  let spent = 0;
+  let posted = 0;
+  let translated = 0;
+  for (let i = 0; i < count; i++) {
+    const row = i * shareStatColumns;
+    saved += stats[row + shareStatSaved]!;
+    spent += stats[row + shareStatExport]! + stats[row + shareStatTranslation]!;
+    posted += stats[row + shareStatPosted]!;
+    translated += stats[row + shareStatTranslated]!;
+  }
+  return { saved, spent, posted, translated };
+}
+
+/**
+ * The control a sharing run's numbers ask for: 2 when it saved less than 1.5 times what it spent, 1
+ * when the posts go untaken (under 5% of them, and at least one), else 0. Stopping takes a minute at
+ * worst, when the window's numbers are still too early to tell.
+ */
+export function stopLevel(numbers: SharingNumbers): number {
+  if (numbers.saved < 1.5 * numbers.spent) return 2;
+  if (numbers.posted > 0 && numbers.translated / numbers.posted < 0.05) return 1;
+  return 0;
+}
+
+/**
+ * Whether the rules of a run of `config` at `count` checkers read the check signals (`checkSignals`).
+ * Two rules read them:
+ *
+ * - the library-bound cut (`decideCheck`), wherever the count is not pinned and is above tsgo's four.
+ *   This is the decision a run made before the automatic selection, and `TSC_TS_AUTO=0` keeps it: with
+ *   selection off the count is not cut for sharing either, but dropping the signals would leave the
+ *   cut nothing to read and start checkers the cut would not;
+ * - the sharing rule, at `minSharingCheckers` or more, where neither the count nor sharing is pinned
+ *   (the cut may leave the count sharing was measured at, so the signals are read before it).
+ *
+ * A pinned count and a pinned sharing read neither, and pay nothing for the pass over the ranges.
+ */
+export function signalsNeeded(config: RunConfig, count: number): boolean {
+  const cut = config.checkersSource === Source.Default && count > tsgoCheckers;
+  if (config.automaticity === Automaticity.Off) return cut;
+  return cut || (config.shareSource === Source.Default && count >= minSharingCheckers);
+}
+
+/**
+ * What `plan`, made with `count` checkers, shows about the cost of checking (`CheckSignals`): the
+ * libraries a range reaches and the files it checks, the share of that a second range reaches too, and
+ * the shares of declaration and node_modules files of the program. Computed where a rule may read them
+ * (`signalsNeeded`) and left at zero elsewhere: a pinned count needs none of them, and the pass over
+ * every range's libraries costs a millisecond on a large program.
+ */
+function checkSignals(
+  checked: CheckedProgram,
+  plan: CheckPlan,
+  costs: CheckCosts,
+  count: number,
+  config: RunConfig | undefined = undefined,
+): CheckSignals {
+  const ranges = plan.ranges.length >> 1;
+  const signals = new CheckSignals(count, ranges);
   const program = checked.program;
+  // What a rule would read, what the run's record writes (`config.records`), or what a doctor child
+  // reports (`config.measure`), is computed; a pinned count with records off and no report pays nothing.
+  const deciding =
+    config === undefined
+      ? checkersPolicy(process.env) === 'auto' && program.options.checkers === undefined && count > tsgoCheckers
+      : signalsNeeded(config, count);
+  const wanted = deciding || (config !== undefined && (config.records || config.measure));
+  if (!wanted || ranges === 0) return signals;
   const files = program.getSourceFiles();
   const length = textLengths(program);
   const isChecked: boolean[] = [];
-  for (let i = 0; i < files.length; i++) isChecked.push(false);
+  let declarationFiles = 0;
+  let nodeModulesFiles = 0;
+  for (let i = 0; i < files.length; i++) {
+    isChecked.push(false);
+    if (files[i]!.isDeclarationFile) declarationFiles++;
+    if (files[i]!.path.indexOf('/node_modules/') >= 0) nodeModulesFiles++;
+  }
   for (const i of costs.order) isChecked[i] = true;
-  const ranges = plan.ranges.length >> 1;
-  if (ranges === 0) return count;
   let library = 0;
   let own = 0;
+  // The libraries every range reaches together, each counted once (`CheckSignals.redundancy`).
+  const union = new Set<number>();
+  let unionChars = 0;
   for (let r = 0; r < ranges; r++) {
     // The libraries the range's files import, and what they reach through other libraries (as checkCosts counts them).
     const reached = new Set<number>();
@@ -1789,6 +2143,10 @@ function libraryBoundCheckers(checked: CheckedProgram, plan: CheckPlan, costs: C
     while (stack.length > 0) {
       const k = stack.pop()!;
       library += length[k]!;
+      if (!union.has(k)) {
+        union.add(k);
+        unionChars += length[k]!;
+      }
       for (const t of costs.imports[k] ?? [])
         if (
           !reached.has(t) &&
@@ -1801,18 +2159,22 @@ function libraryBoundCheckers(checked: CheckedProgram, plan: CheckPlan, costs: C
         }
     }
   }
-  const fewer = libraryBoundCount(count, library / ranges, own / ranges);
+  signals.library = library / ranges;
+  signals.own = own / ranges;
+  signals.redundancy = (library - unionChars) / (library + own);
+  signals.declarationShare = declarationFiles / files.length;
+  signals.nodeModulesShare = nodeModulesFiles / files.length;
+  if (config !== undefined) config.signals = signals;
   if (process.env.TSC_TS_CHECKERS_TRACE !== undefined)
     process.stderr.write(
-      `checkers: ranges reach ${Math.round(library / ranges / 1000)}K library chars and check ${Math.round(own / ranges / 1000)}K on average: ${fewer} checkers\n`,
+      `checkers: ranges reach ${Math.round(signals.library / 1000)}K library chars and check ${Math.round(signals.own / 1000)}K on average, ${Math.round(signals.redundancy * 100)}% of it reached twice: ${libraryBoundCount(count, signals.library, signals.own)} checkers\n`,
     );
-  return fewer;
+  return signals;
 }
 
 /**
- * Checks `checked` with `checkers` checkers (fewer where `auto` chose them and they would mostly
- * resolve the same libraries: `libraryBoundCheckers`) and calls `done` with the wall time once
- * `checked` holds every file's diagnostics.
+ * Checks `checked` with `checkers` checkers (fewer where the configuration chooses so: `decideCheck`,
+ * run-config.ts) and calls `done` with the wall time once `checked` holds every file's diagnostics.
  */
 /**
  * Shares the program of `checked` with checker threads (scriptc builds): this thread's checker merges the
@@ -1842,7 +2204,12 @@ export function shareWithCheckers(checked: CheckedProgram): void {
 /**
  * Checks `checked` on `checkers` threads and calls `done` once they are done. With `emits`, each thread
  * emits the files it checks (`emitKinds` limits what). With `checking` false, the threads only emit:
- * for a program whose report has no semantic diagnostics, so that no file is checked in full.
+ * for a program whose report has no semantic diagnostics, so that no file is checked in full. With
+ * `emitsTo`, the emit results go only there, by file index, and nothing else the threads find reaches
+ * the program: a declaration thread (parallel-emit.ts), while this thread's checker checks. With
+ * `declarationsTo`, the same holds for the declaration errors of a `noEmit` program
+ * (`checkersReportDeclarations`). `config` is the run's configuration: the count it chose is decided
+ * here, once the program is bound and the plan made, and sharing is what it holds.
  */
 export function startParallelCheck(
   checked: CheckedProgram,
@@ -1851,6 +2218,9 @@ export function startParallelCheck(
   emits: boolean = true,
   emitKinds: number[] | undefined = undefined,
   checking: boolean = true,
+  emitsTo: (EmitResult | undefined)[] | undefined = undefined,
+  declarationsTo: (Diagnostic[] | undefined)[] | undefined = undefined,
+  config: RunConfig | undefined = undefined,
 ): void {
   let count = checkers;
   const start = performance.now();
@@ -1870,7 +2240,12 @@ export function startParallelCheck(
   const orderStart = performance.now();
   const costs = costOrder(checked);
   let plan = planSchedule(checked, count, costs, checking);
-  const fewer = libraryBoundCheckers(checked, plan, costs, count);
+  const signals = checkSignals(checked, plan, costs, count, config);
+  if (config !== undefined) config.signals = signals;
+  const fewer =
+    config === undefined
+      ? libraryBoundCount(signals.count, signals.library, signals.own)
+      : decideCheck(config, signals, checkDecisionOf(config, signals, program, shared));
   if (fewer < count) {
     count = fewer;
     plan = planSchedule(checked, count, costs, checking);
@@ -1912,12 +2287,29 @@ export function startParallelCheck(
   const firstThread = mainChecks ? 1 : 0;
   let remaining = count - firstThread;
   let ownDone = false;
+  /** The sharing window's timer, where the threads share results; cleared when they are done. */
+  let shareStopTimer: ReturnType<typeof setTimeout> | undefined = undefined;
   const finish = (): void => {
+    if (shareStopTimer !== undefined) {
+      clearTimeout(shareStopTimer);
+      shareStopTimer = undefined;
+    }
+    if (emitsTo !== undefined || declarationsTo !== undefined) {
+      mark('emitted on checker threads');
+      done(performance.now() - start);
+      return;
+    }
     if (checking) {
       joinRanges(checked, units, perUnit, perFile);
-      // A thread that failed may have taken files it never checked: check them here.
+      // A thread that failed may have taken files it never checked, and with TSC_TS_SHARE every checker left may
+      // have taken results for declarations of a file handed on: check them here.
+      let left = 0;
       for (const i of order)
-        if (i >= 0 && perFile[i] === undefined) perFile[i] = checked.unfilteredDiagnosticsOfFile(files[i]!);
+        if (i >= 0 && perFile[i] === undefined) {
+          perFile[i] = checked.unfilteredDiagnosticsOfFile(files[i]!);
+          left++;
+        }
+      if (trace && left > 0) process.stderr.write(`checkers: the main thread checked ${left} files\n`);
       checked.checkedInParallel = perFile;
     }
     mark('all checked');
@@ -1943,6 +2335,23 @@ export function startParallelCheck(
     done(performance.now() - start);
   };
   const record = (result: CheckerResult): void => {
+    checked.addCheckerCounts(result.counts);
+    if (declarationsTo !== undefined) {
+      for (let k = 0; k < result.declarations.length; k++) declarationsTo[result.files[k]!] = result.declarations[k]!;
+      if (trace)
+        process.stderr.write(
+          `checkers: emit-only thread ${result.index} found the declaration errors of ${result.declarations.length} files in ${result.checkTime.toFixed(1)}ms, done at ${(performance.now() - start).toFixed(1)}ms rss ${result.stats[7] ?? '?'}MB\n`,
+        );
+      return;
+    }
+    if (emitsTo !== undefined) {
+      for (let k = 0; k < result.emits.length; k++) emitsTo[result.files[k]!] = result.emits[k]!;
+      if (trace)
+        process.stderr.write(
+          `checkers: emit-only thread ${result.index} emitted ${result.emits.length} files in ${result.checkTime.toFixed(1)}ms, done at ${(performance.now() - start).toFixed(1)}ms rss ${result.stats[7] ?? '?'}MB\n`,
+        );
+      return;
+    }
     for (let k = 0; k < result.files.length; k++) perFile[result.files[k]!] = result.diagnostics[k]!;
     for (let k = 0; k < result.declarations.length; k++)
       perFileDeclarations[result.files[k]!] = result.declarations[k]!;
@@ -1964,6 +2373,49 @@ export function startParallelCheck(
     if (remaining === 0 && ownDone) finish();
   };
   const diagnosticFiles = new Map<string, DiagnosticFile>();
+  // Whether checker threads share results (shared-results.ts), which the run's configuration decides;
+  // the emit threads of parallel-emit.ts have no configuration and never share (count 1).
+  const sharesResults = config === undefined ? shareThreads === true : config.share;
+  const sharing =
+    sharesResults && shared && !mainChecks && count > 1 && count <= maxSharingCheckers
+      ? threadSharingOf(count, order, units, files.length, config !== undefined && config.bounded)
+      : undefined;
+  if (sharing !== undefined) {
+    // The main thread is idle while the checkers run, so a timer reads their counters at the window and
+    // stops what does not pay (control 1 or 2); every checker computes what it does not take, so the
+    // diagnostics stay the same.
+    const control = new Int32Array(sharing[0]!.control);
+    const stats = new Float64Array(sharing[0]!.stats);
+    const stop = shareStop;
+    const at = stop !== undefined ? stop.at : config !== undefined ? config.shareWindowMs : shareWindowMs;
+    shareStopTimer = setTimeout(() => {
+      const numbers = sharingNumbers(stats, count);
+      if (stop !== undefined) Atomics.store(control, 0, stop.level);
+      else {
+        const level = stopLevel(numbers);
+        if (level === 0) return;
+        Atomics.store(control, 0, level);
+      }
+      // The section says what the window saw, instead of the rule that turned sharing on.
+      if (config !== undefined) {
+        config.shareSource = Source.Measured;
+        config.shareReasons.length = 0;
+        config.shareReasons.push(
+          `stopped after ${at} ms: ${Math.round(numbers.saved)} ms saved for ${Math.round(numbers.spent)} ms spent`,
+        );
+      }
+      if (trace)
+        process.stderr.write(
+          `checkers: stopped sharing after ${at} ms: ${Math.round(numbers.saved)} ms saved for ${Math.round(numbers.spent)} ms spent, ${numbers.translated}/${numbers.posted} posted results taken\n`,
+        );
+    }, at);
+  }
+  const sharingStarted: boolean[] = [];
+  for (let i = 0; i < count; i++) sharingStarted.push(false);
+  const startSharingOf = (i: number): ThreadSharingData => {
+    sharingStarted[i] = true;
+    return sharing![i]!;
+  };
   const spawn = (i: number, reserved: number[]): void => {
     const worker = parallelCheck.spawn!(
       shared ? program : undefined,
@@ -1977,6 +2429,9 @@ export function startParallelCheck(
       emitKinds,
       checking,
       units,
+      checked.globalsInFileDiagnostics,
+      // A thread that continues another's index doesn't share.
+      reserved.length === 0 && sharing !== undefined && !sharingStarted[i] ? startSharingOf(i) : undefined,
     );
     worker.on('message', (message: unknown) => {
       mark(`result from c${i}`);
@@ -1993,7 +2448,8 @@ export function startParallelCheck(
       else threadDone();
     });
     worker.on('error', (error: unknown) => {
-      if (trace) process.stderr.write(`checkers: thread ${i} failed: ${String(error)}\n`);
+      // Sharing results (TSC_TS_SHARE) is still checked for such failures, which the main thread hides otherwise.
+      if (trace || sharesResults) process.stderr.write(`checkers: thread ${i} failed: ${String(error)}\n`);
       threadDone();
     });
   };
@@ -2006,6 +2462,9 @@ export function startParallelCheck(
   const emittedHere =
     !mainChecks && emitKinds === undefined ? emitUncheckedFiles(checked, order, emits) : new Map<number, EmitResult>();
   if (mainChecks) {
+    // The program reports the global diagnostics this checker has before checking files as found before
+    // checking; those it finds checking them come with the threads' (`record`).
+    checked.ownGlobalDiagnostics = checked.checker.getGlobalDiagnostics().slice();
     const own = checkFromQueue(
       checked,
       0,
@@ -2120,6 +2579,7 @@ class Revival {
       copy.emits.map((emit) => this.emit(emit)),
       copy.units,
       copy.reportingUnits,
+      copy.counts,
     );
   }
 

@@ -8,6 +8,7 @@ import { getAliasForTypeNode, getTypeArgumentsOfDeferredReference } from './chec
 import { TypeSystemPropertyName, popTypeResolution, pushTypeResolution } from './checker-symbols.js';
 import { isGenericIndexType } from './checker-type-operators.js';
 import { compareCodePoints } from './diagnostics.js';
+import { utf8Length } from './character-codes.js';
 import { Diagnostics } from './diagnostic-messages.js';
 import type { Checker } from './checker.js';
 import {
@@ -79,6 +80,7 @@ import { addOptionality } from './checker-symbol-types.js';
 import { getSourceFileOfNode } from './binder-utilities.js';
 import { isPartOfTypeNode } from './transformers/alias-references.js';
 import { CheckFlags, declarationCount, getSymbolId, type Symbol, SymbolFlags, type SymbolTable } from './symbol.js';
+import { comparePseudoBigInts } from './pseudo-bigint.js';
 
 export const enum UnionReduction {
   None = 0,
@@ -500,6 +502,9 @@ export function compareNodes(c: Checker, n1: Node | undefined, n2: Node | undefi
   if (n1 === n2) return 0;
   if (n1 === undefined) return 1;
   if (n2 === undefined) return -1;
+  // Siblings are in one file: most compared declarations are members of one declaration.
+  const parent = n1.parent;
+  if (parent !== undefined && parent === n2.parent) return n1.pos - n2.pos;
   const s1 = sourceFileOf(n1);
   const s2 = sourceFileOf(n2);
   if (s1 !== s2) return (c.fileIndex.get(s1) ?? 0) - (c.fileIndex.get(s2) ?? 0);
@@ -562,11 +567,12 @@ function getTypeNameSymbol(t: Type): Symbol | undefined {
 function compareTypeNames(c: Checker, t1: Type, t2: Type): number {
   const s1 = getTypeNameSymbol(t1);
   const s2 = getTypeNameSymbol(t2);
-  if (s1 === s2)
-    return t1.alias !== undefined ? compareTypeLists(c, t1.alias.typeArguments, t2.alias!.typeArguments) : 0;
+  if (s1 === s2) return compareTypeLists(c, t1.alias?.typeArguments, t2.alias?.typeArguments);
   if (s1 === undefined) return 1;
   if (s2 === undefined) return -1;
-  return compareCodePoints(s1.name, s2.name);
+  const r = compareCodePoints(s1.name, s2.name);
+  // Distinct declarations with the same name stay together before alias arguments or structure decide.
+  return r !== 0 ? r : compareSymbols(c, s1, s2);
 }
 
 function compareTypeLists(c: Checker, s1: readonly Type[] | undefined, s2: readonly Type[] | undefined): number {
@@ -800,8 +806,17 @@ export function compareTypes(c: Checker, t1: Type, t2: Type): number {
   if ((flags & TypeFlags.Singleton) !== 0) {
     // Only distinguished by ids.
   } else if ((flags & TypeFlags.Object) !== 0) {
-    r = compareSymbols(c, t1.symbol, t2.symbol);
-    if (r !== 0) return r;
+    if ((t1.objectFlags & t2.objectFlags & ObjectFlags.InstantiationExpressionType) !== 0) {
+      // Instantiation expression types are ordered by their source declaration, since one expression
+      // can produce a type for each union constituent, then by the expression, without symbol ids.
+      r = compareNodes(c, t1.symbol?.declaration, t2.symbol?.declaration);
+      if (r !== 0) return r;
+      r = compareNodes(c, (t1 as InstantiationExpressionType).node, (t2 as InstantiationExpressionType).node);
+      if (r !== 0) return r;
+    } else {
+      r = compareSymbols(c, t1.symbol, t2.symbol);
+      if (r !== 0) return r;
+    }
     if ((t1.objectFlags & ObjectFlags.Reference) !== 0 && (t2.objectFlags & ObjectFlags.Reference) !== 0) {
       const r1 = t1 as TypeReference;
       const r2 = t2 as TypeReference;
@@ -823,9 +838,28 @@ export function compareTypes(c: Checker, t1: Type, t2: Type): number {
     } else if ((t1.objectFlags & ObjectFlags.Reference) !== 0) return -1;
     else if ((t2.objectFlags & ObjectFlags.Reference) !== 0) return 1;
     else {
+      // Unnamed non-reference object types are ordered by kind and instantiation data.
       r = (t1.objectFlags & ObjectFlags.ObjectTypeKindMask) - (t2.objectFlags & ObjectFlags.ObjectTypeKindMask);
       if (r !== 0) return r;
-      r = compareTypeMappers(c, (t1 as ObjectType).mapper, (t2 as ObjectType).mapper);
+      if ((t1.objectFlags & ObjectFlags.ReverseMapped) !== 0) {
+        const r1 = t1 as ReverseMappedType;
+        const r2 = t2 as ReverseMappedType;
+        r = compareTypes(c, r1.source!, r2.source!);
+        if (r !== 0) return r;
+        r = compareTypes(c, r1.mappedType!, r2.mappedType!);
+        if (r !== 0) return r;
+        r = compareTypes(c, r1.constraintType!, r2.constraintType!);
+        if (r !== 0) return r;
+      }
+      let m1 = (t1 as ObjectType).mapper;
+      let m2 = (t2 as ObjectType).mapper;
+      if ((t1.objectFlags & ObjectFlags.Mapped) !== 0) {
+        // instantiateAnonymousType prepends a mapping to a fresh type parameter; compare the
+        // instantiation itself rather than the identity of that parameter.
+        if (m1 instanceof CompositeTypeMapper) m1 = m1.m2;
+        if (m2 instanceof CompositeTypeMapper) m2 = m2.m2;
+      }
+      r = compareTypeMappers(c, m1, m2);
       if (r !== 0) return r;
     }
   } else if ((flags & TypeFlags.Union) !== 0) {
@@ -851,6 +885,9 @@ export function compareTypes(c: Checker, t1: Type, t2: Type): number {
     if (r !== 0) return r;
   } else if ((flags & TypeFlags.NumberLiteral) !== 0) {
     r = compareNumbers((t1 as LiteralType).numberValue, (t2 as LiteralType).numberValue);
+    if (r !== 0) return r;
+  } else if ((flags & TypeFlags.BigIntLiteral) !== 0) {
+    r = comparePseudoBigInts((t1 as LiteralType).stringValue, (t2 as LiteralType).stringValue);
     if (r !== 0) return r;
   } else if ((flags & TypeFlags.BooleanLiteral) !== 0) {
     const b1 = (t1 as LiteralType).stringValue === 'true';
@@ -998,7 +1035,8 @@ export function unionContainsSortedTypes(c: Checker, union: UnionType, types: re
 export function insertType(c: Checker, types: Type[], t: Type): boolean {
   const index = binarySearchTypes(c, types, t);
   if (index >= 0) return false;
-  types.splice(~index, 0, t);
+  if (~index === types.length) types.push(t);
+  else types.splice(~index, 0, t);
   return true;
 }
 
@@ -1107,7 +1145,30 @@ export function filterType(c: Checker, type: Type, f: (t: Type) => boolean): Typ
 }
 
 export function removeType(c: Checker, type: Type, target: Type): Type {
-  return filterType(c, type, (t) => t !== target);
+  if ((type.flags & TypeFlags.Union) === 0) return type === target ? c.neverType : type;
+  const union = type as UnionType;
+  const origin = union.origin;
+  // An origin that lists the target keeps the rest of its constituents.
+  if (
+    origin !== undefined &&
+    (origin.flags & TypeFlags.Union) !== 0 &&
+    containsType(c, (origin as UnionType).types, target)
+  )
+    return filterType(c, type, (t) => t !== target);
+  const types = union.types;
+  const index =
+    types.length < linearTypeSearchLimit ? indexOfType(types, target, 0) : binarySearchTypes(c, types, target);
+  if (index < 0) return type;
+  if (types.length === 2) return types[1 - index]!;
+  const filtered: Type[] = [];
+  for (let i = 0; i < types.length; i++) if (i !== index) filtered.push(types[i]!);
+  return getUnionTypeFromSortedList(
+    c,
+    filtered,
+    union.objectFlags & (ObjectFlags.PrimitiveUnion | ObjectFlags.ContainsIntersections),
+    undefined,
+    undefined,
+  );
 }
 
 export function countTypes(type: Type): number {
@@ -1135,38 +1196,77 @@ export function getUnionTypeEx(
 ): Type {
   if (types.length === 0) return c.neverType;
   if (types.length === 1) return types[0]!;
-  // Optimize the common case of unioning a union with some other type, like `undefined`.
-  if (
-    types.length === 2 &&
-    origin === undefined &&
-    ((types[0]!.flags & TypeFlags.Union) !== 0 || (types[1]!.flags & TypeFlags.Union) !== 0)
-  ) {
-    let id1 = types[0]!.id;
-    let id2 = types[1]!.id;
+  // Unioning two types is the common case, both a union with some other type, like `undefined`, and
+  // two constituents of a list, and the same pairs recur. The union is a function of the two types,
+  // the reduction and the alias, so the result is cached by the pair. A union that exceeded the
+  // complexity limit was reported at the expression that needed it and comes back as the error
+  // type: caching that would silence the report at the next expression with the same input list, so
+  // an error result is not cached.
+  if (types.length === 2 && origin === undefined) {
+    const t0 = types[0]!;
+    const t1 = types[1]!;
+    let id1 = t0.id;
+    let id2 = t1.id;
     if (id1 > id2) {
       const t = id1;
       id1 = id2;
       id2 = t;
     }
-    // Without an alias, both ids and the reduction pack into one exact number.
-    if (alias === undefined && id2 < UnionPairIdLimit) {
+    // Without an alias or a constrained intersection, both ids and the reduction pack into one
+    // exact number. A constrained intersection's reduction resolves a type variable's constraint
+    // (`addTypeToUnion`), so those pairs take the general path.
+    if (
+      alias === undefined &&
+      id2 < UnionPairIdLimit &&
+      !isConstrainedIntersection(t0) &&
+      !isConstrainedIntersection(t1)
+    ) {
       const id = (id1 * UnionPairIdLimit + id2) * 4 + unionReduction;
       let result = c.unionOfUnionTypesById.get(id);
       if (result === undefined) {
         result = getUnionTypeWorker(c, types, unionReduction, alias, undefined);
-        c.unionOfUnionTypesById.set(id, result);
+        if (result !== c.errorType) c.unionOfUnionTypesById.set(id, result);
       }
       return result;
     }
-    const key = id1 + ',' + id2 + ',' + unionReduction + aliasKey(alias);
-    let result = c.unionOfUnionTypes.get(key);
+    if ((t0.flags & TypeFlags.Union) !== 0 || (t1.flags & TypeFlags.Union) !== 0) {
+      const key = id1 + ',' + id2 + ',' + unionReduction + aliasKey(alias);
+      let result = c.unionOfUnionTypes.get(key);
+      if (result === undefined) {
+        result = getUnionTypeWorker(c, types, unionReduction, alias, undefined);
+        if (result !== c.errorType) c.unionOfUnionTypes.set(key, result);
+      }
+      return result;
+    }
+  }
+  // Longer lists recur too, from nested unions and from constituents mapped in the same order.
+  // Normalizing a list costs a sort of its constituents and the reductions, and the union is a
+  // function of the list as given, the reduction and the alias, so the result is cached by the list.
+  if (origin === undefined) {
+    const hash = typeListHash(types, alias, unionReduction);
+    let result = c.unionTypesByInputList.get(hash, types, alias, unionReduction);
     if (result === undefined) {
       result = getUnionTypeWorker(c, types, unionReduction, alias, undefined);
-      c.unionOfUnionTypes.set(key, result);
+      if (result !== c.errorType && !hasConstrainedIntersection(types))
+        c.unionTypesByInputList.set(hash, types.slice(), alias, unionReduction, result);
     }
     return result;
   }
   return getUnionTypeWorker(c, types, unionReduction, alias, origin);
+}
+
+/** An intersection that `addTypeToUnion` reduces by resolving a type variable's constraint. */
+function isConstrainedIntersection(t: Type): boolean {
+  return (t.flags & TypeFlags.Intersection) !== 0 && (t.objectFlags & ObjectFlags.IsConstrainedTypeVariable) !== 0;
+}
+
+/** Whether `addTypesToUnion` would set `IncludesConstrainedTypeVariable` for `types`. */
+function hasConstrainedIntersection(types: readonly Type[]): boolean {
+  for (const t of types) {
+    if (isConstrainedIntersection(t)) return true;
+    if ((t.flags & TypeFlags.Union) !== 0 && hasConstrainedIntersection((t as UnionType).types)) return true;
+  }
+  return false;
 }
 
 class TypeSet {
@@ -1214,7 +1314,8 @@ function insertTypeNearLast(c: Checker, set: TypeSet, t: Type): void {
     if (r < 0) low = middle + 1;
     else high = middle - 1;
   }
-  types.splice(low, 0, t);
+  if (low === types.length) types.push(t);
+  else types.splice(low, 0, t);
   set.last = low;
 }
 
@@ -1664,20 +1765,26 @@ export function getIntersectionType(c: Checker, types: Type[]): Type {
   return getIntersectionTypeEx(c, types, IntersectionFlags.None, undefined);
 }
 
+/**
+ * The distinct types of an intersection, in the order they were added. Most intersections have a few
+ * types, which a scan of `values` finds faster than a `Set` costs to build, so the set is created only
+ * once the list grows past `INDEX_AFTER`.
+ */
 class OrderedTypeSet {
+  private static readonly INDEX_AFTER = 8;
   readonly values: Type[] = [];
-  private readonly seen = new Set<Type>();
+  private index: Set<Type> | undefined;
   includes = 0;
 
   has(t: Type): boolean {
-    return this.seen.has(t);
+    return this.index !== undefined ? this.index.has(t) : this.values.includes(t);
   }
 
   add(t: Type): void {
-    if (!this.seen.has(t)) {
-      this.seen.add(t);
-      this.values.push(t);
-    }
+    if (this.has(t)) return;
+    this.values.push(t);
+    if (this.index !== undefined) this.index.add(t);
+    else if (this.values.length > OrderedTypeSet.INDEX_AFTER) this.index = new Set(this.values);
   }
 }
 
@@ -1971,19 +2078,24 @@ function intersectUnionsOfPrimitiveTypes(c: Checker, types: Type[]): boolean {
 }
 
 function eachUnionContains(c: Checker, unionTypes: Type[], t: Type): boolean {
-  for (const type of unionTypes) {
-    const u = type as UnionType;
-    if (unionContainsType(c, u, t)) continue;
-    if (t === c.missingType) return unionContainsType(c, u, c.undefinedType);
-    if (t === c.undefinedType) return unionContainsType(c, u, c.missingType);
-    let primitive: Type | undefined;
-    if ((t.flags & TypeFlags.StringLiteral) !== 0) primitive = c.stringType;
-    else if ((t.flags & (TypeFlags.Enum | TypeFlags.NumberLiteral)) !== 0) primitive = c.numberType;
-    else if ((t.flags & TypeFlags.BigIntLiteral) !== 0) primitive = c.bigintType;
-    else if ((t.flags & TypeFlags.UniqueESSymbol) !== 0) primitive = c.esSymbolType;
-    if (primitive === undefined || !unionContainsType(c, u, primitive)) return false;
-  }
+  for (const type of unionTypes) if (!unionContainsTypeOrPrimitive(c, type as UnionType, t, true)) return false;
   return true;
+}
+
+/**
+ * Whether `union` contains `t`, `undefined` where `t` is the missing type and the other way around, or
+ * the primitive type of literal `t` (of a unique symbol only with `matchSymbol`).
+ */
+export function unionContainsTypeOrPrimitive(c: Checker, union: UnionType, t: Type, matchSymbol: boolean): boolean {
+  if (unionContainsType(c, union, t)) return true;
+  if (t === c.missingType) return unionContainsType(c, union, c.undefinedType);
+  if (t === c.undefinedType) return unionContainsType(c, union, c.missingType);
+  let primitive: Type | undefined;
+  if ((t.flags & TypeFlags.StringLiteral) !== 0) primitive = c.stringType;
+  else if ((t.flags & (TypeFlags.Enum | TypeFlags.NumberLiteral)) !== 0) primitive = c.numberType;
+  else if ((t.flags & TypeFlags.BigIntLiteral) !== 0) primitive = c.bigintType;
+  else if ((t.flags & TypeFlags.UniqueESSymbol) !== 0 && matchSymbol) primitive = c.esSymbolType;
+  return primitive !== undefined && unionContainsType(c, union, primitive);
 }
 
 export function getCrossProductUnionSize(types: readonly Type[]): number {
@@ -2047,7 +2159,8 @@ function addCrossProductIntersections(
   intersections: Type[],
 ): void {
   if (index === types.length) {
-    const t = getIntersectionTypeEx(c, constituents.slice(), flags, undefined);
+    // getIntersectionTypeEx copies the types it keeps, so the buffer is reused for the next combination.
+    const t = getIntersectionTypeEx(c, constituents, flags, undefined);
     if ((t.flags & TypeFlags.Never) === 0) intersections.push(t);
     return;
   }
@@ -2551,7 +2664,13 @@ export function getTemplateLiteralType(c: Checker, texts: string[], types: Type[
   }
   if (types.includes(c.wildcardType)) return c.wildcardType;
   const builder = new TemplateBuilder(c, texts[0]!);
-  if (!builder.addSpans(texts, types)) return c.stringType;
+  if (!builder.addSpans(texts, types)) {
+    if (builder.tooLarge) {
+      c.error(c.currentNode, Diagnostics.Type_instantiation_is_excessively_deep_and_possibly_infinite);
+      return c.errorType;
+    }
+    return c.stringType;
+  }
   if (builder.newTypes.length === 0) return getStringLiteralType(c, builder.text);
   builder.newTexts.push(builder.text);
   const newTexts = builder.newTexts;
@@ -2570,15 +2689,30 @@ export function getTemplateLiteralType(c: Checker, texts: string[], types: Type[
   return type;
 }
 
+/**
+ * Limits on the size of a template literal type that getTemplateLiteralType builds, in UTF-8 bytes of text
+ * and in placeholders. Recursive instantiations such as `Recur<any, `${S}_${S}`>` double the text or the
+ * placeholders on every step and exhaust memory long before the tail recursion limit of conditional types.
+ */
+const maxTemplateLiteralTypeLength = 50_000_000;
+const maxTemplateLiteralTypeSpans = 100_000;
+
 class TemplateBuilder {
   readonly c: Checker;
   text: string;
   readonly newTypes: Type[] = [];
   readonly newTexts: string[] = [];
+  /** UTF-8 bytes of `text`. */
+  private textBytes: number;
+  /** UTF-8 bytes of the texts already moved into `newTexts`. */
+  private movedBytes = 0;
+  /** Whether `addSpans` stopped because the result passed a size limit. */
+  tooLarge = false;
 
   constructor(c: Checker, text: string) {
     this.c = c;
     this.text = text;
+    this.textBytes = utf8Length(text);
   }
 
   addSpans(texts: string[], types: Type[]): boolean {
@@ -2586,17 +2720,30 @@ class TemplateBuilder {
     for (let i = 0; i < types.length; i++) {
       const t = types[i]!;
       if ((t.flags & (TypeFlags.Literal | TypeFlags.Null | TypeFlags.Undefined)) !== 0) {
-        this.text += getTemplateStringForType(c, t) + texts[i + 1]!;
+        const added = getTemplateStringForType(c, t) + texts[i + 1]!;
+        this.text += added;
+        this.textBytes += utf8Length(added);
       } else if ((t.flags & TypeFlags.TemplateLiteral) !== 0) {
         const template = t as TemplateLiteralType;
         this.text += template.texts[0]!;
+        this.textBytes += utf8Length(template.texts[0]!);
         if (!this.addSpans(template.texts, template.types)) return false;
         this.text += texts[i + 1]!;
+        this.textBytes += utf8Length(texts[i + 1]!);
       } else if (isGenericIndexType(c, t) || isPatternLiteralPlaceholderType(c, t)) {
         this.newTypes.push(t);
         this.newTexts.push(this.text);
+        this.movedBytes += this.textBytes;
         this.text = texts[i + 1]!;
+        this.textBytes = utf8Length(this.text);
       } else return false;
+      if (
+        this.movedBytes + this.textBytes > maxTemplateLiteralTypeLength ||
+        this.newTypes.length > maxTemplateLiteralTypeSpans
+      ) {
+        this.tooLarge = true;
+        return false;
+      }
     }
     return true;
   }

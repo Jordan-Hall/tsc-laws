@@ -174,7 +174,7 @@ import { SyntaxKind } from '../syntax-kind.js';
 import { type CommentRange, TokenFlags } from '../types.js';
 import { ScriptTarget } from '../options.js';
 import { fileExtensionIs } from '../path.js';
-import { isWhiteSpaceLike } from '../character-codes.js';
+import { CharacterCodes, isWhiteSpaceLike } from '../character-codes.js';
 import type { SourceMapGenerator } from '../sourcemap.js';
 import { EmitContext, compareEmitHelpers, type SynthesizedComment } from './emit-context.js';
 import { EmitFlags, GeneratedIdentifierFlags } from './emit-flags.js';
@@ -375,6 +375,8 @@ const enum ListItem {
   ImportSpecifier,
   ExportSpecifier,
   ExpressionWithTypeArguments,
+  /** An `ExpressionWithTypeArguments` or a type reference in a heritage clause. */
+  HeritageClauseElement,
   JsxChild,
   JsxAttributeLike,
 }
@@ -399,6 +401,9 @@ const enum State {
   SourceMaps = 1 << 1,
 }
 
+/** The saved emit flags of a node whose comments were not looked for (`Printer.inCommentFreeRange`). */
+const commentFreeNode = -1;
+
 export class Printer extends NameGeneratorHost {
   readonly options: PrinterOptions;
   readonly context: EmitContext;
@@ -410,6 +415,13 @@ export class Printer extends NameGeneratorHost {
   currentSourceFile: SourceFile | undefined;
   private sourceText: string;
   private lineStarts: readonly number[];
+  /**
+   * The line of the last `lineOf` lookup, `lookupLine`, and the positions it spans, `[lookupLineStart, lookupLineEnd)`,
+   * with `lookupLineEnd` -1 after the last line: printing reads positions mostly in order, so most lookups fall on that line.
+   */
+  private lookupLine: number;
+  private lookupLineStart: number;
+  private lookupLineEnd: number;
   private writer: TextWriter;
   private ownWriter: TextWriter | undefined;
   private uniqueHelperNames: Map<string, Identifier> | undefined;
@@ -423,8 +435,25 @@ export class Printer extends NameGeneratorHost {
   private commentsDisabled: boolean;
   /** Emitting the `extends` clause of a conditional or infer type. */
   private inExtends: boolean;
-  /** Saved comment state: emit flags, comment pos, comment end, container pos, container end, declaration list end. */
-  private readonly commentStack: number[];
+  /**
+   * Saved comment state, 32-bit values: emit flags, comment pos, comment end, container pos, container end,
+   * declaration list end.
+   * Flags are `commentFreeNode` for a node that `emitCommentsBeforeNode` handled in a comment-free range.
+   */
+  private commentStack: Int32Array;
+  /** The used length of `commentStack`: entries are written in place and kept for reuse once popped. */
+  private commentDepth: number;
+  /** Start positions of `//` and `/*` in `sourceText`, ascending; made on first use for each file. */
+  private commentStarts: Int32Array | undefined;
+  /**
+   * A range of `sourceText`, `[freeStart, freeEnd)`, where no comment starts and the last character is not trivia,
+   * so no comment is found from any position in it; -1 when there is none. `freeOwner` is the node it was made for.
+   */
+  private freeStart: number;
+  private freeEnd: number;
+  /** Whether no trailing comment follows `freeEnd`. */
+  private freeEndTrailingNone: boolean;
+  private freeOwner: Node | undefined;
   /** Saved source map state: emit flags, pos, end, has token range. */
   private readonly sourceMapStack: number[];
   /** The token position after `enterToken` skipped trivia. */
@@ -457,6 +486,9 @@ export class Printer extends NameGeneratorHost {
     this.currentSourceFile = undefined;
     this.sourceText = '';
     this.lineStarts = [];
+    this.lookupLine = -1;
+    this.lookupLineStart = 0;
+    this.lookupLineEnd = 0;
     this.writer = new TextWriter(options.newLine, 4);
     this.ownWriter = undefined;
     this.uniqueHelperNames = undefined;
@@ -468,7 +500,13 @@ export class Printer extends NameGeneratorHost {
     this.detachedComments = [];
     this.commentsDisabled = options.removeComments;
     this.inExtends = false;
-    this.commentStack = [];
+    this.commentStack = new Int32Array(96);
+    this.commentDepth = 0;
+    this.commentStarts = undefined;
+    this.freeStart = -1;
+    this.freeEnd = -1;
+    this.freeEndTrailingNone = false;
+    this.freeOwner = undefined;
     this.sourceMapStack = [];
     this.tokenPos = 0;
     this.sourceMapsDisabled = true;
@@ -518,6 +556,11 @@ export class Printer extends NameGeneratorHost {
     this.currentSourceFile = sourceFile;
     this.sourceText = sourceFile === undefined ? '' : sourceFile.text;
     this.lineStarts = sourceFile === undefined ? [] : sourceFile.lineStarts();
+    this.lookupLine = -1;
+    this.lookupLineStart = 0;
+    this.lookupLineEnd = 0;
+    this.commentStarts = undefined;
+    this.endCommentFreeRange();
     return true;
   }
 
@@ -565,7 +608,8 @@ export class Printer extends NameGeneratorHost {
 
   isFileLevelUniqueName(name: string): boolean {
     const file = this.currentSourceFile;
-    return file === undefined || isFileLevelUniqueName(file, name);
+    // The names of the source file as parsed, not as transformed.
+    return file === undefined || isFileLevelUniqueName(this.context.mostOriginal(file) as SourceFile, name);
   }
 
   private getLiteralTextOfNode(node: Node, sourceFile: SourceFile | undefined, flags: LiteralTextFlags): string {
@@ -615,6 +659,9 @@ export class Printer extends NameGeneratorHost {
       case SyntaxKind.Identifier:
       case SyntaxKind.PrivateIdentifier:
       case SyntaxKind.JsxNamespacedName:
+        // Its text either way: the source text, or the text of a node from elsewhere.
+        if (this.textIsSourceText(node))
+          return node instanceof Identifier ? node.text : (node as PrivateIdentifier).text;
         if (!canUseSourceFile || !this.isInCurrentSourceFile(node)) {
           if (node instanceof Identifier) return node.text;
           if (node instanceof PrivateIdentifier) return node.text;
@@ -633,6 +680,39 @@ export class Printer extends NameGeneratorHost {
         throw new Error('Unexpected node kind ' + node.kind);
     }
     return getSourceTextOfNode(this.sourceText, node);
+  }
+
+  /**
+   * Whether the source text of an identifier or private identifier of the current file, from the end of its leading
+   * trivia to its end, is its text: the text ends the node, and the character before it is not part of the token, as
+   * it would be in an identifier written with escapes. Nodes from JSDoc may span other text, so they are left to the
+   * general path.
+   */
+  private textIsSourceText(node: Node): boolean {
+    if (!(node instanceof Identifier) && !(node instanceof PrivateIdentifier)) return false;
+    if ((node.flags & (NodeFlags.Reparsed | NodeFlags.JSDoc | NodeFlags.ReparserTransformedLiteral)) !== 0)
+      return false;
+    // Natively an identifier's text is read through its name, and a private identifier's from its field.
+    const text = node instanceof Identifier ? node.text : (node as PrivateIdentifier).text;
+    const source = this.sourceText;
+    const end = node.end;
+    const start = end - text.length;
+    if (text.length === 0 || start < node.pos || end > source.length) return false;
+    if (!source.startsWith(text, start)) return false;
+    if (start === node.pos) return true;
+    const before = source.charCodeAt(start - 1);
+    return !(
+      (before >= CharacterCodes.a && before <= CharacterCodes.z) ||
+      (before >= CharacterCodes.A && before <= CharacterCodes.Z) ||
+      (before >= CharacterCodes._0 && before <= CharacterCodes._9) ||
+      before === CharacterCodes._ ||
+      before === CharacterCodes.$ ||
+      before === CharacterCodes.backslash ||
+      before === CharacterCodes.openBrace ||
+      before === CharacterCodes.closeBrace ||
+      before === CharacterCodes.hash ||
+      before > CharacterCodes.maxAsciiCharacter
+    );
   }
 
   private isInCurrentSourceFile(node: Node): boolean {
@@ -717,7 +797,28 @@ export class Printer extends NameGeneratorHost {
   // Lines between nodes
 
   private positionsAreOnSameLine(pos1: number, pos2: number): boolean {
-    return getLinesBetweenPositions(this.lineStarts, pos1, pos2) === 0;
+    if (pos1 === pos2) return true;
+    const lower = pos1 < pos2 ? pos1 : pos2;
+    const upper = pos1 < pos2 ? pos2 : pos1;
+    // What getLinesBetweenPositions finds: no line starts in (lower, upper].
+    if (lower < 0) {
+      const first = this.lineStarts.length > 0 ? this.lineStarts[0] | 0 : -1;
+      return first < 0 || upper < first;
+    }
+    this.lineOf(lower);
+    return this.lookupLineEnd < 0 || upper < this.lookupLineEnd;
+  }
+
+  /** The zero-based line of `pos` (-1 before the first line), which becomes the line of the last lookup. */
+  private lineOf(pos: number): number {
+    if (pos >= this.lookupLineStart && (pos < this.lookupLineEnd || this.lookupLineEnd < 0) && this.lookupLine >= 0)
+      return this.lookupLine;
+    const starts = this.lineStarts;
+    const line = computeLineOfPosition(starts, pos);
+    this.lookupLine = line;
+    this.lookupLineStart = line >= 0 ? starts[line] | 0 : 0;
+    this.lookupLineEnd = line + 1 < starts.length ? starts[line + 1] | 0 : -1;
+    return line;
   }
 
   private rangeStart(pos: number): number {
@@ -1049,8 +1150,13 @@ export class Printer extends NameGeneratorHost {
 
   // Names
 
-  // Source text of names reparsed from JSDoc can span lines.
+  // Source text of names reparsed from JSDoc can span lines; an identifier's own source text has no line breaks.
   private emitIdentifierText(node: Identifier): boolean {
+    if (!this.context.autoGenerate.has(node) && this.textIsSourceText(node)) {
+      // writeText's answer for text without line breaks.
+      this.writer.write(node.text);
+      return false;
+    }
     return this.writer.writeText(this.getTextOfNode(node));
   }
 
@@ -1116,7 +1222,8 @@ export class Printer extends NameGeneratorHost {
     const state = this.enterNode(node);
     this.emitEntityName(node.left);
     this.write1('.');
-    this.emitIdentifierName(node.right);
+    if (node.right instanceof PrivateIdentifier) this.emitPrivateIdentifier(node.right);
+    else this.emitIdentifierName(node.right as Identifier);
     this.exitNode(node, state);
     return true;
   }
@@ -1813,10 +1920,11 @@ export class Printer extends NameGeneratorHost {
       this.emitOptionalToken(questionToken);
       if (questionToken.kind !== SyntaxKind.QuestionToken) this.write1('?');
     }
-    this.write1(': ');
-    // tsgo's printer fails on a mapped type without a type, too.
-    if (node.type === undefined) throw new Error('Mapped type without a type');
-    this.emitTypeNodeOutsideExtends(node.type);
+    // A mapped type written without a type, `{ [K in keyof T] }`, prints without one.
+    if (node.type !== undefined) {
+      this.write1(': ');
+      this.emitTypeNodeOutsideExtends(node.type);
+    }
     this.write1(';');
     if (node.members !== undefined && node.members.nodes.length > 0) {
       if (singleLine) this.space();
@@ -2847,8 +2955,8 @@ export class Printer extends NameGeneratorHost {
       case SyntaxKind.MetaProperty:
         if (node instanceof MetaProperty) {
           const state = this.enterNode(node);
-          this.emitToken(node.keywordToken, node.pos, node);
-          this.write1('.');
+          const pos = this.emitToken(node.keywordToken, node.pos, node);
+          this.emitToken(SyntaxKind.DotToken, pos, node);
           this.emitIdentifierName(node.name);
           this.exitNode(node, state);
           return true;
@@ -3210,6 +3318,10 @@ export class Printer extends NameGeneratorHost {
       this.emitIdentifierOrString(body.name, false);
       body = body.body;
     }
+    if (node.attributes !== undefined) {
+      this.write1(' with ');
+      this.emitTypeNode(node.attributes, TypePrecedence.NonArray);
+    }
     if (body === undefined) this.write1(';');
     else if (body instanceof ModuleBlock) {
       this.space();
@@ -3318,12 +3430,17 @@ export class Printer extends NameGeneratorHost {
       this.emitBindingIdentifier(bindings.name);
       this.exitNode(bindings, bindingsState);
     } else if (bindings instanceof NamedImports) {
-      const bindingsState = this.enterNode(bindings);
-      this.write1('{');
-      this.emitList(ListItem.ImportSpecifier, bindings, bindings.elements, ListFormat.NamedImportsOrExportsElements);
-      this.write1('}');
-      this.exitNode(bindings, bindingsState);
+      this.emitNamedImports(bindings);
     }
+    this.exitNode(node, state);
+    return true;
+  }
+
+  private emitNamedImports(node: NamedImports): boolean {
+    const state = this.enterNode(node);
+    this.write1('{');
+    this.emitList(ListItem.ImportSpecifier, node, node.elements, ListFormat.NamedImportsOrExportsElements);
+    this.write1('}');
     this.exitNode(node, state);
     return true;
   }
@@ -3770,7 +3887,7 @@ export class Printer extends NameGeneratorHost {
     this.space();
     this.emitToken(node.token, node.pos, node);
     this.space();
-    this.emitList(ListItem.ExpressionWithTypeArguments, node, node.types, ListFormat.HeritageClauseTypes);
+    this.emitList(ListItem.HeritageClauseElement, node, node.types, ListFormat.HeritageClauseTypes);
     this.exitNode(node, state);
     return true;
   }
@@ -3990,6 +4107,10 @@ export class Printer extends NameGeneratorHost {
         break;
       case ListItem.ExpressionWithTypeArguments:
         if (node instanceof ExpressionWithTypeArguments) return this.emitExpressionWithTypeArguments(node);
+        break;
+      case ListItem.HeritageClauseElement:
+        if (node instanceof ExpressionWithTypeArguments) return this.emitExpressionWithTypeArguments(node);
+        if (node.kind === SyntaxKind.TypeReference) return this.emitTypeNodeWorker(node);
         break;
       case ListItem.JsxChild:
         return this.emitJsxChild(node);
@@ -4290,6 +4411,9 @@ export class Printer extends NameGeneratorHost {
       case SyntaxKind.ImportClause:
         if (node instanceof ImportClause) return this.emitImportClause(node);
         break;
+      case SyntaxKind.NamedImports:
+        if (node instanceof NamedImports) return this.emitNamedImports(node);
+        break;
       case SyntaxKind.ImportSpecifier:
         return this.emitListItem(ListItem.ImportSpecifier, node);
       case SyntaxKind.ExportSpecifier:
@@ -4350,10 +4474,18 @@ export class Printer extends NameGeneratorHost {
 
   private emitCommentsBeforeNode(node: Node): boolean {
     if (!this.shouldEmitComments(node)) return false;
+    if (this.inCommentFreeRange(node)) {
+      // What the general path does for a node without emit data and without comments.
+      this.pushCommentState(commentFreeNode, node.pos, node.end);
+      this.containerPos = node.pos;
+      this.containerEnd = node.end;
+      if (node.kind === SyntaxKind.VariableDeclarationList) this.declarationListContainerEnd = node.end;
+      return true;
+    }
     const flags = this.context.getEmitFlags(node);
     const pos = this.context.commentPos(node);
     const end = this.context.commentEnd(node);
-    this.commentStack.push(flags, pos, end, this.containerPos, this.containerEnd, this.declarationListContainerEnd);
+    this.pushCommentState(flags, pos, end);
     this.emitLeadingCommentsOfNode(node, flags, pos, end);
     if ((flags & EmitFlags.NoLeadingComments) === 0) {
       const synthesized = this.context.getSyntheticLeadingComments(node);
@@ -4363,17 +4495,43 @@ export class Printer extends NameGeneratorHost {
     return true;
   }
 
+  /** Saves the comment state of a node: its emit flags (or `commentFreeNode`), comment range and the containers. */
+  private pushCommentState(flags: number, pos: number, end: number): boolean {
+    let stack = this.commentStack;
+    const at = this.commentDepth;
+    if (at + 6 > stack.length) {
+      const grown = new Int32Array(stack.length * 2);
+      grown.set(stack);
+      this.commentStack = grown;
+      stack = grown;
+    }
+    stack[at] = flags;
+    stack[at + 1] = pos;
+    stack[at + 2] = end;
+    stack[at + 3] = this.containerPos;
+    stack[at + 4] = this.containerEnd;
+    stack[at + 5] = this.declarationListContainerEnd;
+    this.commentDepth = at + 6;
+    return true;
+  }
+
   private emitCommentsAfterNode(node: Node): boolean {
     const stack = this.commentStack;
-    const base = stack.length - 6;
-    // `| 0` keeps scriptc from typing array reads as possibly undefined.
-    const flags = stack[base] | 0;
-    const pos = stack[base + 1] | 0;
-    const end = stack[base + 2] | 0;
-    const containerPos = stack[base + 3] | 0;
-    const containerEnd = stack[base + 4] | 0;
-    const declarationListContainerEnd = stack[base + 5] | 0;
-    stack.length = base;
+    const base = this.commentDepth - 6;
+    const flags = stack[base]!;
+    const pos = stack[base + 1]!;
+    const end = stack[base + 2]!;
+    const containerPos = stack[base + 3]!;
+    const containerEnd = stack[base + 4]!;
+    const declarationListContainerEnd = stack[base + 5]!;
+    this.commentDepth = base;
+    if (node === this.freeOwner) this.endCommentFreeRange();
+    if (flags === commentFreeNode) {
+      this.containerPos = containerPos;
+      this.containerEnd = containerEnd;
+      this.declarationListContainerEnd = declarationListContainerEnd;
+      return true;
+    }
     if ((flags & EmitFlags.NoNestedComments) !== 0) this.commentsDisabled = false;
     if ((flags & EmitFlags.NoTrailingComments) === 0) {
       const synthesized = this.context.getSyntheticTrailingComments(node);
@@ -4393,6 +4551,83 @@ export class Printer extends NameGeneratorHost {
         declarationListContainerEnd,
       );
     return true;
+  }
+
+  /**
+   * Whether `node` has no emit data and lies in a range of the source text where no comment is found, so that its
+   * comments need not be looked for. Outside such a range, a node whose own range is one starts it (`freeOwner`).
+   */
+  private inCommentFreeRange(node: Node): boolean {
+    const pos = node.pos;
+    const end = node.end;
+    if (pos < 0 || end <= pos || node.kind === SyntaxKind.JsxText || node.kind === SyntaxKind.NotEmittedStatement)
+      return false;
+    if (this.freeEnd < 0) {
+      if (!this.startCommentFreeRange(pos, end)) return false;
+      this.freeOwner = node;
+    } else if (pos < this.freeStart) return false;
+    if (this.context.hasEmitNode(node)) return false;
+    return end < this.freeEnd || (end === this.freeEnd && this.freeEndTrailingNone);
+  }
+
+  private endCommentFreeRange(): boolean {
+    this.freeStart = -1;
+    this.freeEnd = -1;
+    this.freeEndTrailingNone = false;
+    this.freeOwner = undefined;
+    return true;
+  }
+
+  /** Whether the comment-free range shows that no trailing comment follows `pos`. */
+  private noCommentsAfter(pos: number): boolean {
+    return pos >= this.freeStart && (pos < this.freeEnd || (pos === this.freeEnd && this.freeEndTrailingNone));
+  }
+
+  /** Makes `[pos, end)` the comment-free range if no comment starts in it and its last character is not trivia. */
+  private startCommentFreeRange(pos: number, end: number): boolean {
+    const text = this.sourceText;
+    if (end > text.length) return false;
+    const last = text.charCodeAt(end - 1);
+    if (
+      last === CharacterCodes.space ||
+      last === CharacterCodes.tab ||
+      last === CharacterCodes.lineFeed ||
+      last === CharacterCodes.carriageReturn ||
+      last === CharacterCodes.verticalTab ||
+      last === CharacterCodes.formFeed ||
+      last > CharacterCodes.maxAsciiCharacter
+    )
+      return false;
+    const starts = this.commentStartsOfFile();
+    // The first comment start at or after `pos`.
+    let low = 0;
+    let high = starts.length;
+    while (low < high) {
+      const middle = (low + high) >>> 1;
+      if (starts[middle]! < pos) low = middle + 1;
+      else high = middle;
+    }
+    if (low < starts.length && starts[low]! < end) return false;
+    this.freeStart = pos;
+    this.freeEnd = end;
+    this.freeEndTrailingNone = getTrailingCommentRanges(text, end) === undefined;
+    return true;
+  }
+
+  private commentStartsOfFile(): Int32Array {
+    const cached = this.commentStarts;
+    if (cached !== undefined) return cached;
+    const text = this.sourceText;
+    const length = text.length;
+    const list: number[] = [];
+    for (let i = text.indexOf('/'); i >= 0 && i + 1 < length; i = text.indexOf('/', i + 1)) {
+      const next = text.charCodeAt(i + 1);
+      if (next === CharacterCodes.slash || next === CharacterCodes.asterisk) list.push(i);
+    }
+    const starts = new Int32Array(list.length);
+    for (let i = 0; i < list.length; i++) starts[i] = list[i]!;
+    this.commentStarts = starts;
+    return starts;
   }
 
   /** Emits comments before a token; returns whether `emitCommentsAfterToken` applies, with the token's position in `tokenPos`. */
@@ -4505,6 +4740,7 @@ export class Printer extends NameGeneratorHost {
   private emitLeadingComments(pos: number, elided: boolean): boolean {
     if (this.commentsDisabled || this.currentSourceFile === undefined || pos < 0 || pos === this.containerPos)
       return false;
+    if (pos >= this.freeStart && pos < this.freeEnd) return false;
     // 1: only triple-slash comments, 2: all but triple-slash comments, 0: all.
     let tripleSlash = 0;
     if (!elided) {
@@ -4552,6 +4788,7 @@ export class Printer extends NameGeneratorHost {
       (this.containerEnd !== -1 && (pos === this.containerEnd || pos === this.declarationListContainerEnd))
     )
       return false;
+    if (this.noCommentsAfter(pos)) return false;
     const ranges = getTrailingCommentRanges(this.sourceText, pos);
     if (ranges === undefined) return false;
     let comments: CommentRange[] | undefined = undefined;
@@ -4567,6 +4804,7 @@ export class Printer extends NameGeneratorHost {
     if (this.commentsDisabled || this.currentSourceFile === undefined) return false;
     if (this.containerEnd !== -1 && (pos === this.containerEnd || pos === this.declarationListContainerEnd))
       return false;
+    if (this.noCommentsAfter(pos)) return false;
     const comments = getTrailingCommentRanges(this.sourceText, pos);
     if (comments === undefined) return false;
     for (const comment of comments) {
