@@ -60,6 +60,13 @@ describe('acceptedPathFor', () => {
     assert.equal(acceptedPathFor('src/foo.proposed.laws.ts'), 'src/foo.laws.ts');
     assert.equal(acceptedPathFor('src/foo.laws.ts'), undefined);
   });
+
+  it('keeps the kind of a browser or end-to-end proposal', () => {
+    assert.equal(acceptedPathFor('src/foo.browser.proposed.laws.ts'), 'src/foo.browser.laws.ts');
+    assert.equal(acceptedPathFor('src/foo.e2e.proposed.laws.ts'), 'src/foo.e2e.laws.ts');
+    assert.equal(acceptedPathFor('src/foo.browser.laws.ts'), undefined);
+    assert.equal(acceptedPathFor('src/foo.e2e.laws.ts'), undefined);
+  });
 });
 
 describe('building files', () => {
@@ -137,6 +144,41 @@ describe('promoteFiles', () => {
     assert.ok(!existsSync(join(dir, 'tsc-laws.lock')));
     assert.match(output, /\[tested\]/);
     assert.match(output, /tslaws accept/);
+  });
+
+  it('moves a proposed browser or end-to-end law into the accepted file of the same kind', async () => {
+    const dir = join(root, 'kinds');
+    mkdirSync(join(dir, 'src'), { recursive: true });
+    const browserLaw = [
+      "import { mount } from 'tslaws/browser';",
+      'export law mounts(n: number) => mount() !== undefined;',
+      '',
+    ].join('\n');
+    const e2eLaw = [
+      "import { open } from 'tslaws/e2e';",
+      'export law opens(n: number) => open !== undefined;',
+      '',
+    ].join('\n');
+    writeFileSync(join(dir, 'src', 'shell-layout.browser.proposed.laws.ts'), browserLaw);
+    writeFileSync(join(dir, 'src', 'shop.e2e.proposed.laws.ts'), e2eLaw);
+    let output = '';
+    const count = await promoteFiles(
+      { cwd: dir, checkFile: async () => new Map(), ask: async () => 'y', out: (t) => (output += t) },
+      ['src/shell-layout.browser.proposed.laws.ts', 'src/shop.e2e.proposed.laws.ts'],
+    );
+    assert.equal(count, 2);
+    assert.deepEqual(
+      parseLawFile(readFileSync(join(dir, 'src', 'shell-layout.browser.laws.ts'), 'utf8')).laws.map((l) => l.name),
+      ['mounts'],
+    );
+    assert.deepEqual(
+      parseLawFile(readFileSync(join(dir, 'src', 'shop.e2e.laws.ts'), 'utf8')).laws.map((l) => l.name),
+      ['opens'],
+    );
+    assert.ok(!existsSync(join(dir, 'src', 'shell-layout.browser.proposed.laws.ts')));
+    assert.ok(!existsSync(join(dir, 'src', 'shop.e2e.proposed.laws.ts')));
+    assert.ok(!existsSync(join(dir, 'src', 'shell-layout.laws.ts')));
+    assert.match(output, /moved to src\/shell-layout\.browser\.laws\.ts/);
   });
 });
 

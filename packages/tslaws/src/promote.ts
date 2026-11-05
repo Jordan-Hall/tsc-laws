@@ -2,6 +2,7 @@
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import ts from 'typescript';
+import { acceptedLawName, isProposedLawFile } from './lawNames.ts';
 
 export interface ParsedLaw {
   name: string;
@@ -17,11 +18,12 @@ export interface ParsedLawFile {
   laws: ParsedLaw[];
 }
 
-/** `foo.proposed.laws.ts` -> `foo.laws.ts`; undefined for any other name. */
+/**
+ * `foo.proposed.laws.ts` -> `foo.laws.ts`, `foo.browser.proposed.laws.ts` -> `foo.browser.laws.ts` and
+ * `foo.e2e.proposed.laws.ts` -> `foo.e2e.laws.ts`, so a proposal lands in a file of its own kind; undefined for any other name.
+ */
 export function acceptedPathFor(proposed: string): string | undefined {
-  return proposed.endsWith('.proposed.laws.ts')
-    ? `${proposed.slice(0, -'.proposed.laws.ts'.length)}.laws.ts`
-    : undefined;
+  return isProposedLawFile(proposed) ? acceptedLawName(proposed) : undefined;
 }
 
 /**
