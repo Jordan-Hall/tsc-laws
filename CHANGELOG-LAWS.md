@@ -2,6 +2,12 @@
 
 The upstream tsc-ts changelog is CHANGELOG.md. Releases of tsc-laws are tagged `laws-v<version>` (see RELEASING-LAWS.md).
 
+## 0.6.0
+
+- Merge pull request #7 from Jordan-Hall/feat/vscode-live-laws
+- fix(vscode): default-export and excluded-law handling
+- feat(vscode): law failures show live on the law and on the source it exercises
+
 ## 0.5.2
 
 - Merge pull request #6 from Jordan-Hall/chore/sync-upstream
