@@ -2,6 +2,18 @@
 
 The upstream tsc-ts changelog is CHANGELOG.md. Releases of tsc-laws are tagged `laws-v<version>` (see RELEASING-LAWS.md).
 
+## 0.6.2
+
+- Merge pull request #9 from Jordan-Hall/feat/brand-icons
+- Merge pull request #11 from Jordan-Hall/fix/stateful-shrink
+- Merge fix/stateful-shrink
+- fix(tslaws): shrinking removes any set of elements, not only one run
+- Merge fix/stateful-shrink so CI is green
+- Merge origin/main
+- fix(tslaws): stateful shrinking always reaches the shortest failing sequence
+- docs: use the law-with-a-tick mark, and show it in the README
+- docs: a proper mark for tsc-laws, and every icon size the stores and the repository need
+
 ## 0.6.1
 
 - Merge pull request #8 from Jordan-Hall/docs/delegation-explainer
