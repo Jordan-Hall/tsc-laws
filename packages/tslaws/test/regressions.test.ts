@@ -159,3 +159,17 @@ describe('regressions through check', { skip: compiler === undefined ? 'set TSC_
     assert.equal(loadExamples(cwd, 'src/f.laws.ts', 'notMultipleOf97').length, 1);
   });
 });
+
+describe('a corpus an earlier version stored', { skip: process.platform === 'win32' }, () => {
+  it('is replayed under its old file name, and moves to the new name on the next save', () => {
+    const cwd = join(root, 'legacy');
+    const name = 'suite > case';
+    const old = join(cwd, '.tslaws', 'regressions', 'src__f.laws.ts', `${name}.json`);
+    mkdirSync(dirname(old), { recursive: true });
+    writeFileSync(old, JSON.stringify({ file: 'src/f.laws.ts', law: name, examples: [encodeExample([1])].map((e) => JSON.parse(e)) }));
+    assert.deepEqual(loadExamples(cwd, 'src/f.laws.ts', name), [encodeExample([1])]);
+    saveExample(cwd, 'src/f.laws.ts', name, [2]);
+    assert.deepEqual(loadExamples(cwd, 'src/f.laws.ts', name), [encodeExample([2]), encodeExample([1])]);
+    assert.ok(existsSync(regressionFile(cwd, 'src/f.laws.ts', name)));
+  });
+});

@@ -91,6 +91,10 @@ export function regressionFile(cwd: string, file: string, name: string): string 
   return join(root(cwd), file.replace(/[\\/]/g, '__'), `${safeName(name)}.json`);
 }
 
+function legacyFile(cwd: string, file: string, name: string): string {
+  return join(root(cwd), file.replace(/[\\/]/g, '__'), `${name}.json`);
+}
+
 /** A law name as a file name on every platform: characters Windows refuses become `_`, and a hash keeps two names apart. */
 function safeName(name: string): string {
   const safe = [...name]
@@ -119,7 +123,9 @@ function readCorpus(path: string): Corpus | undefined {
 
 /** The stored examples of a law as the texts `encodeExample` makes, newest first. */
 export function loadExamples(cwd: string, file: string, name: string): string[] {
-  const corpus = readCorpus(regressionFile(cwd, file, name));
+  // Before names were made safe for Windows the file was named with the law's name as written: read that too, so
+  // counterexamples an earlier version stored are still replayed (the next save writes the new name).
+  const corpus = readCorpus(regressionFile(cwd, file, name)) ?? readCorpus(legacyFile(cwd, file, name));
   return corpus === undefined ? [] : corpus.examples.map((e) => JSON.stringify(e));
 }
 

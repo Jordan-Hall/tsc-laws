@@ -347,6 +347,9 @@ function saveBuildCache(args: string[], files: string[], cwd: string, result: Bu
     const base = buildKey(args, files, cwd);
     // The key also names the files read, so anything worked out from this build is dropped when one of them changes.
     result.key = createHash('sha256').update(base).update(JSON.stringify(stats)).digest('hex');
+    // A failed build is not kept: the file it could not find is not among the files read, so creating it would not
+    // invalidate the entry and the failure would be served again.
+    if (!result.ok) return;
     const cache: BuildCache = { base, result, files: stats };
     writeFileSync(buildCachePath(cwd), JSON.stringify(cache));
   } catch {

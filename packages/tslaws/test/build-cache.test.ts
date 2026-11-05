@@ -107,4 +107,16 @@ describe('build cache', () => {
     assert.equal(second.ok, false);
     assert.equal(second.diagnostics, first.diagnostics);
   });
+
+  it('builds again once a file a failed build could not find exists', () => {
+    const dir = join(root, 'missing');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      join(dir, 'a.laws.ts'),
+      "import { law } from 'tslaws';\nimport { double } from './later';\nlaw('doubling is even', (n: number) => double(n) % 2 === 0);\n",
+    );
+    assert.equal(build('builtin', ['a.laws.ts'], dir).ok, false);
+    writeFileSync(join(dir, 'later.ts'), 'export const double = (n: number): number => n * 2;\n');
+    assert.equal(build('builtin', ['a.laws.ts'], dir).ok, true);
+  });
 });
