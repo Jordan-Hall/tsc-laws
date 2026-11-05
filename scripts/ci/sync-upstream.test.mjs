@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
   branchName,
+  classifyOrphanBranch,
   decideIssue,
   decideSync,
   isSyncBranch,
@@ -46,17 +47,96 @@ test('an open sync pull request skips the sync, whatever its date', () => {
   assert.match(decision.reason, /sync\/upstream-2026-10-29/);
 });
 
-test('a sync branch on origin skips the sync, with or without a pull request', () => {
-  const decision = decideSync({ behind: 5, remoteBranches: ['main', 'sync/upstream-2026-11-05'], date });
+const orphan = (name, extra = {}) => ({
+  name,
+  sha: `sha-of-${name}`,
+  containedInMain: false,
+  containsUpstreamHead: false,
+  ...extra,
+});
+
+test('a sync branch already merged into main is deleted, and the sync goes on', () => {
+  // The pull request was closed after its branch was merged some other way.
+  const decision = decideSync({
+    behind: 5,
+    remoteBranches: [orphan('sync/upstream-2026-10-29', { containedInMain: true, containsUpstreamHead: true })],
+    date,
+  });
+  assert.equal(decision.action, 'sync');
+  assert.equal(decision.branch, 'sync/upstream-2026-11-05');
+  assert.equal(decision.lease, undefined);
+  assert.deepEqual(decision.remove, ['sync/upstream-2026-10-29']);
+});
+
+test('a closed pull request with a stale leftover branch no longer blocks the sync', () => {
+  // The branch lacks the current upstream head: upstream moved on after it was pushed.
+  const decision = decideSync({
+    behind: 5,
+    openPullRequestBranches: ['feat/laws'],
+    remoteBranches: [orphan('sync/upstream-2026-10-29')],
+    date,
+  });
+  assert.equal(decision.action, 'sync');
+  assert.equal(decision.branch, 'sync/upstream-2026-11-05');
+  assert.deepEqual(decision.remove, ['sync/upstream-2026-10-29']);
+});
+
+test('a pushed branch with no pull request is reused, replacing exactly the sha seen on origin', () => {
+  const decision = decideSync({
+    behind: 5,
+    remoteBranches: [orphan('sync/upstream-2026-10-29', { containsUpstreamHead: true })],
+    date,
+  });
+  assert.equal(decision.action, 'sync');
+  assert.equal(decision.branch, 'sync/upstream-2026-10-29');
+  assert.equal(decision.lease, 'sha-of-sync/upstream-2026-10-29');
+  assert.deepEqual(decision.remove, []);
+  assert.match(decision.reason, /reusing the sync branch sync\/upstream-2026-10-29/);
+});
+
+test('a stale branch with the name of today is replaced, not deleted', () => {
+  const decision = decideSync({ behind: 2, remoteBranches: [orphan('sync/upstream-2026-11-05')], date });
+  assert.equal(decision.branch, 'sync/upstream-2026-11-05');
+  assert.equal(decision.lease, 'sha-of-sync/upstream-2026-11-05');
+  assert.deepEqual(decision.remove, []);
+});
+
+test('with several leftover branches one complete one is reused and the rest are deleted', () => {
+  const decision = decideSync({
+    behind: 2,
+    remoteBranches: [
+      orphan('sync/upstream-2026-10-15'),
+      orphan('sync/upstream-2026-10-22', { containsUpstreamHead: true }),
+      orphan('sync/upstream-2026-10-29', { containedInMain: true, containsUpstreamHead: true }),
+    ],
+    date,
+  });
+  assert.equal(decision.branch, 'sync/upstream-2026-10-22');
+  assert.deepEqual(decision.remove, ['sync/upstream-2026-10-15', 'sync/upstream-2026-10-29']);
+});
+
+test('leftover branches are judged by what they contain', () => {
+  assert.equal(classifyOrphanBranch({ containedInMain: true, containsUpstreamHead: true }), 'delete');
+  assert.equal(classifyOrphanBranch({ containedInMain: false, containsUpstreamHead: false }), 'delete');
+  assert.equal(classifyOrphanBranch({ containedInMain: false, containsUpstreamHead: true }), 'reuse');
+});
+
+test('only an open pull request blocks a sync, and no branch is touched then', () => {
+  const decision = decideSync({
+    behind: 5,
+    openPullRequestBranches: ['sync/upstream-2026-10-29'],
+    remoteBranches: [orphan('sync/upstream-2026-10-29', { containsUpstreamHead: true })],
+    date,
+  });
   assert.equal(decision.action, 'skip');
-  assert.match(decision.reason, /already exists/);
+  assert.equal(decision.remove, undefined);
 });
 
 test('other branches and pull requests do not block a sync', () => {
   const decision = decideSync({
     behind: 2,
     openPullRequestBranches: ['feat/delegated-accept', 'chore/sync-upstream'],
-    remoteBranches: ['main', 'feat/delegated-accept'],
+    remoteBranches: [],
     date,
   });
   assert.equal(decision.action, 'sync');

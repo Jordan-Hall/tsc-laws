@@ -70,9 +70,13 @@ This fork tracks [vercel-labs/tsc-ts](https://github.com/vercel-labs/tsc-ts). Th
 (and on demand from the Actions tab) and only on `Jordan-Hall/tsc-laws`. `scripts/ci/sync-upstream.mjs` does the work:
 
 - If upstream `main` has no commits that `main` lacks, it does nothing.
-- If an open pull request from a `sync/upstream-*` branch, or such a branch on origin, exists, it does nothing.
+- If an open pull request from a `sync/upstream-*` branch exists, it does nothing. Only an open pull request blocks a run.
 - Otherwise it merges `upstream/main` into a new branch `sync/upstream-<date>`, pushes it with the default token and opens a
   pull request into `main` that lists the new upstream commits.
+- A `sync/upstream-*` branch on origin with no open pull request (the pull request was closed unmerged, or a run pushed the
+  branch and failed before opening one) does not block anything. The job deletes such a branch when `main` already contains it
+  or it lacks the current upstream head. A complete one that `main` lacks is reused: the job resets it to the fresh merge with
+  `--force-with-lease` on that branch only, then opens the pull request. It never force-pushes `main`.
 - If the merge conflicts, it opens one issue labelled `upstream-sync` that lists the conflicting files, and no pull request.
   While that issue is open, later runs open no second one.
 

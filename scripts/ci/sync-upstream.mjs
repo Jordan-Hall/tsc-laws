@@ -3,8 +3,9 @@
 //   node scripts/ci/sync-upstream.mjs [--dry-run]
 //
 // It fetches upstream main. If upstream has commits that main lacks, it merges them into a branch named
-// `sync/upstream-<date>`, pushes that branch and opens a pull request into main. If the merge conflicts, it opens an
-// issue (labelled `upstream-sync`) that lists the conflicting files. It never pushes to main and never publishes.
+// `sync/upstream-<date>`, pushes that branch and opens a pull request into main. Only an open sync pull request stops a
+// run: a leftover sync branch without one is deleted when stale, or reused. If the merge conflicts, it opens an issue
+// (labelled `upstream-sync`) that lists the conflicting files. It never pushes to main and never publishes.
 // With --dry-run it only fetches and prints what it would do.
 //
 // The decisions are plain functions, tested in sync-upstream.test.mjs. `git` and `gh` run only from `main()`.
@@ -34,11 +35,27 @@ export function isSyncBranch(name) {
 }
 
 /**
+ * What to do with a sync branch on origin that has no open pull request (its pull request was closed unmerged, or the
+ * run that pushed it failed before it opened one).
+ * - `containedInMain`: main already has every commit of the branch.
+ * - `containsUpstreamHead`: the branch already has the current head of upstream main.
+ * A branch main contains, or one that lacks the current upstream head, is stale: `delete`. A complete merge that never got
+ * its pull request is worth `reuse`.
+ */
+export function classifyOrphanBranch({ containedInMain, containsUpstreamHead }) {
+  if (containedInMain) return 'delete';
+  return containsUpstreamHead ? 'reuse' : 'delete';
+}
+
+/**
  * What to do with the state of the repository.
  * - `behind`: the number of upstream commits main lacks.
- * - `openPullRequestBranches`: head branches of open pull requests.
- * - `remoteBranches`: branches on origin.
- * Gives `{ action: 'none' | 'skip' | 'sync', reason, branch? }`.
+ * - `openPullRequestBranches`: head branches of open pull requests. Only these block a run.
+ * - `remoteBranches`: the `sync/upstream-*` branches on origin as `{ name, sha, containedInMain, containsUpstreamHead }`.
+ *   One without an open pull request is an orphan: it is deleted when stale, and the first complete one is reused.
+ * Gives `{ action: 'none' | 'skip' | 'sync', reason, branch?, lease?, remove? }`. For `sync`, `branch` is where the merge
+ * goes, `lease` is the sha that branch has on origin (so the push replaces exactly that, or is `undefined` for a new
+ * branch) and `remove` lists the stale branches to delete.
  */
 export function decideSync({ behind, openPullRequestBranches = [], remoteBranches = [], date }) {
   if (!(behind > 0)) return { action: 'none', reason: 'main already has every upstream commit' };
@@ -46,14 +63,20 @@ export function decideSync({ behind, openPullRequestBranches = [], remoteBranche
   if (openPullRequest !== undefined) {
     return { action: 'skip', reason: `the open sync pull request from ${openPullRequest} is not merged yet` };
   }
-  const existing = remoteBranches.find(isSyncBranch);
-  if (existing !== undefined) {
-    return { action: 'skip', reason: `the sync branch ${existing} already exists on origin` };
-  }
+  const orphans = remoteBranches
+    .filter((branch) => isSyncBranch(branch.name))
+    .map((branch) => ({ ...branch, verdict: classifyOrphanBranch(branch) }));
+  const reused = orphans.find((branch) => branch.verdict === 'reuse');
+  const branch = reused?.name ?? branchName(date);
+  const lease = orphans.find((candidate) => candidate.name === branch)?.sha;
+  const remove = orphans.filter((orphan) => orphan !== reused && orphan.name !== branch).map((orphan) => orphan.name);
+  const reason = `main is ${behind} upstream commit${behind === 1 ? '' : 's'} behind`;
   return {
     action: 'sync',
-    reason: `main is ${behind} upstream commit${behind === 1 ? '' : 's'} behind`,
-    branch: branchName(date),
+    reason: reused ? `${reason}; reusing the sync branch ${reused.name}, which has no open pull request` : reason,
+    branch,
+    lease,
+    remove,
   };
 }
 
@@ -227,10 +250,23 @@ export function main(argv = process.argv.slice(2), now = new Date()) {
   const pullRequests = JSON.parse(
     gh(['pr', 'list', '--state', 'open', '--json', 'headRefName', '--limit', '200']).stdout,
   );
-  const remoteBranches = git(['ls-remote', '--heads', 'origin', `${branchPrefix}*`])
+  const listed = git(['ls-remote', '--heads', 'origin', `${branchPrefix}*`])
     .stdout.split(/\r?\n/)
     .filter(Boolean)
-    .map((line) => line.split('\t')[1].replace(/^refs\/heads\//, ''));
+    .map((line) => {
+      const [sha, ref] = line.split('\t');
+      return { sha, name: ref.replace(/^refs\/heads\//, '') };
+    });
+  if (listed.length > 0)
+    git(['fetch', '--no-tags', 'origin', `+refs/heads/${branchPrefix}*:refs/remotes/origin/${branchPrefix}*`]);
+  const isAncestor = (ancestor, descendant) =>
+    git(['merge-base', '--is-ancestor', ancestor, descendant], { allowFailure: true }).status === 0;
+  const remoteBranches = listed.map(({ sha, name }) => ({
+    sha,
+    name,
+    containedInMain: isAncestor(sha, 'origin/main'),
+    containsUpstreamHead: isAncestor('upstream/main', sha),
+  }));
 
   const decision = decideSync({
     behind,
@@ -239,7 +275,9 @@ export function main(argv = process.argv.slice(2), now = new Date()) {
     date: now,
   });
   console.log(`sync: ${decision.action} (${decision.reason})`);
-  if (decision.action !== 'sync' || dryRun) return 0;
+  if (decision.action !== 'sync') return 0;
+  if (decision.remove.length > 0) console.log(`stale sync branches: ${decision.remove.join(', ')}`);
+  if (dryRun) return 0;
 
   const commits = parseCommits(git(['log', '--format=%h%x09%s', '--no-merges', 'origin/main..upstream/main']).stdout);
   const branch = decision.branch;
@@ -257,7 +295,10 @@ export function main(argv = process.argv.slice(2), now = new Date()) {
     return 0;
   }
 
-  const push = git(['push', 'origin', `${branch}:refs/heads/${branch}`], { allowFailure: true });
+  // Stale sync branches go, then this branch is pushed. It replaces only the sha seen on origin, never anything else.
+  for (const stale of decision.remove) git(['push', 'origin', '--delete', stale], { allowFailure: true });
+  const lease = decision.lease === undefined ? [] : [`--force-with-lease=refs/heads/${branch}:${decision.lease}`];
+  const push = git(['push', ...lease, 'origin', `${branch}:refs/heads/${branch}`], { allowFailure: true });
   if (push.status !== 0) {
     if (!isWorkflowPushRefusal(push.stderr)) throw new Error(`git push failed:\n${push.stderr}${push.stdout}`);
     console.log('push refused: the merge changes workflow files');
