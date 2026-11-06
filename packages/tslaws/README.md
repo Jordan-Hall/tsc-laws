@@ -133,7 +133,7 @@ Anything else leaves the law `tested`, or a `law proved` `open`, with the reason
 
 ## Browser laws
 
-A law file named `*.browser.laws.ts` runs in a real browser (Chrome, Edge or Chromium; `TSLAWS_BROWSER` names another
+A laws file that imports `tslaws/browser` (directly or through a helper module of yours) runs in a real browser (Chrome, Edge or Chromium; `TSLAWS_BROWSER` names another
 executable). Node generates and shrinks the inputs; each one is sent to a page where the compiled law and your code run
 against a live DOM. The law may be `async`. `tslaws/browser` has `mount`, `settle`, `click`, `type` and `fire`, and works with
 any framework or none: `mount(el => render(el))` accepts whatever renders into an element and may return its unmount.
@@ -141,7 +141,7 @@ any framework or none: `mount(el => render(el))` accepts whatever renders into a
 `mountComponent` with the React, Angular, DOM and custom-element adapters tests one component in isolation with props generated from its props type (function-typed props included), plus `spy`, `rendersSame` and Testing Library style queries.
 Browser laws are `tested`, never `proved`. See [docs/laws.md](../../docs/laws.md#browser-laws).
 
-A `*.browser.laws.ts` file that imports `tslaws/e2e` instead is an end-to-end law: it runs in Node and drives your whole running app through a real browser (`page()`, `open`, `newPage`, `route`, `settle`, `accessible`). Configure `e2e.server` in `tslaws.json` and the runner starts and stops your dev server. See [End-to-end laws](../../docs/laws.md#end-to-end-laws).
+A laws file that imports `tslaws/e2e` instead is an end-to-end law (a file that reaches both is an error; by default the level comes from the name, `.browser.laws.ts` or `.e2e.laws.ts`, and `"levels": "imports"` in `tslaws.json` makes the imports decide instead): it runs in Node and drives your whole running app through a real browser (`page()`, `open`, `newPage`, `route`, `settle`, `accessible`). Configure `e2e.server` in `tslaws.json` and the runner starts and stops your dev server. See [End-to-end laws](../../docs/laws.md#end-to-end-laws).
 
 - **Frameworks:** `tslaws.json` `compilerOptions` (`jsx`, `jsxFactory`, `jsxFragmentFactory`, `jsxImportSource`, `experimentalDecorators`,
   `emitDecoratorMetadata`, `useDefineForClassFields`, `lib`, `types`, `strict`, ...) and `.tsx` sources let React, Angular and any DOM
@@ -166,8 +166,8 @@ See [docs/laws.md](../../docs/laws.md#the-dashboard).
 
 `tsc-laws.lock` holds a hash of every law declaration and the list of coverage exemptions. A change, an added law, a removed
 law or a new `@tslaws-exempt` fails the check until a person runs `tslaws accept`, which refuses to run without a terminal,
-under `CI`, or with `TSLAWS_AGENT` set, unless a person has lent it for a limited time with `tslaws delegate grant`. Agents propose laws in `*.proposed.laws.ts` and try them with `tslaws check
---proposed` (no lock, no coverage gate); a person moves them into a `*.laws.ts` file and accepts.
+under `CI`, or with `TSLAWS_AGENT` set, unless a person has lent it for a limited time with `tslaws delegate grant`. Agents propose laws in `*.proposed.laws.ts` files (or optionally in `.tslaws/proposals/`, outside the tree and git-ignored; `tslaws propose` or the MCP tool) and try them with `tslaws check
+--proposed` (no lock, no coverage gate); a person moves one into the tree with `tslaws promote` and accepts. Every laws file in the tree must be in the lock.
 
 `hooks/claude-hook.mjs` is a Claude Code hook that blocks `git commit` and sends an agent back to work when the check fails;
 `hooks/claude-settings.example.json` wires it up and `hooks/AGENTS.snippet.md` tells the agent the rules.
@@ -199,13 +199,13 @@ tslaws check [files...] [--json] [--summary] [--watch] [--runs N] [--seed N] [--
 - `check --reporter text|json|junit|github` picks the output: `junit` is JUnit XML for CI test reports, `github` prints workflow
   annotations and appends a table to `GITHUB_STEP_SUMMARY`. See "CI reporters" in `docs/laws.md`.
 
-- `tslaws mcp` serves `tslaws_check`, `tslaws_check_proposed`, `tslaws_explain` and `tslaws_propose` over MCP (stdio) for
-  agents; it cannot accept laws or touch the lock. `tslaws promote` is the person's step that moves proposed laws into the
-  accepted file. See [docs/laws.md](../../docs/laws.md#agent-integration-mcp).
+- `tslaws mcp` serves `tslaws_check`, `tslaws_check_proposed`, `tslaws_explain`, `tslaws_list` and `tslaws_propose` over MCP (stdio) for
+  agents; it cannot accept laws, promote a proposal or touch the lock. `tslaws promote <proposal> [--to PATH]` is the person's step that moves a proposal into the
+  tree; `tslaws propose <file.ts>` writes one; `tslaws list [--json]` says which files are laws files, at what level, and whether each is accepted. See [docs/laws.md](../../docs/laws.md#agent-integration-mcp).
 - Counterexamples are kept in `.tslaws/regressions` (committable) and replayed before the random search, so a fixed bug cannot
   return unnoticed. `check --no-regressions` skips the corpus; `tslaws regressions [list|clear]` shows or deletes it.
 
-Without files, every `*.laws.ts` under the current directory is used. The compiler is `--compiler`, `TSC_LAWS_BIN`, or
+Without files, every `*.laws.ts` under the current directory is used, and every file the `"laws"` globs of `tslaws.json` pick that declares a law. The compiler is `--compiler`, `TSC_LAWS_BIN`, or
 `tsc-laws` on `PATH`; it finds its lib files through `TSC_TS_LIB_DIR`, or the TypeScript 7 libs scriptc installs in
 `node_modules/@scriptc/*`.
 

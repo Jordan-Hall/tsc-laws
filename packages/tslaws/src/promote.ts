@@ -1,8 +1,11 @@
 // `tslaws promote`: the pure core. A person moves proposed laws into the accepted file; the lock is not touched here.
-import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { dirname, isAbsolute, join, posix, relative } from 'node:path';
 import ts from 'typescript';
+import { ignoredDirs, namesLawsFile } from './lawFiles.ts';
+import { directProjectImports } from './lawKinds.ts';
 import { acceptedLawName, isProposedLawFile } from './lawNames.ts';
+import { existingProposal, importsForTarget, ProposalError } from './proposals.ts';
 
 export interface ParsedLaw {
   name: string;
@@ -286,4 +289,117 @@ export async function promoteFiles(host: PromoteHost, proposedFiles: string[]): 
   if (promoted > 0)
     host.out('\nThe lock is unchanged. Review the diff, then run `tslaws accept` to record these laws.\n');
   return promoted;
+}
+
+/** The path `promote` suggests for a proposal: beside the source it imports, else under `laws/`. */
+export function defaultTarget(cwd: string, proposal: string): string {
+  const name = posix
+    .basename(proposal)
+    .replace(/\.(?:ts|mts|cts)$/, '')
+    .replace(/\.laws$/, '');
+  const source = directProjectImports(cwd, proposal).find((file) => !file.startsWith('.tslaws/'));
+  const dir = source === undefined ? 'laws' : posix.dirname(source);
+  return `${dir === '.' ? '' : `${dir}/`}${name}.laws.ts`;
+}
+
+/**
+ * A path a promoted proposal may be written to, as a project-relative slash path: inside the project, a name laws
+ * files have (`*.laws.ts`, or a path a `laws` glob picks), not in a reserved directory, and not through a link.
+ */
+export function promotionTarget(cwd: string, to: string): string {
+  if (isAbsolute(to)) throw new ProposalError(`'${to}' must be relative to the project root`);
+  const rel = posix.normalize(to.replaceAll('\\', '/'));
+  if (rel.startsWith('..') || rel === '.' || rel.startsWith('/'))
+    throw new ProposalError(`'${to}' is outside the project`);
+  if (rel.split('/').some((part) => ignoredDirs.has(part)))
+    throw new ProposalError(`'${to}' is in a reserved directory (node_modules, .tslaws or .git)`);
+  if (!namesLawsFile(cwd, rel))
+    throw new ProposalError(
+      `'${to}' would not be found as a laws file: name it *.laws.ts, or list a glob for it in "laws" in tslaws.json`,
+    );
+  const abs = join(cwd, rel);
+  let probe = dirname(abs);
+  while (!existsSync(probe)) probe = dirname(probe);
+  const back = relative(realpathSync(cwd), realpathSync(probe));
+  if (back.startsWith('..') || isAbsolute(back)) throw new ProposalError(`'${to}' is outside the project`);
+  try {
+    if (lstatSync(abs).isSymbolicLink()) throw new ProposalError(`'${to}' is a link`);
+  } catch (error) {
+    if (error instanceof ProposalError) throw error;
+  }
+  return rel;
+}
+
+export interface PromoteProposalHost {
+  cwd: string;
+  /** Checks one proposal and returns its results by law name (as `check --proposed` would). */
+  checkFile: (file: string) => Promise<Map<string, string>>;
+  ask: (question: string) => Promise<string>;
+  out: (text: string) => void;
+}
+
+export interface PromoteProposalResult {
+  /** Project-relative path the laws went to; undefined when the person declined or nothing was moved. */
+  target?: string;
+}
+
+const plural = (n: number): string => `${n} law${n === 1 ? '' : 's'}`;
+
+/**
+ * Moves one proposal into the tree. Shows each law with its result, asks the person to confirm the target path (the
+ * default, or `to` when given, or another typed path), rewrites the proposal's relative imports for the new directory,
+ * merges into the target if it already exists, and removes the proposal. The lock is never written: the laws stay
+ * unaccepted, and `check` fails them as not in the lock until a person runs `tslaws accept`.
+ */
+export async function promoteProposal(
+  host: PromoteProposalHost,
+  file: string,
+  to?: string,
+): Promise<PromoteProposalResult> {
+  const { rel, abs } = existingProposal(host.cwd, file);
+  const text = readFileSync(abs, 'utf8');
+  const parsed = parseLawFile(text);
+  if (parsed.laws.length === 0) {
+    host.out(`${rel}: no laws\n`);
+    return {};
+  }
+  const results = await host.checkFile(rel);
+  for (const law of parsed.laws)
+    host.out(`\n${rel}: ${law.name}  [${results.get(law.name) ?? 'not checked'}]\n${law.text.trim()}\n`);
+  const suggested = to ?? defaultTarget(host.cwd, rel);
+  const answer = (
+    await host.ask(
+      `\nmove ${plural(parsed.laws.length)} to ${suggested}?\nEnter accepts that path, another path replaces it, n cancels: `,
+    )
+  ).trim();
+  if (answer.toLowerCase() === 'n' || answer.toLowerCase() === 'no') {
+    host.out('nothing moved\n');
+    return {};
+  }
+  let target: string;
+  try {
+    target = promotionTarget(host.cwd, answer === '' || answer.toLowerCase() === 'y' ? suggested : answer);
+  } catch (error) {
+    host.out(`${error instanceof Error ? error.message : String(error)}; nothing moved\n`);
+    return {};
+  }
+  const targetPath = join(host.cwd, target);
+  const existing = existsSync(targetPath) ? readFileSync(targetPath, 'utf8') : undefined;
+  const toDir = posix.dirname(target);
+  const moved = parseLawFile(importsForTarget(text, toDir === '.' ? '' : toDir));
+  let built: string;
+  try {
+    built = buildAccepted(existing, moved.imports, moved.laws);
+  } catch (error) {
+    host.out(`${target}: ${error instanceof Error ? error.message : String(error)}; nothing moved\n`);
+    return {};
+  }
+  mkdirSync(dirname(targetPath), { recursive: true });
+  writeFileSync(targetPath, built);
+  rmSync(abs);
+  host.out(
+    `${plural(parsed.laws.length)} moved to ${target}; ${rel} removed\n` +
+      'The lock is unchanged: until a person runs `tslaws accept`, `tslaws check` fails these laws as not in the lock.\n',
+  );
+  return { target };
 }

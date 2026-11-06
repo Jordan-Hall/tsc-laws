@@ -1,3 +1,4 @@
+import { statSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { parentPort } from 'node:worker_threads';
 import { arbitraryOf, type Plan } from './plan.ts';

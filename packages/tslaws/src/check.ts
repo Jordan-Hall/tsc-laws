@@ -1,4 +1,3 @@
-import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { join, resolve } from 'node:path';
 import ts from 'typescript';
@@ -21,7 +20,10 @@ import { compareLock, lawKey, readLock, type Lock } from './lock.ts';
 import { proveLaw } from './smt.ts';
 import { decodeExample, loadExamples, regressionMessage, saveExample } from './regressions.ts';
 import { closeBrowser, runBrowserLaw } from './browser.ts';
-import { ensureServer, importsBoth, lawMode, runE2eLaw, stopServer } from './e2e.ts';
+import { ensureServer, runE2eLaw, stopServer } from './e2e.ts';
+import { inProposals } from './lawFiles.ts';
+import { classifyLawFile, type KindVerdict } from './lawKinds.ts';
+import { normaliseProposal } from './proposals.ts';
 import { declarationOf, exercisesOf, markFailing, Sources, type Exercised } from './exercises.ts';
 import type { CheckOptions, LawResult, ManifestLaw } from './types.ts';
 
@@ -49,20 +51,13 @@ class Semaphore {
   }
 }
 
-/** Whether the law runs in a browser or against an app: those share one page and one server. */
-function isPageLaw(cwd: string, law: ManifestLaw): boolean {
-  try {
-    return lawMode(law.file, readFileSync(join(cwd, law.file), 'utf8')) !== 'node';
-  } catch {
-    return false;
-  }
-}
-
 export interface CheckReport {
   results: LawResult[];
   compileDiagnostics: string;
   compileOk: boolean;
   lockMissing: boolean;
+  /** Things worth a person's attention that do not fail the check: a file name that its imports do not back. */
+  notices: string[];
   /** Whether every law holds and nothing is open, failed or tampered with. */
   ok: boolean;
 }
@@ -83,9 +78,24 @@ export function exemptionsOf(options: CheckOptions): string[] {
 }
 
 export async function check(options: CheckOptions, enforceLock: boolean): Promise<CheckReport> {
+  // A proposal placed in .tslaws/proposals by hand may write its imports from the project root; store them where they resolve.
+  for (const file of options.files) if (inProposals(file)) normaliseProposal(options.cwd, file);
   const laws = readManifest(options.compiler, options.files, options.cwd);
   const results: LawResult[] = [];
   const blocked = new Set<string>();
+  const notices: string[] = [];
+  // The level of a laws file comes from its name (the default) or its imports (`levels: "imports"`); looked at once per file.
+  const levelsMode = readConfig(options.cwd).levels ?? 'names';
+  const verdicts = new Map<string, KindVerdict>();
+  const verdictOf = (file: string): KindVerdict => {
+    let verdict = verdicts.get(file);
+    if (verdict === undefined) {
+      verdict = classifyLawFile(options.cwd, file, levelsMode);
+      verdicts.set(file, verdict);
+      for (const notice of verdict.notices) notices.push(notice);
+    }
+    return verdict;
+  };
   const sources = new Sources(options.cwd);
   // What a law reaches is syntactic and cheap; a project that cannot be read this way just has no locations.
   const exercisesFor = (law: ManifestLaw): Exercised[] => {
@@ -118,7 +128,17 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
     lock = readLock(options.lockFile);
     lockMissing = lock === undefined;
     const byKey = new Map(laws.map((l) => [lawKey(l.file, l.name), l]));
-    for (const violation of compareLock(lock?.laws, laws)) {
+    // With levels from imports (or a lock that recorded levels), the resolved level of each laws file is part of the lock.
+    const levels =
+      levelsMode === 'imports' || lock?.levels !== undefined
+        ? {
+            locked: lock?.levels,
+            now: Object.fromEntries(
+              [...new Set(laws.map((l) => l.file.replaceAll('\\', '/')))].map((f) => [f, verdictOf(f).kind]),
+            ),
+          }
+        : undefined;
+    for (const violation of compareLock(lock?.laws, laws, levels)) {
       const law = byKey.get(violation.key);
       if (law === undefined) {
         const [file, name] = violation.key.split('::') as [string, string];
@@ -135,7 +155,9 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
           message:
             violation.reason === 'added'
               ? 'law is not in the lock; a person must run `tslaws accept`'
-              : 'law changed since the lock was accepted',
+              : violation.reason === 'level'
+                ? 'the level this laws file runs at (node, browser or e2e) changed since the lock was accepted; a person must run `tslaws accept`'
+                : 'law changed since the lock was accepted',
         });
       }
     }
@@ -148,14 +170,7 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
 
   const covered = coverFiles(options.cwd, readConfig(options.cwd).cover ?? []);
   const compiled = [...new Set([...options.files, ...covered])];
-  const texts = new Map<string, string>();
-  const readSource = (file: string): string => {
-    if (!texts.has(file)) texts.set(file, readFileSync(join(options.cwd, file), 'utf8'));
-    return texts.get(file)!;
-  };
-  warmWorkers(
-    laws.filter((law) => law.problems.length === 0 && lawMode(law.file, readSource(law.file)) === 'node').length,
-  );
+  warmWorkers(laws.filter((law) => law.problems.length === 0 && verdictOf(law.file).kind === 'node').length);
   const built = build(options.compiler, compiled, options.cwd);
   // What the type checker works out is kept with the build it came from, so an unchanged project skips the checker.
   const derived = derivedStore(options.cwd, built.key);
@@ -187,21 +202,13 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
       add(law, 'error', 'generators', { message: (error as Error).message });
       return;
     }
-    let source = '';
-    try {
-      source = readFileSync(join(options.cwd, law.file), 'utf8');
-    } catch {
-      // The compiler already reported an unreadable file.
-    }
-    if (importsBoth(source)) {
-      add(law, 'error', 'manifest', {
-        message: `${law.file}: a browser laws file is either component level (tslaws/browser) or end-to-end (tslaws/e2e), not both`,
-      });
+    const verdict = verdictOf(law.file);
+    if (verdict.error !== undefined) {
+      add(law, 'error', 'manifest', { message: verdict.error });
       return;
     }
-    const mode = lawMode(law.file, source);
-    const browser = mode === 'component';
-    const e2e = mode === 'e2e';
+    const browser = verdict.kind === 'browser';
+    const e2e = verdict.kind === 'e2e';
     const method = browser ? 'browser' : e2e ? 'e2e' : 'property';
     let fn: ((...args: unknown[]) => unknown) | undefined;
     // A browser law touches the DOM when it loads, so only the browser loads it.
@@ -357,7 +364,7 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
         flush();
         return;
       }
-      const lane = isPageLaw(options.cwd, law) ? lanes.page : lanes.cpu;
+      const lane = verdictOf(law.file).kind !== 'node' ? lanes.page : lanes.cpu;
       await lane.run(() => runOne(law, index));
     }),
   );
@@ -404,5 +411,5 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
     built.ok &&
     !lockMissing &&
     results.every((r) => r.status === 'proved' || r.status === 'bounded' || r.status === 'tested');
-  return { results, compileDiagnostics: built.diagnostics, compileOk: built.ok, lockMissing, ok };
+  return { results, compileDiagnostics: built.diagnostics, compileOk: built.ok, lockMissing, notices, ok };
 }

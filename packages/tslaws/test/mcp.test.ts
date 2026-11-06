@@ -7,7 +7,7 @@ import { dirname, join } from 'node:path';
 import { createInterface } from 'node:readline';
 import { after, before, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { proposalPath } from '../dist/mcp.js';
+import { proposalName } from '../dist/proposals.js';
 
 const compiler = process.env.TSC_LAWS_BIN;
 const here = dirname(fileURLToPath(import.meta.url));
@@ -15,7 +15,7 @@ const bin = join(here, '..', 'bin', 'tslaws.js');
 const root = mkdtempSync(join(here, '..', '.tmp-mcp-'));
 
 const lawsText = 'import { double } from "./f";\n\nexport law doubles(n: number) => double(n) === n + n;\n';
-const proposal = 'import { double } from "./f";\n\nexport law doubleIsTwice(n: number) => double(n) === n * 2;\n';
+const proposal = 'import { double } from "./src/f";\n\nexport law doubleIsTwice(n: number) => double(n) === n * 2;\n';
 
 let child: ChildProcessWithoutNullStreams;
 const pending = new Map<number, (message: any) => void>();
@@ -82,9 +82,15 @@ describe('mcp server', { skip: compiler === undefined ? 'set TSC_LAWS_BIN' : fal
     assert.equal((await request('nope')).error.code, -32601);
   });
 
-  it('lists the four tools and none that accepts or touches the lock', async () => {
+  it('lists the five tools and none that accepts or touches the lock', async () => {
     const names = ((await request('tools/list')).result.tools as { name: string }[]).map((t) => t.name);
-    assert.deepEqual(names.sort(), ['tslaws_check', 'tslaws_check_proposed', 'tslaws_explain', 'tslaws_propose']);
+    assert.deepEqual(names.sort(), [
+      'tslaws_check',
+      'tslaws_check_proposed',
+      'tslaws_explain',
+      'tslaws_list',
+      'tslaws_propose',
+    ]);
     assert.ok(!names.some((n) => /accept|lock|promote/.test(n)));
   });
 
@@ -100,57 +106,76 @@ describe('mcp server', { skip: compiler === undefined ? 'set TSC_LAWS_BIN' : fal
     assert.match(summary.data.totals, /1 laws/);
   });
 
-  it('proposes into a proposed file only, and checks it', async () => {
-    const out = await callTool('tslaws_propose', {
-      name: 'doubleIsTwice',
-      source: proposal,
-      file: 'src/f.proposed.laws.ts',
-    });
-    assert.equal(out.isError, undefined);
-    assert.equal(out.data.file, 'src/f.proposed.laws.ts');
+  it('proposes into .tslaws/proposals only, and checks it', async () => {
+    const out = await callTool('tslaws_propose', { name: 'doubleIsTwice', source: proposal, file: 'f.ts' });
+    assert.equal(out.isError, undefined, out.text);
+    assert.equal(out.data.file, '.tslaws/proposals/f.ts');
     assert.equal(out.data.results.length, 1);
     assert.match(out.data.results[0].status, /proved|bounded|tested/);
-    const written = readFileSync(join(root, 'src', 'f.proposed.laws.ts'), 'utf8');
+    const stored = join(root, '.tslaws', 'proposals', 'f.ts');
+    const written = readFileSync(stored, 'utf8');
     assert.ok(written.includes('export law doubleIsTwice'));
+    // The import written from the project root is stored where the file resolves it.
+    assert.ok(written.includes('"../../src/f"'), written);
     // Proposing again replaces rather than duplicates.
-    await callTool('tslaws_propose', { name: 'doubleIsTwice', source: proposal, file: 'src/f.proposed.laws.ts' });
-    assert.equal(readFileSync(join(root, 'src', 'f.proposed.laws.ts'), 'utf8').split('export law').length, 2);
+    await callTool('tslaws_propose', { name: 'doubleIsTwice', source: proposal, file: '.tslaws/proposals/f.ts' });
+    assert.equal(readFileSync(stored, 'utf8').split('export law').length, 2);
     assert.equal(readFileSync(join(root, 'src', 'f.laws.ts'), 'utf8'), lawsText);
     const listed = await callTool('tslaws_check_proposed');
     assert.deepEqual(
       listed.data.results.map((r: { name: string }) => r.name),
       ['doubleIsTwice'],
     );
+    // The tree gained no laws file, and the lock was never written.
+    assert.ok(!existsSync(join(root, 'tsc-laws.lock')));
   });
 
-  it('accepts a proposed browser or end-to-end path, and refuses the accepted names', () => {
+  it('lists the laws files with their level and status, and the proposals', async () => {
+    const out = await callTool('tslaws_list');
+    assert.equal(out.isError, undefined, out.text);
+    const byFile = new Map<string, { kind: string; status: string }>(out.data.files.map((f: any) => [f.file, f]));
+    assert.deepEqual(byFile.get('src/f.laws.ts'), {
+      file: 'src/f.laws.ts',
+      kind: 'node',
+      status: 'unaccepted',
+      notices: [],
+    });
+    assert.equal(byFile.get('.tslaws/proposals/f.ts')?.status, 'proposed');
+  });
+
+  it('accepts the default proposal name and any plain .ts name', () => {
     for (const file of [
-      'src/shell-layout.browser.proposed.laws.ts',
-      'src/shop.e2e.proposed.laws.ts',
-      'src/f.proposed.laws.ts',
+      'agent.ts',
+      'shell-layout.browser.ts',
+      '.tslaws/proposals/shop.e2e.ts',
+      './.tslaws/proposals/x.mts',
     ]) {
-      assert.equal(proposalPath(root, file), join(root, file));
-    }
-    for (const file of ['src/x.browser.laws.ts', 'src/x.e2e.laws.ts', 'src/.proposed.laws.ts']) {
-      assert.throws(() => proposalPath(root, file), /only proposed laws can be written/, file);
+      assert.match(proposalName(file), /^\.tslaws\/proposals\/[^/]+\.m?ts$/, file);
     }
   });
 
-  it('refuses every other path', async () => {
+  it('refuses every other path, and the old in-tree names', async () => {
     for (const file of [
-      '../x.laws.ts',
+      '../x.ts',
       'src/f.laws.ts',
-      '../x.proposed.laws.ts',
+      'src/f.proposed.laws.ts',
+      '.tslaws/out/x.ts',
+      '.tslaws/proposals/sub/x.ts',
+      '.tslaws/proposals/../../x.ts',
       'tsc-laws.lock',
-      '/abs.proposed.laws.ts',
+      '/abs.ts',
+      'C:/abs.ts',
+      'x.js',
+      '.hidden.ts',
     ]) {
       const out = await callTool('tslaws_propose', { name: 'doubleIsTwice', source: proposal, file });
       assert.equal(out.isError, true, file);
+      assert.match(out.text, /not a proposal file/, file);
     }
     assert.equal(readFileSync(join(root, 'src', 'f.laws.ts'), 'utf8'), lawsText);
     assert.ok(!existsSync(join(root, 'tsc-laws.lock')));
-    assert.ok(!existsSync(join(dirname(root), 'x.laws.ts')));
-    assert.ok(!existsSync(join(dirname(root), 'x.proposed.laws.ts')));
+    assert.ok(!existsSync(join(dirname(root), 'x.ts')));
+    assert.ok(!existsSync(join(root, 'src', 'f.proposed.laws.ts')));
   });
 
   it('explains a law with its source and last result', async () => {

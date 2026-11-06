@@ -10,6 +10,11 @@ The upstream tsc-ts changelog is CHANGELOG.md. Releases of tsc-laws are tagged `
 - feat(vscode): an uncovered function is a hint with _Write a law for this function_ (a proposed laws file only)
 - feat(vscode): Go to Laws, Peek Laws, Go to Implementation and Find All References from a function to its laws, laws as document and workspace symbols, _Go to law..._
 - docs: how the editor and the `law` keyword fit together (docs/editor-law-syntax.md)
+- **Opt-in: levels from imports and proposals outside the tree.** File names stay the default and are fully supported: `*.laws.ts`, `*.browser.laws.ts`, `*.e2e.laws.ts` and the in-tree `*.proposed.laws.ts` names decide the level and the proposals, and `tsc-laws.lock` is unchanged. `"levels": "imports"` in `tslaws.json` (default `"names"`; anything else is an error) takes the level from the import graph instead (a helper that reaches `tslaws/browser` makes a browser law; both APIs is an error naming the chains), and records each file's resolved level in the lock so a change reports as `tampered` until a person accepts. `tslaws propose <file.ts> [--from PATH]` writes to the git-ignored `.tslaws/proposals/` (added to `.gitignore` on first use; `init` does not), `tslaws promote <proposal> [--to PATH]` moves one into the tree, and `tslaws list [--json]` shows each laws file's level and standing; `check --proposed` runs both in-tree and directory proposals. `check --proposed --watch` reruns when a proposal is saved.
+- **`"laws"` in `tslaws.json`:** globs for laws files with other names (a file counts when it declares a top-level `export law`). Default unchanged; every laws file of the tree stays locked.
+- **`tslaws list [--json]`** and the MCP tool `tslaws_list`: every laws file and proposal with its level and whether it is accepted, unaccepted or proposed.
+- **VS Code:** laws files are found by asking `tslaws list` (falling back to names for an older tslaws), and each shows an Explorer badge for its level (N, B, E, or P for a proposal).
+- **Fix:** the property worker reused its TypeScript program across checks in one process, so a file added between two checks (a new proposal) failed with "no declaration output".
 
 ## 0.6.4
 

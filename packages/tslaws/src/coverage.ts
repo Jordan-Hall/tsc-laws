@@ -8,6 +8,8 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import ts from 'typescript';
 import { parseE2eConfig, type E2eConfig } from './e2e.ts';
+import { globMatcher } from './globs.ts';
+import { customLawFile } from './lawFiles.ts';
 
 export interface CoverageConfig {
   cover?: string[];
@@ -15,6 +17,16 @@ export interface CoverageConfig {
   compilerOptions?: Record<string, unknown>;
   /** End-to-end laws: the app to drive; see `parseE2eConfig`. */
   e2e?: E2eConfig;
+  /**
+   * Extra globs for laws files with other names: any file they match that declares a top-level `export law` is a laws
+   * file, besides every file named `*.laws.ts`. A leading `!` excludes. Default: none.
+   */
+  laws?: string[];
+  /**
+   * Where a laws file's level (Node, browser, end to end) comes from. `names` (the default): the file name
+   * (`*.browser.laws.ts`, `*.e2e.laws.ts`). `imports`: the file's import graph; names are still recognised as hints.
+   */
+  levels?: 'names' | 'imports';
   /** esbuild plugin modules (paths relative to tslaws.json) that teach the browser bundler new source formats. */
   bundlerPlugins?: string[];
   /** Run settings; a command line flag beats them and they beat the built-in default. */
@@ -25,7 +37,7 @@ export interface CoverageConfig {
 }
 
 const settingKeys = ['runs', 'propertyTimeoutMs', 'proofTimeoutMs', 'bound'] as const;
-const configKeys = ['cover', 'compilerOptions', 'e2e', 'bundlerPlugins', ...settingKeys];
+const configKeys = ['cover', 'laws', 'levels', 'compilerOptions', 'e2e', 'bundlerPlugins', ...settingKeys];
 
 export interface Uncovered {
   file: string;
@@ -73,6 +85,16 @@ export function parseConfig(raw: unknown): CoverageConfig {
     (!Array.isArray(plugins) || plugins.some((entry) => typeof entry !== 'string' || entry === ''))
   )
     fail(`"bundlerPlugins" must be an array of module paths, got ${JSON.stringify(plugins)}`);
+  const levels = object.levels;
+  if (levels !== undefined && levels !== 'names' && levels !== 'imports')
+    fail(`"levels" must be "names" or "imports", got ${JSON.stringify(levels)}`);
+  const laws = object.laws;
+  if (
+    laws !== undefined &&
+    (!Array.isArray(laws) ||
+      laws.some((entry) => typeof entry !== 'string' || entry.replace(/^!/, '') === '' || entry.startsWith('/')))
+  )
+    fail(`"laws" must be an array of project-relative globs, got ${JSON.stringify(laws)}`);
   return object as CoverageConfig;
 }
 
@@ -84,26 +106,12 @@ export function readConfig(cwd: string): CoverageConfig {
   return config;
 }
 
-function globToRegExp(glob: string): RegExp {
-  let out = '';
-  for (let i = 0; i < glob.length; i += 1) {
-    const ch = glob[i]!;
-    if (ch === '*' && glob[i + 1] === '*') {
-      out += '.*';
-      i += glob[i + 2] === '/' ? 2 : 1;
-    } else if (ch === '*') out += '[^/]*';
-    else if (ch === '?') out += '[^/]';
-    else out += ch.replace(/[.+^${}()|[\]\\]/g, '\\$&');
-  }
-  return new RegExp(`^${out}$`);
-}
-
 /** Source files matching the `cover` globs (a leading `!` excludes), minus laws files and declarations. */
 export function coverFiles(cwd: string, globs: string[]): string[] {
   // Plain JavaScript sources are covered only when the project compiles them (`allowJs`).
   const js = readConfig(cwd).compilerOptions?.allowJs === true;
-  const include = globs.filter((g) => !g.startsWith('!')).map(globToRegExp);
-  const exclude = globs.filter((g) => g.startsWith('!')).map((g) => globToRegExp(g.slice(1)));
+  const covered = globMatcher(globs);
+  const isLaws = customLawFile(cwd);
   const found: string[] = [];
   const walk = (dir: string): void => {
     for (const entry of readdirSync(dir)) {
@@ -113,8 +121,8 @@ export function coverFiles(cwd: string, globs: string[]): string[] {
       else {
         const file = relative(cwd, full).replaceAll('\\', '/');
         if (!(js ? /\.(ts|tsx|mts|cts|js)$/ : /\.(ts|tsx|mts|cts)$/).test(file)) continue;
-        if (/\.d\.(ts|mts|cts)$/.test(file) || /\.laws\.ts$/.test(file)) continue;
-        if (include.some((r) => r.test(file)) && !exclude.some((r) => r.test(file))) found.push(file);
+        if (/\.d\.(ts|mts|cts)$/.test(file) || file.endsWith('.laws.ts')) continue;
+        if (covered(file) && !isLaws(file)) found.push(file);
       }
     }
   };

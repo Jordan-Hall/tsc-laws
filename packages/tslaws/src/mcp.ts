@@ -1,25 +1,27 @@
 // `tslaws mcp`: a Model Context Protocol server over stdio (JSON-RPC 2.0, one message per line).
 //
 // Safety property: an agent that talks to this server can run checks and write PROPOSED laws, nothing else. No tool
-// accepts laws, writes tsc-laws.lock or edits a `*.laws.ts` file that is not a `*.proposed.laws.ts`; the server sets
-// TSLAWS_AGENT so nothing it spawns can run `accept` either. A person promotes proposals with `tslaws promote`.
+// accepts laws, promotes a proposal, writes tsc-laws.lock or edits a file of the tree; the only files it writes are
+// proposals in `.tslaws/proposals/`. The server sets TSLAWS_AGENT so nothing it spawns can run `accept` or `promote`
+// either. A person promotes proposals with `tslaws promote`.
 // stdout is the protocol channel: this module writes nothing else to it.
-import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { createInterface } from 'node:readline';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { check } from './check.ts';
 import { readConfig } from './coverage.ts';
 import type { CheckReport } from './check.ts';
 import { hintFor } from './hints.ts';
-import { isProposedLawFile } from './lawNames.ts';
+import { discoverLaws, discoverProposals, ignoredDirs } from './lawFiles.ts';
+import { listLawFiles } from './list.ts';
 import { parseLawFile } from './promote.ts';
+import { addProposal, mergeProposal, ProposalError } from './proposals.ts';
 import { resolveSettings } from './settings.ts';
 import type { CheckOptions, LawResult } from './types.ts';
 
-const ignoredDirs = new Set(['node_modules', '.tslaws', '.git']);
 const passing = new Set(['proved', 'bounded', 'tested']);
 const supportedVersions = ['2025-06-18', '2025-03-26', '2024-11-05'];
-const defaultProposalFile = 'agent.proposed.laws.ts';
+const defaultProposalFile = 'agent.ts';
 
 interface Tool {
   name: string;
@@ -28,6 +30,12 @@ interface Tool {
 }
 
 export const tools: Tool[] = [
+  {
+    name: 'tslaws_list',
+    description:
+      'List the laws files and proposals of the project, as `tslaws list --json`: for each, the level it runs at (node, browser or e2e, from what it imports) and whether it is accepted, unaccepted (in the tree but not in the lock) or proposed. Runs nothing.',
+    inputSchema: { type: 'object', properties: {} },
+  },
   {
     name: 'tslaws_check',
     description:
@@ -42,7 +50,8 @@ export const tools: Tool[] = [
   },
   {
     name: 'tslaws_check_proposed',
-    description: 'Check the proposed laws (*.proposed.laws.ts), as `tslaws check --proposed`.',
+    description:
+      'Check every proposal in .tslaws/proposals/ (and in-tree *.proposed.laws.ts files), as `tslaws check --proposed`: no lock, no coverage gate.',
     inputSchema: { type: 'object', properties: {} },
   },
   {
@@ -58,7 +67,7 @@ export const tools: Tool[] = [
   {
     name: 'tslaws_propose',
     description:
-      'Write a law into a *.proposed.laws.ts file (appended; a law of the same name is replaced) and check it. Only proposed files can be written; name it *.browser.proposed.laws.ts or *.e2e.proposed.laws.ts for a browser or end-to-end law. A person promotes proposals with `tslaws promote`.',
+      'Write a law into a proposal file in .tslaws/proposals/ (appended; a law of the same name is replaced) and check it. Only that directory can be written. Write imports of project files relative to the project root with a leading ./ (for example ./src/cart); the level (Node, browser, end to end) comes from what the file imports. A person promotes proposals with `tslaws promote`.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -70,7 +79,7 @@ export const tools: Tool[] = [
         },
         file: {
           type: 'string',
-          description: `project-relative *.proposed.laws.ts path; default ${defaultProposalFile}`,
+          description: `a plain .ts file name inside .tslaws/proposals/ (or its project-relative path); default ${defaultProposalFile}`,
         },
       },
       required: ['name', 'source'],
@@ -90,17 +99,7 @@ function slash(path: string): string {
 }
 
 function discover(cwd: string, proposed: boolean): string[] {
-  const found: string[] = [];
-  const walk = (dir: string): void => {
-    for (const entry of readdirSync(dir)) {
-      if (ignoredDirs.has(entry)) continue;
-      const full = join(dir, entry);
-      if (statSync(full).isDirectory()) walk(full);
-      else if (entry.endsWith('.laws.ts') && isProposedLawFile(entry) === proposed) found.push(full);
-    }
-  };
-  walk(cwd);
-  return found.map((f) => slash(relative(cwd, f))).sort();
+  return proposed ? [...discoverLaws(cwd, true), ...discoverProposals(cwd)] : discoverLaws(cwd, false);
 }
 
 /** A project-relative path inside the root that names an existing or new file; throws ToolError otherwise. */
@@ -116,13 +115,6 @@ function insideRoot(cwd: string, file: string): string {
   const back = relative(realpathSync(cwd), realpathSync(probe));
   if (back.startsWith('..') || isAbsolute(back)) throw new ToolError(`'${file}' is outside the project`);
   return full;
-}
-
-/** The only files a tool may write. */
-export function proposalPath(cwd: string, file: string): string {
-  if (!isProposedLawFile(file) || file.endsWith('/.proposed.laws.ts'))
-    throw new ToolError(`'${file}' is not a *.proposed.laws.ts file; only proposed laws can be written`);
-  return insideRoot(cwd, file);
 }
 
 function options(opts: McpOptions, files: string[]): CheckOptions {
@@ -170,7 +162,9 @@ export class Session {
   private async run(files: string[], enforceLock: boolean): Promise<CheckReport> {
     if (files.length === 0)
       throw new ToolError(
-        `no ${enforceLock ? '' : 'proposed '}laws files found (looking for *.${enforceLock ? '' : 'proposed.'}laws.ts)`,
+        enforceLock
+          ? 'no laws files found (looking for *.laws.ts)'
+          : 'no proposals found (looking in .tslaws/proposals/, and for in-tree *.proposed.laws.ts files)',
       );
     const report = await check(options(this.opts, files), enforceLock);
     this.remember(report);
@@ -191,6 +185,8 @@ export class Session {
         const report = await this.run(files, true);
         return args.summary === true ? summarised(report) : withHints(report);
       }
+      case 'tslaws_list':
+        return { files: listLawFiles(cwd) };
       case 'tslaws_check_proposed':
         return withHints(await this.run(discover(cwd, true), false));
       case 'tslaws_explain': {
@@ -218,23 +214,21 @@ export class Session {
         if (typeof args.name !== 'string' || args.name.trim() === '' || /[\r\n]/.test(args.name))
           throw new ToolError("name must be the law name: an identifier, or the text of a law('name', ...) call");
         if (typeof args.source !== 'string') throw new ToolError('source must be a string');
-        const file = slash(typeof args.file === 'string' ? args.file : defaultProposalFile);
-        const target = proposalPath(cwd, file);
-        const proposal = parseLawFile(args.source);
-        const mine = proposal.laws.find((l) => l.name === args.name);
-        if (mine === undefined)
-          throw new ToolError(
-            `source must contain the law '${args.name}', as \`law('${args.name}', ...)\` or \`export law ${args.name}\`…`,
+        let written;
+        try {
+          written = addProposal(
+            cwd,
+            typeof args.file === 'string' ? args.file : defaultProposalFile,
+            args.source,
+            args.name,
           );
-        let rest = args.source;
-        for (const part of [...proposal.laws, ...proposal.imports.map((text) => ({ text }))])
-          rest = rest.replace(part.text, '');
-        if (rest.trim() !== '') throw new ToolError('source may contain only imports and law declarations');
-        const current = existsSync(target) ? readFileSync(target, 'utf8') : '';
-        mkdirSync(dirname(target), { recursive: true });
-        writeFileSync(target, mergeProposal(current, proposal.imports, proposal.laws));
+        } catch (error) {
+          if (error instanceof ProposalError) throw new ToolError(error.message);
+          throw error;
+        }
+        const file = written.file;
         const report = await this.run([file], false);
-        const names = new Set(proposal.laws.map((l) => l.name));
+        const names = new Set(written.laws);
         const results = report.results.filter((r) => names.has(r.name));
         return { file, ...(withHints({ ...report, results }) as object) };
       }
@@ -244,19 +238,7 @@ export class Session {
   }
 }
 
-/** The proposed file with the proposal's laws appended (same-named laws replaced) and its imports added once. */
-export function mergeProposal(current: string, imports: string[], laws: { name: string; text: string }[]): string {
-  const parsed = parseLawFile(current);
-  let text = current;
-  for (const law of [...parsed.laws].reverse()) {
-    if (laws.some((l) => l.name === law.name)) text = text.slice(0, law.start) + text.slice(law.end);
-  }
-  const have = new Set(parseLawFile(text).imports.map((i) => i.replace(/\s+/g, ' ').trim()));
-  const missing = imports.filter((i) => !have.has(i.replace(/\s+/g, ' ').trim()));
-  const head = missing.length > 0 ? `${missing.join('\n')}\n` : '';
-  const body = `${text.trim() === '' ? '' : `${text.trim()}\n\n`}${laws.map((l) => l.text.trim()).join('\n\n')}\n`;
-  return `${head}${head !== '' && !body.startsWith('import') ? '\n' : ''}${body}`;
-}
+export { mergeProposal };
 
 type Id = string | number | null;
 
