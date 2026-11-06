@@ -16,8 +16,17 @@ export function usesLegacySyntax(text: string): boolean {
   // Scan tokens, so a declaration shown in a comment or a string is not mistaken for one.
   const scanner = ts.createScanner(ts.ScriptTarget.Latest, true, ts.LanguageVariant.Standard, text);
   const tokens: { kind: ts.SyntaxKind; text: string; newline: boolean }[] = [];
-  for (let kind = scanner.scan(); kind !== ts.SyntaxKind.EndOfFileToken; kind = scanner.scan())
+  // The scanner does not follow `${...}` inside a template on its own: track the braces and rescan the template parts.
+  const braces: ('template' | 'brace')[] = [];
+  for (let kind = scanner.scan(); kind !== ts.SyntaxKind.EndOfFileToken; kind = scanner.scan()) {
+    if (kind === ts.SyntaxKind.TemplateHead) braces.push('template');
+    else if (kind === ts.SyntaxKind.OpenBraceToken) braces.push('brace');
+    else if (kind === ts.SyntaxKind.CloseBraceToken && braces.pop() === 'template') {
+      kind = scanner.reScanTemplateToken(false);
+      if (kind === ts.SyntaxKind.TemplateMiddle) braces.push('template');
+    }
     tokens.push({ kind, text: scanner.getTokenText(), newline: scanner.hasPrecedingLineBreak() });
+  }
   // A law may be named with a word that is also a keyword (`never`, `type`), so any word-like token is a name.
   const word = (i: number, value?: string): boolean => {
     const token = tokens[i];

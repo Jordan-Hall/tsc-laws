@@ -57,6 +57,12 @@ describe('keyword detection', () => {
     assert.equal(usesLegacySyntax(text), false);
   });
 
+  it('finds a declaration after a template literal with substitutions', () => {
+    const text = ['const url = `${base()}api/reset`;', 'export async law a(n: number) { return n === n; }', ''].join('
+');
+    assert.equal(usesLegacySyntax(text), true);
+  });
+
   it('still finds real keyword declarations', () => {
     assert.equal(usesLegacySyntax('export law a(n: number) => n === n;\n'), true);
     assert.equal(usesLegacySyntax('import { x } from "y";\nexport law proved b(n: number) { return true; }\n'), true);
