@@ -1,15 +1,21 @@
 import { Worker } from 'node:worker_threads';
 import { readdirSync, statSync } from 'node:fs';
-import { join } from 'node:path';
-import * as fc from 'fast-check';
+import { join, resolve } from 'node:path';
+import type * as fc from 'fast-check';
 import ts from 'typescript';
-import { GeneratorFactory, UnsupportedType } from './generators.ts';
+import { GeneratorFactory } from './generators.ts';
+import { arbitraryOf, UnsupportedType, type Plan } from './plan.ts';
+import { type PropertyOutcome } from './propertyRun.ts';
+import { WorkerPool } from './pool.ts';
 import type { Shape } from './smt.ts';
-import { decodeExample, encodeExample } from './regressions.ts';
 import type { CheckOptions, ManifestLaw } from './types.ts';
+
+export { isDiscard, jsPath, runLaw, runProperty, summarise, type PropertyOutcome } from './propertyRun.ts';
 
 export interface LawTypes {
   generators: fc.Arbitrary<unknown>[];
+  /** The generators as data, for a worker that does not load TypeScript. */
+  plans: Plan[];
   shapes: Shape[];
 }
 
@@ -30,10 +36,6 @@ export function declarationFiles(outDir: string): string[] {
 
 export function dtsPath(outDir: string, file: string): string {
   return join(outDir, file.replace(/\.(ts|tsx|mts|cts)$/, '.d.ts'));
-}
-
-export function jsPath(outDir: string, file: string): string {
-  return join(outDir, file.replace(/\.(ts|tsx|mts|cts)$/, '.js'));
 }
 
 /** What the prover models of `type`: numbers, `int`s, bigints, strings, booleans, arrays and records of them. */
@@ -64,20 +66,24 @@ export function shapeOf(checker: ts.TypeChecker, type: ts.Type): Shape {
   return { fields };
 }
 
-export function typesOf(program: ts.Program, outDir: string, law: ManifestLaw): LawTypes {
+/** `cwd` is given when `program` is the one that compiled the laws, whose source files hold the types the declarations would. */
+export function typesOf(program: ts.Program, outDir: string, law: ManifestLaw, cwd?: string): LawTypes {
   const checker = program.getTypeChecker();
-  const source = program.getSourceFile(dtsPath(outDir, law.file));
+  const source =
+    cwd === undefined
+      ? program.getSourceFile(dtsPath(outDir, law.file))
+      : program.getSourceFile(resolve(cwd, law.file));
   if (source === undefined) throw new UnsupportedType(`no declaration output for ${law.file}`);
   const moduleSymbol = checker.getSymbolAtLocation(source);
   const exported =
     moduleSymbol === undefined
       ? undefined
-      : checker.getExportsOfModule(moduleSymbol).find((s) => s.getName() === law.name);
+      : checker.getExportsOfModule(moduleSymbol).find((s) => s.getName() === (law.symbol ?? law.name));
   if (exported === undefined) throw new UnsupportedType(`law ${law.name} is not in the declaration output`);
   const signature = checker.getTypeOfSymbol(exported).getCallSignatures()[0];
   if (signature === undefined) throw new UnsupportedType(`law ${law.name} is not a function`);
   const factory = new GeneratorFactory(checker);
-  const generators: fc.Arbitrary<unknown>[] = [];
+  const plans: Plan[] = [];
   const shapes: Shape[] = [];
   for (const parameter of signature.getParameters()) {
     const declaration = parameter.valueDeclaration ?? parameter.declarations?.[0];
@@ -85,41 +91,10 @@ export function typesOf(program: ts.Program, outDir: string, law: ManifestLaw): 
     const type = checker.getTypeOfSymbolAtLocation(parameter, declaration);
     shapes.push(shapeOf(checker, type));
     const optional = (parameter.flags & ts.SymbolFlags.Optional) !== 0;
-    generators.push(factory.of(optional ? checker.getNonNullableType(type) : type));
+    plans.push(factory.plan(optional ? checker.getNonNullableType(type) : type));
   }
-  return { generators, shapes };
+  return { generators: plans.map(arbitraryOf), plans, shapes };
 }
-
-export function isDiscard(error: unknown): boolean {
-  return error instanceof Error && error.name === 'LawDiscard';
-}
-
-/** Runs `call` on generated inputs. `call` may be async (a law that waits, or one that runs in a browser). */
-export async function runProperty(
-  call: (...args: unknown[]) => unknown,
-  generators: fc.Arbitrary<unknown>[],
-  options: CheckOptions,
-): Promise<fc.RunDetails<unknown[]>> {
-  const property = fc.asyncProperty(...(generators as [fc.Arbitrary<unknown>]), async (...args: unknown[]) => {
-    try {
-      return (await call(...args)) !== false;
-    } catch (error) {
-      if (isDiscard(error)) {
-        fc.pre(false);
-        return true;
-      }
-      throw error;
-    }
-  });
-  return (await fc.check(property as unknown as fc.IAsyncProperty<unknown[]>, {
-    numRuns: options.runs,
-    seed: options.seed,
-    maxSkipsPerRun: 100,
-    ...(options.regressionExamples?.length ? { examples: options.regressionExamples.map(decodeExample) } : {}),
-  })) as fc.RunDetails<unknown[]>;
-}
-
-export const runLaw = runProperty;
 
 export const compilerOptions: ts.CompilerOptions = {
   skipLibCheck: true,
@@ -130,71 +105,40 @@ export const compilerOptions: ts.CompilerOptions = {
   types: [],
 };
 
-/** The outcome of a law's property test, without the generated values' prototypes so it can cross a thread. */
-export interface PropertyOutcome {
-  failed: boolean;
-  numRuns: number;
-  seed: number;
-  /** Absent when the law failed because `assume` discarded nearly every input. */
-  counterexample?: string;
-  message?: string;
-  /** The stack of the error the law threw, to say which function threw. */
-  stack?: string;
-  screenshot?: string;
-  /** The counterexample in the regression corpus's encoding; absent when it cannot be stored. */
-  encoded?: string;
-  /** Whether the counterexample is one that was replayed from the corpus. */
-  regression?: boolean;
+const workers = new WorkerPool(() => {
+  const ext = import.meta.url.endsWith('.ts') ? '.ts' : '.js';
+  const worker = new Worker(new URL(`./propertyWorker${ext}`, import.meta.url));
+  worker.unref();
+  return worker;
+});
+
+/** Starts `n` property workers ahead of the first law, so they load while the code compiles. */
+export function warmWorkers(n: number): void {
+  workers.warm(n);
 }
 
-export function summarise(details: fc.RunDetails<unknown[]>, options?: CheckOptions): PropertyOutcome {
-  const message = details.errorInstance instanceof Error ? details.errorInstance.message : undefined;
-  let encoded: string | undefined;
-  if (details.failed && details.counterexample !== null) {
-    try {
-      encoded = encodeExample(details.counterexample);
-    } catch {
-      // Not storable (a class instance, a function): it is reported but not kept.
-    }
-  }
-  return {
-    encoded,
-    regression: encoded !== undefined && options?.regressionExamples?.includes(encoded) === true,
-    failed: details.failed,
-    numRuns: details.numRuns,
-    seed: details.seed,
-    counterexample: details.counterexample === null ? undefined : fc.stringify(details.counterexample),
-    message,
-    stack: details.errorInstance instanceof Error ? details.errorInstance.stack : undefined,
-  };
-}
-
-let worker: Worker | undefined;
-
-/** Runs the property test of `law` in a worker, giving up on it after `options.propertyTimeoutMs`. */
-export function runLawGuarded(
+/** Runs the property test of `law` in a pooled worker, giving up on it after `options.propertyTimeoutMs`. */
+export async function runLawGuarded(
   outDir: string,
   law: ManifestLaw,
   options: CheckOptions,
+  plans: Plan[],
 ): Promise<PropertyOutcome | 'timeout'> {
-  const ext = import.meta.url.endsWith('.ts') ? '.ts' : '.js';
-  if (worker === undefined) {
-    worker = new Worker(new URL(`./propertyWorker${ext}`, import.meta.url));
-    worker.unref();
-  }
-  const current = worker;
+  const current = await workers.acquire();
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
-      if (worker === current) worker = undefined;
-      void current.terminate();
+      current.off('message', onMessage);
+      workers.discard(current);
       resolve('timeout');
     }, options.propertyTimeoutMs ?? 30000);
-    current.once('message', (message: { ok?: PropertyOutcome; error?: string }) => {
+    const onMessage = (message: { ok?: PropertyOutcome; error?: string }): void => {
       clearTimeout(timer);
+      workers.release(current);
       if (message.ok !== undefined) resolve(message.ok);
       else reject(new Error(message.error));
-    });
+    };
+    current.once('message', onMessage);
     // Functions cannot cross to the worker; it needs only the numbers.
-    current.postMessage({ outDir, law, options: { ...options, onEvent: undefined } });
+    current.postMessage({ outDir, law, plans, options: { ...options, onEvent: undefined } });
   });
 }

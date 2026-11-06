@@ -166,7 +166,8 @@ function classifyByName(cwd: string, file: string): KindVerdict {
       error: `${base}: a browser laws file is either component level (tslaws/browser) or end-to-end (tslaws/e2e), not both`,
     };
   const hint = suffixKind(file);
-  const kind: LawKind = hint === 'e2e' ? 'e2e' : hint === 'browser' ? (importsModule(text, 'tslaws/e2e') ? 'e2e' : 'browser') : 'node';
+  const kind: LawKind =
+    hint === 'e2e' ? 'e2e' : hint === 'browser' ? (importsModule(text, 'tslaws/e2e') ? 'e2e' : 'browser') : 'node';
   return { kind, imports, notices: [] };
 }
 

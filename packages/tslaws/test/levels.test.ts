@@ -108,7 +108,10 @@ describe('the lock and levels', () => {
   it('reports a changed level as tampered, as when a helper starts importing tslaws/browser', () => {
     const laws = [manifest('src/a.laws.ts')];
     const locked = { 'src/a.laws.ts': 'node' };
-    assert.deepEqual(compareLock({ [lawKey('src/a.laws.ts', 'ok')]: lawHash(laws[0]!) }, laws, { locked, now: locked }), []);
+    assert.deepEqual(
+      compareLock({ [lawKey('src/a.laws.ts', 'ok')]: lawHash(laws[0]!) }, laws, { locked, now: locked }),
+      [],
+    );
     const v = compareLock({ [lawKey('src/a.laws.ts', 'ok')]: lawHash(laws[0]!) }, laws, {
       locked,
       now: { 'src/a.laws.ts': 'browser' },

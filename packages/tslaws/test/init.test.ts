@@ -39,7 +39,7 @@ describe('init', () => {
     assert.equal(hookCommand, 'node node_modules/tslaws/hooks/claude-hook.mjs');
     assert.equal(settings.hooks.Stop[0].hooks[0].command, hookCommand);
     assert.equal(settings.hooks.PreToolUse[0].matcher, 'Bash');
-    assert.match(read(d, 'src/example.laws.ts'), /law additionCommutes/);
+    assert.match(read(d, 'src/example.laws.ts'), /law\('addition commutes'/);
     assert.equal(existsSync(join(d, 'tsc-laws.lock')), false);
     assert.equal(lines.length, 5);
   });

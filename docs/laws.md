@@ -28,7 +28,7 @@ difference is that it stays TypeScript, so any human can read, run and fix every
 | Who writes what             | Person: `LAWS.bend`. Agent: code and `PROOF.bend`. | Person: `*.laws.ts`. Agent: code, and loop `invariant`s inside it.                                                               |
 | Checker                     | The type checker is the proof checker              | Z3 over symbolic execution of the real code, plus property tests where proof is out of reach                                     |
 | Strength of "pass"          | A proof for all inputs                             | `proved` (all inputs), `bounded` (all inputs within a stated bound) or `tested` (no counterexample found); the status says which |
-| Agent cannot cheat the laws | Human reviews the laws file                        | Lock file plus coverage gate; agents propose in `*.proposed.laws.ts`                                                              |
+| Agent cannot cheat the laws | Human reviews the laws file                        | Lock file plus coverage gate; agents propose in `*.proposed.laws.ts`                                                             |
 | Escape hatch for humans     | Learn Bend                                         | Read the code, run it, fix it                                                                                                    |
 
 The honest difference: a Bend proof is checked by the type system for every program it accepts. Here, proof covers the part
@@ -834,13 +834,13 @@ changed or a removed one, until a person runs `tslaws accept`. There is no mode 
 
 With `"names"` (the default) the level comes from the file name:
 
-| File name                                  | Level                                                               |
-| ------------------------------------------ | ------------------------------------------------------------------- |
-| `*.laws.ts`                                | Node laws                                                           |
-| `*.browser.laws.ts`                        | browser (component) laws, run in the browser                        |
-| `*.browser.laws.ts` importing `tslaws/e2e` | end-to-end laws, run in Node against an app                         |
-| `*.e2e.laws.ts`                            | end-to-end laws                                                     |
-| imports both `tslaws/browser` and e2e      | `error`: one file, one level                                        |
+| File name                                  | Level                                        |
+| ------------------------------------------ | -------------------------------------------- |
+| `*.laws.ts`                                | Node laws                                    |
+| `*.browser.laws.ts`                        | browser (component) laws, run in the browser |
+| `*.browser.laws.ts` importing `tslaws/e2e` | end-to-end laws, run in Node against an app  |
+| `*.e2e.laws.ts`                            | end-to-end laws                              |
+| imports both `tslaws/browser` and e2e      | `error`: one file, one level                 |
 
 The proposed names (`*.proposed.laws.ts`, `*.browser.proposed.laws.ts`, `*.e2e.proposed.laws.ts`) have the level of the file they propose. Nothing else about a project changes with this setting left out, and its lock keeps the format it has always had.
 
@@ -1103,3 +1103,26 @@ On Windows the native build is `dist/tsc`; copy it to `tsc.exe` to run it.
 [docs/media/tslaws-delegation-explainer.mp4](media/tslaws-delegation-explainer.mp4) is a 123-second illustrated explainer of what tslaws offers in one picture, why laws help a migration, and how a person can lend `accept` to an agent for a limited time with `tslaws delegate grant`. It says plainly that a grant is a decision bounded in time and audited, not a sandbox. The command output in it is real, from `examples/checkout` (`scripts/demo/captures/`); the grant file and log lines are labelled illustration drawn from this document. `NARRATION=explainer-delegation.json node scripts/demo/explain.mjs` makes it from `scripts/demo/explainer-delegation.json`.
 
 [docs/media/tslaws-intro.mp4](media/tslaws-intro.mp4) is a 79-second narrated recording: the law typed out, the real dashboard running the real laws in `examples/basic`, `examples/react` and `examples/e2e`, and the real `tslaws check` output, including the tamper failure after a law is edited. The voice is [Kokoro](https://huggingface.co/hexgrad/Kokoro-82M) (`scripts/demo/voice.mjs`, open neural text to speech, offline); the music bed and sound cues are synthesised by `scripts/demo/mix.mjs`; `scripts/demo/record.mjs` records the screen. `scripts/demo/captures/` holds the recorded command output.
+
+## Migrating from other test frameworks
+
+`tslaws migrate <from> [files...] [--write] [--out DIR]` reads existing tests and writes them as laws in call style.
+`<from>` is `vitest`, `jest`, `rstest`, `bun`, `node` (`node:test`), `fast-check` or `playwright`. Without files it searches the
+current directory for `*.test.*` and `*.spec.*` files of that framework. It reads the TypeScript syntax tree, never the text.
+
+By default it is a dry run: it prints which files it would write, how many laws each holds, and every construct it could not
+convert, as `file:line`. `--write` creates `<name>.laws.ts` next to each test (Playwright tests become `<name>.browser.laws.ts`),
+or under `--out DIR` with the same folders. It never overwrites a file and never deletes a test. The new laws are not in
+`tsc-laws.lock`: read them, run `tslaws check`, and have a person run `tslaws accept`.
+
+| Source                                   | Becomes                                                                                                                                                                                                                                                                                                                          |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `it`, `test`                             | `law('describe > nested > test', () => { ... })`; the body is kept, `expect` is imported from its package                                                                                                                                                                                                                        |
+| `beforeEach`, `afterEach`                | inlined at the start (and in a `finally` at the end) of each law; `beforeAll` and `afterAll` too, with a note                                                                                                                                                                                                                    |
+| `.skip`, `.todo`, `.only`                | listed in the report; skipped laws are not written, `.only` is dropped                                                                                                                                                                                                                                                           |
+| `test.each` tables                       | one law per row, named from the title with `%s`, `%i` and `$name` filled in                                                                                                                                                                                                                                                      |
+| `fc.assert(fc.property(...))`, `it.prop` | a typed law when every arbitrary has a type: `integer` is `int`, `nat` is `int` plus `assume(n >= 0)`, `string`, `boolean`, `array(x)` is `x[]`, `float` and `double` are `number`; limits such as `min` and `max` become `assume` lines. Otherwise the `fc.assert` is kept in a law with no parameters, and the report says why |
+| Playwright `test(...)`                   | an end-to-end law: `page`, `context` and `baseURL` fixtures become `e2e.page()`, `e2e.context()` and `e2e.baseURL()`, and a relative `page.goto('/x')` becomes `e2e.open('/x')`; fixtures such as `request`, `test.use` and `testInfo` are reported, not guessed                                                                 |
+
+Matchers are not reimplemented: a converted file keeps importing `expect` from `vitest`, `@jest/globals`, `@rstest/core`,
+`bun:test` or `@playwright/test`, so that package must stay installed.
