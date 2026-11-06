@@ -55,7 +55,7 @@ What it offers:
 - **Built for the agent loop.** `tslaws init` scaffolds the rules and a Claude Code hook that blocks commits on failure;
   `--json` and `--summary` give compact output with a next-action hint per result; `--watch` re-checks on save.
 - **Browser laws.** A laws file that imports `tslaws/browser` runs in a real Chrome, Edge or Chromium against a live DOM,
-  with any framework or none; the imports decide, not the file name. Inputs are still generated from your types and shrunk in Node.
+  with any framework or none; the file name (`*.browser.laws.ts`) decides by default, or the imports with `"levels": "imports"`. Inputs are still generated from your types and shrunk in Node.
 - **A dashboard.** `tslaws ui` opens a dashboard: tree, filters, search, counterexamples, source, live reruns.
 - **Are the laws strong enough?** `tslaws mutate` changes your code in small ways and reports every change no law notices.
 - **Counterexamples stay fixed.** Failures are saved and replayed first on every later run.

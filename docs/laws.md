@@ -28,7 +28,7 @@ difference is that it stays TypeScript, so any human can read, run and fix every
 | Who writes what             | Person: `LAWS.bend`. Agent: code and `PROOF.bend`. | Person: `*.laws.ts`. Agent: code, and loop `invariant`s inside it.                                                               |
 | Checker                     | The type checker is the proof checker              | Z3 over symbolic execution of the real code, plus property tests where proof is out of reach                                     |
 | Strength of "pass"          | A proof for all inputs                             | `proved` (all inputs), `bounded` (all inputs within a stated bound) or `tested` (no counterexample found); the status says which |
-| Agent cannot cheat the laws | Human reviews the laws file                        | Lock file plus coverage gate; agents propose in `.tslaws/proposals/`                                                             |
+| Agent cannot cheat the laws | Human reviews the laws file                        | Lock file plus coverage gate; agents propose in `*.proposed.laws.ts`                                                              |
 | Escape hatch for humans     | Learn Bend                                         | Read the code, run it, fix it                                                                                                    |
 
 The honest difference: a Bend proof is checked by the type system for every program it accepts. Here, proof covers the part
@@ -411,7 +411,7 @@ the `bundlerPlugins` setting. The compiler does not know the format either: it r
 
 ## End-to-end laws
 
-There are three levels of law. What a laws file imports selects its level; no file name does.
+There are three levels of law. By default the file name selects the level (`*.browser.laws.ts`, `*.e2e.laws.ts`, anything else is a Node law). With `"levels": "imports"` in `tslaws.json`, what the file imports selects it instead (see [Levels](#levels-names-by-default-imports-opt-in)); the Imports row below is what decides in that mode.
 
 |             | Node laws                       | Component laws                          | End-to-end laws                                             |
 | ----------- | ------------------------------- | --------------------------------------- | ----------------------------------------------------------- |
@@ -606,8 +606,8 @@ the compiler's TS9101 to TS9106 in the Problems view after a run. How it works a
 `packages/vscode-tslaws` is a VS Code extension with no bundled dependencies. When a law fails it says so, as you work, on the
 law and on the code the law exercises.
 
-- **Laws files come from tslaws.** The extension asks `tslaws list --json` which files are laws files (so a file named by the `laws` setting counts, and the level of each comes from its imports) instead of matching names; with an older `tslaws`, or an untrusted workspace, it falls back to `*.laws.ts`. It asks again when `tslaws.json` or a proposal changes and when you save a file that declares a law or imports the browser or end-to-end API.
-- **Explorer badges.** Each laws file shows its level in the Explorer: `N` Node, `B` browser, `E` end to end, and `P` for a proposal in `.tslaws/proposals/`. The tooltip says it in words and notes a file that is not in `tsc-laws.lock` yet. This is the cue the `.browser.laws.ts` suffix used to give.
+- **Laws files come from tslaws.** The extension asks `tslaws list --json` which files are laws files (so a file named by the `laws` setting counts, and the level of each comes from its name, or from its imports with `"levels": "imports"`) instead of matching names; with an older `tslaws`, or an untrusted workspace, it falls back to `*.laws.ts`. It asks again when `tslaws.json` or a proposal changes and when you save a file that declares a law or imports the browser or end-to-end API.
+- **Explorer badges.** Each laws file shows its level in the Explorer: `N` Node, `B` browser, `E` end to end, and `P` for a proposal (an in-tree `*.proposed.laws.ts`, or one in `.tslaws/proposals/`). The tooltip says it in words and notes a file that is not in `tsc-laws.lock` yet. In names mode it repeats the cue the `.browser.laws.ts` suffix gives; in imports mode it is the only cue.
 - **Run on change.** A debounced run of only the laws that cover the changed file: a laws file runs itself; a source file runs the
   laws that reached it in the last report (`exercises`); else the laws file beside it, or the nearest folder's; else every law.
   `tslaws.run` is `onSave` (default), `onType` or `manual`. A newer change kills the run that is going. The status bar counts
@@ -742,11 +742,12 @@ under `.tslaws/out/smt`.
    through the functions a law calls. Covered modules are the `cover` globs of `tslaws.json`
    (`{ "cover": ["src/**/*.ts", "!src/**/*.test.ts"] }`), or, without that file, every module the laws import. A function
    marked `@tslaws-exempt` in its doc comment is exempt only once the exemption is in the lock.
-3. **Agents propose, people promote.** Agents write candidate laws into `.tslaws/proposals/` (outside the tree, git-ignored;
-   `tslaws propose` or the MCP tool) and try them with `tslaws check --proposed` (no lock, no coverage gate). A person
-   moves one into the tree with `tslaws promote` and accepts. A proposal is never counted by the lock or the coverage gate:
-   it protects nothing, and a person accepts. Every laws file in the tree must be in the lock, whatever its name, so no edit
-   to the tree can turn an accepted law into a proposal (see [why proposals live outside the tree](#why-proposals-live-outside-the-tree)).
+3. **Agents propose, people promote.** Agents write candidate laws into in-tree `*.proposed.laws.ts` files, the normal way,
+   and try them with `tslaws check --proposed` (no lock, no coverage gate). Optionally, `tslaws propose` (or the MCP tool)
+   writes them into `.tslaws/proposals/` instead (outside the tree, git-ignored). A person moves a proposal into the tree
+   with `tslaws promote` and accepts. A proposal is never counted by the lock or the coverage gate: it protects nothing,
+   and a person accepts. Every `*.laws.ts` file in the tree must be in the lock, so no edit to the tree can turn an
+   accepted law into a proposal (see [why proposals can live outside the tree](#why-proposals-live-outside-the-tree)).
 4. **The gate runs by itself.** `tslaws init` installs a Claude Code hook (`hooks/claude-hook.mjs`) that blocks
    `git commit` and sends the agent back to work when the check fails, plus rules for `AGENTS.md`
    (`hooks/AGENTS.snippet.md`).
@@ -799,7 +800,7 @@ only for protocol messages.
 
 **Property: the server cannot weaken accepted laws.** No tool accepts laws, writes `tsc-laws.lock`, promotes a proposal
 or edits any file of the tree. The only files `tslaws_propose` writes are plain `.ts` files directly inside
-`.tslaws/proposals/`. It refuses any other path, an absolute path, a name with `..`, a nested path, an old in-tree
+`.tslaws/proposals/`. It refuses any other path, an absolute path, a name with `..`, a nested path, an in-tree
 `*.proposed.laws.ts` name, a `.tslaws` or `proposals` directory that is a link (or junction) leading out of the project, and
 a proposal file that is itself a link. It accepts only imports and `law` declarations as source. The server sets
 `TSLAWS_AGENT=1`, so nothing it spawns can run `accept` or `promote`. A proposal is still code that `check --proposed`
@@ -823,7 +824,27 @@ the covered sources, as a `*.laws.ts` file is. `tslaws list` shows what was foun
 Every laws file of the tree is locked. A laws file that is not in `tsc-laws.lock` fails `check` as `tampered`; so does a
 changed or a removed one, until a person runs `tslaws accept`. There is no mode that only reports unaccepted files.
 
-### The level comes from the imports
+### Levels: names by default, imports opt-in
+
+`tslaws.json` has an optional `"levels"` setting, `"names"` (the default) or `"imports"`. Any other value is an error.
+
+```json
+{ "levels": "imports" }
+```
+
+With `"names"` (the default) the level comes from the file name:
+
+| File name                                  | Level                                                               |
+| ------------------------------------------ | ------------------------------------------------------------------- |
+| `*.laws.ts`                                | Node laws                                                           |
+| `*.browser.laws.ts`                        | browser (component) laws, run in the browser                        |
+| `*.browser.laws.ts` importing `tslaws/e2e` | end-to-end laws, run in Node against an app                         |
+| `*.e2e.laws.ts`                            | end-to-end laws                                                     |
+| imports both `tslaws/browser` and e2e      | `error`: one file, one level                                        |
+
+The proposed names (`*.proposed.laws.ts`, `*.browser.proposed.laws.ts`, `*.e2e.proposed.laws.ts`) have the level of the file they propose. Nothing else about a project changes with this setting left out, and its lock keeps the format it has always had.
+
+With `"imports"` the level comes from the import graph; names are still recognised as hints:
 
 | The file reaches                                                  | Level                                        |
 | ----------------------------------------------------------------- | -------------------------------------------- |
@@ -838,20 +859,29 @@ anything the bundler resolution finds). A law that calls a helper whose module i
 import used only as a type (`import type`, `export type`, a clause whose names are all `type`) loads nothing and does not
 count, and modules inside `node_modules` are not followed. The error for both levels names the chain of files for each.
 
-The old names `*.browser.laws.ts` and `*.e2e.laws.ts` still work, as hints that must agree with the imports. Agreement
+In imports mode the names `*.browser.laws.ts` and `*.e2e.laws.ts` are hints that must agree with the imports. Agreement
 says nothing. A disagreement is reported once per file, as a `notice` in the text, JSON and MCP reports (it does not fail the
 check):
 
 - the name says browser (or end-to-end) and nothing the file imports is that API: the name is used as the level, because a
   law may use the page's globals directly, and the notice asks you to import `tslaws/browser` (or `tslaws/e2e`);
-- `*.browser.laws.ts` that reaches `tslaws/e2e` runs end to end, as it always did;
+- `*.browser.laws.ts` that reaches `tslaws/e2e` runs end to end;
 - `*.e2e.laws.ts` that reaches only the browser API is an `error`: rename it or fix its imports.
+
+**The lock and levels.** In imports mode `tsc-laws.lock` also records the resolved level of each laws file (a `levels`
+section). A change in the resolved level, for example a helper module that starts importing `tslaws/browser`, reports the
+laws of that file as `tampered` until a person runs `tslaws accept` again. So does switching a project to imports mode, until
+it is accepted once. In names mode the lock has no `levels` section and verifies exactly as before.
 
 ### Proposals
 
-A proposal is a laws file in `.tslaws/proposals/`, at the project root next to `tslaws.json`. The directory is owned by the
-tool and git-ignored (`tslaws init` adds it to `.gitignore`); the editor, the MCP server and the coverage gate ignore it.
-Any plain file name ending `.ts` works; the level comes from the imports, like any laws file.
+The normal proposal is an in-tree `*.proposed.laws.ts` file next to the code (see
+[In-tree proposed names](#in-tree-proposed-names)). The `.tslaws/proposals/` directory is an optional alternative. A
+proposal there is a laws file at the project root next to `tslaws.json`. The directory is owned by the tool and
+git-ignored (`tslaws propose` adds it to `.gitignore` the first time it writes there; `tslaws init` does not); the editor,
+the MCP server and the coverage gate ignore it. Any plain file name ending `.ts` works. Its level follows the
+[levels setting](#levels-names-by-default-imports-opt-in): in imports mode from its imports; in names mode from its name
+(give a browser proposal a `.browser.laws.ts` name), so a plain `cart.ts` runs in Node.
 
 ```
 tslaws propose cart.ts < idea.txt          # or --from PATH; anyone, agents included
@@ -878,7 +908,7 @@ one a `laws` glob matches). If the file exists the laws are merged into it (impo
 refused). The proposal is removed. `promote` never writes the lock: until a person runs `tslaws accept`, `check` fails the
 new laws as not in the lock.
 
-### Why proposals live outside the tree
+### Why proposals can live outside the tree
 
 The lock hashes every laws file in the tree, so the tree has no way to hold a law that is "proposed": whatever is there is
 either accepted or fails `check`. The old design marked a proposal by its name (`*.proposed.laws.ts`), so the file that
@@ -897,12 +927,12 @@ separated what is locked from what is not was a name an agent could choose. The 
 A proposal is code that `check --proposed` runs, as any law file is. It is not sandboxed from your project, so review it
 before you run it.
 
-### The old in-tree names
+### In-tree proposed names
 
-`*.proposed.laws.ts`, `*.browser.proposed.laws.ts` and `*.e2e.proposed.laws.ts` in the tree still work through
-`check --proposed` and `promote` (asked per law, into the accepted file with the proposal's name minus `.proposed`). They
-are deprecated: each run prints a notice recommending `.tslaws/proposals/`. Being in the tree they are not locked as laws
-files, which is why the directory replaced them. `tslaws_propose` and `tslaws propose` no longer write them.
+`*.proposed.laws.ts`, `*.browser.proposed.laws.ts` and `*.e2e.proposed.laws.ts` in the tree are the normal way to propose a
+law. They work through `check --proposed` and `promote` (asked per law, into the accepted file with the proposal's name
+minus `.proposed`). Being in the tree they are not locked as laws files. `tslaws propose` and `tslaws_propose` do not write
+them; they write `.tslaws/proposals/`.
 
 ## Lending accept to an agent
 
@@ -953,8 +983,8 @@ On the next run, every stored example of a law is replayed before the random sea
 that now passes stays in the corpus and keeps guarding the law. A fixed bug therefore cannot return unnoticed, even though the
 random search would rarely find it again.
 
-`tslaws init` ignores `.tslaws/out`, `.tslaws/mutants`, `.tslaws/screenshots` and `.tslaws/proposals` but not `.tslaws/regressions`, so a team may
-commit the corpus. `tslaws check --no-regressions` neither reads nor writes it. `tslaws regressions list` prints each law and
+`tslaws init` ignores `.tslaws/out`, `.tslaws/mutants` and `.tslaws/screenshots` but not `.tslaws/regressions`, so a team may
+commit the corpus. (`.tslaws/proposals` is added by `tslaws propose` on first use.) `tslaws check --no-regressions` neither reads nor writes it. `tslaws regressions list` prints each law and
 its example count per file; `tslaws regressions clear` deletes the directory.
 
 ## Mutation testing

@@ -61,7 +61,7 @@ The namespace must be exactly `ts-laws`, the `publisher` in `packages/vscode-tsl
 3. Create the namespace as `ts-laws` (user settings, Namespaces).
 4. Open the `ts-laws` namespace page and click Claim Ownership. This opens a request that the Open VSX team approves. Until it is approved, extensions published there can stay inactive, and you cannot register a trusted publisher.
 5. One-time bootstrap: publish the first version with an access token. The guide says a trusted publisher can only be registered for an extension that already has an active version. Create a token at <https://open-vsx.org/user-settings/tokens>, then do either of these:
-   - Set the secret for exactly one release: `gh secret set OVSX_PAT -R Jordan-Hall/tsc-laws`, push the tag, and delete the secret afterwards.
+   - Set the secret for exactly one release: `gh secret set OVSX_PAT -R Jordan-Hall/tsc-laws`. The `marketplace` job runs only when the repository variable is `true`, so set it before you push the tag: `gh variable set VSCODE_PUBLISH --body true -R Jordan-Hall/tsc-laws` (see [Switch it on](#switch-it-on)). Then push the tag and delete the secret afterwards.
    - Or publish the `.vsix` from the GitHub release by hand, typing the token in your own terminal, never in chat: `npx ovsx@1.3.0 publish tslaws-vscode-<version>.vsix -p <token>`
 6. Open Trusted Publishers in the sidebar and add one with these fields:
    - Provider: GitHub Actions

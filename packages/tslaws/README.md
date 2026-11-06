@@ -141,7 +141,7 @@ any framework or none: `mount(el => render(el))` accepts whatever renders into a
 `mountComponent` with the React, Angular, DOM and custom-element adapters tests one component in isolation with props generated from its props type (function-typed props included), plus `spy`, `rendersSame` and Testing Library style queries.
 Browser laws are `tested`, never `proved`. See [docs/laws.md](../../docs/laws.md#browser-laws).
 
-A laws file that imports `tslaws/e2e` instead is an end-to-end law (a file that reaches both is an error; the old `.browser.laws.ts` and `.e2e.laws.ts` names are only hints): it runs in Node and drives your whole running app through a real browser (`page()`, `open`, `newPage`, `route`, `settle`, `accessible`). Configure `e2e.server` in `tslaws.json` and the runner starts and stops your dev server. See [End-to-end laws](../../docs/laws.md#end-to-end-laws).
+A laws file that imports `tslaws/e2e` instead is an end-to-end law (a file that reaches both is an error; by default the level comes from the name, `.browser.laws.ts` or `.e2e.laws.ts`, and `"levels": "imports"` in `tslaws.json` makes the imports decide instead): it runs in Node and drives your whole running app through a real browser (`page()`, `open`, `newPage`, `route`, `settle`, `accessible`). Configure `e2e.server` in `tslaws.json` and the runner starts and stops your dev server. See [End-to-end laws](../../docs/laws.md#end-to-end-laws).
 
 - **Frameworks:** `tslaws.json` `compilerOptions` (`jsx`, `jsxFactory`, `jsxFragmentFactory`, `jsxImportSource`, `experimentalDecorators`,
   `emitDecoratorMetadata`, `useDefineForClassFields`, `lib`, `types`, `strict`, ...) and `.tsx` sources let React, Angular and any DOM
@@ -166,8 +166,8 @@ See [docs/laws.md](../../docs/laws.md#the-dashboard).
 
 `tsc-laws.lock` holds a hash of every law declaration and the list of coverage exemptions. A change, an added law, a removed
 law or a new `@tslaws-exempt` fails the check until a person runs `tslaws accept`, which refuses to run without a terminal,
-under `CI`, or with `TSLAWS_AGENT` set, unless a person has lent it for a limited time with `tslaws delegate grant`. Agents propose laws in `.tslaws/proposals/` (outside the tree, git-ignored; `tslaws propose` or the MCP tool) and try them with `tslaws check
---proposed` (no lock, no coverage gate); a person moves one into the tree with `tslaws promote` and accepts. Every laws file in the tree must be in the lock, whatever its name.
+under `CI`, or with `TSLAWS_AGENT` set, unless a person has lent it for a limited time with `tslaws delegate grant`. Agents propose laws in `*.proposed.laws.ts` files (or optionally in `.tslaws/proposals/`, outside the tree and git-ignored; `tslaws propose` or the MCP tool) and try them with `tslaws check
+--proposed` (no lock, no coverage gate); a person moves one into the tree with `tslaws promote` and accepts. Every laws file in the tree must be in the lock.
 
 `hooks/claude-hook.mjs` is a Claude Code hook that blocks `git commit` and sends an agent back to work when the check fails;
 `hooks/claude-settings.example.json` wires it up and `hooks/AGENTS.snippet.md` tells the agent the rules.
