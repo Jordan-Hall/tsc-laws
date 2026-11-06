@@ -1,6 +1,5 @@
 import { statSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { join } from 'node:path';
 import { parentPort } from 'node:worker_threads';
 import { arbitraryOf, type Plan } from './plan.ts';
 import { jsPath, runLaw, summarise } from './propertyRun.ts';
