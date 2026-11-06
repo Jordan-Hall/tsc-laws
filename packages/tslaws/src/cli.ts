@@ -32,6 +32,7 @@ import {
   revokeFor,
 } from './delegation.ts';
 import { writeLock } from './lock.ts';
+import { classifyLawFile } from './lawKinds.ts';
 import type { CheckOptions, LawEvent, LawResult } from './types.ts';
 
 const usage = `tslaws init [--force]       scaffold tslaws.json, .gitignore, AGENTS.md, Claude Code hooks and a starter law (never writes the lock)
@@ -44,12 +45,12 @@ tslaws delegate grant [--for 1h|8h|1d|7d] [--root DIR]   lend accept to an agent
 tslaws delegate revoke [--root DIR]   withdraw the delegation for a project (people only)
 tslaws delegate status        list delegations and when they end
 tslaws propose <file.ts> [--from PATH]   write a proposal into .tslaws/proposals/ from PATH or stdin (outside the tree, git-ignored; never touches the lock or any other file)
-tslaws promote <proposal> [--to PATH]   move a proposal from .tslaws/proposals/ into the tree at a path you confirm (people only: needs a terminal; run accept afterwards). Older in-tree *.proposed.laws.ts files still promote with --all or by name (deprecated)
-tslaws list [--json]   the laws files and proposals of the project: the level each runs at (from its imports) and whether it is accepted, unaccepted or proposed (reads files and the lock; runs nothing)
+tslaws promote <proposal> [--to PATH]   move a proposal from .tslaws/proposals/ into the tree at a path you confirm (people only: needs a terminal; run accept afterwards). In-tree *.proposed.laws.ts files (the usual proposals) promote with --all or by name
+tslaws list [--json]   the laws files and proposals of the project: the level each runs at (from its name, or its imports with levels: imports) and whether it is accepted, unaccepted or proposed (reads files and the lock; runs nothing)
 tslaws mcp [--compiler PATH]   serve check, check_proposed, explain and propose as Model Context Protocol tools on stdio (cannot accept, promote or touch the lock)
 
-Without files, every *.laws.ts under the current directory (and every file the "laws" globs of tslaws.json pick that declares a law) is checked; with --proposed, the proposals in .tslaws/proposals/ are (and the deprecated in-tree *.proposed.laws.ts files), with no lock and no coverage gate.
-A laws file is a browser law when it imports the browser API (tslaws/browser, tslaws/adapters/*), directly or through its own modules, and an end-to-end law when it imports tslaws/e2e; the .browser.laws.ts and .e2e.laws.ts names are only hints.
+Without files, every *.laws.ts under the current directory (and every file the "laws" globs of tslaws.json pick that declares a law) is checked; with --proposed, the in-tree *.proposed.laws.ts files are (and any proposals in .tslaws/proposals/), with no lock and no coverage gate.
+A laws file\'s level comes from its name by default: *.browser.laws.ts is a browser law, *.e2e.laws.ts an end-to-end law, anything else runs in Node. With "levels": "imports" in tslaws.json it comes from the import graph instead (tslaws/browser, tslaws/adapters/* or tslaws/e2e, directly or through the file\'s own modules), and the names are hints.
 Exit status is 0 only when every law is proved, bounded or tested and nothing is open, failed, uncovered or tampered with.
   --json      machine-readable report; each result carries a hint with the next action (same as --reporter json)
   --reporter  text (default), json, junit (JUnit XML), github (workflow annotations; appends a table to $GITHUB_STEP_SUMMARY) or ndjson (one JSON event per line as the check proceeds, then the report; for editors)
@@ -214,9 +215,12 @@ async function runCheck(cwd: string, flags: Map<string, string | true>, files: s
   return report.ok ? 0 : 1;
 }
 
-function watched(filename: string | null): boolean {
+export function watched(filename: string | null): boolean {
   if (filename === null || !filename.endsWith('.ts')) return false;
-  return !filename.split(/[\\/]/).some((part) => ignoredDirs.has(part));
+  const parts = filename.split(/[\\/]/);
+  // The proposals directory is watched (a saved proposal reruns `check --proposed`); the rest of .tslaws is not.
+  if (parts[0] === '.tslaws' && parts[1] === 'proposals' && !parts.slice(2, -1).some((p) => ignoredDirs.has(p))) return true;
+  return !parts.some((part) => ignoredDirs.has(part));
 }
 
 /** Checks now and after every .ts change under cwd (debounced 300 ms). Resolves the last exit status on Ctrl+C. */
@@ -311,7 +315,16 @@ export async function acceptCommand(
   const before = fileHash(opts.lockFile);
   const exempt = exemptionsOf(opts);
   if (exempt.length > 0) out(`exempt from coverage:\n${exempt.map((e) => `  ${e}`).join('\n')}\n`);
-  writeLock(opts.lockFile, laws, exempt);
+  // With levels from imports the lock records each laws file's resolved level, so a helper that starts importing
+  // tslaws/browser reads as tampered until a person accepts again. By name (the default) the lock is unchanged.
+  const mode = readConfig(cwd).levels ?? 'names';
+  const levels =
+    mode === 'imports'
+      ? Object.fromEntries(
+          [...new Set(laws.map((l) => l.file.replaceAll('\\', '/')))].map((f) => [f, classifyLawFile(cwd, f, mode).kind]),
+        )
+      : undefined;
+  writeLock(opts.lockFile, laws, exempt, levels);
   out('tsc-laws.lock written\n');
   if (gate.delegated) {
     logDelegatedAccept(cwd, gate.grant, before, fileHash(opts.lockFile), ctx.now ?? new Date());
@@ -432,7 +445,7 @@ export async function proposeCommand(
 /**
  * `tslaws promote <proposal> [--to PATH]`: a person moves a proposal out of `.tslaws/proposals/` into the tree. Refused
  * without a terminal, under CI, as an agent and with TSLAWS_AGENT set; a delegation does not cover it. Never writes the
- * lock. The older in-tree `*.proposed.laws.ts` names still promote, per law, into the file of the same kind (deprecated).
+ * lock. In-tree `*.proposed.laws.ts` files promote, per law, into the file of the same kind.
  */
 export async function promoteCommand(
   cwd: string,
@@ -476,9 +489,6 @@ export async function promoteCommand(
     for (const file of chosen) {
       const rel = relative(cwd, resolve(cwd, file)).replaceAll('\\', '/');
       if (isProposedLawFile(rel) && !file.startsWith('.tslaws')) {
-        out(
-          `${rel}: in-tree *.proposed.laws.ts names are deprecated; new proposals go to .tslaws/proposals/ (tslaws propose)\n`,
-        );
         await promoteFiles({ cwd, ask, out, checkFile }, [rel]);
         continue;
       }

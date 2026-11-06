@@ -24,7 +24,7 @@ function project(files: Record<string, string>): string {
 }
 
 const files = {
-  'tslaws.json': JSON.stringify({ laws: ['specs/*.ts'] }),
+  'tslaws.json': JSON.stringify({ laws: ['specs/*.ts'], levels: 'imports' }),
   'src/a.laws.ts': law,
   'src/helper.ts': "import { mount } from 'tslaws/browser';\nexport const m = mount;\n",
   'src/ui.laws.ts': "import { m } from './helper';\n" + law,
@@ -55,6 +55,7 @@ describe('tslaws list', () => {
     const cwd = project({
       'a.laws.ts': "import { open } from 'tslaws/e2e';\nimport { mount } from 'tslaws/browser';\n" + law,
       'b.browser.laws.ts': law,
+      'tslaws.json': JSON.stringify({ levels: 'imports' }),
     });
     const [a, b] = listLawFiles(cwd);
     assert.match(a!.error ?? '', /not both/);

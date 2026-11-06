@@ -1,4 +1,8 @@
-// The level a laws file runs at, from what it imports. A file that reaches the browser law API (`tslaws/browser`, or one
+// The level a laws file runs at. By default (`levels: "names"` in tslaws.json) it comes from the file name:
+// `*.browser.laws.ts` is a browser law (an end-to-end law when it imports `tslaws/e2e`), `*.e2e.laws.ts` is end to end,
+// anything else is a Node law. With `levels: "imports"` it comes from what the file imports, as follows.
+//
+// From what it imports. A file that reaches the browser law API (`tslaws/browser`, or one
 // of the `tslaws/adapters/*` entry points) is a browser law; a file that reaches the end-to-end API (`tslaws/e2e`) is an
 // end-to-end law; a file that reaches both is refused; a file that reaches neither is a Node law. "Reaches" follows the
 // project's own import graph: a helper module the law imports, or a re-export, counts. Imports used only as types, and
@@ -12,6 +16,9 @@ import ts from 'typescript';
 import { suffixKind } from './lawNames.ts';
 
 export type LawKind = 'node' | 'browser' | 'e2e';
+
+/** Where a laws file's level comes from: its name (the default) or its import graph (opt-in). */
+export type LevelsMode = 'names' | 'imports';
 
 export interface ImportFacts {
   /** The chain of project files from the laws file to the one that imports a browser law entry point, if any. */
@@ -138,8 +145,39 @@ export function importFacts(cwd: string, file: string): ImportFacts {
 
 const via = (chain: string[]): string => (chain.length <= 1 ? 'directly' : `through ${chain.slice(1).join(' > ')}`);
 
-/** Classifies a laws file (project-relative path) by its imports, checking the name hint against them. */
-export function classifyLawFile(cwd: string, file: string): KindVerdict {
+const importsModule = (text: string, module: string): boolean =>
+  new RegExp(`(?:from|import)\\s*['"]${module}['"]`).test(text);
+
+/** The level a file's name gives it: the way levels were always decided, and still the default. */
+function classifyByName(cwd: string, file: string): KindVerdict {
+  const imports: ImportFacts = { browser: undefined, e2e: undefined };
+  let text = '';
+  try {
+    text = readFileSync(resolve(cwd, file), 'utf8');
+  } catch {
+    // The compiler already reports an unreadable file.
+  }
+  const base = file.replaceAll('\\', '/');
+  if (importsModule(text, 'tslaws/e2e') && importsModule(text, 'tslaws/browser'))
+    return {
+      kind: 'node',
+      imports,
+      notices: [],
+      error: `${base}: a browser laws file is either component level (tslaws/browser) or end-to-end (tslaws/e2e), not both`,
+    };
+  const hint = suffixKind(file);
+  const kind: LawKind = hint === 'e2e' ? 'e2e' : hint === 'browser' ? (importsModule(text, 'tslaws/e2e') ? 'e2e' : 'browser') : 'node';
+  return { kind, imports, notices: [] };
+}
+
+/** Classifies a laws file (project-relative path) by its name (default) or, with `levels: "imports"`, its imports. */
+export function classifyLawFile(cwd: string, file: string, mode: LevelsMode = 'names'): KindVerdict {
+  if (mode === 'names') return classifyByName(cwd, file);
+  return classifyByImports(cwd, file);
+}
+
+/** Classifies a laws file by its imports, checking the name hint against them. */
+function classifyByImports(cwd: string, file: string): KindVerdict {
   const imports = importFacts(cwd, file);
   const hint = suffixKind(file);
   const notices: string[] = [];

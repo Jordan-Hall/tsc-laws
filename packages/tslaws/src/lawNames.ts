@@ -1,5 +1,6 @@
-// Law file names. A law's level (Node, browser or end to end) is decided by what its file imports (see lawKinds.ts); the
-// `.browser.` and `.e2e.` suffixes are only hints that must agree with the imports. A proposed file is the accepted name with `.proposed` before `.laws`: `a.proposed.laws.ts` proposes
+// Law file names. By default a law's level (Node, browser or end to end) comes from the name: `.browser.` and `.e2e.`
+// before `.laws.ts`; with `levels: "imports"` in tslaws.json it comes from the imports (see lawKinds.ts) and the suffixes are
+// hints. A proposed file is the accepted name with `.proposed` before `.laws`: `a.proposed.laws.ts` proposes
 // `a.laws.ts`, `a.browser.proposed.laws.ts` proposes `a.browser.laws.ts` and `a.e2e.proposed.laws.ts` proposes
 // `a.e2e.laws.ts`. A proposed file keeps the kind of the file it proposes, so it runs at the same level.
 

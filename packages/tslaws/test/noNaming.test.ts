@@ -37,6 +37,9 @@ function hasBrowser(): boolean {
 
 function project(name: string, files: Record<string, string>): string {
   const cwd = join(root, name);
+  // These cases are about levels from imports, which is opt-in.
+  const base = files['tslaws.json'] === undefined ? {} : (JSON.parse(files['tslaws.json']) as Record<string, unknown>);
+  files = { ...files, 'tslaws.json': JSON.stringify({ levels: 'imports', ...base }) };
   for (const [file, text] of Object.entries(files)) {
     mkdirSync(dirname(join(cwd, file)), { recursive: true });
     writeFileSync(join(cwd, file), text);
@@ -255,16 +258,15 @@ describe('laws files without naming conventions', { skip: compiler === undefined
     },
   );
 
-  it('note a deprecated in-tree proposed name, and still run it', async () => {
-    const cwd = project('deprecated', {
+  it('run an in-tree proposed name, without a notice', async () => {
+    const cwd = project('in-tree-proposed', {
       'src/add.ts': 'export const add = (a: number, b: number): number => a + b;\n',
       'src/add.proposed.laws.ts':
         "import { add } from './add';\nexport law commutes(a: number, b: number) => add(a, b) === add(b, a);\n",
     });
     const report = await check(options(cwd, ['src/add.proposed.laws.ts']), false);
     assert.equal(byName(report.results, 'commutes').status, 'proved');
-    assert.equal(report.notices.length, 1);
-    assert.match(report.notices[0]!, /deprecated.*\.tslaws\/proposals/);
+    assert.deepEqual(report.notices, []);
   });
 
   it('fail check for any unaccepted laws file of the tree, whatever its name', async () => {

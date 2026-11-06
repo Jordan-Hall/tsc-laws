@@ -29,7 +29,7 @@ describe('init', () => {
     const lines = init({ cwd: d });
     assert.deepEqual(JSON.parse(read(d, 'tslaws.json')), { cover: ['src/**/*.ts', '!src/**/*.laws.ts'] });
     const ignore = read(d, '.gitignore');
-    for (const entry of ['.tslaws/out', '.tslaws/mutants', '.tslaws/screenshots', '.tslaws/proposals'])
+    for (const entry of ['.tslaws/out', '.tslaws/mutants', '.tslaws/screenshots'])
       assert.ok(ignore.split('\n').includes(entry), entry);
     assert.doesNotMatch(ignore, /regressions/);
     assert.doesNotMatch(ignore, /^\.tslaws\/?$/m);
@@ -67,10 +67,7 @@ describe('init', () => {
   it('appends to existing .gitignore and AGENTS.md', () => {
     const d = dir({ '.gitignore': 'node_modules', 'AGENTS.md': '# Mine\nKeep this.\n' });
     init({ cwd: d });
-    assert.equal(
-      read(d, '.gitignore'),
-      'node_modules\n.tslaws/out\n.tslaws/mutants\n.tslaws/screenshots\n.tslaws/proposals\n',
-    );
+    assert.equal(read(d, '.gitignore'), 'node_modules\n.tslaws/out\n.tslaws/mutants\n.tslaws/screenshots\n');
     assert.match(read(d, 'AGENTS.md'), /^# Mine\nKeep this\.\n\n<!-- tslaws:begin -->/);
   });
 
@@ -147,7 +144,7 @@ describe('hintFor', () => {
 
   it('asks for a law or a proposal for uncovered code and forbids editing laws', () => {
     const h = hint('uncovered')!;
-    assert.match(h, /\.tslaws\/proposals/);
+    assert.match(h, /\.proposed\.laws\.ts/);
     assert.match(h, /Never edit a `\*\.laws\.ts`/);
   });
 

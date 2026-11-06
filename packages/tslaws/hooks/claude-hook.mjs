@@ -30,6 +30,6 @@ const run = spawnSync(process.execPath, [cli, 'check'], {
 });
 if (run.status === 0) process.exit(0);
 process.stderr.write(
-  `tslaws check failed. Fix the code, not the laws. Laws are the human's side; to propose a new or changed law, write it into .tslaws/proposals/ (tslaws propose).\n\n${run.stdout}${run.stderr}`,
+  `tslaws check failed. Fix the code, not the laws. Laws are the human's side; to propose a new or changed law, put it in a *.proposed.laws.ts file.\n\n${run.stdout}${run.stderr}`,
 );
 process.exit(2);

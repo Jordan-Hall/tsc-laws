@@ -413,15 +413,14 @@ describe('the promote and propose commands', () => {
     assert.deepEqual(tree(cwd), ['src', 'src/cart.ts']);
   });
 
-  it('promote still moves an older in-tree *.proposed.laws.ts file, with a deprecation notice', async () => {
+  it('promote still moves an in-tree *.proposed.laws.ts file, without a deprecation notice', async () => {
     const cwd = project({
       'src/cart.proposed.laws.ts':
         "import { total } from './cart';\nexport law old(n: number) { return total(n) === n; }\n",
     });
     const { out, ctx } = ctxFor({ ask: async () => 'y', checkFile: async () => new Map() });
     assert.equal(await promoteCommand(cwd, new Map(), ['src/cart.proposed.laws.ts'], ctx), 0);
-    assert.match(out.join(''), /deprecated/);
-    assert.match(out.join(''), /\.tslaws\/proposals/);
+    assert.doesNotMatch(out.join(''), /deprecated/);
     assert.ok(existsSync(join(cwd, 'src/cart.laws.ts')));
     assert.ok(!existsSync(join(cwd, 'src/cart.proposed.laws.ts')));
   });

@@ -1,6 +1,6 @@
 // Which files are laws files. Every `*.laws.ts` is one; with a `laws` setting in tslaws.json, so is any file the globs
 // match that declares a top-level `export law`. Proposals are separate: they live in `.tslaws/proposals/`, outside the
-// tree the lock covers (older projects may still have in-tree `*.proposed.laws.ts` files, which keep working).
+// tree the lock covers (in-tree `*.proposed.laws.ts` files are the usual proposals and keep working).
 import { existsSync, lstatSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { readConfig } from './coverage.ts';
@@ -52,7 +52,7 @@ export function customLawFile(
 
 /**
  * The laws files of the tree, project-relative and sorted: `*.laws.ts` plus the files the `laws` globs find. With
- * `proposed`, the older in-tree `*.proposed.laws.ts` files instead (deprecated; see `discoverProposals`).
+ * `proposed`, the in-tree `*.proposed.laws.ts` files instead (the usual proposals; `discoverProposals` finds the optional ones in `.tslaws/proposals`).
  */
 export function discoverLaws(cwd: string, proposed = false): string[] {
   const custom = customLawFile(cwd);

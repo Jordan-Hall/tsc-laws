@@ -22,6 +22,11 @@ export interface CoverageConfig {
    * file, besides every file named `*.laws.ts`. A leading `!` excludes. Default: none.
    */
   laws?: string[];
+  /**
+   * Where a laws file's level (Node, browser, end to end) comes from. `names` (the default): the file name
+   * (`*.browser.laws.ts`, `*.e2e.laws.ts`). `imports`: the file's import graph; names are still recognised as hints.
+   */
+  levels?: 'names' | 'imports';
   /** esbuild plugin modules (paths relative to tslaws.json) that teach the browser bundler new source formats. */
   bundlerPlugins?: string[];
   /** Run settings; a command line flag beats them and they beat the built-in default. */
@@ -32,7 +37,7 @@ export interface CoverageConfig {
 }
 
 const settingKeys = ['runs', 'propertyTimeoutMs', 'proofTimeoutMs', 'bound'] as const;
-const configKeys = ['cover', 'laws', 'compilerOptions', 'e2e', 'bundlerPlugins', ...settingKeys];
+const configKeys = ['cover', 'laws', 'levels', 'compilerOptions', 'e2e', 'bundlerPlugins', ...settingKeys];
 
 export interface Uncovered {
   file: string;
@@ -80,6 +85,9 @@ export function parseConfig(raw: unknown): CoverageConfig {
     (!Array.isArray(plugins) || plugins.some((entry) => typeof entry !== 'string' || entry === ''))
   )
     fail(`"bundlerPlugins" must be an array of module paths, got ${JSON.stringify(plugins)}`);
+  const levels = object.levels;
+  if (levels !== undefined && levels !== 'names' && levels !== 'imports')
+    fail(`"levels" must be "names" or "imports", got ${JSON.stringify(levels)}`);
   const laws = object.laws;
   if (
     laws !== undefined &&

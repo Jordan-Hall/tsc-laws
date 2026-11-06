@@ -19,7 +19,6 @@ import { closeBrowser, runBrowserLaw } from './browser.ts';
 import { ensureServer, runE2eLaw, stopServer } from './e2e.ts';
 import { inProposals } from './lawFiles.ts';
 import { classifyLawFile, type KindVerdict } from './lawKinds.ts';
-import { isProposedLawFile } from './lawNames.ts';
 import { normaliseProposal } from './proposals.ts';
 import { declarationOf, exercisesOf, markFailing, Sources, type Exercised } from './exercises.ts';
 import type { CheckOptions, LawResult, ManifestLaw } from './types.ts';
@@ -57,18 +56,13 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
   const results: LawResult[] = [];
   const blocked = new Set<string>();
   const notices: string[] = [];
-  for (const file of options.files) {
-    if (isProposedLawFile(file))
-      notices.push(
-        `${file}: in-tree *.proposed.laws.ts names are deprecated; keep proposals in .tslaws/proposals/ (outside the tree, git-ignored), where \`tslaws propose\` writes them`,
-      );
-  }
-  // The level of a laws file comes from what it imports; looked at once per file.
+  // The level of a laws file comes from its name (the default) or its imports (`levels: "imports"`); looked at once per file.
+  const levelsMode = readConfig(options.cwd).levels ?? 'names';
   const verdicts = new Map<string, KindVerdict>();
   const verdictOf = (file: string): KindVerdict => {
     let verdict = verdicts.get(file);
     if (verdict === undefined) {
-      verdict = classifyLawFile(options.cwd, file);
+      verdict = classifyLawFile(options.cwd, file, levelsMode);
       verdicts.set(file, verdict);
       for (const notice of verdict.notices) notices.push(notice);
     }
@@ -106,7 +100,15 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
     lock = readLock(options.lockFile);
     lockMissing = lock === undefined;
     const byKey = new Map(laws.map((l) => [lawKey(l.file, l.name), l]));
-    for (const violation of compareLock(lock?.laws, laws)) {
+    // With levels from imports (or a lock that recorded levels), the resolved level of each laws file is part of the lock.
+    const levels =
+      levelsMode === 'imports' || lock?.levels !== undefined
+        ? {
+            locked: lock?.levels,
+            now: Object.fromEntries([...new Set(laws.map((l) => l.file.replaceAll('\\', '/')))].map((f) => [f, verdictOf(f).kind])),
+          }
+        : undefined;
+    for (const violation of compareLock(lock?.laws, laws, levels)) {
       const law = byKey.get(violation.key);
       if (law === undefined) {
         const [file, name] = violation.key.split('::') as [string, string];
@@ -123,7 +125,9 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
           message:
             violation.reason === 'added'
               ? 'law is not in the lock; a person must run `tslaws accept`'
-              : 'law changed since the lock was accepted',
+              : violation.reason === 'level'
+                ? 'the level this laws file runs at (node, browser or e2e) changed since the lock was accepted; a person must run `tslaws accept`'
+                : 'law changed since the lock was accepted',
         });
       }
     }

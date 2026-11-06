@@ -29,7 +29,7 @@ const e2eImport = "import { open } from 'tslaws/e2e';\n";
 describe('law kind by imports', () => {
   it('makes a file that imports neither API a Node law', () => {
     const cwd = project({ 'src/a.laws.ts': `import { assume } from 'tslaws';\n${law}` });
-    const v = classifyLawFile(cwd, 'src/a.laws.ts');
+    const v = classifyLawFile(cwd, 'src/a.laws.ts', 'imports');
     assert.equal(v.kind, 'node');
     assert.deepEqual(v.notices, []);
     assert.equal(v.error, undefined);
@@ -37,20 +37,20 @@ describe('law kind by imports', () => {
 
   it('makes a file that imports tslaws/browser a browser law, whatever its name', () => {
     const cwd = project({ 'src/ui.laws.ts': browserImport + law, 'src/other.ts': browserImport });
-    assert.equal(classifyLawFile(cwd, 'src/ui.laws.ts').kind, 'browser');
-    assert.equal(classifyLawFile(cwd, 'src/other.ts').kind, 'browser');
+    assert.equal(classifyLawFile(cwd, 'src/ui.laws.ts', 'imports').kind, 'browser');
+    assert.equal(classifyLawFile(cwd, 'src/other.ts', 'imports').kind, 'browser');
   });
 
   it('counts every adapter entry point as the browser API', () => {
     for (const adapter of ['dom', 'react', 'angular', 'element']) {
       const cwd = project({ 'src/a.laws.ts': `import { x } from 'tslaws/adapters/${adapter}';\n${law}` });
-      assert.equal(classifyLawFile(cwd, 'src/a.laws.ts').kind, 'browser', adapter);
+      assert.equal(classifyLawFile(cwd, 'src/a.laws.ts', 'imports').kind, 'browser', adapter);
     }
   });
 
   it('makes a file that imports tslaws/e2e an end-to-end law', () => {
     const cwd = project({ 'src/shop.laws.ts': e2eImport + law });
-    assert.equal(classifyLawFile(cwd, 'src/shop.laws.ts').kind, 'e2e');
+    assert.equal(classifyLawFile(cwd, 'src/shop.laws.ts', 'imports').kind, 'e2e');
   });
 
   it('follows a helper module', () => {
@@ -59,7 +59,7 @@ describe('law kind by imports', () => {
       'src/helpers/build.ts': `import { render } from './render';\nexport const build = render;\n`,
       'src/helpers/render.ts': `${browserImport}export const render = mount;\n`,
     });
-    const v = classifyLawFile(cwd, 'src/a.laws.ts');
+    const v = classifyLawFile(cwd, 'src/a.laws.ts', 'imports');
     assert.equal(v.kind, 'browser');
     assert.deepEqual(v.imports.browser, ['src/a.laws.ts', 'src/helpers/build.ts', 'src/helpers/render.ts']);
   });
@@ -72,15 +72,15 @@ describe('law kind by imports', () => {
       'src/b.laws.ts': `const h = require('./cjs');\n${law}`,
       'src/cjs.ts': `module.exports = require('tslaws/e2e');\n`,
     });
-    assert.equal(classifyLawFile(cwd, 'src/a.laws.ts').kind, 'browser');
-    assert.equal(classifyLawFile(cwd, 'src/b.laws.ts').kind, 'e2e');
+    assert.equal(classifyLawFile(cwd, 'src/a.laws.ts', 'imports').kind, 'browser');
+    assert.equal(classifyLawFile(cwd, 'src/b.laws.ts', 'imports').kind, 'e2e');
   });
 
   it('ignores an import used only as a type', () => {
     const cwd = project({
       'src/a.laws.ts': `import type { Mounted } from 'tslaws/browser';\nimport { type A } from 'tslaws/adapters/dom';\nexport type { B } from 'tslaws/browser';\n${law}`,
     });
-    assert.equal(classifyLawFile(cwd, 'src/a.laws.ts').kind, 'node');
+    assert.equal(classifyLawFile(cwd, 'src/a.laws.ts', 'imports').kind, 'node');
   });
 
   it('does not follow modules inside node_modules, or a cycle forever', () => {
@@ -89,7 +89,7 @@ describe('law kind by imports', () => {
       'src/b.ts': "import { x } from './a.laws';\nexport const x = 1;\n",
       'node_modules/some-package/index.ts': browserImport,
     });
-    assert.equal(classifyLawFile(cwd, 'src/a.laws.ts').kind, 'node');
+    assert.equal(classifyLawFile(cwd, 'src/a.laws.ts', 'imports').kind, 'node');
   });
 
   it('refuses a file that reaches both levels, naming how each is reached', () => {
@@ -97,7 +97,7 @@ describe('law kind by imports', () => {
       'src/a.laws.ts': `import { r } from './h';\n${e2eImport}${law}`,
       'src/h.ts': `${browserImport}export const r = mount;\n`,
     });
-    const v = classifyLawFile(cwd, 'src/a.laws.ts');
+    const v = classifyLawFile(cwd, 'src/a.laws.ts', 'imports');
     assert.match(v.error ?? '', /either component level \(tslaws\/browser\) or end-to-end \(tslaws\/e2e\), not both/);
     assert.match(v.error ?? '', /browser API reached through src\/h\.ts/);
     assert.match(v.error ?? '', /end-to-end API reached directly/);
@@ -108,36 +108,36 @@ describe('name hints against imports', () => {
   it('say nothing when the name and the imports agree', () => {
     const cwd = project({ 'src/a.browser.laws.ts': browserImport + law, 'src/b.e2e.laws.ts': e2eImport + law });
     for (const file of ['src/a.browser.laws.ts', 'src/b.e2e.laws.ts']) {
-      assert.deepEqual(classifyLawFile(cwd, file).notices, [], file);
+      assert.deepEqual(classifyLawFile(cwd, file, 'imports').notices, [], file);
     }
   });
 
   it('keep the named level, with a notice, when nothing imported says which level', () => {
     const cwd = project({ 'src/a.browser.laws.ts': law, 'src/b.e2e.laws.ts': law });
-    const browser = classifyLawFile(cwd, 'src/a.browser.laws.ts');
+    const browser = classifyLawFile(cwd, 'src/a.browser.laws.ts', 'imports');
     assert.equal(browser.kind, 'browser');
     assert.match(browser.notices[0] ?? '', /name says browser, but nothing it imports is the browser law API/);
-    const e2e = classifyLawFile(cwd, 'src/b.e2e.laws.ts');
+    const e2e = classifyLawFile(cwd, 'src/b.e2e.laws.ts', 'imports');
     assert.equal(e2e.kind, 'e2e');
     assert.match(e2e.notices[0] ?? '', /name says e2e/);
   });
 
   it('let a browser-named file that drives an app run end to end, with a notice', () => {
     const cwd = project({ 'src/a.browser.laws.ts': e2eImport + law });
-    const v = classifyLawFile(cwd, 'src/a.browser.laws.ts');
+    const v = classifyLawFile(cwd, 'src/a.browser.laws.ts', 'imports');
     assert.equal(v.kind, 'e2e');
     assert.match(v.notices[0] ?? '', /name says browser, but it reaches the end-to-end API/);
   });
 
   it('refuse an e2e-named file that reaches the browser API only', () => {
     const cwd = project({ 'src/a.e2e.laws.ts': browserImport + law });
-    const v = classifyLawFile(cwd, 'src/a.e2e.laws.ts');
+    const v = classifyLawFile(cwd, 'src/a.e2e.laws.ts', 'imports');
     assert.match(v.error ?? '', /name says end-to-end, but it reaches the browser API directly/);
   });
 
   it('ignore the name of a proposal in the proposals directory', () => {
     const cwd = project({ '.tslaws/proposals/x.ts': browserImport + law });
-    assert.equal(classifyLawFile(cwd, '.tslaws/proposals/x.ts').kind, 'browser');
+    assert.equal(classifyLawFile(cwd, '.tslaws/proposals/x.ts', 'imports').kind, 'browser');
   });
 });
 

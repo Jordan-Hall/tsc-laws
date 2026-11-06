@@ -51,7 +51,7 @@ export const tools: Tool[] = [
   {
     name: 'tslaws_check_proposed',
     description:
-      'Check every proposal in .tslaws/proposals/ (and any older in-tree *.proposed.laws.ts), as `tslaws check --proposed`: no lock, no coverage gate.',
+      'Check every proposal in .tslaws/proposals/ (and in-tree *.proposed.laws.ts files), as `tslaws check --proposed`: no lock, no coverage gate.',
     inputSchema: { type: 'object', properties: {} },
   },
   {
@@ -160,7 +160,7 @@ export class Session {
       throw new ToolError(
         enforceLock
           ? 'no laws files found (looking for *.laws.ts)'
-          : 'no proposals found (looking in .tslaws/proposals/, and for older *.proposed.laws.ts files)',
+          : 'no proposals found (looking in .tslaws/proposals/, and for in-tree *.proposed.laws.ts files)',
       );
     const report = await check(options(this.opts, files), enforceLock);
     this.remember(report);

@@ -16,6 +16,8 @@ import {
   realpathSync,
   writeSync,
   closeSync,
+  appendFileSync,
+  writeFileSync,
 } from 'node:fs';
 import { join, posix } from 'node:path';
 import { moduleSpecifiers } from './lawKinds.ts';
@@ -168,6 +170,22 @@ export interface Written {
 }
 
 /**
+ * Keeps the proposals directory out of git, on first use: appends `.tslaws/proposals` to an existing .gitignore (or
+ * creates one in a git checkout) unless `.tslaws` or the directory is already listed. `tslaws init` leaves this to us.
+ */
+function ignoreProposals(cwd: string): void {
+  const ignore = join(cwd, '.gitignore');
+  const has = existsSync(ignore);
+  if (!has && !existsSync(join(cwd, '.git'))) return;
+  const text = has ? readFileSync(ignore, 'utf8') : '';
+  const listed = text.split(/\r?\n/).map((l) => l.trim().replace(/^\//, '').replace(/\/$/, ''));
+  if (listed.includes('.tslaws') || listed.includes('.tslaws/proposals')) return;
+  const lead = text === '' || text.endsWith('\n') ? '' : '\n';
+  if (has) appendFileSync(ignore, `${lead}.tslaws/proposals\n`);
+  else writeFileSync(ignore, '.tslaws/proposals\n');
+}
+
+/**
  * Adds laws to a proposal (appended; a law of the same name is replaced). `source` holds only imports and `export law`
  * declarations; with `only`, it must declare that law. Writes inside `.tslaws/proposals/` and nowhere else.
  */
@@ -181,6 +199,7 @@ export function addProposal(cwd: string, file: string, source: string, only?: st
     throw new ProposalError(`source must contain \`export law ${only}\`…`);
   const current = existsSync(abs) ? readFileSync(abs, 'utf8') : '';
   write(abs, mergeProposal(current, parsed.imports, parsed.laws));
+  ignoreProposals(cwd);
   return { file: rel, laws: parsed.laws.map((l) => l.name) };
 }
 
