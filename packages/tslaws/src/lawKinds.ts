@@ -235,3 +235,14 @@ export function directProjectImports(cwd: string, file: string): string[] {
   }
   return found;
 }
+
+/** The resolved level of each laws file, as the lock records it; none when levels come from names (the default). */
+export function lockLevels(
+  cwd: string,
+  laws: { file: string }[],
+  mode: LevelsMode,
+): Record<string, LawKind> | undefined {
+  if (mode !== 'imports') return undefined;
+  const files = [...new Set(laws.map((l) => l.file.replaceAll(String.fromCharCode(92), '/')))];
+  return Object.fromEntries(files.map((f) => [f, classifyLawFile(cwd, f, mode).kind]));
+}

@@ -33,7 +33,7 @@ import {
   revokeFor,
 } from './delegation.ts';
 import { writeLock } from './lock.ts';
-import { classifyLawFile } from './lawKinds.ts';
+import { lockLevels } from './lawKinds.ts';
 import type { CheckOptions, LawEvent, LawResult } from './types.ts';
 
 const usage = `tslaws init [--force]       scaffold tslaws.json, .gitignore, AGENTS.md, Claude Code hooks and a starter law (never writes the lock)
@@ -326,15 +326,7 @@ export async function acceptCommand(
   // With levels from imports the lock records each laws file's resolved level, so a helper that starts importing
   // tslaws/browser reads as tampered until a person accepts again. By name (the default) the lock is unchanged.
   const mode = readConfig(cwd).levels ?? 'names';
-  const levels =
-    mode === 'imports'
-      ? Object.fromEntries(
-          [...new Set(laws.map((l) => l.file.replaceAll('\\', '/')))].map((f) => [
-            f,
-            classifyLawFile(cwd, f, mode).kind,
-          ]),
-        )
-      : undefined;
+  const levels = lockLevels(cwd, laws, mode);
   writeLock(opts.lockFile, laws, exempt, levels);
   out('tsc-laws.lock written\n');
   if (gate.delegated) {
