@@ -5,6 +5,7 @@ import { dirname, join } from 'node:path';
 import { after, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { readManifest } from '../dist/compile.js';
+import { usesLegacySyntax } from '../dist/lower.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = mkdtempSync(join(here, '..', '.tmp-mixed-'));
@@ -38,5 +39,35 @@ describe('one syntax per project', () => {
       readManifest('tsc.exe', ['b.laws.ts'], dir).map((l) => l.name),
       ['call law'],
     );
+  });
+});
+
+describe('keyword detection', () => {
+  it('ignores a keyword declaration shown in a comment or a template string', () => {
+    const text = [
+      '/*',
+      'export law shown(a: number) => a === a;',
+      '*/',
+      'const doc = `',
+      'export law inString(a: number) => true;',
+      '`;',
+      "law('real', (a: number) => a === a);",
+      '',
+    ].join('\n');
+    assert.equal(usesLegacySyntax(text), false);
+  });
+
+  it('finds a declaration after a template literal with substitutions', () => {
+    const text = ['const url = `${base()}api/reset`;', 'export async law a(n: number) { return n === n; }', ''].join(
+      String.fromCharCode(10),
+    );
+    assert.equal(usesLegacySyntax(text), true);
+  });
+
+  it('still finds real keyword declarations', () => {
+    assert.equal(usesLegacySyntax('export law a(n: number) => n === n;\n'), true);
+    assert.equal(usesLegacySyntax('import { x } from "y";\nexport law proved b(n: number) { return true; }\n'), true);
+    assert.equal(usesLegacySyntax('export law never(a: number) { return true; }'), true);
+    assert.equal(usesLegacySyntax("law('a', (n: number) => true);\n"), false);
   });
 });

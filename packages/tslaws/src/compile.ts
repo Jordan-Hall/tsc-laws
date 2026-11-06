@@ -83,7 +83,16 @@ function lowerFile(file: string, cwd: string): Lowered {
   return result;
 }
 
-const isLawFile = (file: string): boolean => /\.laws\.tsx?$/.test(file);
+/**
+ * Whether the file holds laws: a `.laws.ts` name, or any file the project points at (a "laws" glob, a proposal in
+ * `.tslaws/proposals`) whose text declares a law, as a call or with the keyword.
+ */
+function isLawFile(file: string, cwd: string): boolean {
+  if (/\.laws\.tsx?$/.test(file)) return true;
+  if (!existsSync(join(cwd, file))) return false;
+  const text = readFileSync(join(cwd, file), 'utf8');
+  return /\blaw\b/.test(text) && (usesLegacySyntax(text) || lowerFile(file, cwd).laws.length > 0);
+}
 
 /**
  * Whether these files go through the built-in path. An explicit `builtin` always does; otherwise a project that
@@ -92,7 +101,7 @@ const isLawFile = (file: string): boolean => /\.laws\.tsx?$/.test(file);
 export function usesBuiltin(compiler: string, files: string[], cwd: string): boolean {
   if (compiler === builtinCompiler) return true;
   return !files.some(
-    (f) => isLawFile(f) && existsSync(join(cwd, f)) && usesLegacySyntax(readFileSync(join(cwd, f), 'utf8')),
+    (f) => isLawFile(f, cwd) && existsSync(join(cwd, f)) && usesLegacySyntax(readFileSync(join(cwd, f), 'utf8')),
   );
 }
 
@@ -101,7 +110,7 @@ export function usesBuiltin(compiler: string, files: string[], cwd: string): boo
  * `law('name', ...)` calls, so a project holding both would silently lose the calls. Say so instead.
  */
 function assertOneSyntax(files: string[], cwd: string): void {
-  const present = files.filter((f) => isLawFile(f) && existsSync(join(cwd, f)));
+  const present = files.filter((f) => isLawFile(f, cwd) && existsSync(join(cwd, f)));
   const keyword = present.filter((f) => usesLegacySyntax(readFileSync(join(cwd, f), 'utf8')));
   if (keyword.length === 0) return;
   const calls = present.filter((f) => lowerFile(f, cwd).laws.length > 0);
@@ -114,7 +123,9 @@ function assertOneSyntax(files: string[], cwd: string): void {
 
 export function readManifest(compiler: string, files: string[], cwd: string): ManifestLaw[] {
   if (usesBuiltin(compiler, files, cwd))
-    return files.filter(isLawFile).flatMap((f) => (existsSync(join(cwd, f)) ? lowerFile(f, cwd).laws : []));
+    return files
+      .filter((f) => isLawFile(f, cwd))
+      .flatMap((f) => (existsSync(join(cwd, f)) ? lowerFile(f, cwd).laws : []));
   assertOneSyntax(files, cwd);
   const run = launch(compiler, ['--laws-manifest', ...files], {
     cwd,
@@ -248,7 +259,7 @@ function buildBuiltin(args: string[], files: string[], cwd: string, outDir: stri
   };
   const overrides = new Map<string, string>();
   for (const file of files)
-    if (isLawFile(file) && existsSync(join(cwd, file)))
+    if (isLawFile(file, cwd) && existsSync(join(cwd, file)))
       overrides.set(slash(resolve(cwd, file)), lowerFile(file, cwd).text);
   const host = ts.createCompilerHost(options);
   const getSourceFile = host.getSourceFile.bind(host);
@@ -320,7 +331,7 @@ function buildKey(args: string[], files: string[], cwd: string): string {
   const hash = createHash('sha256');
   hash.update(JSON.stringify([args, ts.version, toolStamp]));
   for (const file of files)
-    if (isLawFile(file) && existsSync(join(cwd, file)))
+    if (isLawFile(file, cwd) && existsSync(join(cwd, file)))
       hash.update(`
 ${file}
 ${lowerFile(file, cwd).text}`);

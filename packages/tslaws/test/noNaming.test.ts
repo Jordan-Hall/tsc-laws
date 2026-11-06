@@ -7,6 +7,8 @@ import { after, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { check } from '../dist/check.js';
 import { readManifest } from '../dist/compile.js';
+import { readConfig } from '../dist/coverage.js';
+import { lockLevels } from '../dist/lawKinds.js';
 import { writeLock } from '../dist/lock.js';
 import { addProposal } from '../dist/proposals.js';
 import type { CheckOptions, LawResult } from '../dist/types.js';
@@ -61,8 +63,10 @@ function options(cwd: string, files: string[]): CheckOptions {
   };
 }
 
-const accept = (opts: CheckOptions): void =>
-  writeLock(opts.lockFile, readManifest(opts.compiler, opts.files, opts.cwd));
+const accept = (opts: CheckOptions): void => {
+  const laws = readManifest(opts.compiler, opts.files, opts.cwd);
+  writeLock(opts.lockFile, laws, [], lockLevels(opts.cwd, laws, readConfig(opts.cwd).levels ?? 'names'));
+};
 
 function byName(results: LawResult[], name: string): LawResult {
   const found = results.find((r) => r.name === name);
