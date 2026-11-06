@@ -18,8 +18,15 @@ export function usesLegacySyntax(text: string): boolean {
   const tokens: { kind: ts.SyntaxKind; text: string; newline: boolean }[] = [];
   for (let kind = scanner.scan(); kind !== ts.SyntaxKind.EndOfFileToken; kind = scanner.scan())
     tokens.push({ kind, text: scanner.getTokenText(), newline: scanner.hasPrecedingLineBreak() });
-  const word = (i: number, value?: string): boolean =>
-    tokens[i]?.kind === ts.SyntaxKind.Identifier && (value === undefined || tokens[i]!.text === value);
+  // A law may be named with a word that is also a keyword (`never`, `type`), so any word-like token is a name.
+  const word = (i: number, value?: string): boolean => {
+    const token = tokens[i];
+    if (token === undefined) return false;
+    const wordLike =
+      token.kind === ts.SyntaxKind.Identifier ||
+      (token.kind >= ts.SyntaxKind.FirstKeyword && token.kind <= ts.SyntaxKind.LastKeyword);
+    return wordLike && (value === undefined || token.text === value);
+  };
   for (let i = 0; i < tokens.length; i += 1) {
     if (tokens[i]!.text !== 'law') continue;
     // Starts a statement: first on its line, or right after `export` / `async` that does.

@@ -60,6 +60,7 @@ describe('keyword detection', () => {
   it('still finds real keyword declarations', () => {
     assert.equal(usesLegacySyntax('export law a(n: number) => n === n;\n'), true);
     assert.equal(usesLegacySyntax('import { x } from "y";\nexport law proved b(n: number) { return true; }\n'), true);
+    assert.equal(usesLegacySyntax('export law never(a: number) { return true; }'), true);
     assert.equal(usesLegacySyntax("law('a', (n: number) => true);\n"), false);
   });
 });
