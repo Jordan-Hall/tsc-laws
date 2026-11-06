@@ -12,7 +12,26 @@ export interface Lowered {
 
 /** The pre-call syntax (`export law name(...)`), which only the tsc-laws compiler parses. */
 export function usesLegacySyntax(text: string): boolean {
-  return /^[ \t]*(?:export[ \t]+)?(?:async[ \t]+)?law[ \t]+(?:proved[ \t]+)?[A-Za-z_$][\w$]*[ \t]*[(<]/m.test(text);
+  if (!/\blaw\b/.test(text)) return false;
+  // Scan tokens, so a declaration shown in a comment or a string is not mistaken for one.
+  const scanner = ts.createScanner(ts.ScriptTarget.Latest, true, ts.LanguageVariant.Standard, text);
+  const tokens: { kind: ts.SyntaxKind; text: string; newline: boolean }[] = [];
+  for (let kind = scanner.scan(); kind !== ts.SyntaxKind.EndOfFileToken; kind = scanner.scan())
+    tokens.push({ kind, text: scanner.getTokenText(), newline: scanner.hasPrecedingLineBreak() });
+  const word = (i: number, value?: string): boolean =>
+    tokens[i]?.kind === ts.SyntaxKind.Identifier && (value === undefined || tokens[i]!.text === value);
+  for (let i = 0; i < tokens.length; i += 1) {
+    if (tokens[i]!.text !== 'law') continue;
+    // Starts a statement: first on its line, or right after `export` / `async` that does.
+    let start = i;
+    while (start > 0 && ['export', 'async'].includes(tokens[start - 1]!.text)) start -= 1;
+    if (start > 0 && !tokens[start]!.newline) continue;
+    let next = i + 1;
+    if (word(next, 'proved') && word(next + 1)) next += 1;
+    const after = tokens[next + 1]?.kind;
+    if (word(next) && (after === ts.SyntaxKind.OpenParenToken || after === ts.SyntaxKind.LessThanToken)) return true;
+  }
+  return false;
 }
 
 function newlines(text: string): number {
