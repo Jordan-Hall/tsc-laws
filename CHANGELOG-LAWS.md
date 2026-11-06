@@ -2,8 +2,18 @@
 
 The upstream tsc-ts changelog is CHANGELOG.md. Releases of tsc-laws are tagged `laws-v<version>` (see RELEASING-LAWS.md).
 
-## Unreleased
+## 0.7.0
 
+- feat(tslaws): laws as calls, `law('name', fn)` and `law.proved(...)`, work with stock TypeScript; the `law` keyword and the fork compiler still work, and a project may use one syntax (mixing is refused)
+- feat(tslaws): a faster check: a build cache, one plan per law run in parallel workers, and a narrow type-check environment
+- fix(tslaws): a counterexample corpus saved under an old file name is replayed; a failed build is not cached
+- docs(demo): the videos show both ways to write a law
+- feat: write laws as calls in stock TypeScript, keep the keyword syntax (#19)
+- feat(vscode): the editor understands law syntax, shows live results on every function, and jumps to laws (#17)
+- ci: publish to Open VSX with trusted publishing, under the ts-laws namespace (#20)
+- fix(tslaws): proposed browser and end-to-end laws keep their kind (#16)
+- ci: a blocked release push is a warning, not a failed run (#15)
+- ci: move every workflow action to a Node 24 release (#14)
 - feat(vscode): a TypeScript server plugin so the editor understands `law` declarations: no red squiggles, with hover, definition, references, rename and completions mapped to the original text
 - feat(vscode): the compiler's law rules (TS9101 to TS9106) are shown as diagnostics after a run
 - feat(vscode): live results in the background with a status after each function, a Laws view, cached results, a CPU and run-time guard, and `tslaws.liveBackground`
