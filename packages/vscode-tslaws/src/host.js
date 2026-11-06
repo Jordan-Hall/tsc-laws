@@ -60,7 +60,7 @@ function activateExtension(vscode, context, io) {
   let nav = null;
   let view = { records: null, ranAt, descs: new Map(), index: new Map(), coverage: new Map() };
   let lawFiles = [];
-  /** What `tslaws list` said about each laws file (or the old name hints), by project-relative path. */
+  /** What `tslaws list` said about each laws file (or the file names, for an older tslaws), by project-relative path. */
   let listed = new Map();
   let dashboard = null;
   let active = null;
@@ -614,7 +614,7 @@ function activateExtension(vscode, context, io) {
   const loadLawFiles = async () => {
     const answer = await askList();
     if (answer !== null) {
-      // The tool's answer: laws files of the tree by what they import, plus proposals (badged, never run as laws).
+      // The tool's answer: laws files of the tree at the level the project's `levels` setting gives them (names by default), plus proposals (badged, never run as laws).
       listed = new Map(answer.map((f) => [f.file, f]));
       lawFiles = answer.filter((f) => f.status !== 'proposed').map((f) => f.file);
     } else {

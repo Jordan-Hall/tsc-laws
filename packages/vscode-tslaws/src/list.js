@@ -1,8 +1,8 @@
 'use strict';
 
 // What `tslaws list --json` says about the project's laws files, and the Explorer badge each one gets. Pure; no vscode
-// import. The tool decides which files are laws files and at what level they run (from their imports); the extension
-// asks instead of matching file names.
+// import. The tool decides which files are laws files and at what level they run (from their names by default, from
+// their imports with `levels: "imports"` in tslaws.json); the extension asks instead of matching file names.
 
 const KINDS = new Set(['node', 'browser', 'e2e']);
 const STATUSES = new Set(['accepted', 'unaccepted', 'proposed']);
@@ -41,7 +41,7 @@ function parseList(text) {
 }
 
 /**
- * What an older tslaws (no `list`) leaves us with: every `*.laws.ts`, the level taken from the old name hints.
+ * What an older tslaws (no `list`) leaves us with: every `*.laws.ts`, the level taken from the file name (the default way levels are decided).
  * @param {string} rel
  * @returns {LawFile}
  */
