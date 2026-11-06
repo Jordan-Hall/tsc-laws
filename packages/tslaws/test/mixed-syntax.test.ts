@@ -58,8 +58,9 @@ describe('keyword detection', () => {
   });
 
   it('finds a declaration after a template literal with substitutions', () => {
-    const text = ['const url = `${base()}api/reset`;', 'export async law a(n: number) { return n === n; }', ''].join('
-');
+    const text = ['const url = `${base()}api/reset`;', 'export async law a(n: number) { return n === n; }', ''].join(
+      String.fromCharCode(10),
+    );
     assert.equal(usesLegacySyntax(text), true);
   });
 
