@@ -13,6 +13,7 @@ import {
   parseLawFile,
   promoteFiles,
 } from '../dist/promote.js';
+import { mergeProposal } from '../dist/mcp.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = mkdtempSync(join(here, '..', '.tmp-promote-'));
@@ -199,5 +200,41 @@ describe('promote command', () => {
     }
     assert.ok(existsSync(join(dir, 'a.proposed.laws.ts')));
     assert.ok(!existsSync(join(dir, 'a.laws.ts')));
+  });
+});
+
+describe('call-style laws', () => {
+  const text = [
+    "import { add } from './math';",
+    '',
+    "law('addition commutes', (a: number, b: number) => add(a, b) === add(b, a));",
+    '',
+    "// law('in a comment', (a: number) => true);",
+    "law.proved('adding zero changes nothing', (a: number) => {",
+    '  return add(a, 0) === a;',
+    '});',
+    '',
+  ].join('\n');
+
+  it('finds laws written as calls, by their name', () => {
+    const parsed = parseLawFile(text);
+    assert.deepEqual(
+      parsed.laws.map((l) => l.name),
+      ['addition commutes', 'adding zero changes nothing'],
+    );
+    assert.equal(parsed.imports.length, 1);
+    assert.ok(parsed.laws[1]!.text.startsWith('law.proved('));
+    assert.ok(parsed.laws[1]!.text.endsWith('});'));
+  });
+
+  it('replaces a call law of the same name when merging a proposal', () => {
+    const merged = mergeProposal(
+      text,
+      [],
+      [{ name: 'addition commutes', text: "law('addition commutes', (a: number) => true);" }],
+    );
+    assert.equal(parseLawFile(merged).laws.length, 2);
+    assert.ok(merged.includes('(a: number) => true'));
+    assert.ok(!merged.includes('add(a, b) === add(b, a)'));
   });
 });

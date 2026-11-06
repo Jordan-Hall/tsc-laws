@@ -30,7 +30,7 @@ export function acceptedPathFor(proposed: string): string | undefined {
 }
 
 /**
- * Finds the import statements and the `export law ...` declarations of a laws file. `law` is not standard TypeScript, so
+ * Finds the import statements and the laws of a laws file, as `export law ...` declarations or as `law('name', ...)` calls. The keyword is not standard TypeScript, so
  * this scans tokens with the TypeScript scanner (strings, comments and templates are skipped correctly) and matches
  * brackets: a law ends at its closing `}` or at a `;` at depth 0.
  */
@@ -142,7 +142,36 @@ export function parseLawFile(text: string): ParsedLawFile {
     kind = scanner.scan();
   }
   finish(text.length);
+  for (const call of callLaws(text))
+    if (!laws.some((l) => call.start >= l.start && call.start < l.end)) laws.push(call);
+  laws.sort((a, b) => a.start - b.start);
   return { imports, laws };
+}
+
+/** The call-style laws: top-level `law('name', ...)` and `law.proved('name', ...)` statements, found in the syntax tree. */
+function callLaws(text: string): ParsedLaw[] {
+  const source = ts.createSourceFile('laws.ts', text, ts.ScriptTarget.Latest, false, ts.ScriptKind.TS);
+  const found: ParsedLaw[] = [];
+  for (const statement of source.statements) {
+    if (!ts.isExpressionStatement(statement) || !ts.isCallExpression(statement.expression)) continue;
+    const { expression: callee, arguments: args } = statement.expression;
+    const isLaw =
+      (ts.isIdentifier(callee) && callee.text === 'law') ||
+      (ts.isPropertyAccessExpression(callee) &&
+        ts.isIdentifier(callee.expression) &&
+        callee.expression.text === 'law' &&
+        callee.name.text === 'proved');
+    const name = args[0];
+    if (!isLaw || name === undefined || !(ts.isStringLiteral(name) || ts.isNoSubstitutionTemplateLiteral(name)))
+      continue;
+    found.push({
+      name: name.text,
+      text: text.slice(statement.getStart(source), statement.end),
+      start: statement.getStart(source),
+      end: statement.end,
+    });
+  }
+  return found;
 }
 
 const squash = (s: string): string => s.replace(/\s+/g, ' ').trim();

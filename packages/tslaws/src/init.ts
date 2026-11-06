@@ -9,13 +9,13 @@ export const nextStep = 'Next, a person at a terminal runs `tslaws accept` to re
 
 const hooksDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'hooks');
 
-const starterLaws = `// A starter law. A person owns this file: agents propose laws in .tslaws/proposals/ instead.
+const starterLaws = `// A starter law, written as a call so it needs only stock TypeScript (with the tsc-laws compiler it can also be
+// written as \`export law additionCommutes(a: int, b: int) { ... }\`). A person owns this file: agents propose laws in
+// .tslaws/proposals/ instead.
 // Replace it with laws about your own code, then run \`tslaws accept\`.
-import type { int } from 'tslaws';
+import { law, type int } from 'tslaws';
 
-export law additionCommutes(a: int, b: int) {
-  return a + b === b + a;
-}
+law('addition commutes', (a: int, b: int) => a + b === b + a);
 `;
 
 interface HookEntry {

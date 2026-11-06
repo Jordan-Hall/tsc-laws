@@ -11,6 +11,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { Worker } from 'node:worker_threads';
+import { jobs, WorkerPool } from './pool.ts';
 import { dirname, join } from 'node:path';
 import ts from 'typescript';
 import { Executor, SpuriousModel, Unsupported, and, type Value } from './symbolic.ts';
@@ -269,7 +270,6 @@ interface SolverReply {
   error?: string;
 }
 
-let worker: Worker | undefined;
 let nextId = 0;
 
 function startWorker(): Worker {
@@ -280,6 +280,9 @@ function startWorker(): Worker {
   w.unref();
   return w;
 }
+
+// Each Z3 instance holds a large WebAssembly heap; more than four at once run out of memory on the bigger queries.
+const solvers = new WorkerPool(startWorker, Math.min(4, jobs()));
 
 /**
  * Runs the query, and runs it again in a fresh worker when the solver itself fell over (a WebAssembly allocation that
@@ -299,8 +302,7 @@ async function solve(query: string, values: string, timeoutMs: number): Promise<
 
 /** One try: gives up on the whole worker after the timeout plus a grace period. */
 async function solveOnce(query: string, values: string, timeoutMs: number): Promise<{ out: string; vals: string }> {
-  worker ??= startWorker();
-  const current = worker;
+  const current = await solvers.acquire();
   const id = (nextId += 1);
   return new Promise((resolve, reject) => {
     const drop = (): void => {
@@ -309,8 +311,7 @@ async function solveOnce(query: string, values: string, timeoutMs: number): Prom
       current.off('error', onError);
     };
     const kill = (): void => {
-      void current.terminate();
-      if (worker === current) worker = undefined;
+      solvers.discard(current);
     };
     const timer = setTimeout(() => {
       drop();
@@ -323,7 +324,10 @@ async function solveOnce(query: string, values: string, timeoutMs: number): Prom
       if (reply.error !== undefined) {
         kill();
         reject(new Unsupported(`the solver crashed: ${reply.error}`));
-      } else resolve({ out: reply.out ?? '', vals: reply.vals ?? '' });
+      } else {
+        solvers.release(current);
+        resolve({ out: reply.out ?? '', vals: reply.vals ?? '' });
+      }
     };
     const onError = (error: Error): void => {
       drop();
@@ -387,7 +391,8 @@ async function attempt(input: ProveInput, intLimit: bigint | undefined): Promise
       ts.ScriptKind.JS,
     );
     const fn = source.statements.find(
-      (s): s is ts.FunctionDeclaration => ts.isFunctionDeclaration(s) && s.name?.text === input.law.name,
+      (s): s is ts.FunctionDeclaration =>
+        ts.isFunctionDeclaration(s) && s.name?.text === (input.law.symbol ?? input.law.name),
     );
     if (fn === undefined || fn.body === undefined)
       throw new Unsupported('law function not found in the compiled output');

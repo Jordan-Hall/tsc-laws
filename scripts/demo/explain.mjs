@@ -144,10 +144,10 @@ const scenes = {
       '#e8dfc6',
       `<div class="abs a mono" style="right:60px;top:60px;font-size:30px;color:var(--blue)">cart.laws.ts</div>
        <div class="code a" style="--d:.3s;left:60px;top:140px;width:840px;font-size:29px">${codeHtml(
-         'export law totalNeverNegative(\n  price: int, coupon: int) {\n  assume(price >= 0 && coupon >= 0);\n  return total(price, coupon) >= 0;\n}',
+         "law('total is never negative',\n  (price: int, coupon: int) => {\n    assume(price >= 0 && coupon >= 0);\n    return total(price, coupon) >= 0;\n  });\n\n// or, with the keyword:\n// export law totalNeverNegative(\n//   price: int, coupon: int) { ... }",
        )}</div>
-       <div class="pill a" style="--d:1.6s;left:60px;top:560px;background:var(--pink)">you write the rule, once</div>
-       <div class="pill a" style="--d:2.6s;left:60px;top:650px;background:#fff8">plain TypeScript</div>
+       <div class="pill a" style="--d:1.6s;left:60px;top:680px;background:var(--pink)">you write the rule, once</div>
+       <div class="pill a" style="--d:2.6s;left:60px;top:770px;background:#fff8">a call, or a keyword</div>
        <div class="sun a" style="--d:.2s;width:150px;height:150px;right:70px;bottom:80px"></div>`,
     ),
   every: () =>

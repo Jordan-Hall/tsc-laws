@@ -1,6 +1,6 @@
 ## Laws
 
-This project states behaviour as `law` declarations in `*.laws.ts`. They are the person's side of the contract.
+This project states behaviour as laws in `*.laws.ts`, written as calls, `law('name', (a: int) => ...)` and `law.proved('name', ...)`, or, with the tsc-laws compiler, as `export law name(a: int) { ... }` declarations. Use the syntax the existing laws use and never mix the two in one project. They are the person's side of the contract.
 
 - Run `npx tslaws check` before you finish or commit. It must exit 0: every law `proved` or `tested`, none `open`, `failed` or `tampered`.
 - Every exported function must be reached by a law (`uncovered` fails). Do not add `@tslaws-exempt` yourself; the lock rejects it. If code needs a law, ask for one or propose it (see below).

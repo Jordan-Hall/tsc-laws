@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "laws": {
+    "laws/core.laws.ts::a law keeps its name and its line when lowered": "b627b14200a89d42b24f91f0085bd14c5604770d36a32327ebdea70e9522b2ed",
+    "laws/core.laws.ts::a repeated law name is flagged": "212dc864d465c7abfd8092ba8e885f68304148859b3d770dcd14244f36811a9b",
+    "laws/core.laws.ts::call syntax is not mistaken for the keyword syntax": "ae04c6cd805020a0ab8e5eb20f2ae1e73933b672462f3a8fb43bc1772d1e5eb5",
+    "laws/core.laws.ts::stored counterexamples decode to themselves": "f2567d6e266250c51d50b5c5b447b8e425dbf078ee598cbf85e196441e3243e6",
+    "laws/core.laws.ts::stored objects keep keys that look like tags": "d5b9c616773e454259d6b165045335c3b837c8b4831a40ae03c663d6b8718e5e",
+    "laws/core.laws.ts::the lock hash ignores whitespace": "5ee901aafca2f24fcdb0bd7860914b3ce9c3ad148775c965741f67d8b82cf08b",
+    "laws/core.laws.ts::the lock hash sees a law become proved": "2ff107aaefed51184f51d052f035093805de9daf13eb055a83ea593c2d0d5575"
+  },
+  "exempt": []
+}

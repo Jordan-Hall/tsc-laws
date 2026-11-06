@@ -54,7 +54,10 @@ function buildDiagnostics(records, readText) {
 
     const lawText = readText(record.file);
     if (lawText === undefined) continue;
-    const declared = findLaws(lawText).find((l) => l.name === record.name);
+    const found = findLaws(lawText);
+    const declared =
+      found.find((l) => l.name === record.name && record.line - 1 === l.line) ??
+      found.find((l) => l.name === record.name);
     const params = declared?.params ?? [];
     const range = lawRange(lawText, record.name) ?? {
       line: Math.max(0, record.line - 1),

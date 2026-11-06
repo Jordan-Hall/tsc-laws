@@ -186,8 +186,10 @@ export interface CoverageInput {
   lawFiles: string[];
   /** Files named by the `cover` globs; empty means every module the laws reach. */
   coverFiles: string[];
-  /** Declarations the compiler emitted for the program. */
+  /** Declarations the compiler emitted for the program, or the program that compiled the code (then `moduleOf` is given). */
   program: ts.Program;
+  /** Where a module's exports are read from, by its path relative to `cwd`; the emitted declaration when absent. */
+  moduleOf?: (file: string) => string;
 }
 
 const jsOf = (outDir: string, file: string): string => join(outDir, file.replace(/\.(ts|tsx|mts|cts)$/, '.js'));
@@ -264,7 +266,7 @@ export function analyzeCoverage(input: CoverageInput): CoverageReport {
     const module = parseModule(js, modules);
     if (module === undefined) continue;
     const file = sourceOf(input.outDir, input.cwd, js);
-    for (const name of exportedFunctions(input.program, dtsOf(input.outDir, file))) {
+    for (const name of exportedFunctions(input.program, input.moduleOf?.(file) ?? dtsOf(input.outDir, file))) {
       const node = module.nodes.get(name);
       if (node?.exempt === true) exempt.push(`${file}::${name}`);
       else if (!reached.has(key(js, name))) uncovered.push({ file, name });

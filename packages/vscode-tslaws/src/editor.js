@@ -77,7 +77,8 @@ function createEditor(vscode, host) {
         out.push(lens(first, fileLensTitle(mine), 'tslaws.runFile', [doc.uri]));
         out.push(lens(first, '$(play) Run laws in this file', 'tslaws.runFile', [doc.uri]));
         for (const law of findLaws(text)) {
-          const record = mine.find((r) => r.name === law.name);
+          const record =
+            mine.find((r) => r.name === law.name && r.line - 1 === law.line) ?? mine.find((r) => r.name === law.name);
           const at = new vscode.Range(law.line, 0, law.line, 0);
           out.push(lens(at, lawLensTitle(record, ranAt.get(`${rel}::${law.name}`)), 'tslaws.runLaw', [rel, law.name]));
           if (record?.status === 'failed' && record.counterexample !== undefined) {

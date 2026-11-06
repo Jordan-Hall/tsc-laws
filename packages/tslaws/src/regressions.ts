@@ -1,5 +1,6 @@
 // The regression corpus: every counterexample a property test finds is kept under `.tslaws/regressions` and replayed
 // before the random search on later runs, so a bug that was found once cannot silently come back.
+import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -32,7 +33,13 @@ export function encodeValue(value: unknown): Json {
     const proto = Object.getPrototypeOf(value);
     if (proto !== Object.prototype && proto !== null) throw new Error('cannot store a non-plain object');
     const fields: { [key: string]: Json } = {};
-    for (const key of Object.keys(value)) fields[key] = encodeValue((value as Record<string, unknown>)[key]);
+    for (const key of Object.keys(value))
+      Object.defineProperty(fields, key, {
+        value: encodeValue((value as Record<string, unknown>)[key]),
+        enumerable: true,
+        writable: true,
+        configurable: true,
+      });
     return { $t: 'object', v: fields };
   }
   throw new Error(`cannot store a ${typeof value}`);
@@ -81,7 +88,21 @@ const root = (cwd: string): string => join(cwd, '.tslaws', 'regressions');
 
 /** `.tslaws/regressions/<law file with / as __>/<law>.json` */
 export function regressionFile(cwd: string, file: string, name: string): string {
+  return join(root(cwd), file.replace(/[\\/]/g, '__'), `${safeName(name)}.json`);
+}
+
+function legacyFile(cwd: string, file: string, name: string): string {
   return join(root(cwd), file.replace(/[\\/]/g, '__'), `${name}.json`);
+}
+
+/** A law name as a file name on every platform: characters Windows refuses become `_`, and a hash keeps two names apart. */
+function safeName(name: string): string {
+  const safe = [...name]
+    .map((ch) => (ch.charCodeAt(0) < 32 || '<>:"/\\|?*'.includes(ch) ? '_' : ch))
+    .join('')
+    .replace(/[. ]+$/, '');
+  if (safe === name) return name;
+  return `${safe}-${createHash('sha256').update(name).digest('hex').slice(0, 8)}`;
 }
 
 interface Corpus {
@@ -102,7 +123,9 @@ function readCorpus(path: string): Corpus | undefined {
 
 /** The stored examples of a law as the texts `encodeExample` makes, newest first. */
 export function loadExamples(cwd: string, file: string, name: string): string[] {
-  const corpus = readCorpus(regressionFile(cwd, file, name));
+  // Before names were made safe for Windows the file was named with the law's name as written: read that too, so
+  // counterexamples an earlier version stored are still replayed (the next save writes the new name).
+  const corpus = readCorpus(regressionFile(cwd, file, name)) ?? readCorpus(legacyFile(cwd, file, name));
   return corpus === undefined ? [] : corpus.examples.map((e) => JSON.stringify(e));
 }
 

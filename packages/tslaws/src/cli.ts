@@ -17,6 +17,7 @@ import { addProposal, ProposalError } from './proposals.ts';
 import { clearCorpus, listCorpus } from './regressions.ts';
 import { reporterNames, reportAs } from './reporters.ts';
 import { readConfig } from './coverage.ts';
+import { migrateCommand, migrateUsage } from './migrate/index.ts';
 import { mutate, renderMutation } from './mutate.ts';
 import { mutateDefaults, resolveSettings } from './settings.ts';
 import { serveUi } from './ui.ts';
@@ -47,6 +48,7 @@ tslaws propose <file.ts> [--from PATH]   write a proposal into .tslaws/proposals
 tslaws promote <proposal> [--to PATH]   move a proposal from .tslaws/proposals/ into the tree at a path you confirm (people only: needs a terminal; run accept afterwards). Older in-tree *.proposed.laws.ts files still promote with --all or by name (deprecated)
 tslaws list [--json]   the laws files and proposals of the project: the level each runs at (from its imports) and whether it is accepted, unaccepted or proposed (reads files and the lock; runs nothing)
 tslaws mcp [--compiler PATH]   serve check, check_proposed, explain and propose as Model Context Protocol tools on stdio (cannot accept, promote or touch the lock)
+${migrateUsage}
 
 Without files, every *.laws.ts under the current directory (and every file the "laws" globs of tslaws.json pick that declares a law) is checked; with --proposed, the proposals in .tslaws/proposals/ are (and the deprecated in-tree *.proposed.laws.ts files), with no lock and no coverage gate.
 A laws file is a browser law when it imports the browser API (tslaws/browser, tslaws/adapters/*), directly or through its own modules, and an end-to-end law when it imports tslaws/e2e; the .browser.laws.ts and .e2e.laws.ts names are only hints.
@@ -84,6 +86,7 @@ function parse(args: string[]): { command: string; flags: Map<string, string | t
     'root',
     'to',
     'from',
+    'out',
   ]);
   for (let i = 0; i < args.length; i += 1) {
     const arg = args[i]!;
@@ -103,6 +106,7 @@ function parse(args: string[]): { command: string; flags: Map<string, string | t
         arg === 'promote' ||
         arg === 'propose' ||
         arg === 'list' ||
+        arg === 'migrate' ||
         arg === 'delegate')
     )
       command = arg;
@@ -304,9 +308,12 @@ export async function acceptCommand(
   );
   if (!gate.delegated) {
     const rl = createInterface({ input: process.stdin, output: process.stdout });
-    const answer = await rl.question('Type ACCEPT to write tsc-laws.lock: ');
+    const answer = await rl.question('Write tsc-laws.lock? Type accept, yes or y to confirm: ');
     rl.close();
-    if (answer.trim() !== 'ACCEPT') return 1;
+    if (!['accept', 'yes', 'y'].includes(answer.trim().toLowerCase())) {
+      out('Nothing written: the answer was not accept, yes or y. Run `tslaws accept` again to retry.\n');
+      return 1;
+    }
   }
   const before = fileHash(opts.lockFile);
   const exempt = exemptionsOf(opts);
@@ -513,6 +520,9 @@ export async function main(args: string[]): Promise<number> {
     return acceptCommand(cwd, flags, files, { isTTY: process.stdin.isTTY === true, env: process.env });
   if (command === 'delegate')
     return delegateCommand(cwd, files[0], flags, { isTTY: process.stdin.isTTY === true, env: process.env });
+
+  if (command === 'migrate')
+    return migrateCommand(cwd, files[0], files.slice(1), flags, (text) => process.stdout.write(text));
 
   if (command === 'mcp') return serveMcp({ cwd, compiler: options(cwd, flags, []).compiler });
 

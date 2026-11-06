@@ -58,10 +58,19 @@ describe('check --reporter ndjson', { skip: compiler === undefined ? 'set TSC_LA
       '--no-regressions',
     ]);
     assert.equal(status, 1);
+    // Laws run side by side, so the starts may come together; the results still arrive in law order.
+    const types = events.map((e) => e.type);
+    assert.equal(types[0], 'plan');
+    assert.equal(types.at(-1), 'report');
+    assert.deepEqual(types.filter((t) => t === 'start').length, 2);
     assert.deepEqual(
-      events.map((e) => e.type),
-      ['plan', 'start', 'result', 'start', 'result', 'report'],
+      events.filter((e) => e.type === 'result').map((e) => e.result.name),
+      ['dblEven', 'badGrows'],
     );
+    for (const name of ['dblEven', 'badGrows']) {
+      const at = (type: string) => events.findIndex((e) => e.type === type && (e.name ?? e.result?.name) === name);
+      assert.ok(at('start') < at('result'), `${name} started before it finished`);
+    }
     assert.deepEqual(
       events[0]!.laws.map((l: { name: string }) => l.name),
       ['dblEven', 'badGrows'],
