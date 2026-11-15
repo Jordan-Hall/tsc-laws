@@ -87,3 +87,115 @@ export function compareLock(
   for (const key of Object.keys(lock ?? {})) if (!seen.has(key)) violations.push({ key, reason: 'removed' });
   return violations;
 }
+
+/**
+ * One difference between the lock and the project: a law added, changed, removed or moved to another level, or a
+ * coverage exemption added or removed. `fingerprint` names the exact content a person accepts, so an approval given for
+ * one version of a law never accepts a later edit of it.
+ */
+export interface LockChange {
+  key: string;
+  kind: 'law' | 'exempt';
+  reason: 'added' | 'changed' | 'removed' | 'level';
+  fingerprint: string;
+}
+
+const fingerprintOf = (...parts: string[]): string =>
+  createHash('sha256').update(parts.join('\u0000')).digest('hex').slice(0, 16);
+
+/**
+ * Every change a person would record by accepting the project as it is now. `levels` is the level of each laws file
+ * now, or undefined when the lock does not record levels.
+ */
+export function lockChanges(
+  lock: Lock | undefined,
+  laws: ManifestLaw[],
+  exempt: string[],
+  levels?: Record<string, string>,
+): LockChange[] {
+  const byKey = new Map(laws.map((law) => [lawKey(law.file, law.name), law]));
+  const compared = compareLock(
+    lock?.laws,
+    laws,
+    levels === undefined ? undefined : { locked: lock?.levels, now: levels },
+  );
+  const changes: LockChange[] = compared.map((violation) => {
+    const law = byKey.get(violation.key);
+    const hash = law === undefined ? 'removed' : lawHash(law);
+    const level = law === undefined ? '' : (levels?.[law.file.replaceAll('\\', '/')] ?? '');
+    return {
+      key: violation.key,
+      kind: 'law',
+      reason: violation.reason,
+      fingerprint: fingerprintOf('law', violation.key, hash, level),
+    };
+  });
+  const locked = new Set(lock?.exempt ?? []);
+  const now = new Set(exempt);
+  for (const key of [...now].filter((k) => !locked.has(k)).sort())
+    changes.push({ key, kind: 'exempt', reason: 'added', fingerprint: fingerprintOf('exempt', key, 'added') });
+  for (const key of [...locked].filter((k) => !now.has(k)).sort())
+    changes.push({ key, kind: 'exempt', reason: 'removed', fingerprint: fingerprintOf('exempt', key, 'removed') });
+  return changes;
+}
+
+/**
+ * The lock after accepting only the changes whose fingerprints are in `accepted`; every other entry keeps what the lock
+ * had. Levels are recorded per laws file, so a file's level is taken from now once every law change in it is accepted.
+ */
+export function acceptChanges(
+  lock: Lock | undefined,
+  laws: ManifestLaw[],
+  exempt: string[],
+  levels: Record<string, string> | undefined,
+  accepted: ReadonlySet<string>,
+): Lock {
+  const changes = lockChanges(lock, laws, exempt, levels);
+  const taken = changes.filter((c) => accepted.has(c.fingerprint));
+  const byKey = new Map(laws.map((law) => [lawKey(law.file, law.name), law]));
+  const entries: LockEntries = { ...lock?.laws };
+  const exemptions = new Set(lock?.exempt ?? []);
+  for (const change of taken) {
+    if (change.kind === 'exempt') {
+      if (change.reason === 'added') exemptions.add(change.key);
+      else exemptions.delete(change.key);
+      continue;
+    }
+    const law = byKey.get(change.key);
+    if (law === undefined) delete entries[change.key];
+    else entries[change.key] = lawHash(law);
+  }
+  let recorded: Record<string, string> | undefined;
+  if (levels !== undefined) {
+    recorded = { ...lock?.levels };
+    const fileOf = (key: string): string => key.slice(0, key.lastIndexOf('::'));
+    const open = new Set(
+      changes.filter((c) => c.kind === 'law' && !accepted.has(c.fingerprint)).map((c) => fileOf(c.key)),
+    );
+    for (const [file, level] of Object.entries(levels)) if (!open.has(file)) recorded[file] = level;
+    for (const file of Object.keys(recorded))
+      if (!(file in levels) && !Object.keys(entries).some((key) => fileOf(key) === file)) delete recorded[file];
+  }
+  return { laws: entries, exempt: [...exemptions], ...(recorded === undefined ? {} : { levels: recorded }) };
+}
+
+/** Writes a lock value in the same canonical form as `writeLock`. */
+export function writeLockValue(path: string, lock: Lock): void {
+  const laws: LockEntries = {};
+  for (const key of Object.keys(lock.laws).sort((a, b) => a.localeCompare(b))) laws[key] = lock.laws[key]!;
+  const body = {
+    version: 1,
+    laws,
+    exempt: [...lock.exempt].sort(),
+    ...(lock.levels === undefined
+      ? {}
+      : {
+          levels: Object.fromEntries(
+            Object.keys(lock.levels)
+              .sort()
+              .map((f) => [f, lock.levels![f]!]),
+          ),
+        }),
+  };
+  writeFileSync(path, JSON.stringify(body, null, 2) + '\n');
+}

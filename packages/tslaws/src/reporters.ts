@@ -58,9 +58,24 @@ function detail(result: LawResult): string {
   return parts.join('; ');
 }
 
+/** For a law not yet in the lock: what it would be if accepted, e.g. `if accepted: failed, counterexample [0]`. */
+export function proposalText(result: LawResult): string | undefined {
+  const p = result.proposal;
+  if (p === undefined) return undefined;
+  const detail =
+    p.counterexample !== undefined
+      ? `, counterexample ${p.counterexample}`
+      : p.status === 'failed' && p.message !== undefined
+        ? `, ${p.message.split('\n')[0]}`
+        : '';
+  return `proposal (${p.reason}); if accepted: ${p.status} [${p.method}]${detail}`;
+}
+
 function failureText(result: LawResult): string {
   const lines = [`${result.status.toUpperCase()} ${result.name} (${result.file}:${result.line}) [${result.method}]`];
   if (result.message !== undefined) lines.push(result.message);
+  const proposed = proposalText(result);
+  if (proposed !== undefined) lines.push(proposed);
   if (result.counterexample !== undefined) lines.push(`counterexample: ${result.counterexample}`);
   const hint = hintFor(result);
   if (hint !== undefined) lines.push(`hint: ${hint}`);

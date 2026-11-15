@@ -25,7 +25,7 @@ import { inProposals } from './lawFiles.ts';
 import { classifyLawFile, type KindVerdict } from './lawKinds.ts';
 import { normaliseProposal } from './proposals.ts';
 import { declarationOf, exercisesOf, markFailing, Sources, type Exercised } from './exercises.ts';
-import type { CheckOptions, LawResult, ManifestLaw } from './types.ts';
+import type { CheckOptions, ProposalOutcome, LawResult, ManifestLaw } from './types.ts';
 
 type Add = (law: ManifestLaw, status: LawResult['status'], method: string, extra?: Partial<LawResult>) => void;
 
@@ -86,6 +86,11 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
   const notices: string[] = [];
   // The level of a laws file comes from its name (the default) or its imports (`levels: "imports"`); looked at once per file.
   const levelsMode = readConfig(options.cwd).levels ?? 'names';
+  // Who records a law in the lock: a person locally, or the tslaws workflow on merge when "github" is configured.
+  const acceptor =
+    readConfig(options.cwd).github !== undefined
+      ? 'it is accepted by the tslaws workflow when the pull request merges'
+      : 'a person must run `tslaws accept`';
   const verdicts = new Map<string, KindVerdict>();
   const verdictOf = (file: string): KindVerdict => {
     let verdict = verdicts.get(file);
@@ -105,17 +110,43 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
       return [];
     }
   };
+  // Laws the lock does not record as they are now: they still run, and their result is reported as what the law would
+  // be once accepted, under a `tampered` status that keeps the check failing until the lock records them.
+  const pending = new Map<string, { reason: ProposalOutcome['reason']; message: string }>();
   const add = (law: ManifestLaw, status: LawResult['status'], method: string, extra: Partial<LawResult> = {}): void => {
     const exercises = status === 'tampered' ? [] : (extra.exercises ?? exercisesFor(law));
-    const result: LawResult = {
-      file: law.file,
-      name: law.name,
-      line: law.line,
-      status,
-      method,
-      ...extra,
-      ...(exercises.length > 0 ? { exercises } : {}),
-    };
+    const proposed =
+      status === 'tampered' || status === 'uncovered' ? undefined : pending.get(lawKey(law.file, law.name));
+    const result: LawResult =
+      proposed === undefined
+        ? {
+            file: law.file,
+            name: law.name,
+            line: law.line,
+            status,
+            method,
+            ...extra,
+            ...(exercises.length > 0 ? { exercises } : {}),
+          }
+        : {
+            file: law.file,
+            name: law.name,
+            line: law.line,
+            status: 'tampered',
+            method: 'lock',
+            message: proposed.message,
+            ...(extra.seed === undefined ? {} : { seed: extra.seed }),
+            ...(extra.runs === undefined ? {} : { runs: extra.runs }),
+            ...(extra.screenshot === undefined ? {} : { screenshot: extra.screenshot }),
+            proposal: {
+              reason: proposed.reason,
+              status: status as ProposalOutcome['status'],
+              method,
+              ...(extra.counterexample === undefined ? {} : { counterexample: extra.counterexample }),
+              ...(extra.message === undefined ? {} : { message: extra.message }),
+            },
+            ...(exercises.length > 0 ? { exercises } : {}),
+          };
     results.push(result);
     blocked.add(lawKey(law.file, law.name));
     options.onEvent?.({ type: 'result', result });
@@ -149,14 +180,16 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
           status: 'tampered',
           method: 'lock',
           message: 'law was removed since the lock was accepted',
+          proposal: { reason: 'removed', status: 'proved', method: 'lock', message: 'removing a law runs nothing' },
         });
       } else {
-        add(law, 'tampered', 'lock', {
+        pending.set(violation.key, {
+          reason: violation.reason,
           message:
             violation.reason === 'added'
-              ? 'law is not in the lock; a person must run `tslaws accept`'
+              ? `law is not in the lock; ${acceptor}`
               : violation.reason === 'level'
-                ? 'the level this laws file runs at (node, browser or e2e) changed since the lock was accepted; a person must run `tslaws accept`'
+                ? `the level this laws file runs at (node, browser or e2e) changed since the lock was accepted; ${acceptor}`
                 : 'law changed since the lock was accepted',
         });
       }
@@ -399,7 +432,8 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
         line: 0,
         status: 'tampered',
         method: 'lock',
-        message: 'exempted from coverage but not in the lock; a person must run `tslaws accept`',
+        message: `exempted from coverage but not in the lock; ${acceptor}`,
+        proposal: { reason: 'exempt', status: 'proved', method: 'lock', message: 'an exemption runs nothing' },
       });
     }
   }

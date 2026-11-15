@@ -1,0 +1,36 @@
+name: tslaws
+description: Flag and run each law proposal on a pull request, record /tslaws accept comments, and write tsc-laws.lock on merge.
+inputs:
+  mode:
+    description: report | command | merge | verify
+    required: true
+  token:
+    description: Token for the GitHub API. For merge and command, use the tslaws GitHub App's token so the bot's commits and comments are the app's.
+    required: true
+  working-directory:
+    description: The project root (where tslaws.json and tsc-laws.lock live).
+    default: .
+  args:
+    description: Extra arguments for `tslaws github <mode>`.
+    default: ''
+outputs:
+  proposals:
+    description: (report) how many proposals the pull request makes
+    value: ${{ steps.run.outputs.proposals }}
+  accepted:
+    description: (merge) how many law changes were written to the lock
+    value: ${{ steps.run.outputs.accepted }}
+runs:
+  using: composite
+  steps:
+    - id: run
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        GITHUB_TOKEN: ${{ inputs.token }}
+        MODE: ${{ inputs.mode }}
+        ARGS: ${{ inputs.args }}
+      run: |
+        case "$MODE" in report|command|merge|verify) ;; *) echo "::error::unknown mode $MODE"; exit 1;; esac
+        # shellcheck disable=SC2086
+        npx --no-install tslaws github "$MODE" $ARGS
