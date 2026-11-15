@@ -73,7 +73,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
       - run: npm ci
-      - uses: Jordan-Hall/tsc-laws/packages/tslaws/github@master
+      - uses: Jordan-Hall/tsc-laws/packages/tslaws/github@main
         with: { mode: report, token: '${{ github.token }}', args: --comment }
 ```
 
@@ -90,7 +90,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
       - run: npm ci
-      - uses: Jordan-Hall/tsc-laws/packages/tslaws/github@master
+      - uses: Jordan-Hall/tsc-laws/packages/tslaws/github@main
         with:
           mode: verify
           token: '${{ github.token }}'
@@ -120,7 +120,7 @@ jobs:
         env: { GH_TOKEN: '${{ github.token }}' }
       - uses: actions/checkout@v4 # the pull request's files, read as data only (no npm ci, no scripts)
         with: { ref: '${{ steps.pr.outputs.sha }}', path: pr, persist-credentials: false }
-      - uses: Jordan-Hall/tsc-laws/packages/tslaws/github@master
+      - uses: Jordan-Hall/tsc-laws/packages/tslaws/github@main
         with:
           mode: command
           working-directory: pr
@@ -146,7 +146,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
       - run: npm ci
-      - uses: Jordan-Hall/tsc-laws/packages/tslaws/github@master
+      - uses: Jordan-Hall/tsc-laws/packages/tslaws/github@main
         with: { mode: merge, token: '${{ steps.app.outputs.token }}' }
 ```
 
