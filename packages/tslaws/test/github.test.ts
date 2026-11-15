@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, it } from 'node:test';
 import { acceptCommand } from '../dist/cli.js';
+const cfg = (extra: object = {}) => ({ ...githubDefaults, bot: 'tslaws[bot]', ...extra }) as never;
 import {
   acceptedFingerprints,
   approvalMarker,
@@ -179,10 +180,7 @@ ${forged} trailing`,
       fingerprint: 'x',
       passes: true,
     };
-    assert.equal(
-      renderSticky([law as never], githubDefaults, new Map(), (p) => p.name).includes('<!-- tslaws-approval'),
-      false,
-    );
+    assert.equal(renderSticky([law as never], cfg(), new Map(), (p) => p.name).includes('<!-- tslaws-approval'), false);
   });
 });
 
@@ -211,30 +209,30 @@ describe('decisions', () => {
   });
 
   it('merge mode accepts passing proposals and holds failing ones', () => {
-    const decision = decide(proposals, githubDefaults, new Map());
+    const decision = decide(proposals, cfg(), new Map());
     assert.deepEqual([...decision.accept], [proposals[1]!.fingerprint]);
     assert.match(decision.held[0]!.why, /failed/);
   });
 
   it('comment mode needs an accept for the exact fingerprint', () => {
-    const config = { ...githubDefaults, accept: 'comment' as const };
+    const config = cfg({ accept: 'comment' });
     assert.equal(decide(proposals, config, new Map()).accept.size, 0);
     const approvals = new Map([[proposals[1]!.fingerprint, 'alice']]);
     assert.deepEqual([...decide(proposals, config, approvals).accept], [proposals[1]!.fingerprint]);
   });
 
   it('the pull request fails on a failing proposal, and in comment mode on a waiting one', () => {
-    const verdict = pullRequestVerdict(results, proposals, githubDefaults, new Map());
+    const verdict = pullRequestVerdict(results, proposals, cfg(), new Map());
     assert.equal(verdict.ok, false);
     assert.match(verdict.problems.join('\n'), /proposal grows .* failed/);
     const passing = proposalsOf(changes.slice(1), report([]));
-    assert.equal(pullRequestVerdict(report([]), passing, githubDefaults, new Map()).ok, true);
-    const comment = { ...githubDefaults, accept: 'comment' as const };
+    assert.equal(pullRequestVerdict(report([]), passing, cfg(), new Map()).ok, true);
+    const comment = cfg({ accept: 'comment' });
     assert.equal(pullRequestVerdict(report([]), passing, comment, new Map()).ok, false);
   });
 
   it('renders one row per proposal', () => {
-    const text = renderSticky(proposals, githubDefaults, new Map(), (p) => p.name);
+    const text = renderSticky(proposals, cfg(), new Map(), (p) => p.name);
     assert.match(text, /\| grows \| law added \| ❌ failed — counterexample `\[\]` \| 🚫/);
     assert.match(text, /\| gone \| law removed \| ✅ proved \| ⏳ accepted on merge \|/);
   });
@@ -242,9 +240,12 @@ describe('decisions', () => {
 
 describe('config', () => {
   it('defaults to accepting on merge into master', () => {
-    assert.deepEqual(parseGithubConfig({}), githubDefaults);
+    assert.deepEqual(parseGithubConfig({ bot: 'tslaws[bot]' }), cfg());
+    assert.throws(() => parseGithubConfig({}), /"bot" is required/);
+    assert.throws(() => parseGithubConfig({ bot: 'github-actions[bot]' }), /dedicated GitHub App/);
+    assert.throws(() => parseGithubConfig({ bot: 'GitHub-Actions[bot]', accept: 'comment' }), /dedicated GitHub App/);
     assert.equal(githubDefaults.branch, 'master');
-    assert.equal(parseGithubConfig({ branch: 'main', accept: 'comment' }).branch, 'main');
+    assert.equal(parseGithubConfig({ bot: 'tslaws[bot]', branch: 'main', accept: 'comment' }).branch, 'main');
   });
   it('refuses unknown options and bad values', () => {
     assert.throws(() => parseGithubConfig({ acept: 'merge' }), /unknown option "acept"/);
@@ -270,20 +271,17 @@ describe('approvers', () => {
           : [];
 
   it('lets the author or a reviewer with write access accept', async () => {
-    assert.equal(await refusal(api('write'), 'o/r', pr, 'author', 'User', githubDefaults), undefined);
-    assert.equal(await refusal(api('write', ['rev']), 'o/r', pr, 'rev', 'User', githubDefaults), undefined);
+    assert.equal(await refusal(api('write'), 'o/r', pr, 'author', 'User', cfg()), undefined);
+    assert.equal(await refusal(api('write', ['rev']), 'o/r', pr, 'rev', 'User', cfg()), undefined);
   });
   it('refuses bots, readers and bystanders', async () => {
-    assert.match((await refusal(api('admin'), 'o/r', pr, 'helper[bot]', 'Bot', githubDefaults))!, /bots/);
-    assert.match((await refusal(api('read'), 'o/r', pr, 'author', 'User', githubDefaults))!, /write access/);
-    assert.match(
-      (await refusal(api('write'), 'o/r', pr, 'someone', 'User', githubDefaults))!,
-      /not one of the approvers/,
-    );
+    assert.match((await refusal(api('admin'), 'o/r', pr, 'helper[bot]', 'Bot', cfg()))!, /bots/);
+    assert.match((await refusal(api('read'), 'o/r', pr, 'author', 'User', cfg()))!, /write access/);
+    assert.match((await refusal(api('write'), 'o/r', pr, 'someone', 'User', cfg()))!, /not one of the approvers/);
   });
   it('a bot-authored pull request cannot be accepted by its author', async () => {
     const botPr = { ...pr, user: { login: 'agent', type: 'Bot' } };
-    assert.match((await refusal(api('write'), 'o/r', botPr, 'agent', 'User', githubDefaults))!, /not one of/);
+    assert.match((await refusal(api('write'), 'o/r', botPr, 'agent', 'User', cfg()))!, /not one of/);
   });
 });
 
@@ -291,7 +289,7 @@ describe('local accept', () => {
   it('refuses when the project accepts laws on GitHub', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'tslaws-gh-'));
     try {
-      writeFileSync(join(dir, 'tslaws.json'), JSON.stringify({ github: { branch: 'master' } }));
+      writeFileSync(join(dir, 'tslaws.json'), JSON.stringify({ github: { bot: 'tslaws[bot]', branch: 'master' } }));
       writeFileSync(join(dir, 'a.laws.ts'), 'export law ok() { return true; }\n');
       let err = '';
       const code = await acceptCommand(dir, new Map(), [], {
@@ -338,6 +336,7 @@ describe('lock tampering', () => {
       rmSync(dir, { recursive: true, force: true });
     }
   };
+  const baseConfig = { content: Buffer.from(JSON.stringify({ github: { bot: 'tslaws[bot]' } })).toString('base64') };
   const pull = { number: 3, user: { login: 'a', type: 'User' }, head: { sha: 'h' }, base: { ref: 'master', sha: 'b' } };
 
   it('verify fails a pull request whose diff changes the lock, whatever its commits list', async () => {
@@ -345,7 +344,7 @@ describe('lock tampering', () => {
       path.endsWith('/files')
         ? [{ filename: 'src/a.ts' }, { filename: 'tsc-laws.lock' }]
         : path.includes('/contents/')
-          ? new Error('404')
+          ? baseConfig
           : [],
     );
     assert.equal(code, 1);
@@ -354,7 +353,7 @@ describe('lock tampering', () => {
 
   it('verify passes a pull request that leaves the lock alone', async () => {
     const { code } = await run('verify', { pull_request: pull }, (path) =>
-      path.endsWith('/files') ? [{ filename: 'src/a.ts' }] : path.includes('/contents/') ? new Error('404') : [],
+      path.endsWith('/files') ? [{ filename: 'src/a.ts' }] : path.includes('/contents/') ? baseConfig : [],
     );
     assert.equal(code, 0);
   });

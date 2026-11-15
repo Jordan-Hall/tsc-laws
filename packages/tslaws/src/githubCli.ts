@@ -110,10 +110,12 @@ function event(env: NodeJS.ProcessEnv): Record<string, any> {
   return path !== undefined && existsSync(path) ? (JSON.parse(readFileSync(path, 'utf8')) as Record<string, any>) : {};
 }
 
-/** The `github` section of a tslaws.json text, with defaults; tslaws.json without one gets the defaults too. */
+/** The `github` section of a tslaws.json text, with defaults. It must exist: it names the bot every check trusts. */
 export function githubConfigOf(text: string | undefined): GithubConfig {
-  if (text === undefined) return parseGithubConfig(undefined);
-  return parseGithubConfig((JSON.parse(text) as { github?: unknown }).github);
+  const raw = text === undefined ? undefined : (JSON.parse(text) as { github?: unknown }).github;
+  if (raw === undefined)
+    throw new Error('tslaws github needs a "github" section in tslaws.json, with "bot" set to the tslaws GitHub App');
+  return parseGithubConfig(raw);
 }
 
 interface ProjectState {

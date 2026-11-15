@@ -17,7 +17,11 @@ export interface GithubConfig {
   accept: 'merge' | 'comment';
   /** The branch whose merges write the lock. Default `master`. */
   branch: string;
-  /** The login of the app or bot that alone may change tsc-laws.lock. Default `github-actions[bot]`. */
+  /**
+   * The login of the GitHub App that alone writes tsc-laws.lock and the approval records, e.g. `tslaws-acme[bot]`.
+   * Required, and never `github-actions[bot]`: every workflow's token acts as that account, including jobs that run a
+   * pull request's code, so it could forge records and lock commits.
+   */
   bot: string;
   /**
    * Who may accept in comment mode: `author` (the pull request's author, when a person), `reviewers` (anyone asked to
@@ -31,10 +35,10 @@ export interface GithubConfig {
   requirePassing: boolean;
 }
 
-export const githubDefaults: GithubConfig = {
+/** The defaults for every option but `bot`, which has none. */
+export const githubDefaults: Omit<GithubConfig, 'bot'> = {
   accept: 'merge',
   branch: 'master',
-  bot: 'github-actions[bot]',
   approvers: ['author', 'reviewers'],
   approvePullRequest: false,
   requirePassing: true,
@@ -42,12 +46,14 @@ export const githubDefaults: GithubConfig = {
 
 const approverKinds = ['author', 'reviewers', 'write', 'maintain', 'admin'] as const;
 
+/** Logins any workflow can act as. */
+const sharedBots = new Set(['github-actions[bot]', 'github-actions', 'dependabot[bot]']);
+
 /** Validates the `github` section of tslaws.json and fills in the defaults. */
 export function parseGithubConfig(raw: unknown): GithubConfig {
   const fail = (message: string): never => {
     throw new Error(`tslaws.json: "github": ${message}`);
   };
-  if (raw === undefined || raw === true) return { ...githubDefaults };
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return fail('must be an object');
   const o = raw as Record<string, unknown>;
   const known = ['accept', 'branch', 'bot', 'approvers', 'approvePullRequest', 'requirePassing'];
@@ -67,7 +73,12 @@ export function parseGithubConfig(raw: unknown): GithubConfig {
     fail(`"approvers" must be a non-empty array of ${approverKinds.join(', ')}`);
   for (const key of ['approvePullRequest', 'requirePassing'] as const)
     if (o[key] !== undefined && typeof o[key] !== 'boolean') fail(`"${key}" must be true or false`);
-  return { ...githubDefaults, ...(o as Partial<GithubConfig>) };
+  if (o.bot === undefined) fail('"bot" is required: the login of the tslaws GitHub App, e.g. "tslaws-acme[bot]"');
+  if (sharedBots.has(String(o.bot).toLowerCase()))
+    fail(
+      `"bot" cannot be ${JSON.stringify(o.bot)}: every workflow token acts as that account, so it could forge approvals and lock commits; use a dedicated GitHub App`,
+    );
+  return { ...githubDefaults, ...(o as Partial<GithubConfig>), bot: String(o.bot) };
 }
 
 // ---- proposals --------------------------------------------------------------------------------------------------

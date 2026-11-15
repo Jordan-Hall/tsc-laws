@@ -15,7 +15,7 @@ accepted: proved, bounded, tested, or failed with a counterexample. `tslaws chec
     "accept": "merge", // "merge": every passing proposal is accepted on merge (default)
     // "comment": a proposal also needs `/tslaws accept` from an approver
     "branch": "master", // the branch whose pushes write the lock (default "master")
-    "bot": "tslaws[bot]", // the login that writes the lock and the approval records
+    "bot": "tslaws-acme[bot]", // required: your tslaws GitHub App (never github-actions[bot])
     "approvers": ["author", "reviewers"], // comment mode: who may accept; each also needs write access
     "requirePassing": true, // a failing proposal is never accepted (default true)
     "approvePullRequest": false, // comment mode: approve the pull request once every proposal is accepted
