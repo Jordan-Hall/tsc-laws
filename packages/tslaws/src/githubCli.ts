@@ -23,6 +23,7 @@ import {
   recordComment,
   decide,
   parseCommands,
+  isSharedBot,
   parseGithubConfig,
   proposalsOf,
   pullRequestVerdict,
@@ -113,8 +114,7 @@ function event(env: NodeJS.ProcessEnv): Record<string, any> {
 /** The `github` section of a tslaws.json text, with defaults. It must exist: it names the bot every check trusts. */
 export function githubConfigOf(text: string | undefined): GithubConfig {
   const raw = text === undefined ? undefined : (JSON.parse(text) as { github?: unknown }).github;
-  if (raw === undefined)
-    throw new Error('tslaws github needs a "github" section in tslaws.json, with "bot" set to the tslaws GitHub App');
+  if (raw === undefined) throw new Error('tslaws github needs a "github" section in tslaws.json');
   return parseGithubConfig(raw);
 }
 
@@ -363,6 +363,11 @@ async function command(ctx: GithubContext): Promise<number> {
 async function merge(ctx: GithubContext): Promise<number> {
   const configText = readText(join(ctx.cwd, 'tslaws.json'));
   const config = githubConfigOf(configText);
+  if (isSharedBot(config))
+    ctx.out(
+      `::warning title=tslaws::"bot" is ${config.bot}, which every workflow can act as; only a ruleset on ${config.branch} that restricts tsc-laws.lock keeps other workflows from writing it. A dedicated GitHub App closes this.
+`,
+    );
   const ev = event(ctx.env);
   const ref = String(ev.ref ?? ctx.env.GITHUB_REF ?? '');
   if (ref !== `refs/heads/${config.branch}`) {

@@ -15,13 +15,29 @@ accepted: proved, bounded, tested, or failed with a counterexample. `tslaws chec
     "accept": "merge", // "merge": every passing proposal is accepted on merge (default)
     // "comment": a proposal also needs `/tslaws accept` from an approver
     "branch": "master", // the branch whose pushes write the lock (default "master")
-    "bot": "tslaws-acme[bot]", // required: your tslaws GitHub App (never github-actions[bot])
+    "bot": "tslaws-acme[bot]", // who writes the lock (default "github-actions[bot]"; see "Choosing the bot")
     "approvers": ["author", "reviewers"], // comment mode: who may accept; each also needs write access
     "requirePassing": true, // a failing proposal is never accepted (default true)
     "approvePullRequest": false, // comment mode: approve the pull request once every proposal is accepted
   },
 }
 ```
+
+## Choosing the bot
+
+| `bot`                            | Works with                        | Setup                                    | What stops a forged lock                                 |
+| -------------------------------- | --------------------------------- | ---------------------------------------- | -------------------------------------------------------- |
+| `github-actions[bot]` (default)  | `accept: "merge"` only            | none: the merge job uses `github.token`  | the ruleset on `branch` alone                            |
+| a GitHub App (`<app-slug>[bot]`) | `accept: "merge"` and `"comment"` | create the app, store its key as secrets | the ruleset, and `merge` checks every lock commit itself |
+
+Every workflow's token acts as `github-actions[bot]`, including jobs that run a pull request's code. So with the default,
+a pull request could post comments that look like the bot's, and `accept: "comment"` refuses it. In merge mode no
+approval records are read, but `merge` cannot tell the tslaws job's lock commits from any other workflow's, so the
+ruleset in "Making it impossible to bypass" must be in place. `merge` prints a warning on every run until `bot` is an
+app.
+
+With the default bot, give the merge job `permissions: { contents: write, pull-requests: write }` and pass
+`token: '${{ github.token }}'` instead of the app token.
 
 ## On the pull request
 
@@ -150,7 +166,7 @@ jobs:
         with: { mode: merge, token: '${{ steps.app.outputs.token }}' }
 ```
 
-Set `bot` to the app's login (`<app-slug>[bot]`). The app needs these permissions: **Contents: write**, **Pull
+With an app, set `bot` to its login (`<app-slug>[bot]`). The app needs these permissions: **Contents: write**, **Pull
 requests: write**, **Issues: write** and **Actions: write** (Actions is for `--rerun-workflow`).
 
 ## Making it impossible to bypass

@@ -241,8 +241,9 @@ describe('decisions', () => {
 describe('config', () => {
   it('defaults to accepting on merge into master', () => {
     assert.deepEqual(parseGithubConfig({ bot: 'tslaws[bot]' }), cfg());
-    assert.throws(() => parseGithubConfig({}), /"bot" is required/);
-    assert.throws(() => parseGithubConfig({ bot: 'github-actions[bot]' }), /dedicated GitHub App/);
+    assert.equal(parseGithubConfig({}).bot, 'github-actions[bot]');
+    assert.equal(parseGithubConfig({ bot: 'github-actions[bot]', accept: 'merge' }).accept, 'merge');
+    assert.throws(() => parseGithubConfig({ accept: 'comment' }), /dedicated GitHub App/);
     assert.throws(() => parseGithubConfig({ bot: 'GitHub-Actions[bot]', accept: 'comment' }), /dedicated GitHub App/);
     assert.equal(githubDefaults.branch, 'master');
     assert.equal(parseGithubConfig({ bot: 'tslaws[bot]', branch: 'main', accept: 'comment' }).branch, 'main');

@@ -18,9 +18,10 @@ export interface GithubConfig {
   /** The branch whose merges write the lock. Default `master`. */
   branch: string;
   /**
-   * The login of the GitHub App that alone writes tsc-laws.lock and the approval records, e.g. `tslaws-acme[bot]`.
-   * Required, and never `github-actions[bot]`: every workflow's token acts as that account, including jobs that run a
-   * pull request's code, so it could forge records and lock commits.
+   * The login that alone writes tsc-laws.lock and the approval records. Default `github-actions[bot]`, allowed only
+   * with `accept: "merge"`: every workflow's token acts as that account, including jobs that run a pull request's
+   * code, so it could forge approval records, and only a ruleset on the branch keeps it from writing the lock. A
+   * dedicated GitHub App (`<app-slug>[bot]`) is required for `accept: "comment"` and is the stronger choice for both.
    */
   bot: string;
   /**
@@ -35,10 +36,10 @@ export interface GithubConfig {
   requirePassing: boolean;
 }
 
-/** The defaults for every option but `bot`, which has none. */
-export const githubDefaults: Omit<GithubConfig, 'bot'> = {
+export const githubDefaults: GithubConfig = {
   accept: 'merge',
   branch: 'master',
+  bot: 'github-actions[bot]',
   approvers: ['author', 'reviewers'],
   approvePullRequest: false,
   requirePassing: true,
@@ -48,6 +49,11 @@ const approverKinds = ['author', 'reviewers', 'write', 'maintain', 'admin'] as c
 
 /** Logins any workflow can act as. */
 const sharedBots = new Set(['github-actions[bot]', 'github-actions', 'dependabot[bot]']);
+
+/** Whether the bot is an account any workflow can act as, rather than a dedicated GitHub App. */
+export function isSharedBot(config: GithubConfig): boolean {
+  return sharedBots.has(config.bot.toLowerCase());
+}
 
 /** Validates the `github` section of tslaws.json and fills in the defaults. */
 export function parseGithubConfig(raw: unknown): GithubConfig {
@@ -73,12 +79,12 @@ export function parseGithubConfig(raw: unknown): GithubConfig {
     fail(`"approvers" must be a non-empty array of ${approverKinds.join(', ')}`);
   for (const key of ['approvePullRequest', 'requirePassing'] as const)
     if (o[key] !== undefined && typeof o[key] !== 'boolean') fail(`"${key}" must be true or false`);
-  if (o.bot === undefined) fail('"bot" is required: the login of the tslaws GitHub App, e.g. "tslaws-acme[bot]"');
-  if (sharedBots.has(String(o.bot).toLowerCase()))
+  const config: GithubConfig = { ...githubDefaults, ...(o as Partial<GithubConfig>) };
+  if (config.accept === 'comment' && isSharedBot(config))
     fail(
-      `"bot" cannot be ${JSON.stringify(o.bot)}: every workflow token acts as that account, so it could forge approvals and lock commits; use a dedicated GitHub App`,
+      `accept "comment" needs "bot" set to a dedicated GitHub App, not ${JSON.stringify(config.bot)}: every workflow token acts as that account, so a pull request could forge approvals`,
     );
-  return { ...githubDefaults, ...(o as Partial<GithubConfig>), bot: String(o.bot) };
+  return config;
 }
 
 // ---- proposals --------------------------------------------------------------------------------------------------
