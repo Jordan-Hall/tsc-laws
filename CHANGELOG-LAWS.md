@@ -2,6 +2,14 @@
 
 The upstream tsc-ts changelog is CHANGELOG.md. Releases of tsc-laws are tagged `laws-v<version>` (see RELEASING-LAWS.md).
 
+## [0.10.0](https://github.com/Jordan-Hall/tsc-laws/compare/laws-v0.9.0...laws-v0.10.0) (2026-11-16)
+
+
+### Features
+
+* **tslaws:** run every project in a monorepo from the root ([#37](https://github.com/Jordan-Hall/tsc-laws/issues/37)) ([9b905f1](https://github.com/Jordan-Hall/tsc-laws/commit/9b905f1309514722ef053ff2844eeb7a60b0a8ba))
+* **tslaws:** support import.meta.env and extensionless imports in TypeScript dependencies ([#44](https://github.com/Jordan-Hall/tsc-laws/issues/44)) ([244d986](https://github.com/Jordan-Hall/tsc-laws/commit/244d98605da3eb84272bc08e393e05eeda13dd67))
+
 ## [0.9.0](https://github.com/Jordan-Hall/tsc-laws/compare/laws-v0.8.0...laws-v0.9.0) (2026-11-16)
 
 
