@@ -19,6 +19,7 @@ import {
   pullRequestVerdict,
   readApprovals,
   renderSticky,
+  stickyMarkerFor,
   resolveNames,
 } from '../dist/github.js';
 import { githubCommand, refusal } from '../dist/githubCli.js';
@@ -313,6 +314,7 @@ describe('lock tampering', () => {
     payload: object,
     routes: (path: string) => unknown,
     env: Record<string, string> = {},
+    projectPath = '',
   ) => {
     const dir = mkdtempSync(join(tmpdir(), 'tslaws-gh-'));
     try {
@@ -321,6 +323,7 @@ describe('lock tampering', () => {
       let out = '';
       const code = await githubCommand(mode, {
         cwd: dir,
+        projectPath,
         options: { cwd: dir, files: [], compiler: 'tsc-laws', lockFile: join(dir, 'tsc-laws.lock') } as never,
         env: { GITHUB_EVENT_PATH: join(dir, 'event.json'), GITHUB_REPOSITORY: 'o/r', ...env },
         flags: new Map(),
@@ -407,5 +410,132 @@ describe('lock tampering', () => {
     );
     assert.equal(code, 1);
     assert.match(out, /this push changed tsc-laws\.lock/);
+  });
+  describe('in a monorepo', () => {
+    const lockPath = 'packages/ui/tsc-laws.lock';
+
+    it("verify flags this project's lock and github section, by repo-relative path", async () => {
+      const changedLock = await run(
+        'verify',
+        { pull_request: pull },
+        (path) =>
+          path.endsWith('/files')
+            ? [{ filename: lockPath }]
+            : path.includes('/contents/packages/ui/tslaws.json')
+              ? baseConfig
+              : [],
+        {},
+        'packages/ui',
+      );
+      assert.equal(changedLock.code, 1);
+      assert.match(changedLock.out, /changes packages\/ui\/tsc-laws\.lock/);
+
+      const headConfig = {
+        content: Buffer.from(JSON.stringify({ github: { bot: 'evil[bot]' } })).toString('base64'),
+      };
+      const changedSection = await run(
+        'verify',
+        { pull_request: pull },
+        (path) =>
+          path.endsWith('/files')
+            ? [{ filename: 'packages/ui/tslaws.json' }]
+            : path.includes('/contents/packages/ui/tslaws.json')
+              ? path.includes('ref=h')
+                ? headConfig
+                : baseConfig
+              : [],
+        {},
+        'packages/ui',
+      );
+      assert.equal(changedSection.code, 1);
+      assert.match(changedSection.out, /"github" section of packages\/ui\/tslaws\.json/);
+
+      const otherProject = await run(
+        'verify',
+        { pull_request: pull },
+        (path) =>
+          path.endsWith('/files')
+            ? [{ filename: 'packages/other/tsc-laws.lock' }]
+            : path.includes('/contents/packages/ui/tslaws.json')
+              ? baseConfig
+              : [],
+        {},
+        'packages/ui',
+      );
+      assert.equal(otherProject.code, 0);
+    });
+
+    const push = (commits: object[]) => ({
+      ref: 'refs/heads/master',
+      before: 'a'.repeat(40),
+      after: 'c'.repeat(40),
+      commits,
+    });
+
+    it("merge reads the lock at the project path and ignores another project's bot commit", async () => {
+      const seen: string[] = [];
+      const botOnOther = { id: 'd'.repeat(40), modified: ['packages/other/tsc-laws.lock'], author: { username: 'x' } };
+      const { out } = await run(
+        'merge',
+        push([botOnOther]),
+        (path) => {
+          seen.push(path);
+          if (path.includes('/contents/packages/ui/tsc-laws.lock')) return { sha: 'same', content: '' };
+          if (path.includes('/commits/') && !path.includes('/pulls')) throw new Error('byBot must not be asked');
+          return [];
+        },
+        {},
+        'packages/ui',
+      );
+      // It goes on to read the laws (the stand-in options have none), so the exit code is not the point: no check refused.
+      assert.doesNotMatch(out, /moved on|not made by|this push changed|bot writing/);
+      assert.ok(seen.some((p) => p.includes('/contents/packages/ui/tsc-laws.lock?ref=')));
+      assert.ok(!seen.some((p) => p.includes('/contents/tsc-laws.lock')));
+    });
+
+    it("merge does not mistake a root lock commit for this project's", async () => {
+      const rootLock = { id: 'd'.repeat(40), modified: ['tsc-laws.lock'], author: { username: 'x' } };
+      const { code, out } = await run('merge', push([rootLock]), () => [], {}, 'packages/ui');
+      assert.equal(code, 0);
+      assert.doesNotMatch(out, /not made by/);
+    });
+
+    it("merge refuses a commit that changed this project's lock and was not the bot's", async () => {
+      const mine = { id: 'd'.repeat(40), modified: [lockPath], author: { username: 'x' } };
+      const { code, out } = await run(
+        'merge',
+        push([mine]),
+        (path) =>
+          path.includes('/commits/')
+            ? { author: { login: 'mallory' }, commit: { verification: { verified: true } } }
+            : [],
+        {},
+        'packages/ui',
+      );
+      assert.equal(code, 1);
+      assert.match(out, /changed packages\/ui\/tsc-laws\.lock but was not made by/);
+    });
+  });
+});
+
+describe('sticky comments in a monorepo', () => {
+  const link = (p: { name: string }) => p.name;
+  it('keeps the root marker and gives each project its own', () => {
+    const root = renderSticky([], cfg(), new Map(), link as never);
+    const ui = renderSticky([], cfg(), new Map(), link as never, 'packages/ui');
+    const auth = renderSticky([], cfg(), new Map(), link as never, 'apps/core/auth');
+    assert.ok(root.startsWith('<!-- tslaws-proposals -->\n### tslaws proposals\n'));
+    assert.ok(ui.startsWith(`${stickyMarkerFor('packages/ui')}\n### tslaws proposals for \`packages/ui\``));
+    const markers = [root, ui, auth].map((body) => (body.match(/^<!-- tslaws-proposals[^>]*-->/) as string[])[0]);
+    assert.equal(new Set(markers).size, 3);
+    // upsertSticky finds a comment by startsWith(marker): no project's body matches another's marker.
+    for (const [i, body] of [root, ui, auth].entries())
+      for (const [j, marker] of markers.entries()) assert.equal(body.startsWith(marker), i === j);
+  });
+  it('keeps a hostile path from closing the comment', () => {
+    assert.doesNotMatch(stickyMarkerFor('a--> <b'), /-->.+-->/);
+    assert.notEqual(stickyMarkerFor('packages/a b'), stickyMarkerFor('packages/a_b'));
+    assert.notEqual(stickyMarkerFor('packages/a-b'), stickyMarkerFor('packages/a%2Db'));
+    assert.equal(stickyMarkerFor('packages/ui'), '<!-- tslaws-proposals packages/ui -->');
   });
 });

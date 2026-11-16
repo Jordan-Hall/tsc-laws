@@ -198,6 +198,51 @@ The workflows protect nothing if people can write the lock some other way. Set u
 the bot's, with signatures it verified. It compares the lock before and after the push, so a truncated push payload
 cannot hide a change.
 
+## Monorepos
+
+The project (`tslaws.json` and `tsc-laws.lock`) need not sit at the repository root. Keep one `tslaws.json` per package
+and run `merge` for each package, one after another, in a single job. Do not use a matrix with a job-level concurrency
+group: a group holds one pending job, so with three or more packages GitHub cancels the jobs waiting behind the first.
+
+```yaml
+name: tslaws merge
+on:
+  push: { branches: [master] }
+concurrency: { group: tslaws-lock, cancel-in-progress: false }
+permissions: { contents: read }
+jobs:
+  merge:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/create-github-app-token@v1
+        id: app
+        with: { app-id: '${{ vars.TSLAWS_APP_ID }}', private-key: '${{ secrets.TSLAWS_APP_KEY }}' }
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - name: Accept each package's proposals
+        env: { GITHUB_TOKEN: '${{ steps.app.outputs.token }}' }
+        run: |
+          failed=0
+          for dir in packages/ui apps/core/auth; do
+            (cd "$dir" && node "$GITHUB_WORKSPACE/node_modules/tslaws/bin/tslaws.js" github merge) || failed=1
+          done
+          exit "$failed"
+```
+
+The workflow-level group still keeps only the newest pending run when pushes arrive quickly. That loses nothing: `merge`
+compares the laws at the branch head with the lock, so the run that does go ahead accepts every proposal that is still
+outstanding, including those from the pushes whose runs were replaced. Run every package each time, or pick the
+packages by diffing against the last commit a successful run checked, never only against the push's `before`.
+
+`tslaws github` finds the project's place in the repository with `git rev-parse --show-prefix`; pass
+`--project-path <dir>` to name it yourself. Every lock and config path, every annotation and every link then starts
+with that directory. Each job commits only its own lock, checks only its own lock for outside changes (another
+project's bot commit never blocks it), and starts from the current lock on the branch, so a job that runs after another
+one still writes. `report` keeps one comment per project, headed with the project's path; a root project's comment is
+unchanged. `--protect` paths stay relative to the repository root. In the ruleset, restrict `**/tsc-laws.lock`.
+
 ## Limits
 
 - Pull requests from forks get a read-only token, so `report` cannot write its comment. The annotations and the step
