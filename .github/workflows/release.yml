@@ -113,11 +113,11 @@ jobs:
         with:
           ref: ${{ needs.check-release.outputs.sha }}
 
+      # No npm cache: release builds install from the registry, so a cache written by another run cannot reach them.
       - uses: actions/setup-node@v7
         if: ${{ !matrix.docker }}
         with:
           node-version: 24
-          cache: npm
 
       - uses: vercel-labs/setup-zig@v1
         if: ${{ matrix.platform == 'win32-x64-msvc' || matrix.target }}
