@@ -53,7 +53,7 @@ tslaws mcp [--compiler PATH]   serve check, check_proposed, explain and propose 
 ${migrateUsage}
 
 Without files, every *.laws.ts under the current directory (and every file the "laws" globs of tslaws.json pick that declares a law) is checked; with --proposed, the in-tree *.proposed.laws.ts files are (and any proposals in .tslaws/proposals/), with no lock and no coverage gate.
-A laws file\'s level comes from its name by default: *.browser.laws.ts is a browser law, *.e2e.laws.ts an end-to-end law, anything else runs in Node. With "levels": "imports" in tslaws.json it comes from the import graph instead (tslaws/browser, tslaws/adapters/* or tslaws/e2e, directly or through the file\'s own modules), and the names are hints.
+A laws file's level comes from its name by default: *.browser.laws.ts is a browser law, *.e2e.laws.ts an end-to-end law, anything else runs in Node. With "levels": "imports" in tslaws.json it comes from the import graph instead (tslaws/browser, tslaws/adapters/* or tslaws/e2e, directly or through the file's own modules), and the names are hints.
 Exit status is 0 only when every law is proved, bounded or tested and nothing is open, failed, uncovered or tampered with.
   --json      machine-readable report; each result carries a hint with the next action (same as --reporter json)
   --reporter  text (default), json, junit (JUnit XML), github (workflow annotations; appends a table to $GITHUB_STEP_SUMMARY) or ndjson (one JSON event per line as the check proceeds, then the report; for editors)
