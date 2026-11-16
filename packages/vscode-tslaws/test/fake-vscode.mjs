@@ -141,7 +141,7 @@ function items() {
   };
 }
 
-export function makeFake({ root, settings = {}, trusted = true, lawFiles = [] } = {}) {
+export function makeFake({ root, roots, settings = {}, trusted = true, lawFiles = [] } = {}) {
   const commands = new Map();
   const executed = [];
   const treeViews = [];
@@ -168,7 +168,7 @@ export function makeFake({ root, settings = {}, trusted = true, lawFiles = [] } 
   const output = [];
   const docs = [];
   const watchers = { create: event(), delete: event() };
-  const events = { change: event(), save: event(), config: event(), editors: event() };
+  const events = { change: event(), save: event(), config: event(), editors: event(), active: event() };
   const controllers = [];
   const cfg = { ...settings };
   const state = { trusted, visibleTextEditors: [], activeTextEditor: undefined };
@@ -265,6 +265,7 @@ export function makeFake({ root, settings = {}, trusted = true, lawFiles = [] } 
         return editor;
       },
       onDidChangeVisibleTextEditors: events.editors.on,
+      onDidChangeActiveTextEditor: events.active.on,
       get visibleTextEditors() {
         return state.visibleTextEditors;
       },
@@ -273,7 +274,7 @@ export function makeFake({ root, settings = {}, trusted = true, lawFiles = [] } 
       },
     },
     workspace: {
-      workspaceFolders: root === undefined ? undefined : [{ uri: Uri.file(root) }],
+      workspaceFolders: (roots ?? (root === undefined ? [] : [root])).map((r) => ({ uri: Uri.file(r) })),
       get textDocuments() {
         return docs;
       },
@@ -387,6 +388,11 @@ export function makeFake({ root, settings = {}, trusted = true, lawFiles = [] } 
       };
       state.visibleTextEditors = [editor];
       return editor;
+    },
+    /** Make `doc` the file in the editor, as when the user clicks into it. */
+    activate(doc) {
+      state.activeTextEditor = { document: doc };
+      events.active.fire(state.activeTextEditor);
     },
     decorationsOn: (fsPath, typeIndex) => decorations.get(`${fsPath}|${typeIndex}`) ?? [],
   };

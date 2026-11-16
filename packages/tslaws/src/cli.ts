@@ -12,7 +12,7 @@ import { isProposedLawFile } from './lawNames.ts';
 import { init, nextStep } from './init.ts';
 import { listLawFiles, renderList } from './list.ts';
 import { serveMcp } from './mcp.ts';
-import { discoverProjects, isMonorepoRoot } from './projects.ts';
+import { affectedProjects, changedSince, discoverProjects, isMonorepoRoot } from './projects.ts';
 import type { Project } from './projects.ts';
 import { promoteFiles, promoteProposal } from './promote.ts';
 import { addProposal, ProposalError } from './proposals.ts';
@@ -59,6 +59,7 @@ ${migrateUsage}
 In a monorepo (a root tslaws.json with "projects", or package.json/pnpm workspaces whose packages have a tslaws.json), run from the root: check, accept, list, mutate and regressions run in every project, one after another, each with its own config and lock, and end with one summary line. --json and --reporter json print one object keyed by project path; --reporter ndjson tags each line with "project". init, ui, mcp, github, propose, promote, delegate, migrate and --watch run in one project: pick it with --project when the root has several.
   --project   run only in this project directory (repeat it, or comma-separate: --project packages/a,packages/b)
   --filter    run only in projects whose path matches this glob (repeatable; a leading ! excludes), for example --filter 'packages/*'
+  --changed   run only the projects affected since the merge-base of this ref and HEAD (committed, staged and untracked changes): the projects holding a changed file and everything that depends on them; a root config change runs all. Combines with --project and --filter. In one project: runs only if something there changed. For example --changed origin/main
 
 Without files, every *.laws.ts under the current directory (and every file the "laws" globs of tslaws.json pick that declares a law) is checked; with --proposed, the in-tree *.proposed.laws.ts files are (and any proposals in .tslaws/proposals/), with no lock and no coverage gate.
 A laws file's level comes from its name by default: *.browser.laws.ts is a browser law, *.e2e.laws.ts an end-to-end law, anything else runs in Node. With "levels": "imports" in tslaws.json it comes from the import graph instead (tslaws/browser, tslaws/adapters/* or tslaws/e2e, directly or through the file's own modules), and the names are hints.
@@ -115,6 +116,7 @@ function parse(args: string[]): Parsed {
     'rerun-workflow',
     'protect',
     'project-path',
+    'changed',
   ]);
   for (let i = 0; i < args.length; i += 1) {
     const arg = args[i]!;
@@ -607,18 +609,30 @@ interface Selection {
   all: Project[];
   /** Whether this is a run over several projects (headers, summary), as opposed to one project that was named. */
   fanOut: boolean;
+  /** What `--changed` decided, one line each (empty without it). */
+  notes: string[];
 }
 
 const list = (projects: Project[]): string => projects.map((p) => (p.path === '' ? '.' : p.path)).join(', ');
 
 /** `undefined` for an ordinary single-project run: no project flags, and the directory is not a monorepo root. */
-function selectProjects(cwd: string, only: string[], filter: string[]): Selection | undefined {
+function selectProjects(cwd: string, only: string[], filter: string[], changed?: string): Selection | undefined {
   const asked = only.length > 0 || filter.length > 0;
   const monorepo = isMonorepoRoot(cwd);
-  if (!asked && !monorepo) return undefined;
+  if (!asked && !monorepo) {
+    if (changed === undefined) return undefined;
+    const { files } = changedSince(cwd, changed);
+    if (files.length > 0) return undefined;
+    return {
+      chosen: [],
+      all: [],
+      fanOut: false,
+      notes: [`--changed ${changed}: nothing changed in this project, nothing to run`],
+    };
+  }
   // A standalone project ("standalone": true) is in `all`, but a run covers it only when --project names it.
   const all = discoverProjects(cwd, { standalone: true });
-  const chosen = asked ? discoverProjects(cwd, { only, filter }) : all.filter((p) => !p.standalone);
+  let chosen = asked ? discoverProjects(cwd, { only, filter }) : all.filter((p) => !p.standalone);
   if (chosen.length === 0) {
     const named = [...only.map((p) => `--project ${p}`), ...filter.map((g) => `--filter ${g}`)].join(' ');
     throw new Error(
@@ -629,7 +643,17 @@ function selectProjects(cwd: string, only: string[], filter: string[]): Selectio
           : `every project here is standalone ("standalone": true), so a root run covers none of them: pick one with --project <dir> (${list(all)})`,
     );
   }
-  return { chosen, all, fanOut: monorepo || chosen.some((p) => p.path !== '') };
+  const notes: string[] = [];
+  if (changed !== undefined) {
+    const { base, files } = changedSince(cwd, changed);
+    const reasons = new Map(affectedProjects(cwd, files).map((a) => [a.project.path, a.reason]));
+    chosen = chosen.filter((p) => reasons.has(p.path));
+    notes.push(
+      `--changed ${changed} (merge-base ${base.slice(0, 8)}, ${files.length} changed file${files.length === 1 ? '' : 's'}): ${chosen.length} of ${all.length} project${all.length === 1 ? '' : 's'} selected`,
+      ...chosen.map((p) => `  ${p.path === '' ? '.' : p.path}: ${reasons.get(p.path)}`),
+    );
+  }
+  return { chosen, all, fanOut: monorepo || chosen.some((p) => p.path !== ''), notes };
 }
 
 /** The projects nested below `project`, relative to it. */
@@ -706,16 +730,23 @@ export async function main(args: string[]): Promise<number> {
   }
   const { command, flags, files, projects, filters } = parse(args);
   const cwd = process.cwd();
+  const changed = flags.has('changed') ? String(flags.get('changed')) : undefined;
   // `init --project .` scaffolds right here, in a root that has projects or not.
   const here = command === 'init' && projects.some((p) => p === '.' || p === './');
   let selection: Selection | undefined;
   try {
-    selection = here ? undefined : selectProjects(cwd, projects, filters);
+    selection = here ? undefined : selectProjects(cwd, projects, filters, changed);
   } catch (error) {
     stderrWrite(`${error instanceof Error ? error.message : String(error)}\n`);
     return 1;
   }
   if (selection === undefined) return runOne(command, flags, files, cwd, direct);
+  // The decision goes to stderr so that machine output on stdout stays whole.
+  for (const note of selection.notes) stderrWrite(`${note}\n`);
+  if (selection.chosen.length === 0) {
+    if (flags.has('json') || flags.get('reporter') === 'json') stdoutWrite('{}\n');
+    return 0;
+  }
 
   // From the root with no --project: every project in one process (one comment, one commit for all the locks).
   if (command === 'github' && projects.length === 0 && isMonorepoRoot(cwd))

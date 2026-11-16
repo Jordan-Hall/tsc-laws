@@ -29,6 +29,7 @@ const { ensurePlugin } = require('./plugin.js');
 const { compileDiagnostics } = require('./compile-diagnostics.js');
 const { parseList, fromName, badgeFor } = require('./list.js');
 const { findLaws } = require('./find-laws.js');
+const { locate, locateIn, labelOf, describeProject } = require('./projects.js');
 
 const key = (file, name) => `${file}::${name}`;
 
@@ -44,25 +45,13 @@ function activateExtension(vscode, context, io) {
   const output = vscode.window.createOutputChannel('tslaws');
   const status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 50);
   status.command = 'tslawsLaws.focus';
+  const projectStatus = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 49);
+  projectStatus.command = 'tslaws.showProject';
 
-  /** @type {object[] | null} */
-  let records = null;
-  /** What the compiler printed in the last run: its law rules (TS9101 to TS9106) are shown as diagnostics. */
-  let compilerText = '';
-  /** @type {Map<string, number>} */
-  const ranAt = new Map();
   let progress = null;
-  /** Laws of the run that is going and have not reported yet: `file::name`. */
-  const runningLaws = new Set();
-  /** When each project file was last edited in the editor (ms), for the `stale` status. */
-  const touched = new Map();
   let cacheTimer = null;
   let nav = null;
-  let view = { records: null, ranAt, descs: new Map(), index: new Map(), coverage: new Map() };
-  let lawFiles = [];
-  /** What `tslaws list` said about each laws file (or the file names, for an older tslaws), by project-relative path. */
-  let listed = new Map();
-  let dashboard = null;
+  const dashboards = new Map();
   let active = null;
   let complained = false;
   let ready = Promise.resolve();
@@ -70,7 +59,50 @@ function activateExtension(vscode, context, io) {
   const supportCache = new Map();
   const shadows = new Map();
 
-  const root = () => vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+  // Everything the editor shows belongs to one project (the nearest tslaws.json above a file). Each project has its own
+  // state; `project` is the one the open file is in, and the views, the status bar and the commands follow it. A run
+  // keeps the state it started with, so switching files while it goes cannot mix two projects' results.
+  const folders = () => (vscode.workspace.workspaceFolders ?? []).map((f) => f.uri.fsPath);
+  const projectIo = { fs, path: nodePath };
+  const states = new Map();
+  const stateOf = (dir) => {
+    let st = states.get(dir);
+    if (st === undefined) {
+      const ranAt = new Map();
+      st = {
+        /** @type {object[] | null} */
+        records: null,
+        /** What the compiler printed in the last run: its law rules (TS9101 to TS9106) are shown as diagnostics. */
+        compilerText: '',
+        /** @type {Map<string, number>} */
+        ranAt,
+        /** Laws of the run that is going and have not reported yet: `file::name`. */
+        runningLaws: new Set(),
+        /** When each project file was last edited in the editor (ms), for the `stale` status. */
+        touched: new Map(),
+        view: { records: null, ranAt, descs: new Map(), index: new Map(), coverage: new Map() },
+        lawFiles: [],
+        /** What `tslaws list` said about each laws file (or the file names, for an older tslaws), by project-relative path. */
+        listed: new Map(),
+        cacheLoaded: false,
+        listLoaded: false,
+      };
+      states.set(dir, st);
+    }
+    return st;
+  };
+  const forFile = (file) => locate(file, folders(), projectIo);
+  /** The project of the file in the editor, else of the first workspace folder. */
+  let project = (() => {
+    const open = vscode.window.activeTextEditor?.document.uri;
+    const first = folders()[0];
+    return (
+      (open?.scheme === 'file' ? forFile(open.fsPath) : undefined) ?? (first && locateIn(first, folders(), projectIo))
+    );
+  })();
+  let cur = stateOf(project?.dir ?? '');
+
+  const root = () => project?.dir;
   const config = () => vscode.workspace.getConfiguration('tslaws');
   const runMode = () =>
     resolveRunMode({
@@ -99,8 +131,11 @@ function activateExtension(vscode, context, io) {
       paused: guard.paused || guard.stoppedBySpeed !== null,
     });
   const effectiveMode = () => (liveOn() ? 'onType' : runMode());
-  const userCommand = (sub) =>
-    resolveCommand({ root: root(), executable: config().get('executable'), args: config().get('args') }, sub);
+  const userCommand = (sub, at = { root: root(), ceiling: project?.folder }) =>
+    resolveCommand(
+      { root: at.root, ceiling: at.ceiling, executable: config().get('executable'), args: config().get('args') },
+      sub,
+    );
   const samePath = (a, b) => nodePath.normalize(a).toLowerCase() === nodePath.normalize(b).toLowerCase();
 
   /** The text of a project file as the editor has it: the open buffer, else the file on disk. */
@@ -118,7 +153,7 @@ function activateExtension(vscode, context, io) {
   };
 
   const knownLawFiles = () => [
-    ...new Set([...lawFiles, ...(records ?? []).map((r) => r.file).filter((f) => f.endsWith('.laws.ts'))]),
+    ...new Set([...cur.lawFiles, ...(cur.records ?? []).map((r) => r.file).filter((f) => f.endsWith('.laws.ts'))]),
   ];
   const isLawsFile = (rel) =>
     knownLawFiles().includes(rel) || (rel.endsWith('.laws.ts') && !rel.endsWith('.proposed.laws.ts'));
@@ -126,7 +161,7 @@ function activateExtension(vscode, context, io) {
   // ---- views ----
   const editor = createEditor(vscode, {
     root,
-    view: () => view,
+    view: () => cur.view,
     readText,
     isLawsFile,
     inlineEnabled: () => config().get('inlineCounterexample', true),
@@ -137,25 +172,26 @@ function activateExtension(vscode, context, io) {
     return text === undefined ? [] : (findLaws(text).find((l) => l.name === name)?.params ?? []);
   };
   const statusContext = () => ({
-    recordOf: (file, name) => records?.find((r) => r.file === file && r.name === name),
+    recordOf: (file, name) => cur.records?.find((r) => r.file === file && r.name === name),
     paramsOf,
-    isRunning: (file, name) => runningLaws.has(key(file, name)),
-    ranAt: (file, name) => ranAt.get(key(file, name)),
-    touched: (file) => touched.get(file) ?? 0,
+    isRunning: (file, name) => cur.runningLaws.has(key(file, name)),
+    ranAt: (file, name) => cur.ranAt.get(key(file, name)),
+    touched: (file) => cur.touched.get(file) ?? 0,
     now: now(),
   });
   const statusDecor = createStatusDecorations(vscode, {
     root,
-    view: () => view,
+    view: () => cur.view,
     readText,
     statusContext,
     inlineEnabled: () => config().get('inlineCounterexample', true),
     commandUri: (command, args) => `command:${command}?${encodeURIComponent(JSON.stringify(args))}`,
   });
-  const lawsTree = createLawsTree(vscode, { records: () => records, ranAt: () => ranAt, now, paramsOf });
+  const lawsTree = createLawsTree(vscode, { records: () => cur.records, ranAt: () => cur.ranAt, now, paramsOf });
 
   const updateStatus = () => {
     const running = progress !== null;
+    const { records } = cur;
     const text = summaryText(
       records,
       running ? { running, done: progress.done, total: progress.total, fresh: progress.fresh } : {},
@@ -178,27 +214,40 @@ function activateExtension(vscode, context, io) {
         ? new vscode.ThemeColor('statusBarItem.warningBackground')
         : undefined;
     status.show();
+    if (project === undefined) projectStatus.hide?.();
+    else {
+      const label = labelOf(project, folders());
+      projectStatus.text = `$(folder) tslaws: ${label}`;
+      projectStatus.tooltip = describeProject(project, folders(), projectIo).join('\n');
+      projectStatus.accessibilityInformation = { label: `tslaws project ${label}`, role: 'button' };
+      projectStatus.show();
+    }
   };
 
   const withCompiler = (descs, read) => {
-    if (compilerText === '' || root() === undefined) return descs;
-    for (const [file, list] of compileDiagnostics(compilerText, read, (f) => relativeTo(f, root())))
+    if (cur.compilerText === '' || root() === undefined) return descs;
+    for (const [file, list] of compileDiagnostics(cur.compilerText, read, (f) => relativeTo(f, root())))
       descs.set(file, [...(descs.get(file) ?? []), ...list]);
     return descs;
   };
 
   const failingSummary = () => {
-    const failed = (records ?? []).filter((r) => r.status === 'failed').length;
-    return failed > 0 ? `${failed} failing` : records === null ? '' : 'all passing';
+    const failed = (cur.records ?? []).filter((r) => r.status === 'failed').length;
+    return failed > 0 ? `${failed} failing` : cur.records === null ? '' : 'all passing';
   };
 
   /** Rebuild everything shown from the records and the text as it is now. */
   const setHasLaws = () =>
-    vscode.commands.executeCommand('setContext', 'tslaws.hasLaws', lawFiles.length > 0 || (records?.length ?? 0) > 0);
+    vscode.commands.executeCommand(
+      'setContext',
+      'tslaws.hasLaws',
+      cur.lawFiles.length > 0 || (cur.records?.length ?? 0) > 0,
+    );
   const rebuild = () => {
     const memo = new Map();
     const read = (rel) => (memo.has(rel) ? memo.get(rel) : (memo.set(rel, readText(rel)), memo.get(rel)));
-    view = {
+    const { records, ranAt } = cur;
+    cur.view = {
       records,
       ranAt,
       descs: withCompiler(records === null ? new Map() : buildDiagnostics(records, read), read),
@@ -228,14 +277,14 @@ function activateExtension(vscode, context, io) {
     if (!always) complained = true;
   };
 
-  const probe = (cmd) => {
-    const id = [cmd.command, ...cmd.args].join('\0');
+  const probe = (cmd, cwd) => {
+    const id = [cwd, cmd.command, ...cmd.args].join('\0');
     if (!supportCache.has(id)) {
       supportCache.set(
         id,
         new Promise((resolve) => {
           let text = '';
-          const child = spawn(cmd.command, cmd.args, { cwd: root(), shell: false });
+          const child = spawn(cmd.command, cmd.args, { cwd, shell: false });
           child.stdout.on('data', (d) => (text += d));
           child.on('error', () => resolve(liveSupport('')));
           child.on('close', () => resolve(liveSupport(text)));
@@ -245,22 +294,27 @@ function activateExtension(vscode, context, io) {
     return supportCache.get(id);
   };
 
-  /** Keep the last report on disk so it survives a reload. */
-  const cacheSoon = () => {
+  /** Keep the last report of each project that has a new one on disk, so it survives a reload. */
+  const cacheDirty = new Set();
+  const cacheSoon = (dir) => {
+    cacheDirty.add(dir);
     if (cacheTimer !== null) clearTimeout(cacheTimer);
     cacheTimer = setTimeout(() => {
       cacheTimer = null;
-      if (root() !== undefined && records !== null)
-        saveCache({ fs, path: nodePath, root: root() }, { records, ranAt, compilerText });
+      for (const at of cacheDirty) {
+        const { records, ranAt, compilerText } = stateOf(at);
+        if (records !== null) saveCache({ fs, path: nodePath, root: at }, { records, ranAt, compilerText });
+      }
+      cacheDirty.clear();
     }, 400);
   };
 
-  /** Unsaved TypeScript buffers, keyed by project-relative path. */
-  const overlays = () => {
+  /** Unsaved TypeScript buffers of the project in `base`, keyed by project-relative path. */
+  const overlays = (base) => {
     const out = new Map();
     for (const doc of vscode.workspace.textDocuments) {
-      if (!doc.isDirty || doc.uri.scheme !== 'file' || root() === undefined) continue;
-      const rel = relativeTo(doc.uri.fsPath, root());
+      if (!doc.isDirty || doc.uri.scheme !== 'file') continue;
+      const rel = relativeTo(doc.uri.fsPath, base);
       if (rel !== doc.uri.fsPath.replaceAll('\\', '/') && isRunnable(rel)) out.set(rel, doc.getText());
     }
     return out;
@@ -268,7 +322,9 @@ function activateExtension(vscode, context, io) {
 
   /**
    * Run `tslaws check` for a request and fold its results into what the editor shows. Only one run goes at a time: a
-   * newer one stops the one before it. `listener` sees every event (the Test Explorer uses it).
+   * newer one stops the one before it. `listener` sees every event (the Test Explorer uses it). The run is in the project
+   * the request names (`project`, a directory), else the current one; with `all` it is a run from the workspace folder
+   * `folder`, which a monorepo root fans out over its projects, each result carrying the project it belongs to.
    */
   const launch = (request, listener = () => {}) => {
     let child = null;
@@ -287,7 +343,7 @@ function activateExtension(vscode, context, io) {
         before.cancel();
         await before.done.catch(() => {});
       }
-      const base = root();
+      const base = request.all ? request.folder : (request.project ?? root());
       if (cancelled) return { cancelled: true };
       if (base === undefined) {
         if (!request.auto) warn('open a folder first.', true);
@@ -297,15 +353,30 @@ function activateExtension(vscode, context, io) {
         if (!request.auto) warn('trust this workspace to run its checks.', true);
         return { error: 'the workspace is not trusted' };
       }
-      const probing = userCommand(['check', '--help']);
+      const ceiling = request.all ? base : (locateIn(base, folders(), projectIo)?.folder ?? base);
+      const at = { root: base, ceiling };
+      const probing = userCommand(['check', '--help'], at);
       if ('error' in probing) {
         warn(probing.error, !request.auto);
         return { error: probing.error };
       }
-      const support = await probe(probing);
+      const support = await probe(probing, base);
       if (cancelled) return { cancelled: true };
+      if (request.all && !support.streaming) {
+        warn('checking every project needs a newer tslaws (one that streams with --reporter ndjson).', true);
+        return { error: 'tslaws is too old for a run from the monorepo root' };
+      }
+      const st = stateOf(base);
+      /** The project directory a streamed event belongs to: the one it is tagged with, for a run from the root. */
+      const dirFor = (event) =>
+        request.all && typeof event.project === 'string'
+          ? event.project === '.'
+            ? base
+            : nodePath.join(base, event.project)
+          : base;
+      const stateFor = (event) => stateOf(dirFor(event));
       let cwd = base;
-      const buffers = request.auto && effectiveMode() === 'onType' ? overlays() : new Map();
+      const buffers = !request.all && request.auto && effectiveMode() === 'onType' ? overlays(base) : new Map();
       if (buffers.size > 0) {
         if (!shadows.has(base)) shadows.set(base, createShadow({ root: base, fs }));
         const shadow = shadows.get(base);
@@ -313,12 +384,12 @@ function activateExtension(vscode, context, io) {
         if (synced.ok) cwd = shadow.dir;
         else output.appendLine(`tslaws: running on the saved files, not the open buffers (${synced.reason})`);
       }
-      const cmd = userCommand(checkArguments(request, support));
+      const cmd = userCommand(checkArguments(request, support), at);
       if ('error' in cmd) {
         warn(cmd.error, !request.auto);
         return { error: cmd.error };
       }
-      const snapshot = records;
+      const snapshot = st.records;
       progress = { done: 0, total: 0, fresh: [] };
       updateStatus();
       output.appendLine(`> ${cmd.command} ${cmd.args.join(' ')}${cwd === base ? '' : '   (on the open buffers)'}`);
@@ -333,22 +404,37 @@ function activateExtension(vscode, context, io) {
           if (progress === null) {
             // The run was stopped; what it still says is of no interest.
           } else if (event.type === 'plan') {
-            progress.total = request.laws !== undefined ? request.laws.length : event.laws.length;
-            runningLaws.clear();
-            for (const l of event.laws) runningLaws.add(key(l.file, l.name));
+            const target = stateFor(event);
+            if (request.all) progress.total += event.laws.length;
+            else progress.total = request.laws !== undefined ? request.laws.length : event.laws.length;
+            target.runningLaws.clear();
+            for (const l of event.laws) target.runningLaws.add(key(l.file, l.name));
             rebuildSoon();
           } else if (event.type === 'result') {
-            runningLaws.delete(key(event.record.file, event.record.name));
+            const target = stateFor(event);
+            target.runningLaws.delete(key(event.record.file, event.record.name));
             progress.done++;
             progress.fresh.push(event.record);
-            records = [
-              ...(records ?? []).filter((r) => key(r.file, r.name) !== key(event.record.file, event.record.name)),
+            target.records = [
+              ...(target.records ?? []).filter(
+                (r) => key(r.file, r.name) !== key(event.record.file, event.record.name),
+              ),
               event.record,
             ];
-            ranAt.set(key(event.record.file, event.record.name), now());
+            target.ranAt.set(key(event.record.file, event.record.name), now());
             rebuildSoon();
-          } else if (event.type === 'report' && event.report.compileDiagnostics !== '') {
-            output.appendLine(event.report.compileDiagnostics);
+          } else if (event.type === 'report') {
+            if (event.report.compileDiagnostics !== '') output.appendLine(event.report.compileDiagnostics);
+            if (request.all) {
+              // Each project of a root run ends with its own report, which covers all of that project.
+              const target = stateFor(event);
+              target.runningLaws.clear();
+              target.compilerText = event.report.compileDiagnostics;
+              target.records = event.report.records;
+              for (const r of event.report.records)
+                target.ranAt.set(key(r.file, r.name), target.ranAt.get(key(r.file, r.name)) ?? now());
+              cacheSoon(dirFor(event));
+            }
           }
           listener(event);
         },
@@ -357,12 +443,19 @@ function activateExtension(vscode, context, io) {
       if (cancelled) run.cancel();
       const outcome = await run.done;
       progress = null;
-      runningLaws.clear();
-      if (outcome.report !== null && !outcome.cancelled) {
-        compilerText = outcome.report.compileDiagnostics;
-        cacheSoon();
-        records = merge(snapshot ?? [], outcome.report.records, { files: request.files, laws: request.laws ?? null });
-        for (const r of outcome.report.records) ranAt.set(key(r.file, r.name), ranAt.get(key(r.file, r.name)) ?? now());
+      st.runningLaws.clear();
+      if (request.all) {
+        for (const other of states.values()) other.runningLaws.clear();
+        if (outcome.error !== undefined) output.appendLine(`tslaws: ${outcome.error}`);
+      } else if (outcome.report !== null && !outcome.cancelled) {
+        st.compilerText = outcome.report.compileDiagnostics;
+        cacheSoon(base);
+        st.records = merge(snapshot ?? [], outcome.report.records, {
+          files: request.files,
+          laws: request.laws ?? null,
+        });
+        for (const r of outcome.report.records)
+          st.ranAt.set(key(r.file, r.name), st.ranAt.get(key(r.file, r.name)) ?? now());
       } else if (outcome.error !== undefined) {
         output.appendLine(`tslaws: ${outcome.error}`);
         if (!request.auto) void vscode.window.showErrorMessage(`tslaws: ${outcome.error.split('\n')[0]}`);
@@ -386,27 +479,40 @@ function activateExtension(vscode, context, io) {
     return handle;
   };
 
-  const scheduler = createScheduler({
-    delayMs,
-    start: (request) => {
-      const began = now();
-      const handle = launch({ ...request, auto: true });
-      guard.started();
-      void handle.done.then(
-        (outcome) => {
-          guard.finished(outcome?.cancelled ? 0 : now() - began);
-          if (guard.stoppedBySpeed !== null) {
-            output.appendLine(
-              `tslaws: live results stopped: the last run took ${guard.stoppedBySpeed}s. Resume them with "tslaws: pause/resume live results".`,
-            );
-            updateStatus();
-          }
+  // One scheduler per project: its requests name files relative to that project, so they never mix with another's.
+  const schedulers = new Map();
+  const schedulerFor = (dir) => {
+    let scheduler = schedulers.get(dir);
+    if (scheduler === undefined) {
+      scheduler = createScheduler({
+        delayMs,
+        start: (request) => {
+          const began = now();
+          const handle = launch({ ...request, auto: true, project: dir });
+          guard.started();
+          void handle.done.then(
+            (outcome) => {
+              guard.finished(outcome?.cancelled ? 0 : now() - began);
+              if (guard.stoppedBySpeed !== null) {
+                output.appendLine(
+                  `tslaws: live results stopped: the last run took ${guard.stoppedBySpeed}s. Resume them with "tslaws: pause/resume live results".`,
+                );
+                updateStatus();
+              }
+            },
+            () => guard.finished(0),
+          );
+          return handle;
         },
-        () => guard.finished(0),
-      );
-      return handle;
-    },
-  });
+      });
+      schedulers.set(dir, scheduler);
+    }
+    return scheduler;
+  };
+  const scheduler = {
+    for: schedulerFor,
+    cancel: () => schedulers.forEach((s) => s.cancel()),
+  };
 
   /** A file changed: choose the laws that cover it and ask for a run. */
   let busyTimer = null;
@@ -429,13 +535,20 @@ function activateExtension(vscode, context, io) {
       }
       if (!verdict.ok && verdict.reason !== 'running') return;
     }
-    const rel = relativeTo(doc.uri.fsPath, root());
-    if (rel === doc.uri.fsPath.replaceAll('\\', '/')) return; // outside the workspace
+    const owner = forFile(doc.uri.fsPath);
+    // A file in no workspace folder, or in a monorepo root but in none of its projects, has no laws to run.
+    if (owner === undefined || owner.kind === 'root') return;
+    adopt(owner);
+    const rel = relativeTo(doc.uri.fsPath, owner.dir);
     // The first search for laws files may still be going when the first edit arrives.
     void ready.then(() => {
-      const plan = planRun({ file: rel, lawFiles: knownLawFiles(), coverage: view.coverage });
+      const st = stateOf(owner.dir);
+      const known = [
+        ...new Set([...st.lawFiles, ...(st.records ?? []).map((r) => r.file).filter((f) => f.endsWith('.laws.ts'))]),
+      ];
+      const plan = planRun({ file: rel, lawFiles: known, coverage: st.view.coverage });
       if (plan.files !== null && plan.files.length === 0) return;
-      scheduler.request({ files: plan.files, reason: plan.reason, args: [] });
+      schedulerFor(owner.dir).request({ files: plan.files, reason: plan.reason, args: [] });
     });
   };
 
@@ -443,8 +556,10 @@ function activateExtension(vscode, context, io) {
   // are laws files or the level one runs at; ask the tool again.
   const levelMayHaveChanged = (doc) => {
     if (doc.uri.scheme !== 'file' || root() === undefined) return;
-    const rel = relativeTo(doc.uri.fsPath, root());
-    if (rel === doc.uri.fsPath.replaceAll('\\', '/')) return;
+    const owner = forFile(doc.uri.fsPath);
+    if (owner === undefined || owner.kind === 'root') return;
+    adopt(owner);
+    const rel = relativeTo(doc.uri.fsPath, owner.dir);
     const text = doc.getText();
     if (isLawsFile(rel) || findLaws(text).length > 0 || /tslaws\/(?:browser|e2e|adapters)/.test(text))
       ready = refreshLawFiles();
@@ -455,6 +570,12 @@ function activateExtension(vscode, context, io) {
     return launch(request).done;
   };
 
+  /** Every project: one run from each workspace folder, which a monorepo root fans out over its projects. */
+  const checkAll = async () => {
+    scheduler.cancel();
+    for (const folder of folders()) await launch({ all: true, folder, files: null }).done;
+  };
+
   // ---- Test Explorer ----
   const testing = createTesting(vscode, {
     root,
@@ -463,7 +584,7 @@ function activateExtension(vscode, context, io) {
       return knownLawFiles();
     },
     readText,
-    record: (file, name) => records?.find((r) => r.file === file && r.name === name),
+    record: (file, name) => cur.records?.find((r) => r.file === file && r.name === name),
     launch: (request, listener) => {
       scheduler.cancel();
       return launch(request, listener);
@@ -471,7 +592,7 @@ function activateExtension(vscode, context, io) {
   });
 
   // ---- commands ----
-  const recordOf = (file, name) => records?.find((r) => r.file === file && r.name === name);
+  const recordOf = (file, name) => cur.records?.find((r) => r.file === file && r.name === name);
   const open = async (file, range) => {
     const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(nodePath.join(root(), file)));
     const shown = await vscode.window.showTextDocument(doc);
@@ -501,7 +622,7 @@ function activateExtension(vscode, context, io) {
   };
   nav = createNavigation(vscode, {
     root,
-    records: () => records,
+    records: () => cur.records,
     lawFiles: knownLawFiles,
     readText,
     exists: (rel) => {
@@ -554,12 +675,24 @@ function activateExtension(vscode, context, io) {
   const runFile = (uri) => {
     const target = uri instanceof vscode.Uri ? uri : vscode.window.activeTextEditor?.document.uri;
     if (target === undefined || root() === undefined) return runNow({ files: null });
-    return runNow({ files: [relativeTo(target.fsPath, root())] });
+    const owner = forFile(target.fsPath);
+    if (owner === undefined || owner.kind === 'root') return runNow({ files: null });
+    adopt(owner);
+    return runNow({ files: [relativeTo(target.fsPath, owner.dir)], project: owner.dir });
+  };
+
+  const showProject = () => {
+    if (project === undefined) {
+      void vscode.window.showInformationMessage('tslaws: open a folder first.');
+      return;
+    }
+    void vscode.window.showInformationMessage(describeProject(project, folders(), projectIo).join('\n'));
   };
 
   const openDashboard = () => {
     const cwd = root();
     if (cwd === undefined) return;
+    const dashboard = dashboards.get(cwd) ?? null;
     if (dashboard !== null && dashboard.url !== null) return vscode.env.openExternal(vscode.Uri.parse(dashboard.url));
     if (dashboard !== null) return;
     if (!vscode.workspace.isTrusted) {
@@ -572,13 +705,14 @@ function activateExtension(vscode, context, io) {
       return;
     }
     const child = spawn(cmd.command, cmd.args, { cwd, shell: false });
-    dashboard = { child, url: null };
+    const mine = { child, url: null };
+    dashboards.set(cwd, mine);
     const onData = (d) => {
       output.append(String(d));
-      if (dashboard === null || dashboard.url !== null) return;
+      if (mine.url !== null) return;
       const url = parseUiUrl(String(d));
       if (url !== null) {
-        dashboard.url = url;
+        mine.url = url;
         void vscode.env.openExternal(vscode.Uri.parse(url));
       }
     };
@@ -586,9 +720,9 @@ function activateExtension(vscode, context, io) {
     child.stderr.on('data', onData);
     child.on('error', (e) => {
       void vscode.window.showErrorMessage(`tslaws ui failed to start: ${e.message}`);
-      dashboard = null;
+      dashboards.delete(cwd);
     });
-    child.on('close', () => (dashboard = null));
+    child.on('close', () => dashboards.delete(cwd));
   };
 
   // Never runs accept: a person presses Enter in the terminal.
@@ -599,12 +733,12 @@ function activateExtension(vscode, context, io) {
   };
 
   /** Asks the project's tslaws which files are laws files; null when it cannot say (not trusted, not installed, too old). */
-  const askList = () =>
+  const askList = (at) =>
     new Promise((resolve) => {
-      const cmd = userCommand(['list', '--json']);
-      if ('error' in cmd || root() === undefined || !vscode.workspace.isTrusted) return resolve(null);
+      const cmd = userCommand(['list', '--json'], at);
+      if ('error' in cmd || !vscode.workspace.isTrusted) return resolve(null);
       let text = '';
-      const child = spawn(cmd.command, cmd.args, { cwd: root(), shell: false });
+      const child = spawn(cmd.command, cmd.args, { cwd: at.root, shell: false });
       child.stdout.on('data', (d) => (text += d));
       child.on('error', () => resolve(null));
       child.on('close', () => resolve(parseList(text)));
@@ -612,17 +746,24 @@ function activateExtension(vscode, context, io) {
 
   let loading = Promise.resolve();
   const loadLawFiles = async () => {
-    const answer = await askList();
+    const owner = project;
+    if (owner === undefined) return;
+    const st = stateOf(owner.dir);
+    const answer = await askList({ root: owner.dir, ceiling: owner.folder });
     if (answer !== null) {
       // The tool's answer: laws files of the tree at the level the project's `levels` setting gives them (names by default), plus proposals (badged, never run as laws).
-      listed = new Map(answer.map((f) => [f.file, f]));
-      lawFiles = answer.filter((f) => f.status !== 'proposed').map((f) => f.file);
+      st.listed = new Map(answer.map((f) => [f.file, f]));
+      st.lawFiles = answer.filter((f) => f.status !== 'proposed').map((f) => f.file);
     } else {
-      // An older tslaws, or none yet: look for the conventional names.
+      // An older tslaws, or none yet: look for the conventional names, in this project and not in those nested in it.
       const found = await vscode.workspace.findFiles('**/*.laws.ts', '**/{node_modules,.tslaws}/**');
-      lawFiles = found.map((u) => relativeTo(u.fsPath, root() ?? ''));
-      listed = new Map(lawFiles.map((f) => [f, fromName(f)]));
+      st.lawFiles = found
+        .map((u) => u.fsPath)
+        .filter((file) => forFile(file)?.dir === owner.dir)
+        .map((file) => relativeTo(file, owner.dir));
+      st.listed = new Map(st.lawFiles.map((f) => [f, fromName(f)]));
     }
+    st.listLoaded = true;
   };
 
   const refreshLawFiles = async () => {
@@ -633,13 +774,48 @@ function activateExtension(vscode, context, io) {
     await testing.discover();
   };
 
+  /** The report a project had when the folder was last open; a file edited since is `stale` until a run covers it. */
+  const loadReport = (dir) => {
+    const st = stateOf(dir);
+    if (st.cacheLoaded) return;
+    st.cacheLoaded = true;
+    const cached = loadCache({ fs, path: nodePath, root: dir });
+    if (cached === null) return;
+    st.records = cached.records;
+    for (const [k, at] of cached.ranAt) st.ranAt.set(k, at);
+    st.compilerText = cached.compilerText;
+    const files = new Set(st.records.flatMap((r) => [r.file, ...(r.exercises ?? []).map((e) => e.declaration.file)]));
+    for (const f of files) {
+      try {
+        const m = fs.statSync(nodePath.join(dir, f)).mtimeMs;
+        if (m > cached.savedAt) st.touched.set(f, m);
+      } catch {
+        // a file that is gone has nothing to mark
+      }
+    }
+  };
+
+  /** Make `next` the project the views and commands follow (the open file moved into it). */
+  const adopt = (next) => {
+    if (next === undefined || (project !== undefined && next.dir === project.dir)) return;
+    project = next;
+    cur = stateOf(next.dir);
+    loadReport(next.dir);
+    rebuild();
+    if (cur.listLoaded) {
+      void setHasLaws();
+      void testing.discover();
+    } else ready = refreshLawFiles();
+  };
+
   // ---- Explorer badges: the level of each laws file ----
   const decorations = new vscode.EventEmitter();
   const decorationProvider = {
     onDidChangeFileDecorations: decorations.event,
     provideFileDecoration(uri) {
-      if (uri.scheme !== 'file' || root() === undefined) return undefined;
-      const entry = listed.get(relativeTo(uri.fsPath, root()));
+      if (uri.scheme !== 'file') return undefined;
+      const owner = forFile(uri.fsPath);
+      const entry = owner === undefined ? undefined : stateOf(owner.dir).listed.get(relativeTo(uri.fsPath, owner.dir));
       if (entry === undefined) return undefined;
       const { badge, tooltip, color } = badgeFor(entry);
       return new vscode.FileDecoration(badge, tooltip, new vscode.ThemeColor(color));
@@ -653,6 +829,7 @@ function activateExtension(vscode, context, io) {
   context.subscriptions.push(
     output,
     status,
+    projectStatus,
     ...editor.disposables,
     ...testing.disposables,
     ...statusDecor.disposables,
@@ -670,7 +847,11 @@ function activateExtension(vscode, context, io) {
     proposalWatcher.onDidDelete(() => void refreshLawFiles()),
     watcher.onDidCreate(() => void refreshLawFiles()),
     watcher.onDidDelete(() => void refreshLawFiles()),
-    vscode.commands.registerCommand('tslaws.check', () => runNow({ files: null })),
+    vscode.commands.registerCommand('tslaws.check', () =>
+      project?.kind === 'root' ? checkAll() : runNow({ files: null }),
+    ),
+    vscode.commands.registerCommand('tslaws.checkAll', checkAll),
+    vscode.commands.registerCommand('tslaws.showProject', showProject),
     vscode.commands.registerCommand('tslaws.runFile', runFile),
     vscode.commands.registerCommand('tslaws.runLaw', (file, name) => runNow({ files: [file], laws: [name] })),
     vscode.commands.registerCommand('tslaws.cancel', () => {
@@ -692,9 +873,9 @@ function activateExtension(vscode, context, io) {
     vscode.commands.registerCommand('tslaws.pauseLive', toggleLive),
     vscode.workspace.onDidChangeTextDocument((e) => {
       if (e.document.uri.scheme !== 'file' || !/\.[cm]?tsx?$/.test(e.document.uri.fsPath)) return;
-      if (e.contentChanges.length > 0 && root() !== undefined) {
-        const rel = relativeTo(e.document.uri.fsPath, root());
-        if (rel !== e.document.uri.fsPath.replaceAll(String.fromCharCode(92), '/')) touched.set(rel, now());
+      if (e.contentChanges.length > 0) {
+        const owner = forFile(e.document.uri.fsPath);
+        if (owner !== undefined) stateOf(owner.dir).touched.set(relativeTo(e.document.uri.fsPath, owner.dir), now());
       }
       rebuildSoon(); // the marks follow the edit
       if (effectiveMode() === 'onType' && e.contentChanges.length > 0) changed(e.document, liveOn());
@@ -703,6 +884,9 @@ function activateExtension(vscode, context, io) {
       if (/\.[cm]?tsx?$/.test(doc.uri.fsPath)) levelMayHaveChanged(doc);
       if (effectiveMode() !== 'manual' && /\.[cm]?tsx?$/.test(doc.uri.fsPath)) changed(doc);
     }),
+    vscode.window.onDidChangeActiveTextEditor?.((e) => {
+      if (e?.document.uri.scheme === 'file') adopt(forFile(e.document.uri.fsPath));
+    }) ?? { dispose() {} },
     vscode.window.onDidChangeVisibleTextEditors((editors) =>
       editors.forEach((e) => {
         editor.decorate(e);
@@ -719,7 +903,7 @@ function activateExtension(vscode, context, io) {
         if (rebuildTimer !== null) clearTimeout(rebuildTimer);
         if (busyTimer !== null) clearTimeout(busyTimer);
         if (cacheTimer !== null) clearTimeout(cacheTimer);
-        if (dashboard !== null) dashboard.child.kill();
+        for (const dashboard of dashboards.values()) dashboard.child.kill();
       },
     },
   );
@@ -734,32 +918,24 @@ function activateExtension(vscode, context, io) {
 
   // The last report survives a reload; a file edited since it was saved is `stale` until a run covers it.
   if (root() !== undefined) {
-    const cached = loadCache({ fs, path: nodePath, root: root() });
-    if (cached !== null) {
-      records = cached.records;
-      for (const [k, at] of cached.ranAt) ranAt.set(k, at);
-      compilerText = cached.compilerText;
-      const files = new Set(records.flatMap((r) => [r.file, ...(r.exercises ?? []).map((e) => e.declaration.file)]));
-      for (const f of files) {
-        try {
-          const m = fs.statSync(nodePath.join(root(), f)).mtimeMs;
-          if (m > cached.savedAt) touched.set(f, m);
-        } catch {
-          // a file that is gone has nothing to mark
-        }
-      }
-      rebuild();
-    }
+    loadReport(root());
+    if (cur.records !== null) rebuild();
   }
 
   updateStatus();
   ready = refreshLawFiles();
   void ready.then(() => {
-    if (config().get('runOnOpen', false) && effectiveMode() !== 'manual' && lawFiles.length > 0)
+    if (config().get('runOnOpen', false) && effectiveMode() !== 'manual' && cur.lawFiles.length > 0)
       void runNow({ files: null, auto: true });
   });
 
-  return { launch, scheduler, rebuild, state: () => ({ records, view, active }) };
+  return {
+    launch,
+    scheduler,
+    rebuild,
+    checkAll,
+    state: () => ({ records: cur.records, view: cur.view, active, project, states }),
+  };
 }
 
 module.exports = { activateExtension };

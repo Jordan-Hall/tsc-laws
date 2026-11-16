@@ -57,7 +57,7 @@ setting and does not change how other files are edited.
   The same results feed the diagnostics. There is no debug profile: a law is not run under a debugger.
 - **Status bar.** `laws: 3 proved, 1 failed`; while a run is going `laws: running 2/5 - 1 proved, 1 failed`. Click it to
   open the dashboard.
-- **Commands.** `tslaws.check` (all laws), `tslaws.runFile` (this file), `tslaws.cancel`, `tslaws.openDashboard` (runs
+- **Commands.** `tslaws.check` (all laws of the project), `tslaws.checkAll` (every project of a monorepo, from its root), `tslaws.showProject`, `tslaws.runFile` (this file), `tslaws.cancel`, `tslaws.openDashboard` (runs
   `tslaws ui --no-open --port 0` and opens the printed URL) and `tslaws.accept`. Accept never runs: it opens a terminal with
   `npx tslaws accept` typed and not executed, and a person presses Enter. The extension never accepts laws and never writes
   your files.
@@ -96,6 +96,29 @@ in the `tslaws` output. Runs started by a command, a CodeLens, a quick fix or th
 
 A subset run reads only part of the project, so its `uncovered` results and its "law was removed" tampering results are
 dropped; the last full run's stay.
+
+## Projects
+
+A project is a directory with a `tslaws.json`. The file you have open belongs to the nearest one above it, up to the
+workspace folder, so in a monorepo each package runs with its own config, laws and `tsc-laws.lock`:
+
+- Saving or editing a file runs `tslaws` in its project, with the file named relative to it. `tslaws` itself is looked
+  up from the project upwards to the workspace folder, so one install at the repository root serves every package.
+- The Laws view, the status bar summary, the diagnostics, the Explorer badges and the Testing view show the project of the
+  open file. Each project keeps its own results: switching files switches the view, and a run started in one project is
+  not mixed into another's.
+- The second status bar item shows the current project (`tslaws: packages/ui`). Click it, or run _tslaws: Show the
+  current project_, to see the directory `tslaws` runs in and whether the project has a lock.
+- _tslaws: Check all projects_ runs `tslaws check --reporter ndjson` once from the monorepo root. Results stream in
+  law by law, and each project's results are kept under that project. It needs a `tslaws` that streams.
+- With several workspace folders (a multi-root workspace), each folder is looked at on its own. The status bar item names
+  the folder in front when there is more than one (`tslaws: app: packages/ui`).
+- A folder with no `tslaws.json` anywhere above the file behaves as before: the folder is the project. A file in the
+  monorepo root but in none of its projects has no laws to run; _tslaws: Check all laws_ at the root runs every
+  project.
+
+See [docs/monorepo.md](../../docs/monorepo.md) for the monorepo setup and `tslaws check --changed <ref>`, which runs only
+the projects a branch can affect.
 
 ## Live results
 
