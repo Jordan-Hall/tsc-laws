@@ -85,8 +85,9 @@ repository, and the run must be on `branch`. On a re-run, both the person who fi
 the second. The run also builds on the lock as `branch` holds it, so the latest commit that changed `tsc-laws.lock` must
 be the bot's (with a verified signature) or, with `local` true, a maintainer's merged pull request (see "Accepting by
 hand"). Otherwise it accepts nothing and says which commit to revert or to merge again through a maintainer's pull
-request. It runs the laws at the head of `branch`, accepts every proposal that
-passes, and commits `tsc-laws.lock` as the bot. There is no pull request, so it posts no comment; it prints what it
+request. The run must also still be at the head of `branch`, read from the API: if the branch moved while the run was
+queued, it accepts nothing and says so, and you run it again. It runs the laws at the head of `branch`, accepts every
+proposal that passes, and commits `tsc-laws.lock` as the bot. There is no pull request, so it posts no comment; it prints what it
 accepted to the job log and the step summary. In comment mode, the person who started the run takes the place of the
 `/tslaws accept` records. `requirePassing` still applies. Add the trigger to the merge workflow:
 

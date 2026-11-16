@@ -36,6 +36,8 @@ interface Scenario {
   /** What the API says for a path; undefined means an empty list. */
   routes?: (path: string) => unknown;
   laws?: boolean;
+  /** The commit the API says the branch is at, when it is not the one the run checked out. */
+  head?: string;
 }
 
 let counter = 0;
@@ -89,6 +91,8 @@ async function run(mode: string, s: Scenario) {
         return { permission, role_name: permission };
       }
       if (method !== 'GET') return {};
+      if (/\/git\/ref\/heads\/[^/]+$/.test(clean) && s.routes?.(clean) === undefined)
+        return { object: { sha: s.head ?? s.env?.GITHUB_SHA ?? hex('c') } };
       // verify reads the settings through the API at the base and at the head, never from the checkout. The head's are
       // the base's unless a route says the pull request changed them.
       const baseConfig = { content: b64(JSON.stringify({ github: s.base ?? github })) };
@@ -411,6 +415,39 @@ describe('merge on demand', () => {
     env: { GITHUB_EVENT_NAME: 'workflow_dispatch', GITHUB_SHA: hex('c'), ...(actor ? { GITHUB_ACTOR: actor } : {}) },
     routes: (path: string) => (path.includes('/contents/tsc-laws.lock') ? new Error('GitHub GET: 404') : undefined),
     laws: true,
+  });
+
+  it('accepts nothing when the branch moved past the commit the run checked out', async () => {
+    const { code, out, calls } = await run('merge', {
+      ...dispatch('maint'),
+      permissions: { maint: 'maintain' },
+      head: hex('d'),
+    });
+    assert.equal(code, 1);
+    assert.match(out, /master is at ddddddd but this run checked out ccccccc; nothing accepted/);
+    assert.equal(wrote(calls).length, 0);
+  });
+  it('accepts nothing when the head of the branch cannot be read', async () => {
+    const base = dispatch('maint');
+    const { code, out, calls } = await run('merge', {
+      ...base,
+      permissions: { maint: 'maintain' },
+      routes: (path) => (path.includes('/git/ref/heads/') ? new Error('GitHub GET: 404') : base.routes(path)),
+    });
+    assert.equal(code, 1);
+    assert.match(out, /the head of master could not be read; nothing accepted/);
+    assert.equal(wrote(calls).length, 0);
+  });
+  it('accepts nothing when the run has no checked-out commit', async () => {
+    const base = dispatch('maint');
+    const { code, out, calls } = await run('merge', {
+      ...base,
+      env: { GITHUB_EVENT_NAME: 'workflow_dispatch', GITHUB_ACTOR: 'maint' },
+      permissions: { maint: 'maintain' },
+    });
+    assert.equal(code, 1);
+    assert.match(out, /this run checked out no commit; nothing accepted/);
+    assert.equal(wrote(calls).length, 0);
   });
 
   it('lets a maintainer accept every passing proposal, with no pull request involved', async () => {

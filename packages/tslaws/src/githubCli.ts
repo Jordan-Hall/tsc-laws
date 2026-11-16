@@ -931,6 +931,26 @@ async function merge(ctx: GithubContext): Promise<number> {
       }
     }
   const branch = ref.slice('refs/heads/'.length);
+  // A run can wait in the queue while the branch moves on. It would then test an older checkout and write its lock over
+  // the newer commits, so an on-demand run must be on the branch's current head, read from the API.
+  if (dispatched) {
+    const head = (await api('GET', `/repos/${name}/git/ref/heads/${encodeURIComponent(branch)}`).catch(
+      () => undefined,
+    )) as { object?: { sha?: string } } | undefined;
+    const current = head?.object?.sha;
+    const checkedOut = String(ctx.env.GITHUB_SHA ?? '');
+    if (current === undefined || checkedOut === '' || current !== checkedOut) {
+      ctx.err(
+        `tslaws: ${
+          current === undefined
+            ? `the head of ${branch} could not be read`
+            : `${branch} is at ${current.slice(0, 7)} but this run checked out ${checkedOut === '' ? 'no commit' : checkedOut.slice(0, 7)}`
+        }; nothing accepted. Run it again on the current head.
+`,
+      );
+      return 1;
+    }
+  }
   const commits = (ev.commits ?? []) as {
     id: string;
     modified?: string[];
