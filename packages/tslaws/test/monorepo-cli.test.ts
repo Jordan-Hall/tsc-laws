@@ -190,14 +190,21 @@ describe('tslaws at a monorepo root without a compiler', () => {
     assert.equal(keyed['packages/b']!.files[0]!.file, 'src/f.laws.ts');
   });
 
-  it('refuses github, ui, mcp and init where the choice of project is open, naming --project', () => {
+  it('refuses ui, mcp and init where the choice of project is open, naming --project', () => {
     const root = twoPackages();
-    for (const command of ['github', 'ui', 'mcp', 'init']) {
-      const run = tslaws(root, command, ...(command === 'github' ? ['report'] : []));
+    for (const command of ['ui', 'mcp', 'init']) {
+      const run = tslaws(root, command);
       assert.equal(run.status, 1, command);
       assert.match(run.stderr, new RegExp(`tslaws ${command} runs in one project and this repository has 2`), command);
       assert.match(run.stderr, /--project <dir> \(packages\/a, packages\/b\)/, command);
     }
+  });
+
+  it('runs github over every project from the root, and says when none has a github section', () => {
+    const root = twoPackages();
+    const run = tslaws(root, 'github', 'report');
+    assert.equal(run.status, 1);
+    assert.match(run.stderr, /no project here has a "github" section in tslaws\.json/);
   });
 
   it('runs a one-project command in the project that --project picks, or the only project there is', () => {

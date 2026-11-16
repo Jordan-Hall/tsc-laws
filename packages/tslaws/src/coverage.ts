@@ -5,7 +5,7 @@
 // (directly or through other project modules). A function carrying `@tslaws-exempt` in its doc comment is exempt,
 // but only once the exemption is in tsc-laws.lock, so an agent cannot exempt its own code.
 import { parseGithubConfig } from './github.ts';
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, lstatSync, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { dirname, isAbsolute, join, posix, relative, resolve } from 'node:path';
 import ts from 'typescript';
 import { parseE2eConfig, type E2eConfig } from './e2e.ts';
@@ -78,7 +78,7 @@ const configKeys = [
   ...settingKeys,
 ];
 /** Keys that steer inheritance and discovery rather than a run; `readConfig` acts on them and drops them. */
-const structuralKeys = ['extends', 'projects'];
+const structuralKeys = ['extends', 'projects', 'standalone'];
 
 export interface Uncovered {
   file: string;
@@ -129,6 +129,8 @@ function checkFile(raw: unknown, source: string): Record<string, unknown> {
     fail(`"extends" must be a path to another tslaws.json, got ${JSON.stringify(object.extends)}`);
   const projects = object.projects === undefined ? undefined : projectsProblem(object.projects);
   if (projects !== undefined) fail(projects);
+  if (object.standalone !== undefined && typeof object.standalone !== 'boolean')
+    fail(`"standalone" must be true or false, got ${JSON.stringify(object.standalone)}`);
   for (const key of settingKeys) {
     const value = object[key];
     if (value !== undefined && (typeof value !== 'number' || !Number.isInteger(value) || value < 1))
@@ -231,11 +233,67 @@ function deepMerge(base: Record<string, unknown>, child: Record<string, unknown>
 }
 
 /**
+ * The text of an `extends` value if it is one this tool will follow: a non-empty relative path with forward slashes only.
+ * An absolute path, a drive or UNC path, a backslash, or a NUL is refused, so the on-disk loader and the GitHub checks
+ * that read the same files through the API resolve one target and never two.
+ */
+export function checkExtendsValue(value: unknown): string {
+  if (typeof value !== 'string' || value === '')
+    throw new Error(`"extends" must be a path to another tslaws.json, got ${JSON.stringify(value)}`);
+  // Letters, digits and . _ - / @ only: no `?`, `#`, `&` or `%` (which change an API URL's query), no backslash, NUL,
+  // space or drive colon.
+  if (!/^[A-Za-z0-9._\-/@]+$/.test(value) || value.startsWith('/'))
+    throw new Error(
+      `"extends" must be a relative path of letters, digits and . _ - / @ with forward slashes, got ${JSON.stringify(value)}`,
+    );
+  return value;
+}
+
+/**
+ * Where `extends` points, as a repository path: `fromFile` is the repository path of the file that names it. Refuses
+ * what `checkExtendsValue` does, and a target that leaves the repository.
+ */
+export function extendsTarget(fromFile: string, value: unknown): string {
+  const target = posix.normalize(posix.join(posix.dirname(fromFile), checkExtendsValue(value)));
+  if (target === '..' || target.startsWith('../') || posix.isAbsolute(target))
+    throw new Error(`"extends" ${JSON.stringify(value)} in ${fromFile} leaves the repository`);
+  return target;
+}
+
+/**
+ * The directory no `extends` may leave: the nearest enclosing directory with a `.git`, else the highest enclosing one
+ * that carries a workspace file (`tslaws.json`, `package.json` or `pnpm-workspace.yaml`), else `cwd` itself.
+ */
+export function extendsRoot(cwd: string): string {
+  let top = resolve(cwd);
+  let dir = top;
+  for (;;) {
+    if (existsSync(join(dir, '.git'))) return dir;
+    if (['tslaws.json', 'package.json', 'pnpm-workspace.yaml'].some((f) => existsSync(join(dir, f)))) top = dir;
+    const parent = dirname(dir);
+    if (parent === dir) return top;
+    dir = parent;
+  }
+}
+
+/** Whether `inner` is `outer` or inside it, by path alone. */
+const within = (outer: string, inner: string): boolean => {
+  const rel = relative(outer, inner);
+  return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
+};
+
+/**
  * Loads `file` and the files it `extends`, merged, with paths relative to the directory of `file`. `chain` holds the
  * files being loaded, outermost first, so a cycle or a missing file is reported with the way it was reached; every
  * file read is added to `loaded`.
  */
-function loadMerged(file: string, cwd: string, chain: string[], loaded: string[]): Record<string, unknown> {
+function loadMerged(
+  file: string,
+  cwd: string,
+  root: string,
+  chain: string[],
+  loaded: string[],
+): Record<string, unknown> {
   const shown = (path: string): string => relative(cwd, path).replaceAll('\\', '/') || path;
   const trail = [...chain, file];
   let text: string;
@@ -244,21 +302,36 @@ function loadMerged(file: string, cwd: string, chain: string[], loaded: string[]
   } catch {
     throw new Error(`${shown(file)}: no such file (reached by extends: ${trail.map(shown).join(' -> ')})`);
   }
+  // A symlink is not followed: the GitHub checks read a repository file as a blob and refuse a link, so a link here
+  // would be a file only one side reads.
+  if (lstatSync(file).isSymbolicLink())
+    throw new Error(
+      `${shown(file)}: a symlink, which tslaws does not follow (reached by extends: ${trail.map(shown).join(' -> ')})`,
+    );
   loaded.push(file);
   let json: unknown;
   try {
     json = JSON.parse(text);
-  } catch (error) {
-    throw new Error(`${shown(file)}: ${(error as Error).message}`);
+  } catch {
+    // The parser's message quotes the file's text, which is not ours to echo into a log.
+    throw new Error(`${shown(file)}: not valid JSON`);
   }
   const { extends: parent, ...own } = checkFile(json, shown(file));
   if (parent === undefined) return own;
-  const baseFile = resolve(dirname(file), parent as string);
+  const baseFile = resolve(dirname(file), checkExtendsValue(parent));
+  // The same containment as the GitHub checks (`extendsTarget`): by path, and by where a link or a linked directory
+  // really leads.
+  const outside = (): Error =>
+    new Error(`${shown(file)}: "extends" ${JSON.stringify(parent)} leaves the repository (${shown(root)})`);
+  if (!within(root, baseFile)) throw outside();
+  if (existsSync(baseFile) && !within(realpathSync(root), realpathSync(baseFile))) throw outside();
   if (trail.includes(baseFile))
     throw new Error(`${shown(file)}: "extends" forms a cycle (${[...trail, baseFile].map(shown).join(' -> ')})`);
-  const base = rebaseFields(loadMerged(baseFile, cwd, trail, loaded), dirname(baseFile), dirname(file));
-  // `projects` lists directories under the file that wrote it, so it is never inherited.
+  const base = rebaseFields(loadMerged(baseFile, cwd, root, trail, loaded), dirname(baseFile), dirname(file));
+  // `projects` lists directories under the file that wrote it, so it is never inherited; nor is `standalone`, which is
+  // about the one project whose file says it.
   delete base.projects;
+  delete base.standalone;
   return deepMerge(base, own);
 }
 
@@ -267,7 +340,7 @@ export function readConfig(cwd: string): CoverageConfig {
   const path = join(cwd, 'tslaws.json');
   if (!existsSync(path)) return {};
   const loaded: string[] = [];
-  const merged = loadMerged(path, cwd, [], loaded);
+  const merged = loadMerged(path, cwd, extendsRoot(cwd), [], loaded);
   let config: CoverageConfig;
   try {
     config = parseConfig(merged);
