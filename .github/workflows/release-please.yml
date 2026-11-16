@@ -45,6 +45,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.release.outputs.tag_name }}
-        # A tag created with GITHUB_TOKEN starts no workflow, so run laws.yml on it explicitly. With RELEASE_PLEASE_TOKEN set
+        # A tag created with GITHUB_TOKEN starts no workflow, so run laws.yml on it explicitly (--repo: this job has no checkout). With RELEASE_PLEASE_TOKEN set
         # the tag push starts it, and this step is skipped so the release is not published twice.
-        run: gh workflow run laws.yml --ref "$TAG"
+        run: gh workflow run laws.yml --repo "$GITHUB_REPOSITORY" --ref "$TAG"
