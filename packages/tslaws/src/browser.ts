@@ -6,6 +6,7 @@ import { delimiter, join, relative as pathRelative, resolve, sep } from 'node:pa
 import { build as bundleWith, type Plugin } from 'esbuild';
 import { explainBundleError, loadBundlerPlugins } from './bundlerPlugins.ts';
 import { readConfig } from './coverage.ts';
+import { compiledDirOf } from './lawRuntime.ts';
 import { chromium, firefox, webkit, type Browser, type BrowserType, type Page } from 'playwright-core';
 import type * as fc from 'fast-check';
 import { toWire } from './generators.ts';
@@ -171,6 +172,8 @@ function projectModulesPlugin(cwd: string): Plugin {
 // template, a stylesheet, an image) would look for it there. Such an import resolves to the file beside the source.
 function sourceFilesPlugin(cwd: string): Plugin {
   const out = join(cwd, '.tslaws', 'out');
+  // The project's own output may sit below `out` (when sources outside it were compiled too); paths map from there.
+  const project = compiledDirOf(cwd);
   return {
     name: 'tslaws-source-files',
     setup(build) {
@@ -178,7 +181,7 @@ function sourceFilesPlugin(cwd: string): Plugin {
         if (args.resolveDir !== out && !args.resolveDir.startsWith(out + sep)) return undefined;
         const inOut = resolve(args.resolveDir, args.path);
         if (existsSync(inOut)) return undefined;
-        const source = join(cwd, pathRelative(out, inOut));
+        const source = join(cwd, pathRelative(project, inOut));
         return existsSync(source) && !source.endsWith('.js') ? { path: source } : undefined;
       });
     },

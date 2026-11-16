@@ -131,3 +131,21 @@ export function isInside(dir: string, file: string): boolean {
   const rel = relative(dir, file);
   return rel !== '' && !rel.startsWith('..') && !isAbsolute(rel);
 }
+
+/**
+ * The directory the compiler's `rootDir` must be so that every source file a `paths` target can reach lies under it: the
+ * deepest common ancestor of the project and the directories the targets name (up to the first `*`). Targets on another
+ * drive are left out; the project itself when no target leaves it.
+ */
+export function commonRoot(cwd: string, options: ResolutionOptions | undefined): string {
+  let root = resolve(cwd);
+  const paths = (options?.paths ?? {}) as Record<string, string[]>;
+  for (const target of Object.values(paths).flat()) {
+    const fixed = target.split('*')[0] ?? '';
+    const dir = /[\\/]$/.test(fixed) ? fixed : dirname(fixed);
+    // Another drive has no path from here: nothing to widen to.
+    while (!isAbsolute(relative(root, dir)) && relative(root, dir).startsWith('..') && dirname(root) !== root)
+      root = dirname(root);
+  }
+  return root;
+}

@@ -7,13 +7,18 @@ import Module, { createRequire } from 'node:module';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { transformSync } from 'esbuild';
 import type ts from 'typescript';
-import { isInside, nearestTsconfig, readResolutionOf, resolutionCompilerOptions } from './tsconfigResolve.ts';
+import { nearestTsconfig, readResolutionOf, resolutionCompilerOptions } from './tsconfigResolve.ts';
 import type { ResolutionOptions } from './tsconfigResolve.ts';
 
 /** What a project registers: its root and the resolution options of its tsconfig (none when it has none or opts out). */
 export interface LawRuntime {
   cwd: string;
   options?: ResolutionOptions;
+  /**
+   * Where the project's compiled files are. Under `.tslaws/out`, but deeper when the output mirrors a tree above the
+   * project (sources outside it were compiled too): files then sit at the same depth as in the source tree.
+   */
+  outDir?: string;
 }
 
 interface Internals {
@@ -32,14 +37,18 @@ const outDirOf = (cwd: string): string => join(cwd, '.tslaws', 'out');
 /** The file the build leaves beside the output, so a property worker can put the same resolution in place. */
 export const runtimeFile = 'tslaws-runtime.json';
 
+const compiledRoot = (project: LawRuntime): string => project.outDir ?? outDirOf(project.cwd);
+
 /** The options for a program over the declarations in `outDir`: `base` plus the project's resolution. */
 export function withResolution(outDir: string, base: ts.CompilerOptions): ts.CompilerOptions {
-  return { ...resolutionCompilerOptions(projects.get(outDir)?.options), ...base };
+  const project = [...projects.values()].find((p) => compiledRoot(p) === outDir);
+  return { ...resolutionCompilerOptions(project?.options), ...base };
 }
 
-/** What the property workers need to put the same resolution in place. */
-export function runtimeOf(outDir: string): LawRuntime | undefined {
-  return projects.get(outDir);
+/** The directory holding the project's compiled files, as the last build left it. */
+export function compiledDirOf(cwd: string): string {
+  const project = projects.get(outDirOf(cwd));
+  return project === undefined ? outDirOf(cwd) : compiledRoot(project);
 }
 
 /** Registers a project's resolution for compiled laws and, on first use, puts the hooks in. */
@@ -86,10 +95,11 @@ function optionsAround(file: string): ResolutionOptions | undefined {
 function resolveThroughTypeScript(request: string, parent: Parent | undefined): string | undefined {
   const from = parent?.filename;
   if (from === undefined) return undefined;
-  const owner = [...projects].find(([outDir]) => from.startsWith(outDir + sep));
+  const owner = [...projects].find(([top]) => from.startsWith(top + sep))?.[1];
   // A compiled law resolves as its source does; the source is what imports are relative to.
-  const containing = owner === undefined ? from : join(owner[1].cwd, relative(owner[0], from)).replace(/\.js$/, '.ts');
-  const options = owner === undefined ? optionsAround(from) : owner[1].options;
+  const containing =
+    owner === undefined ? from : join(owner.cwd, relative(compiledRoot(owner), from)).replace(/\.js$/, '.ts');
+  const options = owner === undefined ? optionsAround(from) : owner.options;
   if (options === undefined) return undefined;
   const typescript = load('typescript') as typeof ts;
   const compilerOptions: ts.CompilerOptions = {
@@ -109,26 +119,26 @@ function resolveThroughTypeScript(request: string, parent: Parent | undefined): 
       undefined,
       mode,
     ).resolvedModule;
-    const file = found === undefined ? undefined : runnableFile(found.resolvedFileName, projects, containing);
+    const file = found === undefined ? undefined : runnableFile(found.resolvedFileName, owner);
     if (file !== undefined) return file;
   }
   return undefined;
 }
 
-/** The file Node can run for the file the type checker found: compiled output for project source, `.js` beside a `.d.ts`. */
-function runnableFile(found: string, all: Map<string, LawRuntime>, containing: string): string | undefined {
+/**
+ * The file Node can run for the file the type checker found: for a source file of the project, or one outside it that
+ * the compiler also wrote out, the compiled output at the same place in the tree; the `.js` beside a `.d.ts`; else the
+ * file itself (TypeScript source loads through the hook above).
+ */
+function runnableFile(found: string, owner: LawRuntime | undefined): string | undefined {
   const declaration = /\.d\.([cm]?)ts$/.exec(found);
   if (declaration !== null) {
     const js = found.replace(/\.d\.[cm]?ts$/, `.${declaration[1] ?? ''}js`);
     return existsSync(js) ? js : undefined;
   }
-  if (/\.[cm]?tsx?$/.test(found)) {
-    for (const [outDir, project] of all) {
-      if (!isInside(project.cwd, containing) || !isInside(project.cwd, found) || /[\\/]node_modules[\\/]/.test(found))
-        continue;
-      const compiled = resolve(outDir, relative(project.cwd, found)).replace(/\.[cm]?tsx?$/, '.js');
-      if (existsSync(compiled)) return compiled;
-    }
+  if (owner !== undefined && /\.[cm]?tsx?$/.test(found) && !/[\\/]node_modules[\\/]/.test(found)) {
+    const compiled = resolve(compiledRoot(owner), relative(owner.cwd, found)).replace(/\.[cm]?tsx?$/, '.js');
+    if (existsSync(compiled)) return compiled;
   }
   return existsSync(found) ? found : undefined;
 }

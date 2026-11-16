@@ -1,7 +1,7 @@
 // Laws compile and run with the package's tsconfig resolution: `paths`, `baseUrl`, `extends` through a package in
 // node_modules, workspace packages that ship TypeScript source, and the `"tsconfig": false` opt-out.
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { after, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -163,6 +163,31 @@ describe('tsconfig resolution', () => {
       const { statuses, text, compiled } = await run(options);
       assert.equal(compiled, true, text);
       assert.ok(statuses.length === 1 && statuses[0] !== 'error', text);
+    },
+  );
+
+  it(
+    'compiles a sibling package reached through paths with the tsc-laws compiler',
+    { skip: nativeCompiler === undefined ? 'set TSC_LAWS_BIN' : false },
+    async () => {
+      const options = project(
+        'native-sibling',
+        {
+          'app/tsconfig.json': json({ compilerOptions: { paths: { '@shared/*': ['../shared/src/*'] } } }),
+          'shared/src/x.ts': double,
+          'app/a.laws.ts': `import { double } from '@shared/x';\nexport law doubleIsEven(n: number) {\n  return double(n) === n + n;\n}\n`,
+        },
+        nativeCompiler,
+      );
+      const { statuses, text, compiled } = await run(options);
+      assert.equal(compiled, true, text);
+      assert.doesNotMatch(text, /TS6059/);
+      assert.ok(statuses.length === 1 && statuses[0] !== 'error', text);
+      // The output mirrors the tree from the common root: the project below it, the sibling beside it.
+      const out = join(options.cwd as string, '.tslaws', 'out');
+      assert.ok(existsSync(join(out, 'app', 'a.laws.js')), 'project output at its place under the root');
+      assert.ok(existsSync(join(out, 'shared', 'src', 'x.js')), 'sibling output at its place under the root');
+      assert.ok(existsSync(join(out, 'app', 'tslaws-runtime.json')), 'runtime file beside the project output');
     },
   );
 });
