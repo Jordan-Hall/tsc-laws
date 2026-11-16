@@ -500,6 +500,7 @@ test('accept only types the command, and the command list is the old one plus th
       'tslaws.accept',
       'tslaws.cancel',
       'tslaws.check',
+      'tslaws.checkAll',
       'tslaws.copyReproduce',
       'tslaws.goToFunction',
       'tslaws.goToLaw',
@@ -513,6 +514,7 @@ test('accept only types the command, and the command list is the old one plus th
       'tslaws.runFile',
       'tslaws.runLaw',
       'tslaws.showLaws',
+      'tslaws.showProject',
       'tslaws.writeLaw',
     ]);
     assert.ok(!s.calls.some((c) => c.args.includes('accept')), 'accept was never started as a process');

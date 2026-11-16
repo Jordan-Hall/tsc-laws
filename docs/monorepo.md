@@ -115,6 +115,51 @@ root with more than one project they stop with a message naming `--project <dir>
 the repository has exactly one project) they run in that project's directory. `tslaws init --project .` scaffolds the
 root itself.
 
+## Only what changed
+
+```sh
+tslaws check --changed origin/main            # the projects a pull request can affect
+tslaws check --changed origin/main --filter 'packages/*'
+```
+
+`--changed <ref>` compares the working tree with `git merge-base <ref> HEAD`, so a branch is judged by its own changes
+and not by what landed on the base since. Committed, staged, unstaged and untracked files all count; ignored files do
+not. In CI, fetch the full history (`fetch-depth: 0`), or the merge-base cannot be found and the run stops with a message
+that says so. It works for every command that runs in each project (`check`, `accept`, `list`, `mutate`,
+`regressions`) and combines with `--project` and `--filter`: the projects it picks are intersected with those.
+
+A project is selected when:
+
+- it contains a changed file (any file under its directory, including its `tslaws.json`, its `tsc-laws.lock` and its
+  laws files, and not the files of a project nested in it), or
+- it depends on a selected project, however indirectly.
+
+Dependencies come from three places:
+
+1. The nearest `package.json`, for `dependencies`, `devDependencies` and `peerDependencies` that name another workspace
+   package. A package without a `tslaws.json` is still a node in the graph, so `app` depends on `util` depends on `core`
+   selects `app` when `core` changes, even though `util` has no laws.
+2. The project's tsconfig `paths` (the same resolution as [TypeScript resolution](#typescript-resolution)): a target that
+   lands in another package is a dependency, which covers packages that import each other by path without naming each
+   other in `package.json`.
+3. A package or project nested inside another depends on the one around it.
+
+A change to a file every project shares selects all of them: the root `tslaws.json`, a file a `tslaws.json` `extends`,
+the root `package.json`, a lockfile (`package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`, `bun.lock`) or a root
+`tsconfig*.json`.
+
+Each selected project gets one line on stderr that says why, so a surprising selection explains itself:
+
+```
+--changed origin/main (merge-base 3f2a9c1d, 2 changed files): 3 of 4 projects selected
+  packages/core: contains changed file packages/core/src/clamp.ts
+  packages/ui: depends on packages/core, which has changes
+  apps/web: depends on packages/ui, which is affected
+```
+
+When nothing is selected, the run prints that and exits 0; `--json` still prints `{}`. Inside a single project (no
+monorepo root), `--changed` runs the project when anything under it changed and otherwise exits 0 with a note.
+
 ## TypeScript resolution
 
 Laws are compiled with the module resolution of the package's own tsconfig, so a law can import what the package's code
@@ -174,6 +219,12 @@ jobs:
 
 The step fails when any project does, and its last line says which. `--reporter github` adds annotations on the lines of
 the failing laws.
+
+## In VS Code
+
+The [extension](../packages/vscode-tslaws/README.md#projects) follows the project of the open file: the nearest
+`tslaws.json` above it is the directory `tslaws` runs in, and its `tsc-laws.lock` is the one that counts. The status bar
+names the project, and _tslaws: Check all projects_ runs the whole repository from the root.
 
 ## What comes next
 

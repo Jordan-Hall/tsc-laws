@@ -10,7 +10,9 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 /**
- * @param {{root: string, executable?: string, args?: string[], exists?: (p: string) => boolean}} o
+ * @param {{root: string, ceiling?: string, executable?: string, args?: string[], exists?: (p: string) => boolean}} o
+ *   `root` is the directory the command runs in; with a `ceiling` (the workspace folder) tslaws is also looked for in the
+ *   node_modules of each directory above `root` up to it, which is where a monorepo's package manager puts it
  * @param {string[]} sub subcommand and its arguments, e.g. ['check', '--json']
  * @returns {{command: string, args: string[], shell: false} | {error: string}}
  */
@@ -26,8 +28,13 @@ function resolveCommand(o, sub) {
     if (/\.[cm]?js$/i.test(executable)) return { command: 'node', args: [executable, ...sub, ...extra], shell: false };
     return { command: executable, args: [...sub, ...extra], shell: false };
   }
-  const entry = path.join(o.root, 'node_modules', 'tslaws', 'bin', 'tslaws.js');
-  if (exists(entry)) return { command: 'node', args: [entry, ...sub, ...extra], shell: false };
+  const stop = o.ceiling === undefined ? o.root : o.ceiling;
+  for (let dir = o.root; ; dir = path.dirname(dir)) {
+    const entry = path.join(dir, 'node_modules', 'tslaws', 'bin', 'tslaws.js');
+    if (exists(entry)) return { command: 'node', args: [entry, ...sub, ...extra], shell: false };
+    const parent = path.dirname(dir);
+    if (path.normalize(dir).toLowerCase() === path.normalize(stop).toLowerCase() || parent === dir) break;
+  }
   return { error: 'tslaws is not installed in this workspace. Run `npm i -D tslaws` (or set tslaws.executable).' };
 }
 
