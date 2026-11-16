@@ -4,6 +4,7 @@
 // Covered modules are the `cover` globs of tslaws.json, or, without that file, every module the laws import
 // (directly or through other project modules). A function carrying `@tslaws-exempt` in its doc comment is exempt,
 // but only once the exemption is in tsc-laws.lock, so an agent cannot exempt its own code.
+import { parseGithubConfig } from './github.ts';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import ts from 'typescript';
@@ -34,10 +35,12 @@ export interface CoverageConfig {
   propertyTimeoutMs?: number;
   proofTimeoutMs?: number;
   bound?: number;
+  /** Accepting laws on GitHub: see github.ts. When present, `tslaws accept` refuses to run outside that workflow. */
+  github?: unknown;
 }
 
 const settingKeys = ['runs', 'propertyTimeoutMs', 'proofTimeoutMs', 'bound'] as const;
-const configKeys = ['cover', 'laws', 'levels', 'compilerOptions', 'e2e', 'bundlerPlugins', ...settingKeys];
+const configKeys = ['cover', 'laws', 'levels', 'compilerOptions', 'e2e', 'bundlerPlugins', 'github', ...settingKeys];
 
 export interface Uncovered {
   file: string;
@@ -95,6 +98,7 @@ export function parseConfig(raw: unknown): CoverageConfig {
       laws.some((entry) => typeof entry !== 'string' || entry.replace(/^!/, '') === '' || entry.startsWith('/')))
   )
     fail(`"laws" must be an array of project-relative globs, got ${JSON.stringify(laws)}`);
+  if (object.github !== undefined) parseGithubConfig(object.github);
   return object as CoverageConfig;
 }
 

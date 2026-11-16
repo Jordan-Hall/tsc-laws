@@ -15,7 +15,7 @@ import { serveMcp } from './mcp.ts';
 import { promoteFiles, promoteProposal } from './promote.ts';
 import { addProposal, ProposalError } from './proposals.ts';
 import { clearCorpus, listCorpus } from './regressions.ts';
-import { reporterNames, reportAs } from './reporters.ts';
+import { proposalText, reporterNames, reportAs } from './reporters.ts';
 import { readConfig } from './coverage.ts';
 import { migrateCommand, migrateUsage } from './migrate/index.ts';
 import { mutate, renderMutation } from './mutate.ts';
@@ -48,6 +48,7 @@ tslaws delegate status        list delegations and when they end
 tslaws propose <file.ts> [--from PATH]   write a proposal into .tslaws/proposals/ from PATH or stdin (outside the tree, git-ignored; never touches the lock or any other file)
 tslaws promote <proposal> [--to PATH]   move a proposal from .tslaws/proposals/ into the tree at a path you confirm (people only: needs a terminal; run accept afterwards). In-tree *.proposed.laws.ts files (the usual proposals) promote with --all or by name
 tslaws list [--json]   the laws files and proposals of the project: the level each runs at (from its name, or its imports with levels: imports) and whether it is accepted, unaccepted or proposed (reads files and the lock; runs nothing)
+tslaws github report|command|merge|verify   accept laws on GitHub: flag and run each proposal on a pull request, record /tslaws accept comments, and write tsc-laws.lock on merge (CI only; see "github" in tslaws.json)
 tslaws mcp [--compiler PATH]   serve check, check_proposed, explain and propose as Model Context Protocol tools on stdio (cannot accept, promote or touch the lock)
 ${migrateUsage}
 
@@ -88,6 +89,11 @@ function parse(args: string[]): { command: string; flags: Map<string, string | t
     'to',
     'from',
     'out',
+    'pr',
+    'config-from',
+    'head-sha',
+    'rerun-workflow',
+    'protect',
   ]);
   for (let i = 0; i < args.length; i += 1) {
     const arg = args[i]!;
@@ -108,7 +114,8 @@ function parse(args: string[]): { command: string; flags: Map<string, string | t
         arg === 'propose' ||
         arg === 'list' ||
         arg === 'migrate' ||
-        arg === 'delegate')
+        arg === 'delegate' ||
+        arg === 'github')
     )
       command = arg;
     else files.push(arg);
@@ -121,6 +128,8 @@ function describe(result: LawResult): string {
   const head = `${result.status.toUpperCase().padEnd(8)} ${result.name} (${where}) [${result.method}]`;
   const lines = [head];
   if (result.message !== undefined) lines.push(`         ${result.message}`);
+  const proposed = proposalText(result);
+  if (proposed !== undefined) lines.push(`         ${proposed}`);
   if (result.counterexample !== undefined) lines.push(`         counterexample: ${result.counterexample}`);
   if (result.status === 'failed' && result.seed !== undefined)
     lines.push(`         reproduce with --seed ${result.seed}`);
@@ -132,6 +141,7 @@ function describe(result: LawResult): string {
 function summarise(result: LawResult): string {
   const detail = [
     result.message,
+    proposalText(result),
     result.counterexample !== undefined ? `counterexample: ${result.counterexample}` : undefined,
   ]
     .filter((d): d is string => d !== undefined)
@@ -299,6 +309,12 @@ export async function acceptCommand(
   const chosen = lawFiles(cwd, flags, files);
   if (chosen.length === 0) {
     err('no laws files found (looking for *.laws.ts)\n');
+    return 1;
+  }
+  if (readConfig(cwd).github !== undefined) {
+    err(
+      'this project accepts laws on GitHub: tsc-laws.lock is written only by the tslaws workflow when a pull request merges (see "github" in tslaws.json); propose the laws in a pull request instead\n',
+    );
     return 1;
   }
   const gate = acceptGate({ isTTY: ctx.isTTY, env: ctx.env, root: cwd, now: ctx.now, home: ctx.home });
@@ -520,6 +536,28 @@ export async function main(args: string[]): Promise<number> {
   if (command === 'init') {
     process.stdout.write(`${init({ cwd, force: flags.has('force') }).join('\n')}\n\n${nextStep}\n`);
     return 0;
+  }
+
+  if (command === 'github') {
+    const { githubCommand } = await import('./githubCli.ts');
+    // The token stays with tslaws: laws run in worker threads and the compiler in a child process, and both get a copy of
+    // process.env, so a law under test could otherwise read the token and act as the bot.
+    const env = { ...process.env };
+    delete process.env.GITHUB_TOKEN;
+    delete process.env.GH_TOKEN;
+    // With --config-from, the project is a pull request's files, read as data: never run a compiler from among them.
+    const trusted = flags.get('config-from');
+    const chosen = options(cwd, flags, discover(cwd, false));
+    if (typeof trusted === 'string' && chosen.compiler === checkoutCompiler(cwd))
+      chosen.compiler = checkoutCompiler(resolve(cwd, trusted)) ?? 'tsc-laws';
+    return githubCommand(files[0], {
+      cwd,
+      options: chosen,
+      env,
+      flags,
+      out: (text) => void process.stdout.write(text),
+      err: (text) => void process.stderr.write(text),
+    });
   }
 
   if (command === 'accept')

@@ -246,7 +246,8 @@ describe('delegate and accept commands', () => {
   };
   const project = (): string => {
     const root = fresh('proj');
-    writeFileSync(join(root, 'a.laws.ts'), 'export law same(n: number) => n === n;\n');
+    // Call syntax: the built-in lowering reads it, so accepting needs no tsc-laws compiler binary.
+    writeFileSync(join(root, 'a.laws.ts'), "import { law } from 'tslaws';\nlaw('same', (n: number) => n === n);\n");
     return root;
   };
 

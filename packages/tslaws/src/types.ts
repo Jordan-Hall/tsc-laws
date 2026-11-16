@@ -32,6 +32,22 @@ export interface LawResult {
   screenshot?: string;
   /** The project functions the law reaches and where they are declared, for an editor to mark on both ends. */
   exercises?: Exercised[];
+  /**
+   * Set on a `tampered` result whose law is not (or no longer) the one in the lock: what the law would be if a person
+   * accepted it. The law still ran, so a reviewer sees whether the proposal holds; the result stays `tampered`, so the
+   * check still fails until the lock records the law.
+   */
+  proposal?: ProposalOutcome;
+}
+
+/** Why a law is a proposal, and what it did when it ran. */
+export interface ProposalOutcome {
+  reason: 'added' | 'changed' | 'removed' | 'level' | 'exempt';
+  /** The status the law would have if accepted; `removed` and `exempt` proposals run nothing and hold trivially. */
+  status: Exclude<LawStatus, 'tampered' | 'uncovered'>;
+  method: string;
+  counterexample?: string;
+  message?: string;
 }
 
 export interface CheckOptions {
