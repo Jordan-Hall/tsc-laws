@@ -412,6 +412,53 @@ A plugin that cannot be loaded, or whose factory throws, makes each browser law 
 the module. Without a plugin for the extension, a law that imports such a file reports an `error` that names the extension and
 the `bundlerPlugins` setting. The compiler does not know the format either: it reports the import as TS2307 in `compileDiagnostics`, which does not stop the bundle from running, and the imported value is untyped in the law.
 
+### Source written for a bundler
+
+Projects built with Vite, rsbuild or Bun write things that Node does not accept as it stands. Laws run such code as it is
+written, in three ways.
+
+`import.meta.env` is an object wherever a law runs: in a property worker, in the main process (end-to-end laws), and in a
+browser page. It holds every `process.env` entry, then `MODE` (`test`), `DEV` (`true`), `PROD` (`false`), `SSR` (`true` for a
+Node law, `false` for a browser law) and `BASE_URL` (`/`), then the `env` of `tslaws.json`, which overrides everything before
+it. `MODE` and `BASE_URL` keep the value `process.env` gives them when it has one.
+
+```json
+{ "env": { "VITE_API_URL": "http://localhost:3000", "MODE": "staging" } }
+```
+
+Each value is a string, or a boolean for `DEV`, `PROD` and `SSR`; another type is a config error that names the key. The
+compilers read the project as ES modules, so `import.meta` is not an error, and the output is lowered to CommonJS with
+`import.meta.env` rewritten to a global (`globalThis.__tslawsImportMetaEnv`) that the runner sets before any law module loads.
+TypeScript files that Node loads itself (a workspace package that exports its `.ts` source) get the same rewrite through a
+loader hook; files under `node_modules` are never rewritten. The browser bundle uses the same global. The rest of
+`import.meta` (`url`, `dirname`) is not provided in compiled laws.
+
+Types: when the project declares no `ImportMeta.env` of its own (Vite's `vite/client` and rsbuild's types do), the build adds
+the declaration that ships with tslaws, so `import.meta.env.MODE` is a `string`, `DEV`, `PROD` and `SSR` are booleans, and any
+other name is `any`, as in Vite. A project that declares its own keeps it, and gets no second one. To give the editor the
+shipped declaration too, add `/// <reference types="tslaws/env" />` to a `.d.ts` file in the project.
+
+Extensionless imports in TypeScript dependencies: a workspace package with `"type": "module"` that exports `./src/index.ts`
+and writes `export * from './database'` fails under Node alone (`Cannot find module '.../src/database' imported from
+.../src/index.ts`), because Node's ES module resolution needs the extension, although a bundler does not. The runner installs a
+resolve hook (`module.registerHooks`) in the main process and in every worker. For a relative specifier that does not
+resolve, in a `.ts`, `.tsx`, `.mts` or `.cts` file outside `node_modules`, it tries the specifier with `.ts`, `.tsx`, `.mts`,
+`.js`, `/index.ts` and `/index.tsx` added, and a `.js` specifier that names a `.ts` file. The hooks need Node 22.15, 23.5 or
+later; on an older Node they are skipped, and such an import fails with the error above.
+
+Troubleshooting:
+
+- `TS1343` or `TS2339` on `import.meta.env`: use a tslaws newer than 0.9; older versions compiled laws as
+  CommonJS, where `import.meta` is not allowed.
+- `Cannot find module ... imported from ....ts` for a dependency: check `node --version` against the minimum above. Only
+  project code outside `node_modules` gets the extension retry; a package installed from a registry has to ship files that
+  resolve under Node.
+- `No "exports" main defined in .../package.json`: the package lists only an `import` (or `types`) condition and no `require`
+  or `default`, so the CommonJS loader of a law cannot resolve it. Add a `default` condition that points at a file Node can
+  load.
+- A value from `process.env` has the wrong type: `env` values from the environment are strings; set the typed value under
+  `env` in `tslaws.json`.
+
 ## End-to-end laws
 
 There are three levels of law. By default the file name selects the level (`*.browser.laws.ts`, `*.e2e.laws.ts`, anything else is a Node law). With `"levels": "imports"` in `tslaws.json`, what the file imports selects it instead (see [Levels](#levels-names-by-default-imports-opt-in)); the Imports row below is what decides in that mode.
@@ -1033,7 +1080,7 @@ first failing law; raise the timeouts when it timed out.
 
 ## Settings
 
-`tslaws.json` takes optional run settings besides `cover`, `compilerOptions`, `bundlerPlugins` and `e2e`:
+`tslaws.json` takes optional run settings besides `cover`, `compilerOptions`, `bundlerPlugins`, `env` and `e2e`:
 
 | Key                 | Meaning                                    | Default (`check`) |
 | ------------------- | ------------------------------------------ | ----------------- |

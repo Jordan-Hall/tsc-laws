@@ -5,8 +5,9 @@ import { mkdirSync } from 'node:fs';
 import { delimiter, join, relative as pathRelative, resolve, sep } from 'node:path';
 import { build as bundleWith, type Plugin } from 'esbuild';
 import { explainBundleError, loadBundlerPlugins } from './bundlerPlugins.ts';
-import { readConfig } from './coverage.ts';
+import { lawEnv, readConfig } from './coverage.ts';
 import { compiledDirOf } from './lawRuntime.ts';
+import { importMetaEnvGlobal } from './runtimeEnv.ts';
 import { chromium, firefox, webkit, type Browser, type BrowserType, type Page } from 'playwright-core';
 import type * as fc from 'fast-check';
 import { toWire } from './generators.ts';
@@ -234,7 +235,12 @@ async function bundleOf(jsFile: string, cwd: string): Promise<{ js: string; css:
       absWorkingDir: cwd,
       ...bundlerTsconfig(cwd),
       logLevel: 'silent',
-      define: { 'process.env.NODE_ENV': '"development"', global: 'globalThis' },
+      // A dependency's `import.meta.env` reads the same global the compiled laws do; the page sets it before the bundle.
+      define: {
+        'process.env.NODE_ENV': '"development"',
+        global: 'globalThis',
+        'import.meta.env': `globalThis.${importMetaEnvGlobal}`,
+      },
     });
     const emitted = (extension: string): string =>
       result.outputFiles
@@ -321,6 +327,9 @@ export async function runBrowserLaw(law: BrowserLaw, options: CheckOptions): Pro
     await page.setContent('<!doctype html><html><head><meta charset="utf-8"></head><body></body></html>');
     // The stylesheet goes in before the script runs, as a linked one would.
     if (css !== '') await page.addStyleTag({ content: css });
+    await page.addScriptTag({
+      content: `globalThis.${importMetaEnvGlobal} = ${JSON.stringify(lawEnv(options.cwd, 'browser'))};`,
+    });
     await page.addScriptTag({ content: code });
     await page.addScriptTag({ content: harness });
     const call = async (...args: unknown[]): Promise<unknown> => {
