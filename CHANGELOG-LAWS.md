@@ -2,6 +2,14 @@
 
 The upstream tsc-ts changelog is CHANGELOG.md. Releases of tsc-laws are tagged `laws-v<version>` (see RELEASING-LAWS.md).
 
+## [0.8.0](https://github.com/Jordan-Hall/tsc-laws/compare/laws-v0.7.0...laws-v0.8.0) (2026-11-16)
+
+
+### Features
+
+* **tslaws:** accept laws on GitHub, so tsc-laws.lock is only written by CI on merge ([#25](https://github.com/Jordan-Hall/tsc-laws/issues/25)) ([f3473f3](https://github.com/Jordan-Hall/tsc-laws/commit/f3473f393f02de18fdc6f57216bdc11affe0f7a6))
+* **tslaws:** prover results name their assumptions, are cross-checked in JS, and can require cvc5 to agree ([#29](https://github.com/Jordan-Hall/tsc-laws/issues/29)) ([a0762cd](https://github.com/Jordan-Hall/tsc-laws/commit/a0762cdc6d6b72ac20d9808122bbdd26fe208234))
+
 ## 0.7.0
 
 - feat(tslaws): laws as calls, `law('name', fn)` and `law.proved(...)`, work with stock TypeScript; the `law` keyword and the fork compiler still work, and a project may use one syntax (mixing is refused)
