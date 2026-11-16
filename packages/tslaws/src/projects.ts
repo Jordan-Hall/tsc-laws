@@ -12,13 +12,17 @@ export interface Project {
   dir: string;
   /** Directory relative to the repository root, with `/` separators; '' for the root itself. */
   path: string;
+  /** Its tslaws.json says `"standalone": true`: root runs leave it alone unless it is named with `--project`. */
+  standalone: boolean;
 }
 
 export interface DiscoverOptions {
   /** Keep projects whose `path` matches one of these globs (a leading `!` excludes). */
   filter?: string[];
-  /** Keep only projects whose `path` is exactly one of these. */
+  /** Keep only projects whose `path` is exactly one of these. A standalone project is kept only when named here. */
   only?: string[];
+  /** Keep standalone projects even when they are not named. For code that must know every project. */
+  standalone?: boolean;
 }
 
 /** Directories never searched, for projects or for laws files. */
@@ -48,17 +52,30 @@ function projectsOf(dir: string): string[] | undefined {
   return raw.projects as string[];
 }
 
-function workspacesOf(dir: string): string[] {
-  const file = join(dir, 'package.json');
-  if (!existsSync(file)) return [];
+/** The `workspaces` globs of a package.json text (an array, or `{ packages: [...] }`); [] when absent or unparsable. */
+export function workspacesIn(text: string): string[] {
   let workspaces: unknown;
   try {
-    workspaces = (readJson(file) as { workspaces?: unknown } | null)?.workspaces;
+    workspaces = (JSON.parse(text) as { workspaces?: unknown } | null)?.workspaces;
   } catch {
     return [];
   }
   const list = Array.isArray(workspaces) ? workspaces : (workspaces as { packages?: unknown } | undefined)?.packages;
   return Array.isArray(list) ? list.filter((entry): entry is string => typeof entry === 'string') : [];
+}
+
+function workspacesOf(dir: string): string[] {
+  const file = join(dir, 'package.json');
+  return existsSync(file) ? workspacesIn(readFileSync(file, 'utf8')) : [];
+}
+
+/** Whether the tslaws.json in `dir` says `"standalone": true`. Read from the file itself: `extends` never carries it. */
+function standaloneOf(dir: string): boolean {
+  try {
+    return (readJson(join(dir, 'tslaws.json')) as { standalone?: unknown } | null)?.standalone === true;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -112,11 +129,15 @@ function reaches(pattern: string, path: string): boolean {
 }
 
 /** Directories (relative POSIX paths) under `root` that hold a tslaws.json and match `globs`. */
-function matchingProjects(root: string, globs: string[]): string[] {
-  const patterns = globs.map((glob) => {
+function normalisedGlobs(globs: string[]): string[] {
+  return globs.map((glob) => {
     const negated = glob.startsWith('!');
     return `${negated ? '!' : ''}${normalise(negated ? glob.slice(1) : glob)}`;
   });
+}
+
+function matchingProjects(root: string, globs: string[]): string[] {
+  const patterns = normalisedGlobs(globs);
   const matches = globMatcher(patterns);
   const includes = patterns.filter((glob) => !glob.startsWith('!'));
   const found: string[] = [];
@@ -170,11 +191,15 @@ export function discoverProjects(root: string, opts: DiscoverOptions = {}): Proj
   const globs = listed ?? [workspacesOf(dir), pnpmWorkspacesOf(dir)].find((list) => list.length > 0) ?? [];
   const paths = globs.length === 0 ? [] : matchingProjects(dir, globs);
   if (existsSync(join(dir, 'tslaws.json')) && (listed === undefined || rootHasLaws(dir, paths))) paths.push('');
-  let projects = paths.sort().map((path): Project => ({ dir: path === '' ? dir : join(dir, path), path }));
+  let projects = paths.sort().map((path): Project => ({
+    dir: path === '' ? dir : join(dir, path),
+    path,
+    standalone: path !== '' && standaloneOf(join(dir, path)),
+  }));
   if (opts.only !== undefined && opts.only.length > 0) {
     const only = new Set(opts.only.map(normalise));
     projects = projects.filter((project) => only.has(project.path));
-  }
+  } else if (opts.standalone !== true) projects = projects.filter((project) => !project.standalone);
   if (opts.filter !== undefined && opts.filter.length > 0) {
     const matches = globMatcher(
       opts.filter.map((glob) => (glob.startsWith('!') ? `!${normalise(glob.slice(1))}` : normalise(glob))),
@@ -190,6 +215,71 @@ export function discoverProjects(root: string, opts: DiscoverOptions = {}): Proj
  */
 export function isMonorepoRoot(cwd: string): boolean {
   const dir = resolve(cwd);
-  if (!existsSync(join(dir, 'tslaws.json'))) return discoverProjects(dir).length > 0;
+  if (!existsSync(join(dir, 'tslaws.json'))) return discoverProjects(dir, { standalone: true }).length > 0;
   return projectsOf(dir) !== undefined;
+}
+
+/** The files that decide which directories are projects, as text (undefined when the file is absent). */
+export interface DiscoveryInputs {
+  tslaws?: string;
+  packageJson?: string;
+  pnpmWorkspace?: string;
+}
+
+/** The project globs the inputs name, by the same precedence as `discoverProjects`; `listed` when tslaws.json names them. */
+function globsFrom(inputs: DiscoveryInputs): { globs: string[]; listed: boolean } {
+  let listed: string[] | undefined;
+  if (inputs.tslaws !== undefined) {
+    try {
+      const raw = JSON.parse(inputs.tslaws) as Record<string, unknown> | null;
+      if (
+        typeof raw === 'object' &&
+        raw !== null &&
+        raw.projects !== undefined &&
+        projectsProblem(raw.projects) === undefined
+      )
+        listed = raw.projects as string[];
+    } catch {
+      // an unparsable file lists nothing; the caller reports it
+    }
+  }
+  const globs =
+    listed ??
+    [
+      inputs.packageJson === undefined ? [] : workspacesIn(inputs.packageJson),
+      inputs.pnpmWorkspace === undefined ? [] : pnpmPackages(inputs.pnpmWorkspace),
+    ].find((list) => list.length > 0) ??
+    [];
+  return { globs, listed: listed !== undefined };
+}
+
+/**
+ * What `discoverProjects` would find, from a list of repository paths and the three discovery inputs instead of a
+ * directory: for reading a commit through the API. `files` are paths relative to the root. Sorted; '' is the root.
+ */
+export function discoverFromFiles(files: readonly string[], inputs: DiscoveryInputs): string[] {
+  const { globs, listed } = globsFrom(inputs);
+  const searched = files.filter((file) => !file.split('/').some((segment) => skipped.has(segment)));
+  const matches = globMatcher(normalisedGlobs(globs));
+  const paths =
+    globs.length === 0
+      ? []
+      : searched
+          .filter((file) => file.endsWith('/tslaws.json'))
+          .map((file) => file.slice(0, -'/tslaws.json'.length))
+          .filter((dir) => matches(dir));
+  if (inputs.tslaws !== undefined) {
+    const inProject = (file: string) => paths.some((dir) => file.startsWith(`${dir}/`));
+    const hasLaws = searched.some(
+      (file) => file === 'tsc-laws.lock' || (file.endsWith('.laws.ts') && !inProject(file)),
+    );
+    if (!listed || hasLaws) paths.push('');
+  }
+  return [...new Set(paths)].sort();
+}
+
+/** A canonical form of what the inputs say about discovery: equal signatures, same discovery. */
+export function discoverySignature(inputs: DiscoveryInputs): string {
+  const { globs, listed } = globsFrom(inputs);
+  return JSON.stringify({ listed, globs });
 }
