@@ -1,6 +1,8 @@
 // Accepting laws on GitHub: the pure part. A pull request that adds, changes or removes a law (or a coverage exemption)
 // carries proposals; each one is flagged, run, and reported as passing or failing. The lock is never written on the
-// pull request. It is written only by the tslaws workflow on the default branch, after the merge:
+// pull request. By default it is written by the tslaws workflow on the default branch, after the merge. With
+// `"local": true` (the default) the project's own maintainers can also change it by hand: `tslaws accept` on a terminal,
+// or a pull request from someone with `admin` or `maintain` access. Either way the workflow can be run on demand:
 //
 //   accept: "merge"    every proposal that passes is accepted when the pull request merges
 //   accept: "comment"  a proposal is accepted on merge only if the author or a reviewer said `/tslaws accept <law>` or
@@ -40,6 +42,12 @@ export interface GithubConfig {
    * report, merge and command leave it out. The root's verify still watches its lock.
    */
   flow: 'shared' | 'own';
+  /**
+   * Whether a person may also change tsc-laws.lock directly: `tslaws accept` on their machine, or a pull request from
+   * someone with `admin` or `maintain` access. The workflow stays the way to accept on merge or on demand. Set false
+   * to make the workflow the only writer. Default true.
+   */
+  local: boolean;
 }
 
 export const githubDefaults: GithubConfig = {
@@ -50,6 +58,7 @@ export const githubDefaults: GithubConfig = {
   approvePullRequest: false,
   requirePassing: true,
   flow: 'shared',
+  local: true,
 };
 
 const approverKinds = ['author', 'reviewers', 'write', 'maintain', 'admin'] as const;
@@ -69,7 +78,7 @@ export function parseGithubConfig(raw: unknown): GithubConfig {
   };
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return fail('must be an object');
   const o = raw as Record<string, unknown>;
-  const known = ['accept', 'branch', 'bot', 'approvers', 'approvePullRequest', 'requirePassing', 'flow'];
+  const known = ['accept', 'branch', 'bot', 'approvers', 'approvePullRequest', 'requirePassing', 'flow', 'local'];
   for (const key of Object.keys(o))
     if (!known.includes(key)) fail(`unknown option "${key}"; supported: ${known.join(', ')}`);
   if (o.accept !== undefined && o.accept !== 'merge' && o.accept !== 'comment')
@@ -86,7 +95,7 @@ export function parseGithubConfig(raw: unknown): GithubConfig {
     fail(`"approvers" must be a non-empty array of ${approverKinds.join(', ')}`);
   if (o.flow !== undefined && o.flow !== 'shared' && o.flow !== 'own')
     fail(`"flow" must be "shared" or "own", got ${JSON.stringify(o.flow)}`);
-  for (const key of ['approvePullRequest', 'requirePassing'] as const)
+  for (const key of ['approvePullRequest', 'requirePassing', 'local'] as const)
     if (o[key] !== undefined && typeof o[key] !== 'boolean') fail(`"${key}" must be true or false`);
   const config: GithubConfig = { ...githubDefaults, ...(o as Partial<GithubConfig>) };
   if (config.accept === 'comment' && isSharedBot(config))

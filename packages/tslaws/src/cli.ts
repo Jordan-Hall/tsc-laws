@@ -19,6 +19,7 @@ import { addProposal, ProposalError } from './proposals.ts';
 import { clearCorpus, listCorpus } from './regressions.ts';
 import { proposalText, reporterNames, reportAs } from './reporters.ts';
 import { readConfig } from './coverage.ts';
+import { parseGithubConfig } from './github.ts';
 import { migrateCommand, migrateUsage } from './migrate/index.ts';
 import { mutate, renderMutation } from './mutate.ts';
 import { mutateDefaults, resolveSettings } from './settings.ts';
@@ -51,7 +52,7 @@ tslaws delegate status        list delegations and when they end
 tslaws propose <file.ts> [--from PATH]   write a proposal into .tslaws/proposals/ from PATH or stdin (outside the tree, git-ignored; never touches the lock or any other file)
 tslaws promote <proposal> [--to PATH]   move a proposal from .tslaws/proposals/ into the tree at a path you confirm (people only: needs a terminal; run accept afterwards). In-tree *.proposed.laws.ts files (the usual proposals) promote with --all or by name
 tslaws list [--json]   the laws files and proposals of the project: the level each runs at (from its name, or its imports with levels: imports) and whether it is accepted, unaccepted or proposed (reads files and the lock; runs nothing)
-tslaws github report|command|merge|verify   accept laws on GitHub: flag and run each proposal on a pull request, record /tslaws accept comments, and write tsc-laws.lock on merge (CI only; see "github" in tslaws.json)
+tslaws github report|command|merge|verify   accept laws on GitHub: flag and run each proposal on a pull request, record /tslaws accept comments, and write tsc-laws.lock on merge or on demand (workflow_dispatch) (CI only; see "github" in tslaws.json)
 tslaws mcp [--compiler PATH]   serve check, check_proposed, explain and propose as Model Context Protocol tools on stdio (cannot accept, promote or touch the lock)
 ${migrateUsage}
 
@@ -380,9 +381,11 @@ export async function acceptCommand(
     err('no laws files found (looking for *.laws.ts)\n');
     return 1;
   }
-  if (readConfig(cwd).github !== undefined) {
+  // A project that accepts laws on GitHub still lets a person accept by hand, unless it sets "github.local" to false.
+  const github = readConfig(cwd).github;
+  if (github !== undefined && !parseGithubConfig(github).local) {
     err(
-      'this project accepts laws on GitHub: tsc-laws.lock is written only by the tslaws workflow when a pull request merges (see "github" in tslaws.json); propose the laws in a pull request instead\n',
+      'this project accepts laws on GitHub only: tsc-laws.lock is written by the tslaws workflow, on merge or on demand (see "github" in tslaws.json, where "local" is false); propose the laws in a pull request instead\n',
     );
     return 1;
   }

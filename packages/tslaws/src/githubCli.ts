@@ -5,12 +5,16 @@
 //            waits for an accept. Advisory: it runs the pull request's code, so it decides nothing about the lock.
 //   command  issue_comment: reads `/tslaws accept|reject ...`, checks the commenter may accept, and records the
 //            fingerprints accepted in a comment of the bot's. Reads the pull request's files as data; runs none of it.
-//   merge    push to the configured branch: runs the laws on the merged code, accepts what passes (and, in comment
-//            mode, what was accepted for that exact version) and commits tsc-laws.lock through the API as the bot.
-//            The only place the lock is written.
-//   verify   pull_request_target: fails when a commit in the pull request that the bot did not make (with a signature
-//            GitHub verified) touches tsc-laws.lock, or when the pull request changes the "github" section of
-//            tslaws.json or a protected path. Reads the base branch's config, never the pull request's.
+//   merge    push to the configured branch, or workflow_dispatch by someone with admin or maintain access: runs the
+//            laws on the branch's code, accepts what passes (and, in comment mode, what was accepted for that exact
+//            version) and commits tsc-laws.lock through the API as the bot. The only place the workflow writes the
+//            lock. While a project's "local" is true (the default) a person may also change its lock by hand, through
+//            `tslaws accept` or a merged pull request that a maintainer wrote and merged; merge accepts such a change
+//            as it stands and builds on it, and on demand it first checks where the branch's lock came from.
+//   verify   pull_request_target: fails when the pull request changes a lock (unless the project's "local" is true
+//            and the pull request's author, and the author of each commit that changes the lock, has admin or maintain
+//            access), the "github" section of tslaws.json or a protected path. Reads the base branch's config, never
+//            the pull request's.
 //
 // From a monorepo root every mode covers all the projects in one process (`ctx.projects`): one sticky comment with a
 // section per project, one commit for all the locks, approvals that count only for their own project, and a project
@@ -154,6 +158,11 @@ async function all<T>(api: Api, path: string): Promise<T[]> {
   return out;
 }
 
+interface Person {
+  login: string;
+  type?: string;
+}
+
 interface PullRequest {
   number: number;
   user: { login: string; type: string };
@@ -163,6 +172,7 @@ interface PullRequest {
   changed_files?: number;
   requested_reviewers?: { login: string }[];
   merged?: boolean;
+  merged_at?: string | null;
 }
 
 // ---- shared ---------------------------------------------------------------------------------------------------------
@@ -454,6 +464,28 @@ async function report(ctx: GithubContext): Promise<number> {
 
 const rank: Record<string, number> = { none: 0, read: 1, triage: 2, write: 3, maintain: 4, admin: 5 };
 
+/** The repository permission `login` holds, as a rank (0 for a non-collaborator). Throws when GitHub cannot say. */
+async function permissionRank(api: Api, name: string, login: string): Promise<number> {
+  const permission = (await api('GET', `/repos/${name}/collaborators/${encodeURIComponent(login)}/permission`)) as {
+    permission?: string;
+    role_name?: string;
+  };
+  return Math.max(rank[permission?.permission ?? ''] ?? 0, rank[permission?.role_name ?? ''] ?? 0);
+}
+
+/**
+ * Whether `login` has `admin` or `maintain` access: the people who may change tsc-laws.lock by hand or run the merge
+ * job on demand. A bot never counts, and neither does a login whose permission cannot be read.
+ */
+export async function maintains(api: Api, name: string, login: string, type = 'User'): Promise<boolean> {
+  if (type === 'Bot' || login.endsWith('[bot]')) return false;
+  try {
+    return (await permissionRank(api, name, login)) >= rank.maintain!;
+  } catch {
+    return false;
+  }
+}
+
 /** Why `login` may not accept on this pull request, or undefined when they may. */
 export async function refusal(
   api: Api,
@@ -464,11 +496,7 @@ export async function refusal(
   config: GithubConfig,
 ): Promise<string | undefined> {
   if (type === 'Bot' || login.endsWith('[bot]')) return 'bots cannot accept laws';
-  const permission = (await api('GET', `/repos/${name}/collaborators/${encodeURIComponent(login)}/permission`)) as {
-    permission: string;
-    role_name?: string;
-  };
-  const level = Math.max(rank[permission.permission] ?? 0, rank[permission.role_name ?? ''] ?? 0);
+  const level = await permissionRank(api, name, login);
   if (level < rank.write!) return `@${login} needs write access to the repository`;
   for (const kind of config.approvers) {
     if (kind === 'author' && pr.user.login === login && pr.user.type !== 'Bot') return undefined;
@@ -881,11 +909,48 @@ async function merge(ctx: GithubContext): Promise<number> {
     );
     return 1;
   }
-  if (ctx.env.GITHUB_EVENT_NAME !== undefined && ctx.env.GITHUB_EVENT_NAME !== 'push') {
-    ctx.err('tslaws: merge runs on push only\n');
+  const eventName = ctx.env.GITHUB_EVENT_NAME;
+  if (eventName !== undefined && eventName !== 'push' && eventName !== 'workflow_dispatch') {
+    ctx.err('tslaws: merge runs on push and workflow_dispatch only\n');
     return 1;
   }
+  // On demand there is no push and no pull request, so whoever started the run is the authority, and only someone
+  // with admin or maintain access may start it. A re-run keeps GITHUB_ACTOR (who first started the workflow) and names
+  // the person who re-ran it in GITHUB_TRIGGERING_ACTOR, so both must qualify.
+  const dispatched = eventName === 'workflow_dispatch';
+  const starter = String(ctx.env.GITHUB_ACTOR ?? ev.sender?.login ?? '');
+  const rerunner = String(ctx.env.GITHUB_TRIGGERING_ACTOR ?? '');
+  const actor = rerunner === '' ? starter : rerunner;
+  if (dispatched)
+    for (const login of new Set(rerunner === '' ? [starter] : [starter, rerunner])) {
+      if (login === '' || !(await maintains(api, name, login))) {
+        ctx.err(
+          `tslaws: ${login === '' ? 'nobody' : `@${login}`} needs admin or maintain access to run this on demand\n`,
+        );
+        return 1;
+      }
+    }
   const branch = ref.slice('refs/heads/'.length);
+  // A run can wait in the queue while the branch moves on. It would then test an older checkout and write its lock over
+  // the newer commits, so an on-demand run must be on the branch's current head, read from the API.
+  if (dispatched) {
+    const head = (await api('GET', `/repos/${name}/git/ref/heads/${encodeURIComponent(branch)}`).catch(
+      () => undefined,
+    )) as { object?: { sha?: string } } | undefined;
+    const current = head?.object?.sha;
+    const checkedOut = String(ctx.env.GITHUB_SHA ?? '');
+    if (current === undefined || checkedOut === '' || current !== checkedOut) {
+      ctx.err(
+        `tslaws: ${
+          current === undefined
+            ? `the head of ${branch} could not be read`
+            : `${branch} is at ${current.slice(0, 7)} but this run checked out ${checkedOut === '' ? 'no commit' : checkedOut.slice(0, 7)}`
+        }; nothing accepted. Run it again on the current head.
+`,
+      );
+      return 1;
+    }
+  }
   const commits = (ev.commits ?? []) as {
     id: string;
     modified?: string[];
@@ -931,8 +996,62 @@ async function merge(ctx: GithubContext): Promise<number> {
     return bots.includes(detail.author?.login ?? '') && detail.commit.verification?.verified === true;
   };
   const botsFor = (path: string): string[] => botsOf.get(path) ?? anyBot;
+  // Or, while the project's "local" is true, one that reached its branch through a merged pull request where the pull
+  // request's author, the person who merged it, and the commit's own author (as GitHub sees them) all have admin
+  // or maintain access: that person changed the lock by hand and answers for it.
+  const people = new Map<string, boolean>();
+  const maintainer = async (person?: Person | null): Promise<boolean> => {
+    if (person === undefined || person === null || person.login === '') return false;
+    if (!people.has(person.login)) people.set(person.login, await maintains(api, name, person.login, person.type));
+    return people.get(person.login) === true;
+  };
+  const viaMaintainer = async (id: string, branchName: string): Promise<boolean> => {
+    const detail = (await api('GET', `/repos/${name}/commits/${id}`).catch(() => undefined)) as
+      | { author?: Person | null }
+      | undefined;
+    if (!(await maintainer(detail?.author))) return false;
+    const found = await api('GET', `/repos/${name}/commits/${id}/pulls`).catch(() => undefined);
+    for (const listed of Array.isArray(found) ? (found as PullRequest[]) : []) {
+      if ((listed.merged_at ?? null) === null && listed.merged !== true) continue;
+      if (listed.base.ref !== branchName) continue;
+      if (!(await maintainer(listed.user))) continue;
+      // The list omits who merged it.
+      const full = (await api('GET', `/repos/${name}/pulls/${listed.number}`).catch(() => undefined)) as
+        | { merged_by?: Person | null }
+        | undefined;
+      if (await maintainer(full?.merged_by)) return true;
+    }
+    return false;
+  };
+  const trustedLock = async (id: string, config: GithubConfig): Promise<boolean> =>
+    (await byBot(id, [config.bot])) || (config.local && (await viaMaintainer(id, config.branch)));
+  // Every commit from `from` to `to` that changed the lock is trusted, and the range is whole (no gap, no cut list).
+  const lockTrustedBetween = async (
+    from: string,
+    to: string,
+    lockPath: string,
+    config: GithubConfig,
+  ): Promise<boolean> => {
+    const range = (await api('GET', `/repos/${name}/compare/${from}...${to}`)) as {
+      status: string;
+      ahead_by: number;
+      commits: { sha: string }[];
+    };
+    const since = new Set(range.commits.map((c) => c.sha));
+    const touched = (await api(
+      'GET',
+      `/repos/${name}/commits?sha=${to}&path=${encodeURIComponent(lockPath)}&per_page=100`,
+    )) as { sha: string }[];
+    if (range.status !== 'ahead' || range.ahead_by !== range.commits.length || touched.length >= 100) return false;
+    for (const c of touched) if (since.has(c.sha) && !(await trustedLock(c.sha, config))) return false;
+    return true;
+  };
+  const who = (config: GithubConfig): string =>
+    config.local
+      ? `${config.bot} with a verified signature, nor merged through a pull request from someone with admin or maintain access`
+      : `${config.bot} with a verified signature`;
   // The payload lists at most 20 commits; a longer push is never taken for the bot's.
-  if (commits.length > 0 && commits.length < 20 && commits.every((c) => touches(c).length > 0)) {
+  if (!dispatched && commits.length > 0 && commits.length < 20 && commits.every((c) => touches(c).length > 0)) {
     let bots = true;
     for (const c of commits) for (const path of touches(c)) if (!(await byBot(c.id, botsFor(path)))) bots = false;
     if (bots && failures.length === 0) {
@@ -951,7 +1070,7 @@ async function merge(ctx: GithubContext): Promise<number> {
             `tslaws: commit ${c.id.slice(0, 7)} changed ${path} but was not made by ${botsFor(path).join(' or ')} with a verified signature; revert it`,
           );
   }
-  const pulls = (await api('GET', `/repos/${name}/commits/${sha}/pulls`)) as PullRequest[];
+  const pulls = dispatched ? [] : ((await api('GET', `/repos/${name}/commits/${sha}/pulls`)) as PullRequest[]);
   const commentsOf = new Map<number, Promise<IssueComment[]>>();
   const commentsFor = (pr: PullRequest) => {
     if (!commentsOf.has(pr.number)) commentsOf.set(pr.number, issueComments(api, name, pr.number));
@@ -971,18 +1090,52 @@ async function merge(ctx: GithubContext): Promise<number> {
       fail(text);
       sections.push(`- 🚫 ${shown(label(unit))}: not accepted: ${text.replace(/^tslaws: /, '')}`);
     };
+    // On demand, the run builds on the lock as the branch holds it, so where that lock came from matters: the latest
+    // commit that changed it must be trusted. (The bot refuses to build on an untrusted lock, and a maintainer answers
+    // for the lock they merge, so an older change under a trusted commit was vouched for by whoever made that commit.)
+    if (dispatched) {
+      // No pull request means no author or reviewers to match, so the project's access levels decide: whoever starts
+      // or re-runs the job must reach the lowest level its "approvers" names (admin when it names only admin), and
+      // never less than maintain.
+      const levels = config.approvers.flatMap((kind) => (kind in rank ? [rank[kind]!] : []));
+      const needed = Math.max(rank.maintain!, ...(levels.length > 0 ? [Math.min(...levels)] : []));
+      let short: string | undefined;
+      for (const login of new Set(rerunner === '' ? [starter] : [starter, rerunner]))
+        if (short === undefined && (await permissionRank(api, name, login).catch(() => 0)) < needed) short = login;
+      if (short !== undefined) {
+        stop(
+          `tslaws: @${short} needs ${needed >= rank.admin! ? 'admin' : 'admin or maintain'} access to accept in this project on demand (its approvers are ${config.approvers.join(', ')}); nothing accepted.`,
+        );
+        continue;
+      }
+      const latest = await api(
+        'GET',
+        `/repos/${name}/commits?sha=${encodeURIComponent(config.branch)}&path=${encodeURIComponent(lockPath)}&per_page=1`,
+      ).catch(() => undefined);
+      const newest = Array.isArray(latest) ? (latest[0] as { sha: string } | undefined) : undefined;
+      if (
+        !Array.isArray(latest) ||
+        (newest !== undefined && !(await trustedLock(newest.sha, config).catch(() => false)))
+      ) {
+        stop(
+          `tslaws: ${newest === undefined ? `the history of ${lockPath} on ${config.branch} could not be read` : `the latest commit that changed ${lockPath} on ${config.branch} (${newest.sha.slice(0, 7)}) was not made by ${who(config)}`}; nothing accepted. Merge the lock through a pull request from a maintainer, or revert that commit.`,
+        );
+        continue;
+      }
+    }
     const mine = commits.filter((c) => pathsOf(c).includes(lockPath));
     let refused = false;
     for (const c of mine)
-      if (!refused && !(await byBot(c.id, [config.bot]))) {
+      if (!refused && !(await trustedLock(c.id, config))) {
         stop(
-          `tslaws: commit ${c.id.slice(0, 7)} changed ${lockPath} but was not made by ${config.bot} with a verified signature; nothing accepted. Revert it.`,
+          `tslaws: commit ${c.id.slice(0, 7)} changed ${lockPath} but was not made by ${who(config)}; nothing accepted. Revert it.`,
         );
         refused = true;
       }
     if (refused) continue;
     // The push event lists at most 20 commits, and their file lists can be cut short, so compare the lock itself: this
-    // push is not the bot's alone (that case returned above), so it must leave the lock exactly as it was.
+    // push is not the bot's alone (that case returned above), so it must leave the lock exactly as it was, or change it
+    // only through commits shown to be trusted.
     const lockAt = async (at: string): Promise<string | undefined> => {
       try {
         return ((await api('GET', contentsUrl(name, lockPath, at))) as { sha: string }).sha;
@@ -990,7 +1143,11 @@ async function merge(ctx: GithubContext): Promise<number> {
         return undefined;
       }
     };
-    if (known && (await lockAt(before)) !== (await lockAt(sha))) {
+    if (
+      known &&
+      (await lockAt(before)) !== (await lockAt(sha)) &&
+      !(config.local && (await lockTrustedBetween(before, sha, lockPath, config).catch(() => false)))
+    ) {
       stop(
         `tslaws: this push changed ${lockPath}, and not only through ${config.bot}; nothing accepted. Revert the change.`,
       );
@@ -1005,23 +1162,9 @@ async function merge(ctx: GithubContext): Promise<number> {
       | undefined;
     const localBlob = existsSync(lockFile) ? gitBlobSha(readFileSync(lockFile)) : undefined;
     if (headLock !== undefined && headLock.sha !== localBlob) {
-      const range = (await api('GET', `/repos/${name}/compare/${sha}...${branchRef}`)) as {
-        status: string;
-        ahead_by: number;
-        commits: { sha: string }[];
-      };
-      const since = new Set(range.commits.map((c) => c.sha));
-      const touched = (await api(
-        'GET',
-        `/repos/${name}/commits?sha=${branchRef}&path=${encodeURIComponent(lockPath)}&per_page=100`,
-      )) as {
-        sha: string;
-      }[];
-      let trusted = range.status === 'ahead' && range.ahead_by === range.commits.length && touched.length < 100;
-      for (const c of touched) if (trusted && since.has(c.sha) && !(await byBot(c.sha, [config.bot]))) trusted = false;
-      if (!trusted) {
+      if (!(await lockTrustedBetween(sha, branchRef, lockPath, config))) {
         stop(
-          `tslaws: ${lockPath} on ${config.branch} has moved on since this push, and not only through ${config.bot}; nothing accepted`,
+          `tslaws: ${lockPath} on ${config.branch} has moved on since this push, and not only through ${config.bot}${config.local ? ' or a maintainer' : ''}; nothing accepted`,
         );
         continue;
       }
@@ -1055,7 +1198,10 @@ async function merge(ctx: GithubContext): Promise<number> {
           if (verdicts.get(key)) records.push(record);
           else ctx.err(`tslaws: ignoring the records of @${record.by} on #${pr.number}: no longer an approver\n`);
         }
-    const approvals = acceptedFingerprints(records, unit.path);
+    // The maintainer who started a run on demand accepts everything that passes, as an approver would on a pull request.
+    const approvals = dispatched
+      ? new Map(proposals.map((p): [string, string] => [p.fingerprint, actor]))
+      : acceptedFingerprints(records, unit.path);
     const decision = decide(proposals, config, approvals);
     const wins = proposals.filter((p) => decision.accept.has(p.fingerprint));
     if (wins.length > 0) {
@@ -1096,7 +1242,7 @@ async function merge(ctx: GithubContext): Promise<number> {
         )
         .join('\n');
     const count = writes.reduce((n, w) => n + w.accepted.length, 0);
-    const message = `chore(tslaws): accept ${count} law change${count === 1 ? '' : 's'}${writes.length > 1 ? ` in ${writes.length} projects` : ''}${pulls[0] ? ` from #${pulls[0].number}` : ''}\n\n${writes.map(detail).join('\n')}`;
+    const message = `chore(tslaws): accept ${count} law change${count === 1 ? '' : 's'}${writes.length > 1 ? ` in ${writes.length} projects` : ''}${pulls[0] ? ` from #${pulls[0].number}` : dispatched ? ` on request of @${actor}` : ''}\n\n${writes.map(detail).join('\n')}`;
     if (writes.length === 1) {
       const [only] = writes;
       // Through the contents API, so GitHub signs the commit as the bot and `verify` can tell it from a forgery. The
@@ -1185,6 +1331,73 @@ async function checkProjectAt(
   return base.github === undefined ? undefined : parseGithubConfig(base.github);
 }
 
+interface PullCommit {
+  sha: string;
+  author?: Person | null;
+  files: { filename: string; previous_filename?: string }[];
+}
+
+/** What a hand-made lock change has to show, read once per pull request however many locks it changes. */
+interface LockEvidence {
+  author?: Promise<boolean>;
+  /** The pull request's commits; `full` when GitHub's list of them may be cut short (250 is its limit). */
+  commits?: Promise<{ full: boolean; list: PullCommit[] }>;
+}
+
+/**
+ * Why a pull request may not change `lockPath`, for a project whose base settings are `config`. With "local" on, a
+ * maintainer's pull request may: its author needs admin or maintain access, and so does the author of each commit that
+ * changes the lock, so a maintainer cannot carry someone else's lock through. Without it, only the bot writes the lock.
+ */
+async function lockChangeProblems(
+  api: Api,
+  name: string,
+  pull: PullRequest,
+  lockPath: string,
+  config: GithubConfig,
+  evidence: LockEvidence,
+): Promise<string[]> {
+  if (!config.local)
+    return [`the pull request changes ${lockPath}; only ${config.bot} writes the lock, on merge into ${config.branch}`];
+  evidence.author ??= maintains(api, name, pull.user.login, pull.user.type);
+  if (!(await evidence.author))
+    return [
+      `the pull request changes ${lockPath}; only ${config.bot} writes the lock, on merge into ${config.branch}, unless its author has admin or maintain access to the repository`,
+    ];
+  // GitHub lists at most 300 files for a commit; a full list may hide the lock, so it counts as touching it. It lists at
+  // most 250 commits for a pull request; a full list may hide a commit, so the pull request cannot be checked. The
+  // author is the one GitHub matches from the commit's e-mail, which anyone with push access to the branch can set: the
+  // pull request's author, a maintainer, answers for what is pushed to it, and the ruleset is the hard control.
+  evidence.commits ??= (async () => {
+    const listed = await all<{ sha: string }>(api, `/repos/${name}/pulls/${pull.number}/commits`);
+    const list: PullCommit[] = [];
+    // At the limit the pull request fails whatever its commits say, so they are not read.
+    for (const c of listed.length >= 250 ? [] : listed) {
+      const detail = (await api('GET', `/repos/${name}/commits/${c.sha}`)) as {
+        author?: Person | null;
+        files?: { filename: string; previous_filename?: string }[];
+      };
+      list.push({ sha: c.sha, author: detail.author, files: detail.files ?? [] });
+    }
+    return { full: listed.length >= 250, list };
+  })();
+  const { full, list } = await evidence.commits;
+  const problems: string[] = [];
+  if (full)
+    problems.push(
+      `the pull request changes ${lockPath} and has 250 or more commits, more than GitHub lists; split it so each commit can be checked`,
+    );
+  for (const c of list) {
+    const touchesLock =
+      c.files.length >= 300 || c.files.some((f) => f.filename === lockPath || f.previous_filename === lockPath);
+    if (touchesLock && !(await maintains(api, name, c.author?.login ?? '', c.author?.type)))
+      problems.push(
+        `commit ${c.sha.slice(0, 7)} in the pull request changes ${lockPath}, but ${c.author?.login ? `@${c.author.login} does not` : 'its author does not'} have admin or maintain access to the repository`,
+      );
+  }
+  return problems;
+}
+
 /** The most files the pull request files API lists (30 pages of 100); a pull request with more is cut short. */
 const filesListLimit = 3000;
 
@@ -1212,7 +1425,8 @@ async function changedFiles(api: Api, name: string, pull: PullRequest): Promise<
 /**
  * Everything a pull request must not change from under a monorepo's checks, read through the API at the base and at the
  * head: the project list (and how it is found), each project's `github` and `standalone` settings, and any lock. Adds a
- * line to `problems` for each. Returns what it read, for a caller that decides more from it.
+ * line to `problems` for each. Returns what it read, for a caller that decides more from it. A lock change is a problem
+ * unless `maintainersMayChangeLocks` and its project's base settings have "local" on and a maintainer wrote it.
  */
 async function inspectMonorepo(
   api: Api,
@@ -1222,6 +1436,7 @@ async function inspectMonorepo(
   changed: Set<string>,
   rootPath: string,
   problems: string[],
+  maintainersMayChangeLocks = false,
 ): Promise<{ baseSide: { paths: string[] }; headSide: { paths: string[] }; union: string[] }> {
   const checkProject = (dir: string) => checkProjectAt(read, pull, problems, dir);
   // Every project of the base and every project of the head, read through the API: a pull request that edits the
@@ -1254,6 +1469,7 @@ async function inspectMonorepo(
   }
   const union = [...new Set([...baseSide.paths, ...headSide.paths])];
   const configs = new Map<string, GithubConfig | undefined>();
+  const evidence: LockEvidence = {};
   // Every project, whatever the pull request changed: a settings file need not end in .json (an `extends` base in a
   // .jsonc file, say), so no extension decides whether to look. checkProject compares only the files a project reads.
   for (const rel of union)
@@ -1267,6 +1483,11 @@ async function inspectMonorepo(
   for (const file of new Set([...lockDifferences(baseSide.locks, headSide.locks), ...[...changed].filter(isLock)])) {
     const owner = union.find((rel) => joinRepo(rootPath, joinRepo(rel, 'tsc-laws.lock')) === file);
     const config = owner === undefined ? undefined : configs.get(owner);
+    if (config !== undefined && maintainersMayChangeLocks) {
+      // The project's own settings, as the base has them: a maintainer may change its lock while its "local" is true.
+      problems.push(...(await lockChangeProblems(api, name, pull, file, config, evidence)));
+      continue;
+    }
     problems.push(
       config === undefined
         ? `the pull request changes ${file}; a lock changes only when the bot writes it on merge, and this one is ${owner === undefined ? 'outside every project' : 'in a project with no "github" settings'}`
@@ -1310,7 +1531,8 @@ async function verify(ctx: GithubContext): Promise<number> {
     if (config === undefined) throw new Error('tslaws github needs a "github" section in tslaws.json');
     // The bot never commits to a pull request's branch: it writes the lock on ${config.branch} after the merge. So any
     // change to the lock in the pull request's diff (the full list, paginated above) is a forgery. Checking the diff, not
-    // each commit, also covers commits whose file list GitHub truncates (the commit API lists at most 300 files).
+    // each commit, also covers commits whose file list GitHub truncates (the commit API lists at most 300 files). With
+    // "local" on, a pull request from someone with admin or maintain access may change it: see lockChangeProblems.
     const [baseTree, headTree] = await Promise.all([
       treeAt(api, name, pull.base.sha),
       treeAt(api, name, pull.head.sha),
@@ -1318,12 +1540,10 @@ async function verify(ctx: GithubContext): Promise<number> {
     if (baseTree.truncated || headTree.truncated)
       problems.push('the repository is too large for the API to list its files; the lock cannot be checked');
     if (changed.has(lockPath) || lockDifferences(baseTree.locks, headTree.locks).includes(lockPath))
-      problems.push(
-        `the pull request changes ${lockPath}; only ${config.bot} writes the lock, on merge into ${config.branch}`,
-      );
+      problems.push(...(await lockChangeProblems(api, name, pull, lockPath, config, {})));
     void configPath;
   } else {
-    await inspectMonorepo(api, name, read, pull, changed, rootPath, problems);
+    await inspectMonorepo(api, name, read, pull, changed, rootPath, problems, true);
   }
   for (const problem of problems) ctx.out(`::error::${escapeGithubData(problem)}\n`);
   if (problems.length === 0) ctx.out('tslaws: the lock and its settings are untouched by this pull request\n');
