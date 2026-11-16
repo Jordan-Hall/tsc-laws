@@ -1,6 +1,6 @@
 // `extends` in tslaws.json: merging, array replacement, path rebasing, chains, and the errors for cycles and gaps.
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, describe, it } from 'node:test';
@@ -14,6 +14,7 @@ after(() => {
 function repo(files: Record<string, unknown>): string {
   const root = mkdtempSync(join(tmpdir(), 'tslaws-extends-'));
   temps.push(root);
+  mkdirSync(join(root, '.git')); // a checkout: the directory no `extends` may leave
   for (const [path, content] of Object.entries(files)) {
     mkdirSync(dirname(join(root, path)), { recursive: true });
     writeFileSync(join(root, path), JSON.stringify(content));
@@ -114,6 +115,43 @@ describe('readConfig extends', () => {
     assert.equal(config.bound, 8);
     assert.deepEqual(config.bundlerPlugins, ['../../p.mjs']);
     assert.deepEqual(config.laws, ['m/*.ts']);
+  });
+
+  it('refuses an extends that leaves the repository, by path or through a linked directory', () => {
+    const root = repo({ 'repo/packages/a/tslaws.json': { extends: '../../../outside.json' } });
+    const checkout = join(root, 'repo');
+    mkdirSync(join(checkout, '.git'));
+    writeFileSync(join(root, 'outside.json'), JSON.stringify({ runs: 9 }));
+    assert.throws(
+      () => readConfig(join(checkout, 'packages', 'a')),
+      /"extends" "\.\.\/\.\.\/\.\.\/outside\.json" leaves the repository/,
+    );
+    // Inside the repository a link to a directory outside it is followed by the file system, not by tslaws.
+    try {
+      symlinkSync(root, join(checkout, 'linked'), 'junction');
+    } catch {
+      return; // links need privileges on some systems
+    }
+    writeFileSync(
+      join(checkout, 'packages', 'a', 'tslaws.json'),
+      JSON.stringify({ extends: '../../linked/outside.json' }),
+    );
+    assert.throws(() => readConfig(join(checkout, 'packages', 'a')), /leaves the repository/);
+  });
+
+  it('does not echo the text of a file that is not JSON', () => {
+    const root = repo({});
+    writeFileSync(join(root, 'tslaws.json'), '{ "secret-token-text": ');
+    const error = (() => {
+      try {
+        readConfig(root);
+      } catch (thrown) {
+        return thrown as Error;
+      }
+      return undefined;
+    })();
+    assert.match(error?.message ?? '', /tslaws\.json: not valid JSON/);
+    assert.doesNotMatch(error?.message ?? '', /secret-token-text/);
   });
 
   it('reports a cycle with the files in it', () => {
