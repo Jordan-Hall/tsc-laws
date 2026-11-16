@@ -1,5 +1,5 @@
 import { createRequire } from 'node:module';
-import { join, resolve } from 'node:path';
+import { resolve } from 'node:path';
 import ts from 'typescript';
 import { build, readManifest } from './compile.ts';
 import {

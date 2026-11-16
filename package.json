@@ -27,5 +27,12 @@
     "turbo": "2.11.7",
     "typescript": "5.9"
   },
-  "packageManager": "npm@11.19.0"
+  "packageManager": "npm@11.19.0",
+  "overrides": {
+    "glob": "^14.0.2",
+    "minimatch": "^11.0.1",
+    "katex": "^0.18.2",
+    "zod": "^4.6.6",
+    "esbuild": "^0.28.1"
+  }
 }

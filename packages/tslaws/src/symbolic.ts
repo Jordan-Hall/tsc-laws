@@ -487,7 +487,7 @@ export class Executor {
   private block(statements: readonly ts.Statement[], f: Frame, pc: string): void {
     const outer = new Set(f.env.keys());
     this.execList(statements, f, pc);
-    for (const name of [...f.env.keys()]) if (!outer.has(name)) f.env.delete(name);
+    for (const name of f.env.keys()) if (!outer.has(name)) f.env.delete(name);
   }
 
   private declarations(list: ts.VariableDeclarationList, f: Frame, pc: string): void {
@@ -538,7 +538,7 @@ export class Executor {
       else this.ev(node.initializer, f, pc, true);
     }
     this.loop(undefined, node.condition, node.incrementor, node.statement, f, pc);
-    for (const name of [...f.env.keys()]) if (!outer.has(name)) f.env.delete(name);
+    for (const name of f.env.keys()) if (!outer.has(name)) f.env.delete(name);
   }
 
   private loop(
