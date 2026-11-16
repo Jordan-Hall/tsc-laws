@@ -12,6 +12,7 @@
 //            GitHub verified) touches tsc-laws.lock, or when the pull request changes the "github" section of
 //            tslaws.json or a protected path. Reads the base branch's config, never the pull request's.
 import { readFileSync, writeFileSync, appendFileSync, existsSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import { check, exemptionsOf } from './check.ts';
 import type { CheckReport } from './check.ts';
@@ -126,6 +127,11 @@ interface ProjectState {
 }
 
 /** What the lock would record if everything were accepted now. Compiles the project; runs none of it. */
+/** The id git gives a file's content: what the contents API reports as a file's `sha`. */
+function gitBlobSha(bytes: Buffer): string {
+  return createHash('sha1').update(`blob ${bytes.length}\0`).update(bytes).digest('hex');
+}
+
 export function projectState(options: CheckOptions): ProjectState {
   const lock = readLock(options.lockFile);
   const laws = readManifest(options.compiler, options.files, options.cwd);
@@ -432,6 +438,36 @@ async function merge(ctx: GithubContext): Promise<number> {
       return 1;
     }
   }
+  // Runs queue behind one another (the concurrency group), so this checkout can predate a lock commit that an earlier
+  // run made. Start from the lock on the branch, so this run never undoes what an earlier one accepted, once every
+  // commit since this push that changed the lock is shown to be the bot's.
+  const branchRef = encodeURIComponent(config.branch);
+  const headLock = (await api('GET', `/repos/${name}/contents/tsc-laws.lock?ref=${branchRef}`).catch(
+    () => undefined,
+  )) as { sha: string; content: string } | undefined;
+  const lockFile = ctx.options.lockFile;
+  const localBlob = existsSync(lockFile) ? gitBlobSha(readFileSync(lockFile)) : undefined;
+  if (headLock !== undefined && headLock.sha !== localBlob) {
+    const range = (await api('GET', `/repos/${name}/compare/${sha}...${branchRef}`)) as {
+      status: string;
+      ahead_by: number;
+      commits: { sha: string }[];
+    };
+    const since = new Set(range.commits.map((c) => c.sha));
+    const touched = (await api('GET', `/repos/${name}/commits?sha=${branchRef}&path=tsc-laws.lock&per_page=100`)) as {
+      sha: string;
+    }[];
+    let trusted = range.status === 'ahead' && range.ahead_by === range.commits.length && touched.length < 100;
+    for (const c of touched) if (trusted && since.has(c.sha) && !(await byBot(c.sha))) trusted = false;
+    if (!trusted) {
+      ctx.err(
+        `tslaws: tsc-laws.lock on ${config.branch} has moved on since this push, and not only through ${config.bot}; nothing accepted
+`,
+      );
+      return 1;
+    }
+    writeFileSync(lockFile, Buffer.from(headLock.content, 'base64'));
+  }
   const pulls = (await api('GET', `/repos/${name}/commits/${sha}/pulls`)) as PullRequest[];
   const checked = await check(ctx.options, true);
   const state = projectState(ctx.options);
@@ -461,16 +497,13 @@ async function merge(ctx: GithubContext): Promise<number> {
     writeLockValue(ctx.options.lockFile, next);
     const text = readFileSync(ctx.options.lockFile, 'utf8');
     if (!ctx.flags.has('dry-run')) {
-      // Through the contents API, so GitHub signs the commit as the bot and `verify` can tell it from a forgery.
-      const current = (await api(
-        'GET',
-        `/repos/${name}/contents/tsc-laws.lock?ref=${encodeURIComponent(config.branch)}`,
-      ).catch(() => undefined)) as { sha?: string } | undefined;
+      // Through the contents API, so GitHub signs the commit as the bot and `verify` can tell it from a forgery. The
+      // lock this run started from is the one it replaces: if anything wrote the lock since, GitHub refuses the write.
       await api('PUT', `/repos/${name}/contents/tsc-laws.lock`, {
         message: `chore(tslaws): accept ${accepted.length} law change${accepted.length === 1 ? '' : 's'}${pulls[0] ? ` from #${pulls[0].number}` : ''}\n\n${accepted.map((p) => `- ${p.key} (${p.reason}${p.outcome ? `, ${p.outcome.status}` : ''}${approvals.has(p.fingerprint) ? `, accepted by @${approvals.get(p.fingerprint)}` : ''})`).join('\n')}`,
         content: Buffer.from(text).toString('base64'),
         branch: config.branch,
-        ...(current?.sha === undefined ? {} : { sha: current.sha }),
+        ...(headLock === undefined ? {} : { sha: headLock.sha }),
       });
     }
   }

@@ -540,10 +540,20 @@ export async function main(args: string[]): Promise<number> {
 
   if (command === 'github') {
     const { githubCommand } = await import('./githubCli.ts');
+    // The token stays with tslaws: laws run in worker threads and the compiler in a child process, and both get a copy of
+    // process.env, so a law under test could otherwise read the token and act as the bot.
+    const env = { ...process.env };
+    delete process.env.GITHUB_TOKEN;
+    delete process.env.GH_TOKEN;
+    // With --config-from, the project is a pull request's files, read as data: never run a compiler from among them.
+    const trusted = flags.get('config-from');
+    const chosen = options(cwd, flags, discover(cwd, false));
+    if (typeof trusted === 'string' && chosen.compiler === checkoutCompiler(cwd))
+      chosen.compiler = checkoutCompiler(resolve(cwd, trusted)) ?? 'tsc-laws';
     return githubCommand(files[0], {
       cwd,
-      options: options(cwd, flags, discover(cwd, false)),
-      env: process.env,
+      options: chosen,
+      env,
       flags,
       out: (text) => void process.stdout.write(text),
       err: (text) => void process.stderr.write(text),

@@ -74,7 +74,13 @@ until the proposal is fixed or removed.
 
 ## Workflows
 
-The report job runs the pull request's code, so it only advises. The decision is made on the trusted branch.
+The report job runs the pull request's code, so it only advises. The decision is made on the trusted branch. tslaws
+removes `GITHUB_TOKEN` from its environment before it runs any law, so a law under test cannot use the token.
+
+The action always runs the `tslaws` installed in `tslaws-root` (default: the workspace root) by path. It never looks
+`tslaws` up from `working-directory`, so in the command job, where `working-directory` is the pull request's files,
+nothing from the pull request runs: not a committed `node_modules/.bin`, not an `.npmrc`. With `--config-from`, tslaws
+also refuses a compiler found among the pull request's files.
 
 ```yaml
 # .github/workflows/tslaws-pr.yml
@@ -121,7 +127,9 @@ on:
 permissions: { contents: read, pull-requests: read }
 jobs:
   command:
-    if: github.event.issue.pull_request && startsWith(github.event.comment.body, '/tslaws')
+    if: >-
+      github.event.issue.pull_request && startsWith(github.event.comment.body, '/tslaws') &&
+      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/create-github-app-token@v1

@@ -385,6 +385,21 @@ describe('lock tampering', () => {
     assert.match(out, /bot writing the lock/);
   });
 
+  it('merge refuses to build on a lock that moved on since the push, unless only the bot moved it', async () => {
+    const plain = { id: 'f'.repeat(40), modified: ['src/a.ts'], author: { username: 'a' } };
+    const { code, out } = await run('merge', push([plain]), (path) => {
+      if (path.includes('/contents/tsc-laws.lock?ref=master')) return { sha: 'moved', content: '' };
+      if (path.includes('/contents/tsc-laws.lock')) return { sha: 'same' };
+      if (path.includes('/compare/')) return { status: 'ahead', ahead_by: 1, commits: [{ sha: '9'.repeat(40) }] };
+      if (path.includes('path=tsc-laws.lock')) return [{ sha: '9'.repeat(40) }];
+      if (path.includes('/commits/'))
+        return { author: { login: 'mallory' }, commit: { verification: { verified: true } } };
+      return [];
+    });
+    assert.equal(code, 1);
+    assert.match(out, /has moved on since this push/);
+  });
+
   it('merge refuses a push that changed the lock where the payload does not say so', async () => {
     const hidden = { id: 'e'.repeat(40), modified: ['src/a.ts'], author: { username: 'mallory' } };
     const { code, out } = await run('merge', push([hidden]), (path) =>

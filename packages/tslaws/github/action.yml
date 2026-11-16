@@ -13,6 +13,11 @@ inputs:
   args:
     description: Extra arguments for `tslaws github <mode>`.
     default: ''
+  tslaws-root:
+    description: >-
+      The trusted checkout whose node_modules holds tslaws. tslaws is run from here by path, never looked up from
+      working-directory, so a pull request's files (a committed node_modules/.bin or .npmrc) are never executed.
+    default: ${{ github.workspace }}
 outputs:
   proposals:
     description: (report) how many proposals the pull request makes
@@ -30,7 +35,10 @@ runs:
         GITHUB_TOKEN: ${{ inputs.token }}
         MODE: ${{ inputs.mode }}
         ARGS: ${{ inputs.args }}
+        TSLAWS_ROOT: ${{ inputs.tslaws-root }}
       run: |
         case "$MODE" in report|command|merge|verify) ;; *) echo "::error::unknown mode $MODE"; exit 1;; esac
+        bin="$TSLAWS_ROOT/node_modules/tslaws/bin/tslaws.js"
+        if [ ! -f "$bin" ]; then echo "::error::tslaws is not installed in $TSLAWS_ROOT (run npm ci there)"; exit 1; fi
         # shellcheck disable=SC2086
-        npx --no-install tslaws github "$MODE" $ARGS
+        node "$bin" github "$MODE" $ARGS
