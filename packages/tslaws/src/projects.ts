@@ -3,8 +3,9 @@
 // and bun alike), or `packages:` in pnpm-workspace.yaml.
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { projectsProblem } from './coverage.ts';
+import { projectsProblem, readConfig } from './coverage.ts';
 import { globMatcher } from './globs.ts';
+import { customLawFile } from './lawFiles.ts';
 
 export interface Project {
   /** Absolute directory of the project. */
@@ -133,16 +134,22 @@ function matchingProjects(root: string, globs: string[]): string[] {
 }
 
 /**
- * The cheap test for "the root has laws of its own": a tsc-laws.lock beside it, or any `*.laws.ts` file outside the
- * projects. It reads directory names only (no file contents), skips node_modules, .git, dist and each project, and
- * stops at the first hit.
+ * The cheap test for "the root has laws of its own": a tsc-laws.lock beside it, any `*.laws.ts` file outside the
+ * projects, or a file the root's `laws` globs pick that declares a law. It reads directory names, and the contents of
+ * only those files the `laws` globs match; it skips node_modules, .git, dist and each project, and stops at the first
+ * hit.
  */
 function rootHasLaws(root: string, projects: string[]): boolean {
   if (existsSync(join(root, 'tsc-laws.lock'))) return true;
   const inProject = new Set(projects);
+  const custom = customLawFile(root, readConfig(root).laws);
   const walk = (path: string): boolean => {
     for (const entry of readdirSync(path === '' ? root : join(root, path), { withFileTypes: true })) {
-      if (entry.isFile() && entry.name.endsWith('.laws.ts')) return true;
+      if (
+        entry.isFile() &&
+        (entry.name.endsWith('.laws.ts') || custom(path === '' ? entry.name : `${path}/${entry.name}`))
+      )
+        return true;
       if (!entry.isDirectory() || skipped.has(entry.name)) continue;
       const next = path === '' ? entry.name : `${path}/${entry.name}`;
       if (!inProject.has(next) && walk(next)) return true;

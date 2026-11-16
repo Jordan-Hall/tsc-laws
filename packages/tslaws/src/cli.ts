@@ -630,7 +630,7 @@ function machineOf(command: string, flags: Map<string, string | true>): Machine 
   if (command === 'check') {
     const reporter = String(flags.get('reporter') ?? (flags.has('json') ? 'json' : 'text'));
     if (reporter === 'junit')
-      throw new Error('--reporter junit writes one XML document per project: run it with --project <dir>');
+      throw new Error('--reporter junit writes one XML document per project: pick one project with --project <dir>');
     return reporter === 'json' || reporter === 'ndjson' ? reporter : 'text';
   }
   return (command === 'list' || command === 'mutate') && flags.has('json') ? 'json' : 'text';
@@ -697,7 +697,10 @@ export async function main(args: string[]): Promise<number> {
   }
   if (selection === undefined) return runOne(command, flags, files, cwd, direct);
 
-  if (selection.fanOut && fansOut.has(command) && !flags.has('watch')) {
+  // One project and a reporter that writes one document (junit) runs plainly: there is nothing to join.
+  const oneDocument =
+    command === 'check' && flags.get('reporter') === 'junit' && selection.chosen.length === 1 && !flags.has('watch');
+  if (selection.fanOut && fansOut.has(command) && !flags.has('watch') && !oneDocument) {
     if (files.length > 0 && command !== 'regressions') {
       stderrWrite(
         `name files only inside one project: run \`tslaws ${command} ${files[0]}\` there, or pick it with --project <dir>\n`,
