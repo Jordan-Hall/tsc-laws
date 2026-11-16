@@ -142,8 +142,11 @@ resolves through `node_modules`), and workspace packages that point `exports` or
   `.tsx` files that no compiler wrote out, such as a workspace package's source reached through `node_modules`, are
   transpiled with esbuild as they load. Property workers get the same hooks, and the browser bundler uses the same
   tsconfig through esbuild.
-- Source files outside the project reached through `paths` are type-checked and loaded in place. They work with the
-  built-in path (laws written as `law(...)` calls); the tsc-laws compiler reports them as outside its root directory.
+- Source files outside the project reached through `paths` (a sibling package, say) work with both compilers. The built-in
+  path type-checks them and loads them in place. The tsc-laws compiler needs every source file under one root, so it
+  gets the common ancestor of the project and the `paths` targets as `rootDir`, and `.tslaws/out` mirrors the tree from
+  there: the project's output is in `.tslaws/out/<project path below the root>`, and a sibling's beside it. Only a
+  project that reaches outside itself has the extra directory level.
 
 ## One lock per package
 

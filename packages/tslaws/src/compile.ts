@@ -6,8 +6,8 @@ import { transformSync } from 'esbuild';
 import ts from 'typescript';
 import { lowerLawFile, usesLegacySyntax, type Lowered } from './lower.ts';
 import { readConfig } from './coverage.ts';
-import { installLawRuntime, runtimeFile } from './lawRuntime.ts';
-import { readResolution, resolutionCompilerOptions, type Resolution } from './tsconfigResolve.ts';
+import { installLawRuntime, runtimeFile, type LawRuntime } from './lawRuntime.ts';
+import { commonRoot, readResolution, resolutionCompilerOptions, type Resolution } from './tsconfigResolve.ts';
 import type { ManifestLaw } from './types.ts';
 
 export interface BuildResult {
@@ -193,9 +193,12 @@ export function compilerFlags(options: Record<string, unknown> | undefined): str
 export function build(compiler: string, files: string[], cwd: string): BuildResult {
   const resolution = readResolution(cwd);
   const result = compile(compiler, files, cwd, resolution);
-  installLawRuntime({ cwd, options: resolution?.options });
+  installLawRuntime({ cwd, options: resolution?.options, outDir: result.outDir });
   try {
-    writeFileSync(join(result.outDir, runtimeFile), JSON.stringify({ cwd, options: resolution?.options }));
+    writeFileSync(
+      join(result.outDir, runtimeFile),
+      JSON.stringify({ cwd, options: resolution?.options, outDir: result.outDir } satisfies LawRuntime),
+    );
   } catch {
     // A worker then loads the output without the aliases; the error it reports names the import.
   }
@@ -204,6 +207,11 @@ export function build(compiler: string, files: string[], cwd: string): BuildResu
 
 function compile(compiler: string, files: string[], cwd: string, resolution: Resolution | undefined): BuildResult {
   const outDir = join(cwd, '.tslaws', 'out');
+  const builtin = usesBuiltin(compiler, files, cwd);
+  // The compiler wants every source file under one root, and `paths` can lead out of the project (a sibling package),
+  // so the root is the common ancestor and the output mirrors the tree from there. The built-in path writes only what
+  // is inside the project, so it keeps the project as the root.
+  const root = builtin ? cwd : commonRoot(cwd, resolution?.options);
   const extra = compilerFlags(readConfig(cwd).compilerOptions);
   const flags = [
     '--target',
@@ -217,13 +225,12 @@ function compile(compiler: string, files: string[], cwd: string, resolution: Res
     '--esModuleInterop',
     '--declaration',
     '--rootDir',
-    cwd,
+    root,
     '--outDir',
     outDir,
     ...extra,
   ];
   const args = ['--ignoreConfig', ...flags, ...files];
-  const builtin = usesBuiltin(compiler, files, cwd);
   // What the options say is part of what was built.
   const keyArgs = [...args, JSON.stringify(resolution?.options ?? null)];
   const reused = builtin ? cachedBuild(keyArgs, files, cwd, outDir) : undefined;
@@ -240,7 +247,10 @@ function compile(compiler: string, files: string[], cwd: string, resolution: Res
     const project = join(cwd, '.tslaws', 'resolution.tsconfig.json');
     writeFileSync(
       project,
-      JSON.stringify({ compilerOptions: resolution.options, files: files.map((f) => resolve(cwd, f)) }),
+      JSON.stringify({
+        compilerOptions: { ...resolution.options, rootDir: root },
+        files: files.map((f) => resolve(cwd, f)),
+      }),
     );
     given = ['-p', project, ...flags];
   }
@@ -256,7 +266,12 @@ function compile(compiler: string, files: string[], cwd: string, resolution: Res
   )
     run = launch(compiler, given, { cwd, encoding: 'utf8', maxBuffer: 64 << 20, env: compilerEnv(cwd, compiler) });
   if (run.error !== undefined) throw new Error(cannotRun(compiler, run.error));
-  return { outDir, diagnostics: `${run.stdout ?? ''}${run.stderr ?? ''}`.trim(), ok: run.status === 0 };
+  // The project's own files sit where they do under the root, so its output is that deep in `outDir`.
+  return {
+    outDir: join(outDir, relative(root, cwd)),
+    diagnostics: `${run.stdout ?? ''}${run.stderr ?? ''}`.trim(),
+    ok: run.status === 0,
+  };
 }
 
 /** Every `node_modules/@types` from `cwd` upwards: where the compiler looks for global declarations by default. */
