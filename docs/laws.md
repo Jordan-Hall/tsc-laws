@@ -691,7 +691,8 @@ reported as `failed`.
 - **`int` is exact.** Integer arithmetic carries the obligation that results stay within ±(2^53 − 1). When the full range
   fails only on that obligation the proof is retried with `int` in ±2^26 and reported `bounded`. `bigint` is exact with no
   bound.
-- **Arrays, loops and recursion** unroll up to `--bound` (default 4) and give `bounded`. Supported: `length`, indexing,
+- **Arrays and loops of any length** need no bound (next bullet). Everything else about arrays, loops and recursion unrolls
+  up to `--bound` (default 4) and gives `bounded`. Supported: `length`, indexing,
   literals and spread, `push`, `map`, `filter`, `every`, `some`, `reduce`, `includes`, `indexOf`, `slice(n)`, `concat`,
   `reverse`, `sort(comparator)`, `[...new Set(xs)]`, `for`, `while`, `for…of`, `break`, `continue`. Mutation is allowed
   only on arrays no second name can reach.
@@ -710,6 +711,30 @@ reported as `failed`.
   declarations and exports assigned once count, and the initializer may not call anything.
 - **Number predicates:** `Number.isFinite`, `Number.isInteger` and `Number.isNaN` over `int` and doubles (`bigint` gives
   `false`, as in JavaScript).
+- **Inferred invariants and arrays of any length.** A loop with no `invariant(...)` becomes constrained Horn clauses: the
+  state on entry satisfies an unknown `Inv`, one pass of the body keeps `Inv`, and `Inv` with the condition false implies
+  the law. Z3's Spacer engine looks for `Inv`. When it finds one the invariant is printed in the result (`loop 1 invariant
+  over (s, i, n): …`, shown as an assumption) and checked again with plain Z3, which must show every clause valid; only then
+  is the law `proved`, for every iteration count and with no bound. An array parameter (`int[]`, `bigint[]` or `boolean[]`)
+  is an SMT array indexed by integers plus a length in 0 to 2^32 − 1, so a law about it holds for every length. Supported on
+  such arrays: `length`, `xs[i]` read and write, `push` and `pop` on a copy, `slice()` and `[...xs]` as copies, and `while`
+  and `for` loops over them. Reading outside the array is not modelled (JavaScript gives `undefined`): the read
+  carries the obligation that the index is inside, so a law that may read past the end is not proved. Elements stay within
+  the `int` range, as parameters do. This is partial correctness; a loop that never ends is not flagged. Linear invariants
+  are what Spacer finds; one that needs multiplication (`2 * s === i * (i - 1)`) is usually not found, so write it as an
+  `invariant(...)`.
+
+  When Eldarica (`eld`) or Golem is on the `PATH`, or named by `TSLAWS_ELDARICA` or `TSLAWS_GOLEM`, it solves the same
+  clauses. If it agrees the result says so (`Eldarica agrees`). If it says the clauses have no solution where Spacer found
+  one, the solvers disagree: the law stays `tested` (a `law proved` is `open`) with that reason, never `proved`. A solver that is missing, times out or says
+  `unknown` changes nothing but a note.
+
+  Fallbacks, each to the bounded proof above with nothing lost: no invariant found or a solver gave up (`unknown` or a
+  timeout), an invariant that plain Z3 does not confirm, a loop over floating-point numbers or strings, `cvc5` in `solvers`
+  (it does not read Horn clauses), a counterexample over 16 elements long, and any array code outside the list above
+  (`map`, `filter`, `sort`, `concat`, `reduce`, `Set`, arrays of arrays or records). An array a loop changes in place and
+  another name can reach is outside the claim.
+
 - **Loop invariants** give a proof for every iteration count. Put `invariant(cond)` first in a loop body. The prover proves
   it on entry, assumes it at the top of an arbitrary iteration, proves it again at the end, and gives the code after the
   loop an arbitrary state where the invariant holds and the condition is false:
@@ -1120,12 +1145,14 @@ On Windows the native build is `dist/tsc`; copy it to `tsc.exe` to run it.
 
 ## Limits
 
-- Laws over arrays are bounded: Z3 holds an array as a fixed number of slots. Unbounded claims about every element need
-  quantifiers, which Z3 does not decide reliably; put the claim in a loop `invariant` over scalars and the array's length.
+- Laws over arrays are proved for every length only for the forms listed under inferred invariants (scalar elements,
+  indexing, `length`, `push`, `pop`, copies, loops). Other array code is bounded: Z3 holds the array as a fixed number of
+  slots. Claims about every element need quantifiers, which Z3 does not decide reliably; put them in a loop that Spacer or
+  an `invariant` can summarise.
 - Laws over plain `number` mostly stay `tested`: SMT floating point arithmetic is decidable but usually too slow. Use `int`
   or `bigint` where you want a proof.
-- Loop invariants prove partial correctness (a loop that never ends is not flagged), and an array that grows past its room
-  is outside the claim.
+- Loop invariants, written or inferred, prove partial correctness (a loop that never ends is not flagged). With a written
+  invariant, an array that grows past its room is outside the claim.
 - Browser and async laws are tested, not proved.
 - Browser laws need an installed browser: Chrome, Edge or Chromium by default, or Playwright's Firefox or WebKit with `--browser`.
 - The compiler needs a native toolchain to build; the `laws-v*` release workflow publishes builds for macOS, Linux and Windows.
