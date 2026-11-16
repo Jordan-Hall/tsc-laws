@@ -36,6 +36,8 @@ import { writeLock } from './lock.ts';
 import { lockLevels } from './lawKinds.ts';
 import type { CheckOptions, LawEvent, LawResult } from './types.ts';
 
+import { securityUsage } from './security/cli.ts';
+
 const usage = `tslaws init [--force]       scaffold tslaws.json, .gitignore, AGENTS.md, Claude Code hooks and a starter law (never writes the lock)
 tslaws check [files...] [--reporter text|json|junit|github|ndjson] [--law NAME[,NAME]] [--json] [--summary] [--watch] [--runs N] [--seed N] [--no-prove] [--no-regressions] [--bound N] [--proof-timeout MS] [--property-timeout MS] [--proposed] [--compiler PATH] [--browser chromium|firefox|webkit]
 tslaws ui [files...] [--port N] [--no-open] [--tab]   open a dashboard of the laws in its own desktop window (--tab: a browser tab): tree, filters, search, source, live reruns on save
@@ -51,6 +53,7 @@ tslaws list [--json]   the laws files and proposals of the project: the level ea
 tslaws github report|command|merge|verify   accept laws on GitHub: flag and run each proposal on a pull request, record /tslaws accept comments, and write tsc-laws.lock on merge (CI only; see "github" in tslaws.json)
 tslaws mcp [--compiler PATH]   serve check, check_proposed, explain and propose as Model Context Protocol tools on stdio (cannot accept, promote or touch the lock)
 ${migrateUsage}
+${securityUsage}
 
 Without files, every *.laws.ts under the current directory (and every file the "laws" globs of tslaws.json pick that declares a law) is checked; with --proposed, the in-tree *.proposed.laws.ts files are (and any proposals in .tslaws/proposals/), with no lock and no coverage gate.
 A laws file's level comes from its name by default: *.browser.laws.ts is a browser law, *.e2e.laws.ts an end-to-end law, anything else runs in Node. With "levels": "imports" in tslaws.json it comes from the import graph instead (tslaws/browser, tslaws/adapters/* or tslaws/e2e, directly or through the file's own modules), and the names are hints.
@@ -95,6 +98,7 @@ function parse(args: string[]): { command: string; flags: Map<string, string | t
     'rerun-workflow',
     'protect',
     'project-path',
+    'fail-on',
   ]);
   for (let i = 0; i < args.length; i += 1) {
     const arg = args[i]!;
@@ -116,7 +120,8 @@ function parse(args: string[]): { command: string; flags: Map<string, string | t
         arg === 'list' ||
         arg === 'migrate' ||
         arg === 'delegate' ||
-        arg === 'github')
+        arg === 'github' ||
+        arg === 'security')
     )
       command = arg;
     else files.push(arg);
@@ -571,6 +576,11 @@ export async function main(args: string[]): Promise<number> {
 
   if (command === 'migrate')
     return migrateCommand(cwd, files[0], files.slice(1), flags, (text) => process.stdout.write(text));
+
+  if (command === 'security') {
+    const { securityCommand } = await import('./security/cli.ts');
+    return securityCommand(cwd, files, flags, (text) => process.stdout.write(text));
+  }
 
   if (command === 'mcp') return serveMcp({ cwd, compiler: options(cwd, flags, []).compiler });
 
