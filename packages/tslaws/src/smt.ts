@@ -8,12 +8,15 @@
 //
 // Numbers are IEEE doubles; a parameter typed `number` is a finite double (the generators exclude NaN and the
 // infinities too). A parameter typed `int` (from 'tslaws') or `bigint` is an exact integer.
+import { createHash } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { Worker } from 'node:worker_threads';
 import { jobs, WorkerPool } from './pool.ts';
 import { dirname, join } from 'node:path';
 import ts from 'typescript';
+import { certify, type Certificate, type CertifyMode } from './certificates.ts';
+import { lawKey } from './lock.ts';
 import { SolverUnavailable, secondOpinion, type SolverName } from './solvers.ts';
 import { Executor, SpuriousModel, Unsupported, and, type Value } from './symbolic.ts';
 import type { ManifestLaw } from './types.ts';
@@ -29,8 +32,8 @@ export type Shape =
   | undefined;
 
 export type ProofResult =
-  | { kind: 'proved'; assumptions: string[] }
-  | { kind: 'bounded'; limits: string[]; assumptions: string[] }
+  | { kind: 'proved'; assumptions: string[]; certificate?: Certificate }
+  | { kind: 'bounded'; limits: string[]; assumptions: string[]; certificate?: Certificate }
   | { kind: 'refuted'; model: string; inputs: unknown[] }
   | { kind: 'unsupported'; reason: string }
   /** A configured second solver could not run (the cvc5 binary is missing). */
@@ -49,6 +52,11 @@ export interface ProveInput {
   holds: (inputs: unknown[]) => boolean;
   /** The solvers that must agree on a proof (see solvers.ts); default Z3 alone. */
   solvers?: readonly SolverName[];
+  /**
+   * Check the `unsat` of an unbounded or bounded proof with cvc5 and Carcara (see certificates.ts). `dir` keeps the
+   * proofs of certified laws; `root` is the project they are named relative to.
+   */
+  certify?: { mode: CertifyMode; dir: string; root: string };
 }
 
 type Sort = 'fp' | 'int' | 'bool' | 'str';
@@ -412,6 +420,16 @@ function containsInt(shape: Shape): boolean {
   return Object.values(shape.fields).some(containsInt);
 }
 
+/** Where a law's certificate is kept: a file name from the law's name and a hash of its key. */
+function keepOf(
+  input: ProveInput,
+  certify: NonNullable<ProveInput['certify']>,
+): { dir: string; name: string; root: string } {
+  const slug = input.law.name.replace(/[^A-Za-z0-9]+/g, '-').slice(0, 40);
+  const hash = createHash('sha256').update(lawKey(input.law.file, input.law.name)).digest('hex').slice(0, 8);
+  return { dir: certify.dir, root: certify.root, name: `${slug}-${hash}` };
+}
+
 async function attempt(input: ProveInput, intLimit: bigint | undefined): Promise<ProofResult> {
   {
     const source = ts.createSourceFile(
@@ -458,11 +476,17 @@ async function attempt(input: ProveInput, intLimit: bigint | undefined): Promise
     const check = out;
     if (check.startsWith('unsat')) {
       const assumptions = assumptionsFor(input.shapes, intLimit);
-      if (executor.bounded.length > 0) return { kind: 'bounded', limits: executor.bounded, assumptions };
+      const text = query.join(String.fromCharCode(10));
+      const certifyQuery = async (): Promise<{ certificate?: Certificate }> =>
+        input.certify === undefined || input.certify.mode === false
+          ? {}
+          : { certificate: await certify(text, { timeoutMs: input.timeoutMs, keep: keepOf(input, input.certify) }) };
+      if (executor.bounded.length > 0)
+        return { kind: 'bounded', limits: executor.bounded, assumptions, ...(await certifyQuery()) };
       // Only a proof that would stand is sent to the second solver.
       const unconfirmed = await secondOpinion(input.solvers ?? [], query.join('\n'), input.timeoutMs);
       return unconfirmed === undefined
-        ? { kind: 'proved', assumptions }
+        ? { kind: 'proved', assumptions, ...(await certifyQuery()) }
         : { kind: 'bounded', limits: [unconfirmed], assumptions };
     }
     if (check.startsWith('unknown')) throw new Unsupported(`solver gave up within ${input.timeoutMs} ms`);

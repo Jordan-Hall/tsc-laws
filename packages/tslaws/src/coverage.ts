@@ -11,6 +11,7 @@ import ts from 'typescript';
 import { parseE2eConfig, type E2eConfig } from './e2e.ts';
 import { globMatcher } from './globs.ts';
 import { customLawFile } from './lawFiles.ts';
+import { certifyProblem, type CertifyMode } from './certificates.ts';
 import { importMetaEnvOf, parseEnvConfig, type ImportMetaEnv } from './runtimeEnv.ts';
 import { solversProblem, type SolverName } from './solvers.ts';
 
@@ -40,6 +41,11 @@ export interface CoverageConfig {
    * must also answer `unsat` or the law is `bounded`. Z3 is required. See solvers.ts.
    */
   solvers?: SolverName[];
+  /**
+   * Check every proof Z3 finds with cvc5 (an Alethe proof) and Carcara, and record the law as `certified` or
+   * `uncertified`. `"require"` makes anything short of `certified` an error. Default off. See certificates.ts.
+   */
+  certify?: CertifyMode;
   /** esbuild plugin modules (paths relative to tslaws.json) that teach the browser bundler new source formats. */
   bundlerPlugins?: string[];
   /**
@@ -62,6 +68,7 @@ const configKeys = [
   'laws',
   'levels',
   'solvers',
+  'certify',
   'compilerOptions',
   'tsconfig',
   'e2e',
@@ -142,6 +149,8 @@ function checkFile(raw: unknown, source: string): Record<string, unknown> {
     fail(`"levels" must be "names" or "imports", got ${JSON.stringify(levels)}`);
   const problem = object.solvers === undefined ? undefined : solversProblem(object.solvers);
   if (problem !== undefined) fail(problem);
+  const certifyIssue = object.certify === undefined ? undefined : certifyProblem(object.certify);
+  if (certifyIssue !== undefined) fail(certifyIssue);
   const laws = object.laws;
   if (
     laws !== undefined &&
