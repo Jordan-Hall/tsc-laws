@@ -1333,18 +1333,21 @@ function readOutputs(root, dir, inputs, outputs = {}) {
 }
 
 const runTimeout = 60_000;
+/** The whole suite stops starting runs, and kills the ones in flight, by this; it is under the test's own timeout. */
+const suiteDeadline = 240_000;
 const concurrency = Math.min(availableParallelism(), 8);
 
-/** Runs `task` over `items` with at most `limit` in flight. */
-async function pool(items, limit, task) {
+/** Runs `task` over `items` with at most `limit` in flight; returns the items never started because `signal` aborted. */
+async function pool(items, limit, signal, task) {
   let next = 0;
   const worker = async () => {
-    while (next < items.length) await task(items[next++]);
+    while (next < items.length && !signal.aborted) await task(items[next++]);
   };
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return items.slice(next);
 }
 
-function run(tool, command, files, args) {
+function run(tool, command, files, args, signal) {
   const cwd = tempDir('tsc-ts-projects-');
   writeFiles(cwd, files);
   const env = { PATH: process.env.PATH ?? '', TSC_TS_LIB_DIR: bundledLibs, NO_COLOR: '1' };
@@ -1352,9 +1355,9 @@ function run(tool, command, files, args) {
     execFile(
       command[0],
       [...command.slice(1), ...(args.includes('-p') ? [] : ['-p', '.']), '--pretty', 'false', ...args],
-      { cwd, env, encoding: 'utf8', maxBuffer: 1 << 26, timeout: runTimeout, killSignal: 'SIGKILL' },
+      { cwd, env, encoding: 'utf8', maxBuffer: 1 << 26, timeout: runTimeout, killSignal: 'SIGKILL', signal },
       (error, stdout, stderr) => {
-        const timedOut = error?.killed === true;
+        const timedOut = error?.killed === true || error?.name === 'AbortError';
         const status = error ? (typeof error.code === 'number' ? error.code : -1) : 0;
         done({ stdout, stderr, status, timedOut, tool, outputs: readOutputs(cwd, cwd, files) });
       },
@@ -1365,19 +1368,24 @@ function run(tool, command, files, args) {
 test('projects reduced from real-world code match tsgo', { skip, timeout: 300_000 }, async () => {
   const filter = process.env.PROJECTS_FILTER;
   const failures = [];
-  await pool(
+  const signal = AbortSignal.timeout(suiteDeadline);
+  const unstarted = await pool(
     projects.filter(([name]) => filter === undefined || name.includes(filter)),
     concurrency,
+    signal,
     async ([name, source, args = []]) => {
       const files =
         'tsconfig.json' in source ? source : { ...source, 'tsconfig.json': JSON.stringify({ compilerOptions: base }) };
       const [expected, actual] = await Promise.all([
-        run('tsgo', [tsgo], files, args),
-        run('tsc-ts', tscTs, files, args),
+        run('tsgo', [tsgo], files, args, signal),
+        run('tsc-ts', tscTs, files, args, signal),
       ]);
       const timeouts = [expected, actual].filter((r) => r.timedOut);
       if (timeouts.length > 0) {
-        for (const r of timeouts) failures.push(`${name}: ${r.tool} timed out after ${runTimeout} ms`);
+        for (const r of timeouts)
+          failures.push(
+            `${name}: ${r.tool} ${signal.aborted ? `stopped at the ${suiteDeadline} ms suite deadline` : `timed out after ${runTimeout} ms`}`,
+          );
         return;
       }
       const problems = [];
@@ -1392,5 +1400,6 @@ test('projects reduced from real-world code match tsgo', { skip, timeout: 300_00
       if (problems.length > 0) failures.push(`${name}: ${problems.join('\n')}`);
     },
   );
+  for (const [name] of unstarted) failures.push(`${name}: not run, the suite passed its ${suiteDeadline} ms deadline`);
   assert.deepEqual(failures, []);
 });
