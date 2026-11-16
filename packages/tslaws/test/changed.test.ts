@@ -149,6 +149,16 @@ describe('affectedProjects', () => {
     assert.deepEqual(selected({ 'packages/util/src/u.ts': 'export const u = 2;\n' }), ['packages/tool']);
   });
 
+  it('follows a workspace package named only in optionalDependencies', () => {
+    const root = workspace();
+    write(root, { 'packages/leaf/package.json': pkg('@w/leaf', {}, { optionalDependencies: { '@w/util': '*' } }) });
+    git(root, 'commit', '-q', '-am', 'leaf may use util');
+    assert.deepEqual(selected({ 'packages/util/src/u.ts': 'export const u = 2;\n' }, root), [
+      'packages/leaf',
+      'packages/tool',
+    ]);
+  });
+
   it('counts a changed lock, tslaws.json and laws file as a change in the project', () => {
     assert.deepEqual(selected({ 'packages/leaf/tsc-laws.lock': '{}\n' }), ['packages/leaf']);
     assert.deepEqual(selected({ 'packages/leaf/tslaws.json': { runs: 10 } }), ['packages/leaf']);

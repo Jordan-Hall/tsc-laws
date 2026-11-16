@@ -7,6 +7,8 @@
 // Three kinds of answer:
 //   project  the nearest tslaws.json (a package of a monorepo, or the one project of a folder)
 //   root     the nearest tslaws.json lists `projects`, so it is the root of a monorepo and the file is in none of them
+//   root     also: no tslaws.json up to the workspace folder, but the folder declares package workspaces (package.json
+//            `workspaces` or pnpm-workspace.yaml), so tslaws fans a check out across the packages' projects
 //   folder   there is no tslaws.json up to the workspace folder; the folder itself stands in, as it always did
 
 /**
@@ -50,6 +52,20 @@ function configAt(io, dir) {
   }
 }
 
+/** Whether `dir` declares package workspaces: a pnpm-workspace.yaml, or a package.json with `workspaces`. */
+function declaresWorkspaces(io, dir) {
+  const path = io.path ?? nodePath;
+  if (io.fs.existsSync(path.join(dir, 'pnpm-workspace.yaml'))) return true;
+  const manifest = path.join(dir, 'package.json');
+  if (!io.fs.existsSync(manifest)) return false;
+  try {
+    const json = JSON.parse(io.fs.readFileSync(manifest, 'utf8'));
+    return json !== null && typeof json === 'object' && json.workspaces !== undefined;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * The project that holds the directory `start`, looking at it and every directory above, up to its workspace folder.
  * @param {string} start
@@ -66,7 +82,7 @@ function locateIn(start, folders, io) {
     if (config !== undefined) return { dir, folder, kind: config.lists ? 'root' : 'project' };
     if (fold(path, dir) === fold(path, folder) || path.dirname(dir) === dir) break;
   }
-  return { dir: norm(path, folder), folder, kind: 'folder' };
+  return { dir: norm(path, folder), folder, kind: declaresWorkspaces(io, folder) ? 'root' : 'folder' };
 }
 
 /** The project that holds the file `file`. */
