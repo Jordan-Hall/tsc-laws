@@ -167,6 +167,7 @@ See [docs/laws.md](../../docs/laws.md#the-dashboard).
 `tslaws mutate [files...] [--max N] [--seed N] [--json]` mutation-tests the laws: it mutates the covered code, re-runs the laws against each mutant, and lists the survivors no law caught. It handles `.tsx`/`.jsx` and projects with a lock, and takes the run flags of `check`. See [docs/laws.md](../../docs/laws.md#mutation-testing).
 
 - **Other source formats:** `tslaws.json` `bundlerPlugins` lists esbuild plugin modules (paths relative to the file) that teach the browser bundler formats like `.tsrx`. See [docs/laws.md](../../docs/laws.md#bundler-plugins).
+- **Bundler-style source:** `import.meta.env` works in laws, in the code they reach and in browser pages (`tslaws.json` `env` adds or overrides entries), and a TypeScript dependency may import its own files without extensions. See [docs/laws.md](../../docs/laws.md#source-written-for-a-bundler).
 - **Settings:** `tslaws.json` `runs`, `bound`, `proofTimeoutMs` and `propertyTimeoutMs` set the run defaults; a command line flag beats them. `"solvers": ["z3", "cvc5"]` makes cvc5 confirm every Z3 proof (set `TSLAWS_CVC5` to its path, or put it on the PATH). See [docs/laws.md](../../docs/laws.md#settings).
 
 ## Agents cannot move the goalposts

@@ -11,6 +11,7 @@ import ts from 'typescript';
 import { parseE2eConfig, type E2eConfig } from './e2e.ts';
 import { globMatcher } from './globs.ts';
 import { customLawFile } from './lawFiles.ts';
+import { importMetaEnvOf, parseEnvConfig, type ImportMetaEnv } from './runtimeEnv.ts';
 import { solversProblem, type SolverName } from './solvers.ts';
 
 export interface CoverageConfig {
@@ -36,6 +37,11 @@ export interface CoverageConfig {
   solvers?: SolverName[];
   /** esbuild plugin modules (paths relative to tslaws.json) that teach the browser bundler new source formats. */
   bundlerPlugins?: string[];
+  /**
+   * `import.meta.env` for code laws reach, on top of `process.env` and the defaults (`MODE` `test`, `DEV`, `PROD`, `SSR`,
+   * `BASE_URL`); its entries override both. See runtimeEnv.ts.
+   */
+  env?: Record<string, string | boolean>;
   /** Run settings; a command line flag beats them and they beat the built-in default. */
   runs?: number;
   propertyTimeoutMs?: number;
@@ -54,6 +60,7 @@ const configKeys = [
   'compilerOptions',
   'e2e',
   'bundlerPlugins',
+  'env',
   'github',
   ...settingKeys,
 ];
@@ -120,6 +127,7 @@ function checkFile(raw: unknown, source: string): Record<string, unknown> {
     (!Array.isArray(plugins) || plugins.some((entry) => typeof entry !== 'string' || entry === ''))
   )
     fail(`"bundlerPlugins" must be an array of module paths, got ${JSON.stringify(plugins)}`);
+  if (object.env !== undefined) parseEnvConfig(object.env);
   const levels = object.levels;
   if (levels !== undefined && levels !== 'names' && levels !== 'imports')
     fail(`"levels" must be "names" or "imports", got ${JSON.stringify(levels)}`);
@@ -252,6 +260,11 @@ export function readConfig(cwd: string): CoverageConfig {
     throw new Error(`${(error as Error).message} (merged from ${files})`);
   }
   return config;
+}
+
+/** The `import.meta.env` of the project's laws: `process.env`, the defaults and the `env` of tslaws.json. */
+export function lawEnv(cwd: string, surface: 'node' | 'browser'): ImportMetaEnv {
+  return importMetaEnvOf(readConfig(cwd).env, surface);
 }
 
 /** Source files matching the `cover` globs (a leading `!` excludes), minus laws files and declarations. */
