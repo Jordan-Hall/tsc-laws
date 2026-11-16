@@ -17,6 +17,11 @@ export interface CoverageConfig {
   cover?: string[];
   /** Compiler options the runner passes to tsc; see `compilerFlags` in compile.ts for the supported keys. */
   compilerOptions?: Record<string, unknown>;
+  /**
+   * Where laws take their module resolution (`paths`, `baseUrl`, project references) from: a tsconfig path relative to
+   * tslaws.json, or `false` for none. Default: the nearest tsconfig.json above the project. See tsconfigResolve.ts.
+   */
+  tsconfig?: string | false;
   /** End-to-end laws: the app to drive; see `parseE2eConfig`. */
   e2e?: E2eConfig;
   /**
@@ -52,6 +57,7 @@ const configKeys = [
   'levels',
   'solvers',
   'compilerOptions',
+  'tsconfig',
   'e2e',
   'bundlerPlugins',
   'github',
@@ -114,6 +120,9 @@ function checkFile(raw: unknown, source: string): Record<string, unknown> {
     if (value !== undefined && (typeof value !== 'number' || !Number.isInteger(value) || value < 1))
       fail(`"${key}" must be an integer of at least 1, got ${JSON.stringify(value)}`);
   }
+  const tsconfig = object.tsconfig;
+  if (tsconfig !== undefined && tsconfig !== false && (typeof tsconfig !== 'string' || tsconfig === ''))
+    fail(`"tsconfig" must be a path to a tsconfig file or false, got ${JSON.stringify(tsconfig)}`);
   const plugins = object.bundlerPlugins;
   if (
     plugins !== undefined &&
@@ -156,7 +165,7 @@ export function parseConfig(raw: unknown, source = 'tslaws.json'): CoverageConfi
  * shared base saying `"cover": ["src/**"]` means each package's own src/. `compilerOptions` and `github` hold no
  * paths. Add a new file-reference option here when it is added to `configKeys`.
  */
-const pathFields: readonly string[] = ['bundlerPlugins[]', 'e2e.server.cwd'];
+const pathFields: readonly string[] = ['bundlerPlugins[]', 'e2e.server.cwd', 'tsconfig'];
 
 /** `entry`, written relative to the directory `from`, as a path relative to `to`. A leading `!` and absolute paths stay. */
 function rebase(entry: string, from: string, to: string): string {
