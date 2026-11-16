@@ -2,11 +2,6 @@
 
 The upstream tsc-ts changelog is CHANGELOG.md. Releases of tsc-laws are tagged `laws-v<version>` (see RELEASING-LAWS.md).
 
-## 0.8.0
-
-- chore: patch the Dependabot advisories and clear tslaws lint warnings (#26)
-- feat(tslaws): accept laws on GitHub, so tsc-laws.lock is only written by CI on merge (#25)
-
 ## 0.7.0
 
 - feat(tslaws): laws as calls, `law('name', fn)` and `law.proved(...)`, work with stock TypeScript; the `law` keyword and the fork compiler still work, and a project may use one syntax (mixing is refused)

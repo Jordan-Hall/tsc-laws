@@ -109,7 +109,11 @@ export function insertSection(changelog, section) {
 /** The `## <version>` section of a changelog without its heading, or undefined when there is none (or it is empty). */
 export function releaseNotes(changelog, version) {
   const lines = changelog.replace(/\r\n/g, '\n').split('\n');
-  const start = lines.findIndex((line) => line.trim() === `## ${version}`);
+  // `## 0.7.0` (hand-written) or `## [0.8.0](compare-url) (date)` (release-please).
+  const start = lines.findIndex((line) => {
+    const heading = line.trim();
+    return heading === `## ${version}` || heading.startsWith(`## [${version}]`);
+  });
   if (start === -1) return undefined;
   const end = lines.findIndex((line, i) => i > start && line.startsWith('## '));
   const body = lines
