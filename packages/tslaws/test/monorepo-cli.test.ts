@@ -160,6 +160,20 @@ describe('tslaws check at a monorepo root', { skip: compiler === undefined ? 'se
   });
 });
 
+describe(
+  'tslaws check --reporter junit at a monorepo root',
+  { skip: compiler === undefined ? 'set TSC_LAWS_BIN' : false },
+  () => {
+    it('writes one plain XML document for the one project that --project picks', () => {
+      const root = twoPackages();
+      const run = tslaws(root, 'check', '--reporter', 'junit', '--project', 'packages/a', ...fast);
+      assert.equal(run.status, 0, run.stdout + run.stderr);
+      assert.match(run.stdout, /^<\?xml/);
+      assert.doesNotMatch(run.stdout, /──|projects?, \d+ failed/);
+    });
+  },
+);
+
 describe('tslaws at a monorepo root without a compiler', () => {
   it('lists the laws of every project, keyed by path with --json', () => {
     const root = twoPackages();
@@ -237,6 +251,19 @@ describe('tslaws at a monorepo root without a compiler', () => {
     const junit = tslaws(root, 'check', '--reporter', 'junit');
     assert.equal(junit.status, 1);
     assert.match(junit.stderr, /junit writes one XML document per project/);
+  });
+
+  it('counts a root whose only laws are in a file its laws globs pick', () => {
+    const root = twoPackages({
+      'tslaws.json': { projects: ['packages/*'], laws: ['specs/*.ts'] },
+      'specs/root.ts': goodLaws,
+    });
+    const keyed = JSON.parse(tslaws(root, 'list', '--json').stdout) as Record<string, { files: { file: string }[] }>;
+    assert.deepEqual(Object.keys(keyed), ['.', 'packages/a', 'packages/b']);
+    assert.deepEqual(
+      keyed['.']!.files.map((f) => f.file),
+      ['specs/root.ts'],
+    );
   });
 
   it('does not run the projects again from a root that has laws of its own', () => {
