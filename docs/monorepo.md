@@ -49,7 +49,9 @@ Each package's `tslaws.json` can inherit from the root file with `extends`:
 
 The package's own keys win, and they replace an inherited array instead of adding to it. A package can set its own
 `runs` or add `levels`, `e2e` or `bundlerPlugins`. A chain works too (a package extends a team base that extends the
-root), and a cycle or a missing file is an error that names the files. `projects` is read from the file you run in and
+root), and a cycle or a missing file is an error that names the files. The path must be relative, use only letters, digits and `. _ - / @`, and
+stay inside the repository (the nearest directory with a `.git`, else the highest one with a workspace file). A symbolic
+link, or a path that reaches outside through one, is refused. `projects` is read from the file you run in and
 is not inherited.
 
 Paths in an inherited file follow one rule:
@@ -148,6 +150,32 @@ resolves through `node_modules`), and workspace packages that point `exports` or
   there: the project's output is in `.tslaws/out/<project path below the root>`, and a sibling's beside it. Only a
   project that reaches outside itself has the extra directory level.
 
+## Owning a package's laws
+
+A package is a project of its own. It has its own laws, its own config, its own lock and its own approvers, and the root
+only supplies what the package does not set.
+
+- **Own laws.** A package's `*.laws.ts` files and `tsc-laws.lock` belong to it. Nothing in another package can accept,
+  change or remove them.
+- **Own config.** Everything in a package's `tslaws.json` wins over an inherited value (`runs`, `levels`, `e2e`, `github`).
+- **`extends` is optional.** A package with no `extends` is configured by its own file alone, and a package can extend a
+  team base instead of the root.
+- **Own approvers.** The `github` block is read for each package, and a package's keys win over a root base it extends.
+  `approvers`, `bot`, `branch` and `accept` are per package, and an approval recorded for one package is never counted for
+  another (see [github.md](github.md#what-the-pull-request-cannot-steer)).
+
+  ```json
+  { "extends": "../../tslaws.json", "github": { "approvers": ["reviewers"], "accept": "comment" } }
+  ```
+
+- **Opting out of the shared flow.** `"github": { "flow": "own" }` keeps the package's settings but takes it out of the
+  root's `tslaws github report`, `merge` and `command`. Run those in the package (`--project packages/ui`), in a workflow
+  of its own. The root's `verify` still checks the package's lock, so the lock stays protected. A package with no
+  `github` section is not part of the GitHub flow at all, and `tslaws accept` works there as usual.
+- **`"standalone": true`.** A root `check`, `accept`, `list`, `mutate`, `regressions` and `github` run skips a standalone
+  package unless `--project` (or `--filter`) names it. `verify` still lists it, so its lock is guarded. The key is not
+  inherited through `extends`, so a package that extends a standalone package is not standalone.
+
 ## One lock per package
 
 Every project has its own `tsc-laws.lock`, written by `tslaws accept` in that project (`tslaws accept` at the root asks
@@ -177,6 +205,6 @@ the failing laws.
 
 ## What comes next
 
-The GitHub flow (`tslaws github report`, `command` and `merge`) still runs one package at a time, as
-[docs/github.md](github.md#monorepos) describes. Running it across the whole repository from one command comes next, as
-does support for other package managers in the action.
+The GitHub flow runs from the root too: `tslaws github report`, `verify`, `merge` and `command` cover every project in
+one job, with one comment and one commit for the locks. See [github.md](github.md#monorepos), including how the action
+finds your package manager (npm, pnpm, Yarn or Bun) from the lockfile.

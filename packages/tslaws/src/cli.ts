@@ -1,5 +1,5 @@
 import { createInterface } from 'node:readline/promises';
-import { readFileSync, watch } from 'node:fs';
+import { existsSync, readFileSync, watch } from 'node:fs';
 import { join, relative, resolve, sep } from 'node:path';
 import { resolveEngine } from './browser.ts';
 import { bundledCompiler, checkoutCompiler } from './bundled.ts';
@@ -613,14 +613,17 @@ function selectProjects(cwd: string, only: string[], filter: string[]): Selectio
   const asked = only.length > 0 || filter.length > 0;
   const monorepo = isMonorepoRoot(cwd);
   if (!asked && !monorepo) return undefined;
-  const all = discoverProjects(cwd);
-  const chosen = asked ? discoverProjects(cwd, { only, filter }) : all;
+  // A standalone project ("standalone": true) is in `all`, but a run covers it only when --project names it.
+  const all = discoverProjects(cwd, { standalone: true });
+  const chosen = asked ? discoverProjects(cwd, { only, filter }) : all.filter((p) => !p.standalone);
   if (chosen.length === 0) {
     const named = [...only.map((p) => `--project ${p}`), ...filter.map((g) => `--filter ${g}`)].join(' ');
     throw new Error(
       all.length === 0
         ? 'no tslaws project found here (a project is a directory with a tslaws.json; see "projects" in tslaws.json)'
-        : `no project matches ${named}; projects: ${list(all)}`,
+        : asked
+          ? `no project matches ${named}; projects: ${list(all)}`
+          : `every project here is standalone ("standalone": true), so a root run covers none of them: pick one with --project <dir> (${list(all)})`,
     );
   }
   return { chosen, all, fanOut: monorepo || chosen.some((p) => p.path !== '') };
@@ -711,6 +714,10 @@ export async function main(args: string[]): Promise<number> {
   }
   if (selection === undefined) return runOne(command, flags, files, cwd, direct);
 
+  // From the root with no --project: every project in one process (one comment, one commit for all the locks).
+  if (command === 'github' && projects.length === 0 && isMonorepoRoot(cwd))
+    return githubRoot(flags, files, cwd, selection);
+
   // One project and a reporter that writes one document (junit) runs plainly: there is nothing to join.
   const oneDocument =
     command === 'check' && flags.get('reporter') === 'junit' && selection.chosen.length === 1 && !flags.has('watch');
@@ -739,6 +746,56 @@ export async function main(args: string[]): Promise<number> {
   }
   const [only] = selection.chosen;
   return runOne(command, flags, files, only!.dir, { ...direct, skip: nestedIn(only!, selection.all) });
+}
+
+/**
+ * `tslaws github <mode>` from a monorepo root: every selected project in one run. Each project keeps its own options
+ * and its own `github` settings (read in githubCli.ts); the projects nested in another are left out of that one's laws.
+ */
+async function githubRoot(
+  flags: Map<string, string | true>,
+  files: string[],
+  cwd: string,
+  selection: Selection,
+): Promise<number> {
+  const { githubCommand, projectPathOf, joinRepo } = await import('./githubCli.ts');
+  // The token stays with tslaws, as in a single project (see runOne).
+  const env = { ...process.env };
+  delete process.env.GITHUB_TOKEN;
+  delete process.env.GH_TOKEN;
+  const trusted = flags.get('config-from');
+  const prefix = projectPathOf(cwd, flags.get('project-path'));
+  const optionsOf = (project: Project): CheckOptions => {
+    const skip = nestedIn(project, selection.all);
+    const chosen = options(project.dir, flags, outside(discover(project.dir, false), skip));
+    // With --config-from the projects are a pull request's files, read as data: never run a compiler from among them.
+    if (typeof trusted === 'string' && chosen.compiler === checkoutCompiler(project.dir))
+      chosen.compiler = checkoutCompiler(resolve(cwd, trusted, project.path)) ?? 'tsc-laws';
+    return chosen;
+  };
+  return githubCommand(files[0], {
+    cwd,
+    projectPath: prefix,
+    options: optionsOf(selection.chosen[0]!),
+    projects: selection.chosen.map((project) => ({
+      cwd: project.dir,
+      rel: project.path,
+      path: joinRepo(prefix, project.path),
+      options: optionsOf(project),
+    })),
+    discovered: selection.all.map((project) => project.path),
+    optionsFor: (rel) => {
+      // A directory the files here no longer discover still has the laws it had: merge checks it if the base had it.
+      const project =
+        selection.all.find((candidate) => candidate.path === rel) ??
+        (existsSync(join(cwd, rel, 'tslaws.json')) ? { dir: join(cwd, rel), path: rel, standalone: false } : undefined);
+      return project === undefined ? undefined : optionsOf(project);
+    },
+    env,
+    flags,
+    out: (text) => void process.stdout.write(text),
+    err: (text) => void process.stderr.write(text),
+  });
 }
 
 /** One command in one project directory. */

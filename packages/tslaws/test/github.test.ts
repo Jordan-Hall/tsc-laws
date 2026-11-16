@@ -109,6 +109,22 @@ describe('commands', () => {
     assert.deepEqual(parseCommands('please /tslaws accept all'), []);
   });
 
+  it('marks a --project with no directory, and still reads a --project with one', () => {
+    for (const body of [
+      '/tslaws accept --project',
+      '/tslaws accept grows --project',
+      '/tslaws accept --project --other',
+      '/tslaws accept --project=',
+    ])
+      assert.match(parseCommands(body)[0]!.error ?? '', /needs a directory/, body);
+    assert.deepEqual(parseCommands('/tslaws accept --project packages/a'), [
+      { verb: 'accept', all: true, names: [], projects: ['packages/a'] },
+    ]);
+    assert.deepEqual(parseCommands('/tslaws accept grows --project=packages/a'), [
+      { verb: 'accept', all: false, names: ['grows'], projects: ['packages/a'] },
+    ]);
+  });
+
   it('resolves names, flags unknown and ambiguous ones', () => {
     const proposals = proposalsOf(lockChanges(undefined, [a, c, b], []), undefined);
     const got = resolveNames(proposals, { verb: 'accept', all: false, names: ['keeps', 'grows', 'nope'] });
@@ -318,7 +334,14 @@ describe('lock tampering', () => {
   ) => {
     const dir = mkdtempSync(join(tmpdir(), 'tslaws-gh-'));
     try {
-      writeFileSync(join(dir, 'event.json'), JSON.stringify(payload));
+      // GitHub reports how many files a pull request changes; say so, as many as the fake lists.
+      const pr = (payload as { pull_request?: { number: number; changed_files?: number } }).pull_request;
+      const listed = routes(`/repos/o/r/pulls/${pr?.number}/files`);
+      const event =
+        pr !== undefined && pr.changed_files === undefined && Array.isArray(listed)
+          ? { ...payload, pull_request: { ...pr, changed_files: listed.length } }
+          : payload;
+      writeFileSync(join(dir, 'event.json'), JSON.stringify(event));
       writeFileSync(join(dir, 'tslaws.json'), JSON.stringify({ github: { bot: 'tslaws[bot]' } }));
       let out = '';
       const code = await githubCommand(mode, {
