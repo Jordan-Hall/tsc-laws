@@ -35,6 +35,7 @@ ordinary identifier.
 ```
 $ tslaws check
 PROVED   clampWithinBounds (src/math.laws.ts:5) [smt]
+         assuming: number parameters exclude NaN and ±Infinity
 BOUNDED  sortOrders (src/math.laws.ts:11) [smt]
          holds within bounds: int values stay within ±2^26; arrays hold at most 4 elements; loops run at most 4 times
 FAILED   sortKeepsLength (src/math.laws.ts:17) [property]
@@ -66,6 +67,12 @@ Two things, both required for exit status 0:
 | `uncovered` | Exported code no law reaches. Fails the check.                                                                                                      |
 | `tampered`  | A law changed, was added or removed since `tsc-laws.lock` was accepted, or a coverage exemption is not in it. Fails the check.                      |
 | `error`     | The law cannot run: not exported, a parameter has no type, no generator for a type, load failure.                                                   |
+
+A `proved` or `bounded` result also lists the domain assumptions its proof rests on, for the parameter types of that law
+only: `number` parameters exclude NaN and ±Infinity, `int` parameters stay within ±(2^53 − 1), and `string` parameters use
+only characters up to U+FFFF with a length cap. They show as `assuming: …` in text output, as `assumptions` in JSON and
+ndjson, and in the step-summary Detail cell and the `::notice` of a `bounded` result. A law whose parameters need none
+(`boolean`, `bigint`) prints as before.
 
 `tslaws check` exits 0 only when every law is `proved`, `bounded` or `tested`, nothing is `uncovered`, the files compile, and
 the lock matches.
@@ -160,7 +167,7 @@ See [docs/laws.md](../../docs/laws.md#the-dashboard).
 `tslaws mutate [files...] [--max N] [--seed N] [--json]` mutation-tests the laws: it mutates the covered code, re-runs the laws against each mutant, and lists the survivors no law caught. It handles `.tsx`/`.jsx` and projects with a lock, and takes the run flags of `check`. See [docs/laws.md](../../docs/laws.md#mutation-testing).
 
 - **Other source formats:** `tslaws.json` `bundlerPlugins` lists esbuild plugin modules (paths relative to the file) that teach the browser bundler formats like `.tsrx`. See [docs/laws.md](../../docs/laws.md#bundler-plugins).
-- **Settings:** `tslaws.json` `runs`, `bound`, `proofTimeoutMs` and `propertyTimeoutMs` set the run defaults; a command line flag beats them. See [docs/laws.md](../../docs/laws.md#settings).
+- **Settings:** `tslaws.json` `runs`, `bound`, `proofTimeoutMs` and `propertyTimeoutMs` set the run defaults; a command line flag beats them. `"solvers": ["z3", "cvc5"]` makes cvc5 confirm every Z3 proof (set `TSLAWS_CVC5` to its path, or put it on the PATH). See [docs/laws.md](../../docs/laws.md#settings).
 
 ## Agents cannot move the goalposts
 

@@ -54,6 +54,8 @@ function detail(result: LawResult): string {
   const parts: string[] = [];
   if (result.message !== undefined) parts.push(result.message);
   if (result.counterexample !== undefined) parts.push(`counterexample ${result.counterexample}`);
+  if (result.assumptions !== undefined && result.assumptions.length > 0)
+    parts.push(`assuming ${result.assumptions.join('; ')}`);
   if (result.status === 'failed' && result.seed !== undefined) parts.push(`seed ${result.seed}`);
   return parts.join('; ');
 }
