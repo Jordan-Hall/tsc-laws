@@ -18,6 +18,7 @@ test('activate registers the commands, providers, test controller and status bar
       'tslaws.accept',
       'tslaws.cancel',
       'tslaws.check',
+      'tslaws.checkAll',
       'tslaws.copyReproduce',
       'tslaws.goToFunction',
       'tslaws.goToLaw',
@@ -31,6 +32,7 @@ test('activate registers the commands, providers, test controller and status bar
       'tslaws.runFile',
       'tslaws.runLaw',
       'tslaws.showLaws',
+      'tslaws.showProject',
       'tslaws.writeLaw',
     ]);
     assert.equal(fake.providers.lens.length, 1);

@@ -77,10 +77,12 @@ function createStreamParser(onEvent, onNoise = () => {}) {
       return onNoise(text);
     }
     if (event === null || typeof event !== 'object' || typeof event.type !== 'string') return onNoise(text);
-    if (event.type === 'result') onEvent({ type: 'result', record: normalizeRecord(event.result ?? {}) });
-    else if (event.type === 'report') onEvent({ type: 'report', report: normalizeReport(event) });
+    // A run from a monorepo root tags every line with the project it came from; the tag is passed on.
+    const emit = (e) => onEvent(typeof event.project === 'string' ? { ...e, project: event.project } : e);
+    if (event.type === 'result') emit({ type: 'result', record: normalizeRecord(event.result ?? {}) });
+    else if (event.type === 'report') emit({ type: 'report', report: normalizeReport(event) });
     else if (event.type === 'plan')
-      onEvent({
+      emit({
         type: 'plan',
         laws: (Array.isArray(event.laws) ? event.laws : []).map((l) => ({
           file: normalizePath(l.file),
@@ -88,8 +90,7 @@ function createStreamParser(onEvent, onNoise = () => {}) {
           line: l.line,
         })),
       });
-    else if (event.type === 'start')
-      onEvent({ type: 'start', file: normalizePath(event.file), name: String(event.name) });
+    else if (event.type === 'start') emit({ type: 'start', file: normalizePath(event.file), name: String(event.name) });
   };
   return {
     write(chunk) {

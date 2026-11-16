@@ -1,11 +1,13 @@
 // Project discovery for a monorepo: a project is a directory holding a tslaws.json. Which directories to look in comes
 // from the first source that names any: `projects` in the root tslaws.json, `workspaces` in package.json (npm, yarn
 // and bun alike), or `packages:` in pnpm-workspace.yaml.
+import { spawnSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { dirname, join, relative, resolve } from 'node:path';
 import { projectsProblem, readConfig } from './coverage.ts';
 import { globMatcher } from './globs.ts';
 import { customLawFile } from './lawFiles.ts';
+import { readResolution } from './tsconfigResolve.ts';
 
 export interface Project {
   /** Absolute directory of the project. */
@@ -136,14 +138,15 @@ function normalisedGlobs(globs: string[]): string[] {
   });
 }
 
-function matchingProjects(root: string, globs: string[]): string[] {
+/** Directories (relative POSIX paths) under `root` that hold a `marker` file and match `globs`. */
+function matchingProjects(root: string, globs: string[], marker = 'tslaws.json'): string[] {
   const patterns = normalisedGlobs(globs);
   const matches = globMatcher(patterns);
   const includes = patterns.filter((glob) => !glob.startsWith('!'));
   const found: string[] = [];
   const walk = (path: string): void => {
     const dir = path === '' ? root : join(root, path);
-    if (path !== '' && matches(path) && existsSync(join(dir, 'tslaws.json'))) found.push(path);
+    if (path !== '' && matches(path) && existsSync(join(dir, marker))) found.push(path);
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
       if (!entry.isDirectory() || skipped.has(entry.name)) continue;
       const next = path === '' ? entry.name : `${path}/${entry.name}`;
@@ -282,4 +285,209 @@ export function discoverFromFiles(files: readonly string[], inputs: DiscoveryInp
 export function discoverySignature(inputs: DiscoveryInputs): string {
   const { globs, listed } = globsFrom(inputs);
   return JSON.stringify({ listed, globs });
+}
+
+/** What changed against a base ref. */
+export interface ChangeSet {
+  /** The merge-base of the ref and HEAD that the working tree was compared with. */
+  base: string;
+  /** Changed files relative to the directory asked about, with `/` separators; deleted files are included. */
+  files: string[];
+}
+
+function git(cwd: string, args: string[]): string {
+  const run = spawnSync('git', args, { cwd, encoding: 'utf8', maxBuffer: 1 << 28 });
+  if (run.error !== undefined) throw new Error(`git: ${run.error.message}`);
+  if (run.status !== 0) throw new Error(run.stderr.trim() || `git ${args[0]} failed`);
+  return run.stdout;
+}
+
+/**
+ * What changed since `git merge-base <ref> HEAD`: committed, staged, unstaged and untracked files under `cwd` (ignored
+ * files do not count, nor do `.tslaws` and `node_modules`).
+ */
+export function changedSince(cwd: string, ref: string): ChangeSet {
+  if (ref === '' || ref.startsWith('-'))
+    throw new Error('--changed needs a base ref, for example --changed origin/main');
+  let base: string;
+  try {
+    base = git(cwd, ['merge-base', ref, 'HEAD']).trim();
+  } catch (error) {
+    throw new Error(`--changed ${ref}: ${(error as Error).message} (in CI, fetch the full history: fetch-depth: 0)`);
+  }
+  const split = (out: string): string[] => out.split('\0').filter((file) => file !== '');
+  const tracked = split(git(cwd, ['diff', '--name-only', '-z', '--no-renames', '--relative', base]));
+  const untracked = split(git(cwd, ['ls-files', '--others', '--exclude-standard', '-z']));
+  const files = [...new Set([...tracked, ...untracked].map((file) => file.replaceAll('\\', '/')))]
+    .filter((file) => !file.split('/').some((segment) => segment === '.tslaws' || segment === 'node_modules'))
+    .sort();
+  return { base, files };
+}
+
+/** Files at the root that every project depends on: workspace, package and lock files, and the base tsconfigs. */
+const rootConfig =
+  /^(tslaws\.json|package\.json|package-lock\.json|npm-shrinkwrap\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|yarn\.lock|bun\.lockb?|tsconfig(\..+)?\.json)$/;
+
+/** The files `extends` reaches from the tslaws.json in `dir`, as paths relative to `root`. */
+function extendsChain(root: string, dir: string): string[] {
+  const found: string[] = [];
+  let file = join(dir, 'tslaws.json');
+  for (let depth = 0; depth < 32; depth += 1) {
+    let parent: unknown;
+    try {
+      parent = (readJson(file) as { extends?: unknown } | null)?.extends;
+    } catch {
+      return found;
+    }
+    if (typeof parent !== 'string' || parent === '') return found;
+    file = resolve(dirname(file), parent);
+    found.push(normalise(relative(root, file)));
+  }
+  return found;
+}
+
+interface Manifest {
+  name?: string;
+  deps: string[];
+}
+
+function manifestIn(dir: string): Manifest | undefined {
+  const file = join(dir, 'package.json');
+  if (!existsSync(file)) return undefined;
+  try {
+    const json = readJson(file) as Record<string, unknown> | null;
+    const deps = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'].flatMap((key) => {
+      const table = json?.[key];
+      return typeof table === 'object' && table !== null ? Object.keys(table) : [];
+    });
+    return { name: typeof json?.name === 'string' ? json.name : undefined, deps };
+  } catch {
+    return undefined;
+  }
+}
+
+/** The directory one level up, as a relative POSIX path; '' above the first segment. */
+const parentOf = (path: string): string => (path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '');
+
+/**
+ * The dependency edges between the projects and workspace packages of `root`, as `path -> paths it depends on`. Sources:
+ * package.json `dependencies`, `devDependencies`, `peerDependencies` and `optionalDependencies` that name another workspace package (a project
+ * without a package.json uses the nearest one above it); tsconfig `paths` targets that land in another package (a
+ * wildcard inside a target, as in `packages/*` + `/src`, counts as every package under it); and a nested package or
+ * project, which depends on the one around it.
+ */
+function dependencyGraph(root: string, projects: Project[]): Map<string, Set<string>> {
+  const globs = [workspacesOf(root), pnpmWorkspacesOf(root)].find((list) => list.length > 0) ?? [];
+  const packages = globs.length === 0 ? [] : matchingProjects(root, globs, 'package.json');
+  const nodes = new Set([...packages, ...projects.map((project) => project.path)]);
+  const dirOf = (path: string): string => (path === '' ? root : join(root, path));
+  const names = new Map<string, string>();
+  for (const node of nodes) {
+    const name = manifestIn(dirOf(node))?.name;
+    if (name !== undefined) names.set(name, node);
+  }
+  const nearest = (path: string): string | undefined => {
+    for (let at = path; ; at = parentOf(at)) {
+      if (nodes.has(at)) return at;
+      if (at === '') return undefined;
+    }
+  };
+  const graph = new Map<string, Set<string>>();
+  for (const node of nodes) {
+    const edges = new Set<string>();
+    graph.set(node, edges);
+    let manifest = manifestIn(dirOf(node));
+    for (let at = parentOf(node); manifest === undefined && node !== '' && at !== ''; at = parentOf(at))
+      manifest = manifestIn(dirOf(at));
+    for (const dep of manifest?.deps ?? []) {
+      const target = names.get(dep);
+      if (target !== undefined && target !== node) edges.add(target);
+    }
+    const outer = node === '' ? undefined : nearest(parentOf(node));
+    if (outer !== undefined && outer !== '') edges.add(outer);
+  }
+  for (const project of projects) {
+    let paths: Record<string, string[]> | undefined;
+    try {
+      paths = readResolution(project.dir)?.options.paths as Record<string, string[]> | undefined;
+    } catch {
+      continue;
+    }
+    const edges = graph.get(project.path)!;
+    for (const target of Object.values(paths ?? {}).flat()) {
+      const [fixed = ''] = target.split('*', 1);
+      const at = normalise(relative(root, fixed).replaceAll('\\', '/'));
+      if (at === '..' || at.startsWith('../') || /^[a-z]:/i.test(at)) continue;
+      if (!target.includes('*')) {
+        const hit = nearest(at);
+        if (hit !== undefined && hit !== '') edges.add(hit);
+        continue;
+      }
+      const dir = fixed.endsWith('/') ? at : parentOf(at);
+      const inside = nearest(dir);
+      if (inside !== undefined && inside !== '') edges.add(inside);
+      for (const node of nodes) if (node !== '' && (dir === '' || node.startsWith(`${dir}/`))) edges.add(node);
+    }
+    edges.delete(project.path);
+  }
+  return graph;
+}
+
+export interface Affected {
+  project: Project;
+  /** Why it runs, in a few words. */
+  reason: string;
+}
+
+/**
+ * The projects of `root` that changed files (paths relative to `root`) can affect: the project that holds each file (the
+ * nearest enclosing one) and every project that depends on one, however indirectly. A change to a root config file or
+ * to a file a tslaws.json extends selects every project.
+ */
+export function affectedProjects(root: string, files: string[]): Affected[] {
+  const dir = resolve(root);
+  const projects = discoverProjects(dir);
+  const every = (reason: string): Affected[] => projects.map((project) => ({ project, reason }));
+  const bases = new Map<string, string>();
+  for (const project of projects)
+    for (const base of extendsChain(dir, project.dir)) bases.set(base, project.path === '' ? '.' : project.path);
+  for (const file of files) {
+    if (!file.includes('/') && rootConfig.test(file)) return every(`${file} changed (root config)`);
+    const user = bases.get(file);
+    if (user !== undefined) return every(`${file} changed (extended by ${user})`);
+  }
+  const graph = dependencyGraph(dir, projects);
+  const why = new Map<string, string>();
+  const direct = new Set<string>();
+  const queue: string[] = [];
+  for (const file of files) {
+    for (let at = parentOf(file); ; at = parentOf(at)) {
+      if (graph.has(at)) {
+        if (!why.has(at)) {
+          why.set(at, `contains changed file ${file}`);
+          direct.add(at);
+          queue.push(at);
+        }
+        break;
+      }
+      if (at === '') break;
+    }
+  }
+  const dependents = new Map<string, string[]>();
+  for (const [node, edges] of graph)
+    for (const edge of edges) dependents.set(edge, [...(dependents.get(edge) ?? []), node]);
+  for (const node of queue) {
+    for (const next of dependents.get(node) ?? []) {
+      if (why.has(next)) continue;
+      why.set(
+        next,
+        `depends on ${node === '' ? '.' : node}, which ${direct.has(node) ? 'has changes' : 'is affected'}`,
+      );
+      queue.push(next);
+    }
+  }
+  return projects.flatMap((project) => {
+    const reason = why.get(project.path);
+    return reason === undefined ? [] : [{ project, reason }];
+  });
 }
