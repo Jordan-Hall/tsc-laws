@@ -1,5 +1,5 @@
 name: tslaws
-description: Flag and run each law proposal on a pull request, record /tslaws accept comments, and write tsc-laws.lock on merge.
+description: Flag and run each law proposal on a pull request, record /tslaws accept comments, and write tsc-laws.lock on merge. From a monorepo root it covers every project in one run.
 inputs:
   mode:
     description: report | command | merge | verify
@@ -8,16 +8,33 @@ inputs:
     description: Token for the GitHub API. For merge and command, use the tslaws GitHub App's token so the bot's commits and comments are the app's.
     required: true
   working-directory:
-    description: The project root (where tslaws.json and tsc-laws.lock live).
+    description: Where tslaws runs. A project's directory, or a monorepo root (a tslaws.json with "projects", or package.json/pnpm workspaces) to cover every project in one run.
     default: .
   args:
     description: Extra arguments for `tslaws github <mode>`.
     default: ''
   tslaws-root:
     description: >-
-      The trusted checkout whose node_modules holds tslaws. tslaws is run from here by path, never looked up from
-      working-directory, so a pull request's files (a committed node_modules/.bin or .npmrc) are never executed.
+      The trusted checkout whose node_modules holds tslaws. tslaws is found from here by Node's own resolution, never
+      from working-directory, so a pull request's files (a committed node_modules/.bin or .npmrc) are never executed.
     default: ${{ github.workspace }}
+  package-manager:
+    description: >-
+      auto | npm | pnpm | yarn | bun. auto reads the lockfile in tslaws-root (bun.lock, pnpm-lock.yaml, yarn.lock,
+      package-lock.json), then the "packageManager" field of its package.json, and falls back to npm.
+    default: auto
+  install:
+    description: >-
+      'true' (default) runs a frozen install in tslaws-root first (npm ci, pnpm install --frozen-lockfile, yarn install
+      --immutable, bun install --frozen-lockfile), so the lockfile decides exactly what runs. Set 'false' when an earlier
+      step already installed.
+    default: 'true'
+  pnpm-version:
+    description: The pnpm version to set up. Empty reads "packageManager" from package.json at the repository root.
+    default: ''
+  bun-version:
+    description: The Bun version to set up. Empty uses the setup-bun default (latest).
+    default: ''
 outputs:
   proposals:
     description: (report) how many proposals the pull request makes
@@ -25,9 +42,37 @@ outputs:
   accepted:
     description: (merge) how many law changes were written to the lock
     value: ${{ steps.run.outputs.accepted }}
+  package-manager:
+    description: The package manager that was used
+    value: ${{ steps.detect.outputs.manager }}
 runs:
   using: composite
   steps:
+    - id: detect
+      shell: bash
+      env:
+        TSLAWS_ROOT: ${{ inputs.tslaws-root }}
+        REQUESTED: ${{ inputs.package-manager }}
+        HELPER: ${{ github.action_path }}/package-manager.mjs
+      run: |
+        manager="$(node "$HELPER" detect "$TSLAWS_ROOT" "$REQUESTED")"
+        echo "manager=$manager" >> "$GITHUB_OUTPUT"
+    # Set up only the tool that is needed. Pinned to the commit of the release, so a moved tag cannot change what runs.
+    - if: steps.detect.outputs.manager == 'bun' && inputs.install == 'true'
+      uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+      with:
+        bun-version: ${{ inputs.bun-version }}
+    - if: steps.detect.outputs.manager == 'pnpm' && inputs.install == 'true'
+      uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      with:
+        version: ${{ inputs.pnpm-version }}
+    - if: inputs.install == 'true'
+      shell: bash
+      working-directory: ${{ inputs.tslaws-root }}
+      env:
+        MANAGER: ${{ steps.detect.outputs.manager }}
+        HELPER: ${{ github.action_path }}/package-manager.mjs
+      run: node "$HELPER" install "$MANAGER" .
     - id: run
       shell: bash
       working-directory: ${{ inputs.working-directory }}
@@ -36,9 +81,10 @@ runs:
         MODE: ${{ inputs.mode }}
         ARGS: ${{ inputs.args }}
         TSLAWS_ROOT: ${{ inputs.tslaws-root }}
+        HELPER: ${{ github.action_path }}/package-manager.mjs
       run: |
         case "$MODE" in report|command|merge|verify) ;; *) echo "::error::unknown mode $MODE"; exit 1;; esac
-        bin="$TSLAWS_ROOT/node_modules/tslaws/bin/tslaws.js"
-        if [ ! -f "$bin" ]; then echo "::error::tslaws is not installed in $TSLAWS_ROOT (run npm ci there)"; exit 1; fi
+        # Resolved from the trusted root, the way Node finds a package: it works for hoisted, nested and pnpm layouts.
+        bin="$(node "$HELPER" bin "$TSLAWS_ROOT")" || { echo "::error::tslaws is not installed in $TSLAWS_ROOT"; exit 1; }
         # shellcheck disable=SC2086
         node "$bin" github "$MODE" $ARGS

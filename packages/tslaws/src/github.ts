@@ -34,6 +34,12 @@ export interface GithubConfig {
   approvePullRequest: boolean;
   /** A proposal that fails (or is open) is never accepted, whatever was said. Default true. */
   requirePassing: boolean;
+  /**
+   * `shared` (default): the repository-wide flow that runs from the monorepo root covers this project. `own`: the
+   * project keeps these settings but runs its own workflow (`tslaws github <mode> --project <dir>`); the root's
+   * report, merge and command leave it out. The root's verify still watches its lock.
+   */
+  flow: 'shared' | 'own';
 }
 
 export const githubDefaults: GithubConfig = {
@@ -43,6 +49,7 @@ export const githubDefaults: GithubConfig = {
   approvers: ['author', 'reviewers'],
   approvePullRequest: false,
   requirePassing: true,
+  flow: 'shared',
 };
 
 const approverKinds = ['author', 'reviewers', 'write', 'maintain', 'admin'] as const;
@@ -62,7 +69,7 @@ export function parseGithubConfig(raw: unknown): GithubConfig {
   };
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return fail('must be an object');
   const o = raw as Record<string, unknown>;
-  const known = ['accept', 'branch', 'bot', 'approvers', 'approvePullRequest', 'requirePassing'];
+  const known = ['accept', 'branch', 'bot', 'approvers', 'approvePullRequest', 'requirePassing', 'flow'];
   for (const key of Object.keys(o))
     if (!known.includes(key)) fail(`unknown option "${key}"; supported: ${known.join(', ')}`);
   if (o.accept !== undefined && o.accept !== 'merge' && o.accept !== 'comment')
@@ -77,6 +84,8 @@ export function parseGithubConfig(raw: unknown): GithubConfig {
       o.approvers.some((a) => !(approverKinds as readonly unknown[]).includes(a)))
   )
     fail(`"approvers" must be a non-empty array of ${approverKinds.join(', ')}`);
+  if (o.flow !== undefined && o.flow !== 'shared' && o.flow !== 'own')
+    fail(`"flow" must be "shared" or "own", got ${JSON.stringify(o.flow)}`);
   for (const key of ['approvePullRequest', 'requirePassing'] as const)
     if (o[key] !== undefined && typeof o[key] !== 'boolean') fail(`"${key}" must be true or false`);
   const config: GithubConfig = { ...githubDefaults, ...(o as Partial<GithubConfig>) };
@@ -97,6 +106,8 @@ export interface Proposal {
   kind: LockChange['kind'];
   reason: LockChange['reason'];
   fingerprint: string;
+  /** The project's path in the repository ('' for the root). Absent means the root. */
+  project?: string;
   /** What the law did when it ran; undefined when the check did not report it (it did not run). */
   outcome?: ProposalOutcome;
   passes: boolean;
@@ -105,7 +116,7 @@ export interface Proposal {
 const passingStatuses = new Set(['proved', 'bounded', 'tested']);
 
 /** Joins the lock changes with what the check reported for each. */
-export function proposalsOf(changes: LockChange[], report: CheckReport | undefined): Proposal[] {
+export function proposalsOf(changes: LockChange[], report: CheckReport | undefined, project = ''): Proposal[] {
   const results = new Map<string, LawResult>();
   for (const result of report?.results ?? [])
     results.set(`${result.file.replaceAll('\\', '/')}::${result.name}`, result);
@@ -128,6 +139,7 @@ export function proposalsOf(changes: LockChange[], report: CheckReport | undefin
       kind: change.kind,
       reason: change.reason,
       fingerprint: change.fingerprint,
+      project,
       ...(outcome === undefined ? {} : { outcome }),
       passes: outcome !== undefined && passingStatuses.has(outcome.status),
     };
@@ -136,7 +148,20 @@ export function proposalsOf(changes: LockChange[], report: CheckReport | undefin
 
 // ---- commands -----------------------------------------------------------------------------------------------------
 
-export type Command = { verb: 'accept' | 'reject'; all: boolean; names: string[] };
+export type Command = {
+  verb: 'accept' | 'reject';
+  all: boolean;
+  names: string[];
+  /** `--project <dir>` (repeatable): the command covers only proposals of these projects. */
+  projects?: string[];
+};
+
+const cleanProject = (dir: string): string =>
+  dir
+    .replaceAll('\\', '/')
+    .replace(/^(\.\/)+/, '')
+    .replace(/\/+$/, '')
+    .replace(/^\.$/, '');
 
 /**
  * The `/tslaws accept ...` and `/tslaws reject ...` lines of a comment. Names are law names or `file::name` keys,
@@ -152,29 +177,55 @@ export function parseCommands(body: string): Command[] {
     const verb = match[1]!.toLowerCase() as Command['verb'];
     const rest = match[2]!.trim();
     const names: string[] = [];
+    const projects: string[] = [];
     const token = /`([^`]+)`|"([^"]+)"|'([^']+)'|([^\s,]+)/g;
-    for (let m = token.exec(rest); m !== null; m = token.exec(rest)) names.push((m[1] ?? m[2] ?? m[3] ?? m[4])!);
+    let wantsProject = false;
+    for (let m = token.exec(rest); m !== null; m = token.exec(rest)) {
+      const word = (m[1] ?? m[2] ?? m[3] ?? m[4])!;
+      if (wantsProject) {
+        projects.push(cleanProject(word));
+        wantsProject = false;
+      } else if (word === '--project') wantsProject = true;
+      else if (word.startsWith('--project=')) projects.push(cleanProject(word.slice('--project='.length)));
+      else names.push(word);
+    }
     const all = names.length === 0 || names.some((n) => n.toLowerCase() === 'all');
-    commands.push({ verb, all, names: all ? [] : names });
+    commands.push({ verb, all, names: all ? [] : names, ...(projects.length > 0 ? { projects } : {}) });
   }
   return commands;
 }
 
-/** The proposals a command names: by `file::name` key, or by law name when that name is unambiguous. */
+/** A proposal's key from the repository root: the project's path, then the project-relative `file::name`. */
+export function repoKey(p: Proposal): string {
+  return p.project === undefined || p.project === '' ? p.key : `${p.project}/${p.key}`;
+}
+
+/**
+ * The proposals a command names. A name is a key from the repository root (`packages/a/src/x.laws.ts::name`), a
+ * project-relative `file::name` key, or a law name; the first form that matches decides, and a name that still matches
+ * more than one proposal (in several files or several projects) is ambiguous. `--project` limits the proposals first.
+ */
 export function resolveNames(
   proposals: Proposal[],
   command: Command,
 ): { matched: Proposal[]; unknown: string[]; ambiguous: string[] } {
-  if (command.all) return { matched: proposals, unknown: [], ambiguous: [] };
+  const scope = command.projects;
+  const inScope = scope === undefined ? proposals : proposals.filter((p) => scope.includes(p.project ?? ''));
+  if (command.all) return { matched: inScope, unknown: [], ambiguous: [] };
+  // The same law text can be proposed by two projects with one fingerprint, so a proposal is told apart by project too.
   const matched = new Map<string, Proposal>();
   const unknown: string[] = [];
   const ambiguous: string[] = [];
   for (const name of command.names) {
-    const byKey = proposals.filter((p) => p.key === name);
-    const byName = byKey.length > 0 ? byKey : proposals.filter((p) => p.name === name);
-    if (byName.length === 0) unknown.push(name);
-    else if (byName.length > 1) ambiguous.push(name);
-    else matched.set(byName[0]!.fingerprint, byName[0]!);
+    const forms = [
+      inScope.filter((p) => repoKey(p) === name),
+      inScope.filter((p) => p.key === name),
+      inScope.filter((p) => p.name === name),
+    ];
+    const found = forms.find((list) => list.length > 0) ?? [];
+    if (found.length === 0) unknown.push(name);
+    else if (found.length > 1) ambiguous.push(name);
+    else matched.set(`${found[0]!.project ?? ''}\0${found[0]!.fingerprint}`, found[0]!);
   }
   return { matched: [...matched.values()], unknown, ambiguous };
 }
@@ -186,6 +237,11 @@ export interface ApprovalRecord {
   by: string;
   /** The head commit the person saw. */
   sha: string;
+  /**
+   * The project the record is about, as its path in the repository ('' for the root). A record counts only for that
+   * project. Absent (a record written before projects were told apart) means the root.
+   */
+  project?: string;
   /** key and fingerprint of each proposal the record covers. */
   items: { key: string; fingerprint: string }[];
 }
@@ -241,6 +297,7 @@ export function readApprovals(comments: IssueComment[], bot: string): ApprovalRe
         if (
           (record.verb === 'accept' || record.verb === 'reject') &&
           typeof record.by === 'string' &&
+          (record.project === undefined || typeof record.project === 'string') &&
           Array.isArray(record.items) &&
           record.items.every((i) => typeof i?.key === 'string' && typeof i?.fingerprint === 'string')
         )
@@ -256,16 +313,20 @@ export function readApprovals(comments: IssueComment[], bot: string): ApprovalRe
 }
 
 /**
- * The fingerprints accepted by the records, latest word wins: a later reject withdraws an earlier accept of the same
- * fingerprint. A fingerprint names one version of a law, so an edit after the accept leaves the new version unaccepted.
+ * The fingerprints accepted by the records for one project, latest word wins: a later reject withdraws an earlier
+ * accept of the same fingerprint. A fingerprint names one version of a law, so an edit after the accept leaves the new
+ * version unaccepted. Only records of `project` count (default the root, which also takes records with no project), so
+ * an accept of a law in one project never accepts the same-named or same-fingerprint law of another.
  */
-export function acceptedFingerprints(records: ApprovalRecord[]): Map<string, string> {
+export function acceptedFingerprints(records: ApprovalRecord[], project = ''): Map<string, string> {
   const accepted = new Map<string, string>();
-  for (const record of records)
+  for (const record of records) {
+    if ((record.project ?? '') !== project) continue;
     for (const item of record.items) {
       if (record.verb === 'accept') accepted.set(item.fingerprint, record.by);
       else accepted.delete(item.fingerprint);
     }
+  }
   return accepted;
 }
 
@@ -359,17 +420,13 @@ function outcomeText(p: Proposal): string {
 const what = (p: Proposal): string =>
   p.kind === 'exempt' ? `exemption ${p.reason}` : p.reason === 'level' ? 'level changed' : `law ${p.reason}`;
 
-/** The sticky pull request comment: every proposal, what it did, and whether it will be accepted on merge. */
-export function renderSticky(
+/** The table of proposals and the sentence on how they are accepted. */
+function renderTable(
   proposals: Proposal[],
   config: GithubConfig,
   approvals: Map<string, string>,
   link: (p: Proposal) => string,
-  project = '',
 ): string {
-  const title = project === '' ? '' : ` for \`${project.replace(/`/g, "'")}\``;
-  const head = `${stickyMarkerFor(project)}\n### tslaws proposals${title}\n\n`;
-  if (proposals.length === 0) return `${head}No law, level or coverage exemption differs from \`tsc-laws.lock\`.\n`;
   const rows = proposals.map((p) => {
     const state =
       !p.passes && config.requirePassing
@@ -385,5 +442,47 @@ export function renderSticky(
     config.accept === 'merge'
       ? `Proposals that pass are written to \`tsc-laws.lock\` by the tslaws workflow when this pull request merges into \`${config.branch}\`. Failing proposals are never accepted.`
       : `Reply \`/tslaws accept <law>\` (or \`/tslaws accept all\`) to accept, \`/tslaws reject <law>\` to withdraw. An accept covers the version shown here; a later edit needs a new accept. Accepted proposals are written to \`tsc-laws.lock\` when this pull request merges into \`${config.branch}\`.`;
-  return `${head}| Law | Change | If accepted | State |\n| --- | --- | --- | --- |\n${rows.join('\n')}\n\n${how}\n`;
+  return `| Law | Change | If accepted | State |\n| --- | --- | --- | --- |\n${rows.join('\n')}\n\n${how}\n`;
+}
+
+/** The sticky pull request comment: every proposal, what it did, and whether it will be accepted on merge. */
+export function renderSticky(
+  proposals: Proposal[],
+  config: GithubConfig,
+  approvals: Map<string, string>,
+  link: (p: Proposal) => string,
+  project = '',
+): string {
+  const title = project === '' ? '' : ` for \`${project.replace(/`/g, "'")}\``;
+  const head = `${stickyMarkerFor(project)}\n### tslaws proposals${title}\n\n`;
+  if (proposals.length === 0) return `${head}No law, level or coverage exemption differs from \`tsc-laws.lock\`.\n`;
+  return `${head}${renderTable(proposals, config, approvals, link)}`;
+}
+
+export interface StickySection {
+  /** The project's path in the repository ('' for the root). */
+  project: string;
+  proposals: Proposal[];
+  config: GithubConfig;
+  approvals: Map<string, string>;
+  link: (p: Proposal) => string;
+}
+
+/**
+ * One sticky comment for a monorepo root run: a section per project that has proposals, and one line naming the rest.
+ * `marker` is the comment's own marker (the root's), so the per-project comments of single-project runs stay separate.
+ */
+export function renderStickyAll(sections: StickySection[], marker: string): string {
+  const head = `${marker}\n### tslaws proposals\n\n`;
+  const proposed = sections.filter((s) => s.proposals.length > 0);
+  const quiet = sections
+    .filter((s) => s.proposals.length === 0)
+    .map((s) => `\`${(s.project || '.').replace(/`/g, "'")}\``);
+  if (proposed.length === 0)
+    return `${head}No law, level or coverage exemption differs from \`tsc-laws.lock\` in any of ${sections.length} project${sections.length === 1 ? '' : 's'}.\n`;
+  const parts = proposed.map(
+    (s) =>
+      `#### \`${(s.project || '.').replace(/`/g, "'")}\`\n\n${renderTable(s.proposals, s.config, s.approvals, s.link)}`,
+  );
+  return `${head}${parts.join('\n')}${quiet.length === 0 ? '' : `\nNo change in ${quiet.join(', ')}.\n`}`;
 }

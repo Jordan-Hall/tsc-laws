@@ -58,7 +58,7 @@ const configKeys = [
   ...settingKeys,
 ];
 /** Keys that steer inheritance and discovery rather than a run; `readConfig` acts on them and drops them. */
-const structuralKeys = ['extends', 'projects'];
+const structuralKeys = ['extends', 'projects', 'standalone'];
 
 export interface Uncovered {
   file: string;
@@ -109,6 +109,8 @@ function checkFile(raw: unknown, source: string): Record<string, unknown> {
     fail(`"extends" must be a path to another tslaws.json, got ${JSON.stringify(object.extends)}`);
   const projects = object.projects === undefined ? undefined : projectsProblem(object.projects);
   if (projects !== undefined) fail(projects);
+  if (object.standalone !== undefined && typeof object.standalone !== 'boolean')
+    fail(`"standalone" must be true or false, got ${JSON.stringify(object.standalone)}`);
   for (const key of settingKeys) {
     const value = object[key];
     if (value !== undefined && (typeof value !== 'number' || !Number.isInteger(value) || value < 1))
@@ -231,8 +233,10 @@ function loadMerged(file: string, cwd: string, chain: string[], loaded: string[]
   if (trail.includes(baseFile))
     throw new Error(`${shown(file)}: "extends" forms a cycle (${[...trail, baseFile].map(shown).join(' -> ')})`);
   const base = rebaseFields(loadMerged(baseFile, cwd, trail, loaded), dirname(baseFile), dirname(file));
-  // `projects` lists directories under the file that wrote it, so it is never inherited.
+  // `projects` lists directories under the file that wrote it, so it is never inherited; nor is `standalone`, which is
+  // about the one project whose file says it.
   delete base.projects;
+  delete base.standalone;
   return deepMerge(base, own);
 }
 
