@@ -66,7 +66,8 @@ export function resolveVersion(manager, dir, requested = '') {
   if (manager !== 'pnpm' && manager !== 'bun') throw new Error(`no version to set up for ${manager}`);
   const asked = String(requested ?? '').trim();
   if (asked !== '') {
-    if (!semver.test(asked)) throw new Error(`${manager}-version must be a plain version such as ${defaultVersions[manager]}; got "${asked}"`);
+    if (!semver.test(asked))
+      throw new Error(`${manager}-version must be a plain version such as ${defaultVersions[manager]}; got "${asked}"`);
     return asked;
   }
   const [name, version] = (readPackageManagerField(dir) ?? '').split('+')[0].split('@');
@@ -126,7 +127,9 @@ function main(argv) {
     process.stdout.write(`${resolveBin(rest[0] ?? '.')}\n`);
     return 0;
   }
-  process.stderr.write('usage: package-manager.mjs detect <dir> [requested] | version <pm> <dir> [requested] | install <pm> <dir> | bin <dir>\n');
+  process.stderr.write(
+    'usage: package-manager.mjs detect <dir> [requested] | version <pm> <dir> [requested] | install <pm> <dir> | bin <dir>\n',
+  );
   return 2;
 }
 

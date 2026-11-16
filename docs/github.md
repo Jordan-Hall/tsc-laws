@@ -349,6 +349,11 @@ united with the head's list. A pull request cannot hide a package by editing the
   leaves the repository fails `verify` and `merge` instead of being guessed. All of them resolve the path with one
   helper, so they cannot read different files.
 
+**The list of changed files is not trusted.** The API lists at most 3000 files of a pull request, so `verify` never
+decides from that list alone: it reads each project's settings and the discovery files at both commits and compares them,
+and compares the blob id of every `tsc-laws.lock` in the two trees. It also fails when the list reaches 3000 files or is
+not the number of files GitHub says the pull request changes.
+
 **The package manager version is not the pull request's to set.** The action passes `pnpm` and `bun` an explicit
 plain-semver version (the input, the trusted `tslaws-root` `package.json`, or a pinned default). The setup actions never
 fall back to the `packageManager` field of the workspace under test.

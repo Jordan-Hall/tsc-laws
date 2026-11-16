@@ -18,7 +18,7 @@
 import { readFileSync, writeFileSync, appendFileSync, existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { join, posix } from 'node:path';
+import { join } from 'node:path';
 import { check, exemptionsOf } from './check.ts';
 import type { CheckReport } from './check.ts';
 import { extendsTarget, readConfig } from './coverage.ts';
@@ -159,6 +159,8 @@ interface PullRequest {
   user: { login: string; type: string };
   head: { sha: string };
   base: { ref: string; sha: string };
+  /** How many files the pull request changes, as GitHub counts them (the files list is capped at 3000). */
+  changed_files?: number;
   requested_reviewers?: { login: string }[];
   merged?: boolean;
 }
@@ -530,7 +532,7 @@ async function discoveryHolds(
   const problems: string[] = [];
   try {
     const read = readerOf(api, name);
-    const changed = await changedFiles(api, name, pr.number);
+    const changed = await changedFiles(api, name, pr);
     const { baseSide, headSide } = await inspectMonorepo(api, name, read, pr, changed, repoPath(ctx, ''), problems);
     const head = new Set(headSide.paths);
     const decided = new Set(discovered);
@@ -728,11 +730,8 @@ async function projectsAt(
   read: Reader,
   sha: string,
   prefix: string,
-): Promise<{ paths: string[]; inputs: DiscoveryInputs; truncated: boolean }> {
-  const tree = (await api('GET', `/repos/${name}/git/trees/${encodeURIComponent(sha)}?recursive=1`)) as {
-    tree?: { path: string; type: string }[];
-    truncated?: boolean;
-  };
+): Promise<{ paths: string[]; inputs: DiscoveryInputs; truncated: boolean; locks: Map<string, string> }> {
+  const tree = await treeAt(api, name, sha);
   const lead = prefix === '' ? '' : `${prefix}/`;
   const files = (tree.tree ?? [])
     .filter((entry) => entry.type === 'blob' && entry.path.startsWith(lead))
@@ -744,7 +743,29 @@ async function projectsAt(
   if (tslaws !== undefined) inputs.tslaws = tslaws;
   if (packageJson !== undefined) inputs.packageJson = packageJson;
   if (pnpmWorkspace !== undefined) inputs.pnpmWorkspace = pnpmWorkspace;
-  return { paths: discoverFromFiles(files, inputs), inputs, truncated: tree.truncated === true };
+  return { paths: discoverFromFiles(files, inputs), inputs, truncated: tree.truncated === true, locks: tree.locks };
+}
+
+/** Every blob of a commit's tree, and the blob id of each `tsc-laws.lock`: a changed id is a changed lock. */
+async function treeAt(
+  api: Api,
+  name: string,
+  sha: string,
+): Promise<{ tree: { path: string; type: string }[]; truncated: boolean; locks: Map<string, string> }> {
+  const got = (await api('GET', `/repos/${name}/git/trees/${encodeURIComponent(sha)}?recursive=1`)) as {
+    tree?: { path: string; type: string; sha?: string }[];
+    truncated?: boolean;
+  };
+  const tree = got.tree ?? [];
+  const locks = new Map<string, string>();
+  for (const entry of tree) if (entry.type === 'blob' && isLock(entry.path)) locks.set(entry.path, entry.sha ?? '');
+  return { tree, truncated: got.truncated === true, locks };
+}
+
+/** The locks that differ between two commits: added, removed or changed, by repository path. */
+function lockDifferences(base: Map<string, string>, head: Map<string, string>): string[] {
+  const paths = new Set([...base.keys(), ...head.keys()]);
+  return [...paths].filter((path) => base.get(path) !== head.get(path)).sort();
 }
 
 /**
@@ -768,7 +789,13 @@ async function settingsAt(
       if (first) return undefined;
       throw new Error(`${path} is named by "extends" and cannot be read at ${ref.slice(0, 7)}`);
     }
-    const json = JSON.parse(text) as { github?: unknown; extends?: unknown; standalone?: unknown } | null;
+    let json: { github?: unknown; extends?: unknown; standalone?: unknown } | null;
+    try {
+      json = JSON.parse(text) as typeof json;
+    } catch {
+      // The parser's message quotes the file's text, which is not ours to echo into a log.
+      throw new Error(`${path} is not valid JSON`);
+    }
     if (typeof json !== 'object' || json === null || Array.isArray(json)) throw new Error(`${path} is not an object`);
     if (first) standalone = json.standalone === true;
     // The same rules loadMerged applies to the files on disk (coverage.ts), so both sides resolve one target.
@@ -1126,45 +1153,59 @@ async function commitTogether(api: Api, name: string, branch: string, writes: Wr
   await api('PATCH', `/repos/${name}/git/refs/heads/${ref}`, { sha: made.sha, force: false });
 }
 
-/** What a project's settings were and are, when the pull request touched a file they come from. */
+/**
+ * What a project's settings were and are. Always read at both commits and compared: the list of changed files is capped
+ * by the API, so it cannot be what decides whether to look.
+ */
 async function checkProjectAt(
   read: Reader,
   pull: PullRequest,
-  changed: Set<string>,
   problems: string[],
   dir: string,
 ): Promise<GithubConfig | undefined> {
   const configPath = joinRepo(dir, 'tslaws.json');
   const base = await settingsAt(read, pull.base.sha, dir);
-  if (base.files.some((f) => changed.has(f))) {
-    let head: Awaited<ReturnType<typeof settingsAt>> | undefined;
-    try {
-      head = await settingsAt(read, pull.head.sha, dir);
-    } catch (error) {
-      problems.push(
-        `${configPath} does not read on the pull request: ${error instanceof Error ? error.message : String(error)}`,
-      );
-    }
-    if (head !== undefined) {
-      if (JSON.stringify(base.github) !== JSON.stringify(head.github))
-        problems.push(
-          `the pull request changes the "github" section of ${configPath}, which decides who may accept laws`,
-        );
-      else if (base.standalone !== head.standalone)
-        problems.push(
-          `the pull request changes "standalone" in ${configPath}, which decides whether root runs cover it`,
-        );
-    }
+  let head: Awaited<ReturnType<typeof settingsAt>> | undefined;
+  try {
+    head = await settingsAt(read, pull.head.sha, dir);
+  } catch (error) {
+    problems.push(
+      `${configPath} does not read on the pull request: ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
+  if (head !== undefined) {
+    if (JSON.stringify(base.github) !== JSON.stringify(head.github))
+      problems.push(
+        `the pull request changes the "github" section of ${configPath}, which decides who may accept laws`,
+      );
+    else if (base.standalone !== head.standalone)
+      problems.push(`the pull request changes "standalone" in ${configPath}, which decides whether root runs cover it`);
+  }
+
   return base.github === undefined ? undefined : parseGithubConfig(base.github);
 }
 
-/** The files a pull request changes, with the old name of each file it renames. */
-async function changedFiles(api: Api, name: string, number: number): Promise<Set<string>> {
+/** The most files the pull request files API lists (30 pages of 100); a pull request with more is cut short. */
+const filesListLimit = 3000;
+
+/**
+ * The files a pull request changes, with the old name of each file it renames. Fails when the list cannot be the whole
+ * of it: at the API's cap, or not the number GitHub says the pull request changes. The security checks do not decide
+ * from this list alone, but a list that may be short is never used.
+ */
+async function changedFiles(api: Api, name: string, pull: PullRequest): Promise<Set<string>> {
   const files = await all<{ filename: string; previous_filename?: string }>(
     api,
-    `/repos/${name}/pulls/${number}/files`,
+    `/repos/${name}/pulls/${pull.number}/files`,
   );
+  if (files.length >= filesListLimit)
+    throw new Error(
+      `the pull request changes ${filesListLimit} files or more, which the API cannot list in full; nothing can be checked`,
+    );
+  if (files.length !== pull.changed_files)
+    throw new Error(
+      `GitHub lists ${files.length} changed files for the pull request but reports ${pull.changed_files ?? 'no count of'} files changed; nothing can be checked`,
+    );
   return new Set(files.flatMap((f) => [f.filename, ...(f.previous_filename ? [f.previous_filename] : [])]));
 }
 
@@ -1182,7 +1223,7 @@ async function inspectMonorepo(
   rootPath: string,
   problems: string[],
 ): Promise<{ baseSide: { paths: string[] }; headSide: { paths: string[] }; union: string[] }> {
-  const checkProject = (dir: string) => checkProjectAt(read, pull, changed, problems, dir);
+  const checkProject = (dir: string) => checkProjectAt(read, pull, problems, dir);
   // Every project of the base and every project of the head, read through the API: a pull request that edits the
   // files that discover projects cannot hide a project from this check.
   const baseSide = await projectsAt(api, name, read, pull.base.sha, rootPath);
@@ -1203,7 +1244,6 @@ async function inspectMonorepo(
   ];
   for (const [file, key] of inputs) {
     const path = joinRepo(rootPath, file);
-    if (!changed.has(path)) continue;
     const was = baseSide.inputs[key];
     const now = headSide.inputs[key];
     const sig = (text: string | undefined) => (text === undefined ? 'absent' : discoverySignature({ [key]: text }));
@@ -1222,9 +1262,9 @@ async function inspectMonorepo(
     } catch (error) {
       problems.push(`${label(rel)}: ${error instanceof Error ? error.message : String(error)}`);
     }
-  // Any lock the pull request touches, in a project or not: the bot writes locks, after the merge.
-  for (const file of changed) {
-    if (!isLock(file)) continue;
+  // Any lock the pull request touches, in a project or not: the bot writes locks, after the merge. Found by comparing the
+  // two trees' blob ids (not only the files list, which can be cut short).
+  for (const file of new Set([...lockDifferences(baseSide.locks, headSide.locks), ...[...changed].filter(isLock)])) {
     const owner = union.find((rel) => joinRepo(rootPath, joinRepo(rel, 'tsc-laws.lock')) === file);
     const config = owner === undefined ? undefined : configs.get(owner);
     problems.push(
@@ -1251,7 +1291,7 @@ async function verify(ctx: GithubContext): Promise<number> {
   const read = readerOf(api, name);
   const rootPath = repoPath(ctx, '');
   const problems: string[] = [];
-  const changed = await changedFiles(api, name, pull.number);
+  const changed = await changedFiles(api, name, pull);
   const protectedPaths = String(ctx.flags.get('protect') ?? '')
     .split(',')
     .map((p) => p.trim())
@@ -1260,7 +1300,7 @@ async function verify(ctx: GithubContext): Promise<number> {
     if (changed.has(path))
       problems.push(`${path} is protected: change it in a pull request of its own, merged by an administrator`);
 
-  const checkProject = (dir: string) => checkProjectAt(read, pull, changed, problems, dir);
+  const checkProject = (dir: string) => checkProjectAt(read, pull, problems, dir);
 
   if (!monorepo) {
     // One project, as a package's own workflow runs it: its lock and its settings only.
@@ -1271,7 +1311,13 @@ async function verify(ctx: GithubContext): Promise<number> {
     // The bot never commits to a pull request's branch: it writes the lock on ${config.branch} after the merge. So any
     // change to the lock in the pull request's diff (the full list, paginated above) is a forgery. Checking the diff, not
     // each commit, also covers commits whose file list GitHub truncates (the commit API lists at most 300 files).
-    if (changed.has(lockPath))
+    const [baseTree, headTree] = await Promise.all([
+      treeAt(api, name, pull.base.sha),
+      treeAt(api, name, pull.head.sha),
+    ]);
+    if (baseTree.truncated || headTree.truncated)
+      problems.push('the repository is too large for the API to list its files; the lock cannot be checked');
+    if (changed.has(lockPath) || lockDifferences(baseTree.locks, headTree.locks).includes(lockPath))
       problems.push(
         `the pull request changes ${lockPath}; only ${config.bot} writes the lock, on merge into ${config.branch}`,
       );

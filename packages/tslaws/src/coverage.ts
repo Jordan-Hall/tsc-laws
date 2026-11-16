@@ -5,7 +5,7 @@
 // (directly or through other project modules). A function carrying `@tslaws-exempt` in its doc comment is exempt,
 // but only once the exemption is in tsc-laws.lock, so an agent cannot exempt its own code.
 import { parseGithubConfig } from './github.ts';
-import { existsSync, lstatSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, lstatSync, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { dirname, isAbsolute, join, posix, relative, resolve } from 'node:path';
 import ts from 'typescript';
 import { parseE2eConfig, type E2eConfig } from './e2e.ts';
@@ -235,11 +235,39 @@ export function extendsTarget(fromFile: string, value: unknown): string {
 }
 
 /**
+ * The directory no `extends` may leave: the nearest enclosing directory with a `.git`, else the highest enclosing one
+ * that carries a workspace file (`tslaws.json`, `package.json` or `pnpm-workspace.yaml`), else `cwd` itself.
+ */
+export function extendsRoot(cwd: string): string {
+  let top = resolve(cwd);
+  let dir = top;
+  for (;;) {
+    if (existsSync(join(dir, '.git'))) return dir;
+    if (['tslaws.json', 'package.json', 'pnpm-workspace.yaml'].some((f) => existsSync(join(dir, f)))) top = dir;
+    const parent = dirname(dir);
+    if (parent === dir) return top;
+    dir = parent;
+  }
+}
+
+/** Whether `inner` is `outer` or inside it, by path alone. */
+const within = (outer: string, inner: string): boolean => {
+  const rel = relative(outer, inner);
+  return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
+};
+
+/**
  * Loads `file` and the files it `extends`, merged, with paths relative to the directory of `file`. `chain` holds the
  * files being loaded, outermost first, so a cycle or a missing file is reported with the way it was reached; every
  * file read is added to `loaded`.
  */
-function loadMerged(file: string, cwd: string, chain: string[], loaded: string[]): Record<string, unknown> {
+function loadMerged(
+  file: string,
+  cwd: string,
+  root: string,
+  chain: string[],
+  loaded: string[],
+): Record<string, unknown> {
   const shown = (path: string): string => relative(cwd, path).replaceAll('\\', '/') || path;
   const trail = [...chain, file];
   let text: string;
@@ -258,15 +286,22 @@ function loadMerged(file: string, cwd: string, chain: string[], loaded: string[]
   let json: unknown;
   try {
     json = JSON.parse(text);
-  } catch (error) {
-    throw new Error(`${shown(file)}: ${(error as Error).message}`);
+  } catch {
+    // The parser's message quotes the file's text, which is not ours to echo into a log.
+    throw new Error(`${shown(file)}: not valid JSON`);
   }
   const { extends: parent, ...own } = checkFile(json, shown(file));
   if (parent === undefined) return own;
   const baseFile = resolve(dirname(file), checkExtendsValue(parent));
+  // The same containment as the GitHub checks (`extendsTarget`): by path, and by where a link or a linked directory
+  // really leads.
+  const outside = (): Error =>
+    new Error(`${shown(file)}: "extends" ${JSON.stringify(parent)} leaves the repository (${shown(root)})`);
+  if (!within(root, baseFile)) throw outside();
+  if (existsSync(baseFile) && !within(realpathSync(root), realpathSync(baseFile))) throw outside();
   if (trail.includes(baseFile))
     throw new Error(`${shown(file)}: "extends" forms a cycle (${[...trail, baseFile].map(shown).join(' -> ')})`);
-  const base = rebaseFields(loadMerged(baseFile, cwd, trail, loaded), dirname(baseFile), dirname(file));
+  const base = rebaseFields(loadMerged(baseFile, cwd, root, trail, loaded), dirname(baseFile), dirname(file));
   // `projects` lists directories under the file that wrote it, so it is never inherited; nor is `standalone`, which is
   // about the one project whose file says it.
   delete base.projects;
@@ -279,7 +314,7 @@ export function readConfig(cwd: string): CoverageConfig {
   const path = join(cwd, 'tslaws.json');
   if (!existsSync(path)) return {};
   const loaded: string[] = [];
-  const merged = loadMerged(path, cwd, [], loaded);
+  const merged = loadMerged(path, cwd, extendsRoot(cwd), [], loaded);
   let config: CoverageConfig;
   try {
     config = parseConfig(merged);

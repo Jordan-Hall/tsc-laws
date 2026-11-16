@@ -334,7 +334,14 @@ describe('lock tampering', () => {
   ) => {
     const dir = mkdtempSync(join(tmpdir(), 'tslaws-gh-'));
     try {
-      writeFileSync(join(dir, 'event.json'), JSON.stringify(payload));
+      // GitHub reports how many files a pull request changes; say so, as many as the fake lists.
+      const pr = (payload as { pull_request?: { number: number; changed_files?: number } }).pull_request;
+      const listed = routes(`/repos/o/r/pulls/${pr?.number}/files`);
+      const event =
+        pr !== undefined && pr.changed_files === undefined && Array.isArray(listed)
+          ? { ...payload, pull_request: { ...pr, changed_files: listed.length } }
+          : payload;
+      writeFileSync(join(dir, 'event.json'), JSON.stringify(event));
       writeFileSync(join(dir, 'tslaws.json'), JSON.stringify({ github: { bot: 'tslaws[bot]' } }));
       let out = '';
       const code = await githubCommand(mode, {

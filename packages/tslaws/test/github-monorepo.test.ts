@@ -485,10 +485,19 @@ describe('command from the root', needsCompiler, () => {
       const snapshots: Record<string, Record<string, string>> = { b: base, [sha]: head };
       const { api, calls } = fake((method, path) => {
         if (path.endsWith('/pulls/5'))
-          return { number: 5, user: { login: 'dev', type: 'User' }, head: { sha }, base: { ref: 'master', sha: 'b' } };
+          return {
+            number: 5,
+            user: { login: 'dev', type: 'User' },
+            head: { sha },
+            base: { ref: 'master', sha: 'b' },
+            changed_files: changed.length,
+          };
         if (path.endsWith('/pulls/5/files')) return changed.map((filename) => ({ filename }));
         const tree = /\/git\/trees\/(\w+)\?recursive=1$/.exec(path);
-        if (tree) return { tree: Object.keys(snapshots[tree[1]!]!).map((p) => ({ path: p, type: 'blob' })) };
+        if (tree)
+          return {
+            tree: Object.entries(snapshots[tree[1]!]!).map(([path, text]) => ({ path, type: 'blob', sha: text })),
+          };
         const file = /\/contents\/(.+)\?ref=(\w+)$/.exec(path);
         if (file) {
           const text = snapshots[file[2]!]?.[file[1]!];
@@ -618,12 +627,21 @@ describe('verify from the root', () => {
   const symlink = '@@symlink@@';
 
   /** The repository at the base and at the head, the files the pull request changes, and verify's verdict. */
-  async function verify(head: Record<string, string>, changed: string[], base: Record<string, string> = baseFiles) {
+  async function verify(
+    head: Record<string, string>,
+    changed: string[],
+    base: Record<string, string> = baseFiles,
+    count?: number,
+    listed: string[] = changed,
+  ) {
     const snapshots: Record<string, Record<string, string>> = { b: base, h: head };
     const { api } = fake((_method, path) => {
-      if (path.endsWith('/pulls/3/files')) return changed.map((filename) => ({ filename }));
+      if (path.endsWith('/pulls/3/files')) return listed.map((filename) => ({ filename }));
       const tree = /\/git\/trees\/(\w+)\?recursive=1$/.exec(path);
-      if (tree) return { tree: Object.keys(snapshots[tree[1]!]!).map((p) => ({ path: p, type: 'blob' })) };
+      if (tree)
+        return {
+          tree: Object.entries(snapshots[tree[1]!]!).map(([path, text]) => ({ path, type: 'blob', sha: text })),
+        };
       const file = /\/contents\/(.+)\?ref=(\w+)$/.exec(path);
       if (file) {
         const text = snapshots[file[2]!]?.[file[1]!];
@@ -633,9 +651,16 @@ describe('verify from the root', () => {
       return [];
     });
     const root = repo({});
-    return run('verify', root, ['packages/a', 'packages/b'], api, { pull_request: pull }, [], undefined, [
-      { cwd: root, rel: '', path: '', options: {} as never },
-    ]);
+    return run(
+      'verify',
+      root,
+      ['packages/a', 'packages/b'],
+      api,
+      { pull_request: { ...pull, changed_files: count ?? changed.length } },
+      [],
+      undefined,
+      [{ cwd: root, rel: '', path: '', options: {} as never }],
+    );
   }
 
   it('passes a pull request that touches no lock and no discovery file', async () => {
@@ -655,6 +680,38 @@ describe('verify from the root', () => {
     assert.match(out, /changes the "github" section of packages\/b\/tslaws\.json/);
     const quiet = await verify(base, ['team.txt'], base);
     assert.equal(quiet.code, 0, quiet.out);
+  });
+
+  describe('when the list of changed files may be short', () => {
+    const quietHead = { ...baseFiles, 'packages/a/tslaws.json': JSON.stringify({ github: { bot: 'someone-else' } }) };
+
+    it('still catches settings, discovery and lock changes the list leaves out', async () => {
+      const settings = await verify(quietHead, [], baseFiles);
+      assert.equal(settings.code, 1, settings.out);
+      assert.match(settings.out, /changes the "github" section of packages\/a\/tslaws\.json/);
+      const discovery = await verify({ ...baseFiles, 'tslaws.json': projectsJson('packages/a') }, [], baseFiles);
+      assert.equal(discovery.code, 1, discovery.out);
+      assert.match(discovery.out, /changes how projects are discovered/);
+      const withLock = { ...baseFiles, 'packages/a/tsc-laws.lock': 'one' };
+      const lock = await verify({ ...withLock, 'packages/a/tsc-laws.lock': 'two' }, [], withLock);
+      assert.equal(lock.code, 1, lock.out);
+      assert.match(lock.out, /changes packages\/a\/tsc-laws\.lock/);
+      const added = await verify({ ...baseFiles, 'packages/b/tsc-laws.lock': 'new' }, [], baseFiles);
+      assert.equal(added.code, 1, added.out);
+    });
+
+    it('fails when the list is not the number of files GitHub says changed', async () => {
+      const { code, out } = await verify(baseFiles, [], baseFiles, 5);
+      assert.equal(code, 1, out);
+      assert.match(out, /GitHub lists 0 changed files for the pull request but reports 5/);
+    });
+
+    it('fails when the list reaches the API cap', async () => {
+      const listed = Array.from({ length: 3000 }, (_, i) => `docs/f${i}.md`);
+      const { code, out } = await verify(baseFiles, listed, baseFiles);
+      assert.equal(code, 1, out);
+      assert.match(out, /3000 files or more/);
+    });
   });
 
   it('fails closed on an extends target it cannot read, a symlink, or a path it will not follow', async () => {
