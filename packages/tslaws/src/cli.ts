@@ -32,12 +32,13 @@ import {
   personOnly,
   revokeFor,
 } from './delegation.ts';
-import { writeLock } from './lock.ts';
+import { certificateLabel, readRecords } from './certificates.ts';
+import { readLock, writeLock } from './lock.ts';
 import { lockLevels } from './lawKinds.ts';
 import type { CheckOptions, LawEvent, LawResult } from './types.ts';
 
 const usage = `tslaws init [--force]       scaffold tslaws.json, .gitignore, AGENTS.md, Claude Code hooks and a starter law (never writes the lock)
-tslaws check [files...] [--reporter text|json|junit|github|ndjson] [--law NAME[,NAME]] [--json] [--summary] [--watch] [--runs N] [--seed N] [--no-prove] [--no-regressions] [--bound N] [--proof-timeout MS] [--property-timeout MS] [--proposed] [--compiler PATH] [--browser chromium|firefox|webkit]
+tslaws check [files...] [--reporter text|json|junit|github|ndjson] [--law NAME[,NAME]] [--json] [--summary] [--watch] [--runs N] [--seed N] [--no-prove] [--certify] [--require-certify] [--no-regressions] [--bound N] [--proof-timeout MS] [--property-timeout MS] [--proposed] [--compiler PATH] [--browser chromium|firefox|webkit]
 tslaws ui [files...] [--port N] [--no-open] [--tab]   open a dashboard of the laws in its own desktop window (--tab: a browser tab): tree, filters, search, source, live reruns on save
 tslaws mutate [files...] [--max N] [--seed N] [--runs N] [--bound N] [--proof-timeout MS] [--property-timeout MS] [--browser ENGINE] [--json]   mutation-test the laws: mutate covered code, report mutants no law kills
 tslaws regressions [list|clear]   show or delete the stored counterexamples (.tslaws/regressions); check replays them first, --no-regressions skips them
@@ -131,6 +132,7 @@ function describe(result: LawResult): string {
   if (result.message !== undefined) lines.push(`         ${result.message}`);
   if (result.assumptions !== undefined && result.assumptions.length > 0)
     lines.push(`         assuming: ${result.assumptions.join('; ')}`);
+  if (result.certificate !== undefined) lines.push(`         certificate: ${certificateLabel(result.certificate)}`);
   const proposed = proposalText(result);
   if (proposed !== undefined) lines.push(`         ${proposed}`);
   if (result.counterexample !== undefined) lines.push(`         counterexample: ${result.counterexample}`);
@@ -195,6 +197,14 @@ function options(cwd: string, flags: Map<string, string | true>, chosen: string[
     ),
     lockFile: join(cwd, 'tsc-laws.lock'),
     noProve: flags.has('no-prove'),
+    // `--certify` turns certificates on (and keeps a "require" from tslaws.json); `--require-certify` makes them required.
+    certify: flags.has('require-certify')
+      ? 'require'
+      : flags.has('certify')
+        ? readConfig(cwd).certify === 'require'
+          ? 'require'
+          : true
+        : undefined,
     noRegressions: flags.has('no-regressions'),
     only: typeof flags.get('law') === 'string' ? String(flags.get('law')).split(',').filter(Boolean) : undefined,
     bound: settings.bound,
@@ -346,7 +356,11 @@ export async function acceptCommand(
   // tslaws/browser reads as tampered until a person accepts again. By name (the default) the lock is unchanged.
   const mode = readConfig(cwd).levels ?? 'names';
   const levels = lockLevels(cwd, laws, mode);
-  writeLock(opts.lockFile, laws, exempt, levels);
+  // The certificates a `tslaws check --certify` left, and those the old lock had, stay for the laws they still describe.
+  writeLock(opts.lockFile, laws, exempt, levels, {
+    ...readLock(opts.lockFile)?.certificates,
+    ...readRecords(cwd),
+  });
   out('tsc-laws.lock written\n');
   if (gate.delegated) {
     logDelegatedAccept(cwd, gate.grant, before, fileHash(opts.lockFile), ctx.now ?? new Date());

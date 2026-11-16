@@ -15,6 +15,7 @@ export interface ManifestLaw {
   problems: string[];
 }
 
+import type { Certificate, CertifyMode } from './certificates.ts';
 import type { Exercised } from './exercises.ts';
 
 export interface LawResult {
@@ -30,6 +31,8 @@ export interface LawResult {
   message?: string;
   /** The domain assumptions a `proved` or `bounded` result rests on, for the parameter types of this law only. */
   assumptions?: string[];
+  /** Set when certifying was on and Z3 proved the law (`proved` or `bounded`): whether a checker accepted a proof of it. */
+  certificate?: Certificate;
   /** Project-relative path of a screenshot of the page at the counterexample (browser laws). */
   screenshot?: string;
   /** The project functions the law reaches and where they are declared, for an editor to mark on both ends. */
@@ -62,6 +65,8 @@ export interface CheckOptions {
   lockFile: string;
   /** Skip the Z3 prover. */
   noProve: boolean;
+  /** Check each proof with cvc5 and Carcara; `"require"` makes a proof without a certificate an error. See certificates.ts. */
+  certify?: CertifyMode;
   /** Longest array, most loop iterations and deepest recursion a proof considers. */
   bound: number;
   proofTimeoutMs: number;

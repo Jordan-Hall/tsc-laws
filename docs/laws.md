@@ -1059,6 +1059,9 @@ If cvc5 prints `sat` or `unknown`, fails or times out, the law is `bounded` (a `
 to install cvc5 or set `TSLAWS_CVC5`. Refutations are not sent to cvc5, because they already replay in JavaScript, and a proof
 that is already `bounded` is not either. Without `"cvc5"` in the list no second process starts and results do not change.
 
+To have the proof checked rather than confirmed, see [Proof certificates](certificates.md): `"certify": true` makes cvc5 write an
+Alethe proof and Carcara check it.
+
 ## CI reporters
 
 `tslaws check --reporter <name>` chooses the output. The exit status does not change: 0 only when the check passes.
