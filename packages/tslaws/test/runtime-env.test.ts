@@ -124,21 +124,34 @@ describe('import.meta.env', () => {
     writeFileSync(join(dir, 'package.json'), JSON.stringify({ type: 'commonjs' }));
     writeFileSync(
       join(dir, 'sub', 'm.js'),
-      'export const mode = import.meta.env.MODE;\nexport const kind = typeof import.meta;\n',
+      [
+        'export const mode = import.meta.env.MODE;',
+        'export const kind = typeof import.meta;',
+        'export const text = "import.meta.env.MODE and import.meta";',
+        '// import.meta.env in a comment',
+        '',
+      ].join('\n'),
     );
     lowerEmittedModules(dir);
-    assert.doesNotMatch(readFileSync(join(dir, 'sub', 'm.js'), 'utf8'), /import\.meta\.env/);
+    const lowered = readFileSync(join(dir, 'sub', 'm.js'), 'utf8');
+    assert.doesNotMatch(lowered, /=\s*import\.meta\.env/);
+    assert.match(lowered, /"import\.meta\.env\.MODE and import\.meta"/);
+    assert.match(lowered, /\/\/ import\.meta\.env in a comment/);
     (globalThis as Record<string, unknown>).__tslawsImportMetaEnv = { MODE: 'from-global' };
-    assert.equal((createRequire(import.meta.url)(join(dir, 'sub', 'm.js')) as { mode: string }).mode, 'from-global');
+    const loaded = createRequire(import.meta.url)(join(dir, 'sub', 'm.js')) as { mode: string; text: string };
+    assert.equal(loaded.mode, 'from-global');
+    assert.equal(loaded.text, 'import.meta.env.MODE and import.meta');
   });
 
-  it('merges process.env, the defaults and the configured entries, in a page without SSR', () => {
+  it('merges the public process.env entries, the defaults and the configured entries, in a page without SSR', () => {
     const env = importMetaEnvOf({ MODE: 'staging', VITE_X: 'x', PROD: true }, 'browser', {
       HOME: '/h',
+      NPM_TOKEN: 'secret',
+      VITE_FROM_PROCESS: 'p',
       MODE: 'ignored',
     });
     assert.deepEqual(env, {
-      HOME: '/h',
+      VITE_FROM_PROCESS: 'p',
       MODE: 'staging',
       DEV: true,
       PROD: true,
@@ -146,7 +159,8 @@ describe('import.meta.env', () => {
       BASE_URL: '/',
       VITE_X: 'x',
     });
-    const node = importMetaEnvOf(undefined, 'node', { MODE: 'production', BASE_URL: '/app/' });
+    const node = importMetaEnvOf(undefined, 'node', { MODE: 'production', BASE_URL: '/app/', NPM_TOKEN: 't' });
+    assert.equal(node.NPM_TOKEN, 't');
     assert.equal(node.MODE, 'production');
     assert.equal(node.BASE_URL, '/app/');
     assert.equal(node.SSR, true);
@@ -155,7 +169,10 @@ describe('import.meta.env', () => {
   it('validates the env option of tslaws.json', () => {
     assert.deepEqual(parseConfig({ env: { A: 'a', DEV: false } }).env, { A: 'a', DEV: false });
     assert.throws(() => parseConfig({ env: ['A'] }), /"env" must be an object/);
-    assert.throws(() => parseConfig({ env: { A: 1 } }), /"env.A" must be a string or a boolean/);
+    assert.throws(() => parseConfig({ env: { A: 1 } }), /"env.A" must be a string/);
+    assert.throws(() => parseConfig({ env: { A: true } }), /"env.A" must be a string/);
+    assert.throws(() => parseConfig({ env: { SSR: 'false' } }), /"env.SSR" must be a boolean/);
+    assert.throws(() => parseConfig({ env: { DEV: 'true' } }), /"env.DEV" must be a boolean/);
     assert.throws(() => parseEnvConfig(null), /"env" must be an object/);
   });
 });
