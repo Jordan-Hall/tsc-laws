@@ -633,9 +633,12 @@ describe('verify from the root', () => {
     base: Record<string, string> = baseFiles,
     count?: number,
     listed: string[] = changed,
+    answer: (path: string) => unknown = () => undefined,
   ) {
     const snapshots: Record<string, Record<string, string>> = { b: base, h: head };
     const { api } = fake((_method, path) => {
+      const given = answer(path);
+      if (given !== undefined) return given;
       if (path.endsWith('/pulls/3/files')) return listed.map((filename) => ({ filename }));
       const tree = /\/git\/trees\/(\w+)\?recursive=1$/.exec(path);
       if (tree)
@@ -791,6 +794,45 @@ describe('verify from the root', () => {
     assert.match(stray.out, /changes tools\/scripts\/tsc-laws\.lock.*outside every project/);
     const rootLock = await verify(baseFiles, ['tsc-laws.lock']);
     assert.equal(rootLock.code, 1);
+  });
+
+  it('lets a maintainer change the lock of a project whose "local" is on, and no other project', async () => {
+    const maintainerOnly = (path: string): unknown => {
+      if (path.endsWith('/collaborators/a/permission')) return { permission: 'admin' };
+      if (path.endsWith('/pulls/3/commits')) return [{ sha: 'c1' }];
+      if (path.endsWith('/commits/c1'))
+        return { author: { login: 'a', type: 'User' }, files: [{ filename: 'packages/a/tsc-laws.lock' }] };
+      return undefined;
+    };
+    const base = {
+      ...baseFiles,
+      'packages/b/tslaws.json': JSON.stringify({ github: { bot: 'tslaws[bot]', local: false } }),
+    };
+    const own = await verify(base, ['packages/a/tsc-laws.lock'], base, undefined, undefined, maintainerOnly);
+    assert.equal(own.code, 0, own.out);
+    const other = await verify(base, ['packages/b/tsc-laws.lock'], base, undefined, undefined, maintainerOnly);
+    assert.equal(other.code, 1);
+    assert.match(other.out, /changes packages\/b\/tsc-laws\.lock; only tslaws\[bot\] writes the lock/);
+  });
+
+  it('fails a pull request from a maintainer when a commit that changes the lock has another author', async () => {
+    const { code, out } = await verify(
+      baseFiles,
+      ['packages/a/tsc-laws.lock'],
+      baseFiles,
+      undefined,
+      undefined,
+      (path) => {
+        if (path.endsWith('/collaborators/a/permission')) return { permission: 'maintain' };
+        if (path.endsWith('/collaborators/x/permission')) return { permission: 'read' };
+        if (path.endsWith('/pulls/3/commits')) return [{ sha: 'c1' }];
+        if (path.endsWith('/commits/c1'))
+          return { author: { login: 'x', type: 'User' }, files: [{ filename: 'packages/a/tsc-laws.lock' }] };
+        return undefined;
+      },
+    );
+    assert.equal(code, 1);
+    assert.match(out, /commit c1 in the pull request changes packages\/a\/tsc-laws\.lock, but @x does not/);
   });
 
   it('flags a changed github section of a project, and of a base the project extends', async () => {

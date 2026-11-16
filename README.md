@@ -113,7 +113,7 @@ Tasks run with [Turborepo](https://turborepo.com).
 ## Documentation
 
 [`apps/web`](apps/web/README.md) contains the tsc-ts compiler guides. [docs/github.md](docs/github.md) covers accepting
-laws on GitHub: proposals on pull requests, and the lock written by CI on merge. [docs/monorepo.md](docs/monorepo.md) covers
+laws on GitHub: proposals on pull requests, and the lock written by CI on merge or on demand (or by hand). [docs/monorepo.md](docs/monorepo.md) covers
 running every package of a monorepo from the root.
 
 ```sh

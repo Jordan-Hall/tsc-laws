@@ -15,6 +15,7 @@ import {
   type PropertyOutcome,
 } from './property.ts';
 import { analyzeCoverage, coverFiles, lawEnv, readConfig } from './coverage.ts';
+import { parseGithubConfig } from './github.ts';
 import { derivedStore } from './derived.ts';
 import { jobs } from './pool.ts';
 import { certificateFailure, recordOf, writeRecords, type CertificateRecord } from './certificates.ts';
@@ -94,11 +95,15 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
   const certifyMode = options.certify ?? config.certify ?? false;
   // The certificate of each law proved this run, or undefined when its proof was not certified.
   const records = new Map<string, CertificateRecord | undefined>();
-  // Who records a law in the lock: a person locally, or the tslaws workflow on merge when "github" is configured.
+  // Who records a law in the lock: a person locally, or the tslaws workflow on merge when "github" is configured. A
+  // project that leaves "github.local" on lets a person accept by hand as well.
+  const github = readConfig(options.cwd).github;
   const acceptor =
-    readConfig(options.cwd).github !== undefined
-      ? 'it is accepted by the tslaws workflow when the pull request merges'
-      : 'a person must run `tslaws accept`';
+    github === undefined
+      ? 'a person must run `tslaws accept`'
+      : parseGithubConfig(github).local
+        ? 'a person can run `tslaws accept`, or the tslaws workflow accepts it when the pull request merges'
+        : 'it is accepted by the tslaws workflow when the pull request merges';
   const verdicts = new Map<string, KindVerdict>();
   const verdictOf = (file: string): KindVerdict => {
     let verdict = verdicts.get(file);

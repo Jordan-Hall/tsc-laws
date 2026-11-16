@@ -1,7 +1,9 @@
 # Accepting laws on GitHub
 
-When `tslaws.json` has a `github` section, `tsc-laws.lock` is written in one place only: the tslaws workflow on your
-main branch, after a pull request merges. `tslaws accept` refuses to run, and no pull request edits the lock.
+When `tslaws.json` has a `github` section, the tslaws workflow writes `tsc-laws.lock` on your main branch: after a pull
+request merges, or on demand when a maintainer runs it. A person can also change the lock by hand while `local` is true
+(the default): see "Accepting by hand". Set `local` to false to make the workflow the only writer: `tslaws accept`
+then refuses to run, and no pull request edits the lock.
 
 A pull request can add, change or remove a law, move a law to another level, or add or remove a coverage exemption. Each
 such change is a **proposal**. Proposals run like every other law, so the pull request shows what each one _would_ be if
@@ -20,6 +22,7 @@ accepted: proved, bounded, tested, or failed with a counterexample. `tslaws chec
     "requirePassing": true, // a failing proposal is never accepted (default true)
     "approvePullRequest": false, // comment mode: approve the pull request once every proposal is accepted
     "flow": "shared", // monorepo: "own" keeps this package out of the root's report, merge and command (see "Monorepos")
+    "local": true, // a person may also accept by hand, or merge a pull request that changes the lock (default true)
   },
 }
 ```
@@ -72,6 +75,42 @@ that passes. In comment mode, a proposal must also have an accept for that exact
 `tsc-laws.lock` through the contents API, so GitHub signs the commit as the bot. It comments on the pull request with
 what it accepted and what it held. If it holds a proposal, the run fails, and `tslaws check` keeps failing on `branch`
 until the proposal is fixed or removed.
+
+## On demand
+
+`tslaws github merge` also runs on `workflow_dispatch`. Use it when the workflow could not run for a while and the lock
+fell behind, or to accept without a push. The person who starts the run must have `admin` or `maintain` access to the
+repository, and the run must be on `branch`. On a re-run, both the person who first started the workflow
+(`GITHUB_ACTOR`) and the person who re-ran it (`GITHUB_TRIGGERING_ACTOR`) must have that access, and the commit names
+the second. The run also builds on the lock as `branch` holds it, so the latest commit that changed `tsc-laws.lock` must
+be the bot's (with a verified signature) or, with `local` true, a maintainer's merged pull request (see "Accepting by
+hand"). Otherwise it accepts nothing and says which commit to revert or to merge again through a maintainer's pull
+request. It runs the laws at the head of `branch`, accepts every proposal that
+passes, and commits `tsc-laws.lock` as the bot. There is no pull request, so it posts no comment; it prints what it
+accepted to the job log and the step summary. In comment mode, the person who started the run takes the place of the
+`/tslaws accept` records. `requirePassing` still applies. Add the trigger to the merge workflow:
+
+```yaml
+on:
+  push: { branches: [master] }
+  workflow_dispatch:
+```
+
+## Accepting by hand
+
+With `local` true, a person can accept without the workflow:
+
+1. Write a `*.proposed.laws.ts` file, then run `tslaws promote` and `tslaws accept` on your machine. `accept` has the
+   same gate as in any project: a person at a terminal, or a live delegation, never under `CI`.
+2. Commit the lock and open a pull request. `verify` lets a pull request change `tsc-laws.lock` when its author has
+   `admin` or `maintain` access (read from the base branch's `tslaws.json`) and so does the author of every commit in
+   the pull request that changes the lock; from anyone else it still fails.
+3. When the pull request merges, `merge` accepts that lock change as it stands, then goes on as usual: it accepts the
+   passing proposals that are still outstanding, relative to the lock now on the branch. It finds the pull request with
+   the commit's `/pulls` and checks that it was merged into `branch`, that its author and the person who merged it have
+   `admin` or `maintain` access, and that the commit's own GitHub author does too
+   (committing someone else's change, by a rebase or cherry-pick, does not count). A lock commit that is
+   neither the bot's (with a verified signature) nor from such a pull request still makes `merge` accept nothing.
 
 ## Workflows
 
@@ -191,13 +230,19 @@ The workflows protect nothing if people can write the lock some other way. Set u
 
 `verify` fails a pull request in these cases:
 
-- the pull request's diff changes the lock (the bot never commits to a pull request's branch);
+- the pull request's diff changes the lock (the bot never commits to a pull request's branch), unless `local` is true and
+  the pull request's author, and the author of each commit that changes the lock, has `admin` or `maintain` access;
 - the `github` section of `tslaws.json` changes;
 - a `--protect` path changes.
 
 `merge` accepts nothing when a push to `branch` changes the lock and is not made only of commits that GitHub shows as
-the bot's, with signatures it verified. It compares the lock before and after the push, so a truncated push payload
+the bot's, with signatures it verified, or (with `local` true) that reached `branch` through a merged pull request that a
+maintainer wrote and merged. It compares the lock before and after the push, so a truncated push payload
 cannot hide a change.
+
+A pull request in `verify` can have at most 249 commits when it changes a lock by hand: GitHub lists no more than 250, so a
+longer pull request cannot be checked commit by commit. A commit that GitHub lists with 300 files or more counts as
+touching the lock.
 
 ## Monorepos
 
@@ -310,12 +355,13 @@ lock goes through the contents API, as in a single project. If the branch moved 
 update and nothing is written; the next push's run accepts what is still outstanding.
 
 The commit comes from the token's account, the app, and GitHub signs it as it does for commits made through the
-contents API. `verify` and the next `merge` run only trust a lock commit by the bot with a verified signature, so check
-once, on a scratch branch, that a Git-data commit by your app shows as Verified before relying on multi-project writes.
+contents API. `verify` and the next `merge` run only trust a lock commit by the bot with a verified signature (or, in a
+project with `local` true, a maintainer's merged pull request), so check once, on a scratch branch, that a Git-data commit by your app shows as Verified before relying on multi-project writes.
 If it does not, the next run fails closed rather than accepting.
 
-**Failure policy.** The outside-change checks (a lock commit that is not the bot's, a lock that moved since the push, a
-push that changed a lock by other means) run per project. A project that fails them, or that cannot be compiled or
+**Failure policy.** The outside-change checks (a lock commit that is not the bot's or a maintainer's, a lock that moved
+since the push, a push that changed a lock by other means, and the on-demand check of the branch's latest lock commit)
+run per project, each with that project's own `local` and `bot`. A project that fails them, or that cannot be compiled or
 checked, is reported, skipped, and counted as a failure; the other projects' locks are still written. The job fails
 when any project failed or any proposal is held. A project that fails is never half written, and the others do not wait
 for it. The failure is on the next run too until someone resolves it, because the outside change is still in the history
@@ -340,7 +386,10 @@ united with the head's list. A pull request cannot hide a package by editing the
 - `verify` reports a change to how projects are found (the `projects` list, `workspaces`, `pnpm-workspace.yaml`) the way
   it reports a change to a `github` section: such a pull request is merged by an administrator in a pull request of its
   own;
-- `verify` fails on any `tsc-laws.lock` the pull request adds or changes anywhere in the repository, in a project or not;
+- `verify` fails on any `tsc-laws.lock` the pull request adds or changes anywhere in the repository, in a project or not.
+  The one exception is a lock of a project whose base settings have `local` true, in a pull request whose author and
+  lock-changing commit authors have `admin` or `maintain` access. A lock outside every project, or in a project with no
+  `github` section, never has the exception, and the `command` job does not approve a pull request that changes any lock;
 - `merge` still checks a project that was in the base and is no longer discovered, and fails the run;
 - the `github` section and `standalone` are read per project from the base, following `extends`, and a change to either
   fails `verify` whichever file the change is in (not only `.json` files);

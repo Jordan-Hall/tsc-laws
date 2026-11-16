@@ -58,7 +58,7 @@ export interface CoverageConfig {
   propertyTimeoutMs?: number;
   proofTimeoutMs?: number;
   bound?: number;
-  /** Accepting laws on GitHub: see github.ts. When present, `tslaws accept` refuses to run outside that workflow. */
+  /** Accepting laws on GitHub: see github.ts. When present, `tslaws accept` refuses to run unless `github.local` is true (the default). */
   github?: unknown;
 }
 

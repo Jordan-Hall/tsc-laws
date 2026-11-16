@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, it } from 'node:test';
 import { acceptCommand } from '../dist/cli.js';
+import { parseConfig } from '../dist/coverage.js';
 const cfg = (extra: object = {}) => ({ ...githubDefaults, bot: 'tslaws[bot]', ...extra }) as never;
 import {
   acceptedFingerprints,
@@ -304,23 +305,52 @@ describe('approvers', () => {
 });
 
 describe('local accept', () => {
-  it('refuses when the project accepts laws on GitHub', async () => {
+  const project = (github: object) => {
     const dir = mkdtempSync(join(tmpdir(), 'tslaws-gh-'));
+    writeFileSync(join(dir, 'tslaws.json'), JSON.stringify({ github }));
+    writeFileSync(join(dir, 'a.laws.ts'), 'export law ok() { return true; }\n');
+    return dir;
+  };
+  const accept = async (dir: string, env: Record<string, string> = {}) => {
+    let err = '';
+    const code = await acceptCommand(dir, new Map(), [], {
+      isTTY: true,
+      env,
+      out: () => {},
+      err: (t: string) => void (err += t),
+    });
+    return { code, err };
+  };
+
+  it('refuses when the project sets "local" to false', async () => {
+    const dir = project({ bot: 'tslaws[bot]', branch: 'master', local: false });
     try {
-      writeFileSync(join(dir, 'tslaws.json'), JSON.stringify({ github: { bot: 'tslaws[bot]', branch: 'master' } }));
-      writeFileSync(join(dir, 'a.laws.ts'), 'export law ok() { return true; }\n');
-      let err = '';
-      const code = await acceptCommand(dir, new Map(), [], {
-        isTTY: true,
-        env: {},
-        out: () => {},
-        err: (t: string) => void (err += t),
-      });
+      const { code, err } = await accept(dir);
       assert.equal(code, 1);
-      assert.match(err, /accepts laws on GitHub/);
+      assert.match(err, /accepts laws on GitHub only/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+
+  it('goes on to the usual gate when the project leaves "local" on', async () => {
+    const dir = project({ bot: 'tslaws[bot]', branch: 'master' });
+    try {
+      // Under CI the accept gate refuses, with its own message and not the GitHub one.
+      const { code, err } = await accept(dir, { CI: 'true' });
+      assert.equal(code, 1);
+      assert.doesNotMatch(err, /accepts laws on GitHub/);
+      assert.match(err, /CI/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('defaults "local" to true and validates it', () => {
+    assert.equal(parseGithubConfig({ bot: 'tslaws[bot]' }).local, true);
+    assert.equal(parseGithubConfig({ bot: 'tslaws[bot]', local: false }).local, false);
+    assert.throws(() => parseGithubConfig({ local: 'no' }), /"local" must be true or false/);
+    assert.throws(() => parseConfig({ github: { local: 1 } }), /"local"/);
   });
 });
 

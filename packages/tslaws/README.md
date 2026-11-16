@@ -175,7 +175,7 @@ See [docs/laws.md](../../docs/laws.md#the-dashboard).
 `tsc-laws.lock` holds a hash of every law declaration and the list of coverage exemptions. A change, an added law, a removed
 law or a new `@tslaws-exempt` fails the check until a person runs `tslaws accept`, which refuses to run without a terminal,
 under `CI`, or with `TSLAWS_AGENT` set, unless a person has lent it for a limited time with `tslaws delegate grant`. Agents propose laws in `*.proposed.laws.ts` files (or optionally in `.tslaws/proposals/`, outside the tree and git-ignored; `tslaws propose` or the MCP tool) and try them with `tslaws check
---proposed` (no lock, no coverage gate); a person moves one into the tree with `tslaws promote` and accepts. Every laws file in the tree must be in the lock.
+--proposed` (no lock, no coverage gate); a person moves one into the tree with `tslaws promote` and accepts. Every laws file in the tree must be in the lock. A project that accepts laws on GitHub (a `github` section in `tslaws.json`) still lets a person run `tslaws accept` by hand, and a maintainer can run the workflow on demand; set `github.local` to false to leave the lock to the workflow alone. See [docs/github.md](../../docs/github.md).
 
 `hooks/claude-hook.mjs` is a Claude Code hook that blocks `git commit` and sends an agent back to work when the check fails;
 `hooks/claude-settings.example.json` wires it up and `hooks/AGENTS.snippet.md` tells the agent the rules.
