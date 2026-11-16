@@ -334,7 +334,12 @@ export const stickyMarker = '<!-- tslaws-proposals -->';
 /** The sticky comment's marker for a project: the root's is unchanged; another project's names its path. */
 export function stickyMarkerFor(project = ''): string {
   if (project === '') return stickyMarker;
-  return `<!-- tslaws-proposals ${project.replace(/[^\w./@-]/g, '_').replace(/-{2,}/g, '-')} -->`;
+  // Percent-encode every byte outside a small safe set (`-` and `%` included), so two paths never share a marker and
+  // no path can write `-->` to close the comment early.
+  const encoded = project.replace(/[^A-Za-z0-9/._@]/gu, (c) =>
+    [...new TextEncoder().encode(c)].map((b) => `%${b.toString(16).toUpperCase().padStart(2, '0')}`).join(''),
+  );
+  return `<!-- tslaws-proposals ${encoded} -->`;
 }
 
 const cell = (text: string): string => inert(text).replace(/\|/g, '\\|').replace(/\r?\n/g, ' ');

@@ -534,5 +534,8 @@ describe('sticky comments in a monorepo', () => {
   });
   it('keeps a hostile path from closing the comment', () => {
     assert.doesNotMatch(stickyMarkerFor('a--> <b'), /-->.+-->/);
+    assert.notEqual(stickyMarkerFor('packages/a b'), stickyMarkerFor('packages/a_b'));
+    assert.notEqual(stickyMarkerFor('packages/a-b'), stickyMarkerFor('packages/a%2Db'));
+    assert.equal(stickyMarkerFor('packages/ui'), '<!-- tslaws-proposals packages/ui -->');
   });
 });
