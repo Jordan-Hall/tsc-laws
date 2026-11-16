@@ -17,6 +17,7 @@ import { analyzeCoverage, coverFiles, readConfig } from './coverage.ts';
 import { derivedStore } from './derived.ts';
 import { jobs } from './pool.ts';
 import { compareLock, lawKey, readLock, type Lock } from './lock.ts';
+import { crossCheck, disagreement } from './propertyRun.ts';
 import { proveLaw } from './smt.ts';
 import { decodeExample, loadExamples, regressionMessage, saveExample } from './regressions.ts';
 import { closeBrowser, runBrowserLaw } from './browser.ts';
@@ -85,7 +86,8 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
   const blocked = new Set<string>();
   const notices: string[] = [];
   // The level of a laws file comes from its name (the default) or its imports (`levels: "imports"`); looked at once per file.
-  const levelsMode = readConfig(options.cwd).levels ?? 'names';
+  const config = readConfig(options.cwd);
+  const levelsMode = config.levels ?? 'names';
   // Who records a law in the lock: a person locally, or the tslaws workflow on merge when "github" is configured.
   const acceptor =
     readConfig(options.cwd).github !== undefined
@@ -355,9 +357,37 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
       bound: options.bound,
       timeoutMs: options.proofTimeoutMs,
       holds,
+      solvers: config.solvers,
     });
-    if (proof.kind === 'proved') add(law, 'proved', 'smt', { runs: details.numRuns, seed: details.seed });
-    else if (proof.kind === 'bounded') {
+    const assumed = (list: string[]): Pick<LawResult, 'assumptions'> => (list.length > 0 ? { assumptions: list } : {});
+    if (proof.kind === 'proved') {
+      // The property run above used generators inside the proved domain; a short one is topped up before the proof stands.
+      const passed = details;
+      const rerun = (runs: number): Promise<PropertyOutcome | 'timeout'> =>
+        runLawGuarded(built.outDir, law, { ...lawOptions, runs, seed: passed.seed }, types.plans);
+      let disagrees: PropertyOutcome | 'timeout' | undefined;
+      try {
+        disagrees = await crossCheck(details, types.plans.length, rerun);
+      } catch (error) {
+        add(law, 'error', 'smt', { message: (error as Error).message });
+        return;
+      }
+      if (disagrees === 'timeout')
+        add(law, 'error', 'smt', {
+          message: `proved, but the cross-check run in JavaScript ran longer than ${limitMs / 1000}s`,
+        });
+      else if (disagrees !== undefined) {
+        if (!options.noRegressions && disagrees.encoded !== undefined)
+          saveExample(options.cwd, law.file, law.name, decodeExample(disagrees.encoded));
+        add(law, 'failed', 'smt', {
+          exercises: markFailing(exercisesFor(law), disagrees.stack, built.outDir),
+          runs: disagrees.numRuns,
+          seed: disagrees.seed,
+          counterexample: disagrees.counterexample,
+          message: disagreement(disagrees),
+        });
+      } else add(law, 'proved', 'smt', { runs: details.numRuns, seed: details.seed, ...assumed(proof.assumptions) });
+    } else if (proof.kind === 'bounded') {
       // `law proved` promises every input; a bounded proof is the most Z3 could show.
       const message = `holds within bounds: ${proof.limits.join('; ')}`;
       if (law.proved)
@@ -366,8 +396,15 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
           seed: details.seed,
           message: `marked proved but only ${message}`,
         });
-      else add(law, 'bounded', 'smt', { runs: details.numRuns, seed: details.seed, message });
-    } else if (proof.kind === 'refuted')
+      else
+        add(law, 'bounded', 'smt', {
+          runs: details.numRuns,
+          seed: details.seed,
+          message,
+          ...assumed(proof.assumptions),
+        });
+    } else if (proof.kind === 'error') add(law, 'error', 'smt', { message: proof.message });
+    else if (proof.kind === 'refuted')
       add(law, 'failed', 'smt', { counterexample: proof.model, message: 'refuted by the prover' });
     else if (law.proved)
       add(law, 'open', 'smt', {

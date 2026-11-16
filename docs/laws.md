@@ -656,6 +656,22 @@ runs `node_modules/tslaws/bin/tslaws.js` (or `tslaws.executable`) with `check --
 | `tampered`  | A law changed, was added or removed since the lock was accepted, or a coverage exemption is not in the lock.      | no      |
 | `error`     | The law cannot run: not exported, untyped parameter, no generator, load failure.                                  | no      |
 
+A `proved` or `bounded` result also names the domain assumptions its proof rests on, for the parameter types of that law
+only (`assumptions` in JSON and ndjson, `assuming: …` in text output, the step-summary Detail cell, and the `::notice` of a
+`bounded` result):
+
+- `number` parameters exclude NaN and ±Infinity.
+- `int` parameters stay within ±(2^53 − 1). A proof retried within ±2^26 states that range as a bound instead.
+- `string` parameters use only characters up to U+FFFF (no surrogate pairs) and at most 536870888 UTF-16 units.
+
+A `proved` result is also cross-checked in plain JavaScript. The law's property run (finite numbers, `int` within ±(2^53 − 1),
+ASCII strings, so inside the domain above) has to pass first, and when it ran fewer than 50 inputs (a low `--runs`) the law runs
+on 50 from the same seed before the result stands. If any input fails there, the result is `failed` with that counterexample and a
+message that the prover said `proved` while JavaScript disagrees: that is likely a translation bug in the prover, so please report it.
+
+Array length, loop count and recursion depth are bounds, listed in the `bounded` message. A law with only `boolean` or
+`bigint` parameters lists no assumption.
+
 ## Inputs
 
 The compiler emits declarations and `tslaws` reads each parameter's type from them, so the whole type system drives input
@@ -1024,6 +1040,24 @@ Each is an integer of at least 1; another type, a smaller value or an unknown to
 Precedence is the command line flag (`--runs`, `--bound`, `--proof-timeout`, `--property-timeout`), then `tslaws.json`, then
 the built-in default. It applies to `check`, `ui`, `mutate` and `mcp`. End-to-end laws keep the `runs` and `timeoutMs` of the
 `e2e` section unless a flag is given.
+
+### Solvers
+
+`tslaws.json` takes an optional `"solvers"` list, `["z3"]` by default. `["z3", "cvc5"]` asks a second solver to agree before a law
+counts as `proved`:
+
+```json
+{ "solvers": ["z3", "cvc5"] }
+```
+
+Z3 always runs first and is required in the list; `"z3"` and `"cvc5"` are the only values, and anything else is a config error.
+When Z3 proves a law (its query is `unsat`), the same SMT-LIB query goes to the `cvc5` binary on stdin
+(`cvc5 --lang smt2 --tlimit <proof timeout>`; Z3's timeout option and `(get-model)` are dropped, and `(set-logic ALL)` is added).
+The binary is `TSLAWS_CVC5` (a path) when set, else `cvc5` on the PATH. The law stays `proved` only if cvc5 also prints `unsat`.
+If cvc5 prints `sat` or `unknown`, fails or times out, the law is `bounded` (a `law proved` is `open`) with the limit
+`cvc5 did not confirm the proof (unknown)`, or whatever cvc5 said. If the binary cannot be found the law is an `error` that says
+to install cvc5 or set `TSLAWS_CVC5`. Refutations are not sent to cvc5, because they already replay in JavaScript, and a proof
+that is already `bounded` is not either. Without `"cvc5"` in the list no second process starts and results do not change.
 
 ## CI reporters
 

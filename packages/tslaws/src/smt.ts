@@ -14,6 +14,7 @@ import { Worker } from 'node:worker_threads';
 import { jobs, WorkerPool } from './pool.ts';
 import { dirname, join } from 'node:path';
 import ts from 'typescript';
+import { SolverUnavailable, secondOpinion, type SolverName } from './solvers.ts';
 import { Executor, SpuriousModel, Unsupported, and, type Value } from './symbolic.ts';
 import type { ManifestLaw } from './types.ts';
 
@@ -28,10 +29,12 @@ export type Shape =
   | undefined;
 
 export type ProofResult =
-  | { kind: 'proved' }
-  | { kind: 'bounded'; limits: string[] }
+  | { kind: 'proved'; assumptions: string[] }
+  | { kind: 'bounded'; limits: string[]; assumptions: string[] }
   | { kind: 'refuted'; model: string; inputs: unknown[] }
-  | { kind: 'unsupported'; reason: string };
+  | { kind: 'unsupported'; reason: string }
+  /** A configured second solver could not run (the cvc5 binary is missing). */
+  | { kind: 'error'; message: string };
 
 export interface ProveInput {
   law: ManifestLaw;
@@ -44,6 +47,8 @@ export interface ProveInput {
   bound: number;
   /** Runs the compiled law on concrete inputs; true when it holds. */
   holds: (inputs: unknown[]) => boolean;
+  /** The solvers that must agree on a proof (see solvers.ts); default Z3 alone. */
+  solvers?: readonly SolverName[];
 }
 
 type Sort = 'fp' | 'int' | 'bool' | 'str';
@@ -354,6 +359,31 @@ function show(value: unknown): string {
   return JSON.stringify(value, (_, v: unknown) => (typeof v === 'bigint' ? `${v}n` : v));
 }
 
+/** What a proof silently takes for granted about each kind of parameter; shown with a `proved` or `bounded` result. */
+const numberAssumption = 'number parameters exclude NaN and ±Infinity';
+const intAssumption = 'int parameters stay within ±(2^53 - 1)';
+const stringAssumption = `string parameters use only characters up to U+FFFF (no surrogate pairs) and at most ${maxStringLength} UTF-16 units`;
+
+/**
+ * The domain assumptions a proof rests on for parameters of these types, in order of first use and without repeats.
+ * Arrays are left out (their length bound is a limit of the proof), as is `int` when `intLimit` narrows it (that range is
+ * a limit too). `bigint` and `boolean` take nothing for granted.
+ */
+export function assumptionsFor(shapes: Shape[], intLimit?: bigint): string[] {
+  const found = new Set<string>();
+  const visit = (shape: Shape): void => {
+    if (shape === 'number') found.add(numberAssumption);
+    else if (shape === 'int') {
+      if (intLimit === undefined) found.add(intAssumption);
+    } else if (shape === 'string') found.add(stringAssumption);
+    else if (shape === undefined || typeof shape === 'string') return;
+    else if ('array' in shape) visit(shape.array);
+    else for (const field of Object.values(shape.fields)) visit(field);
+  };
+  for (const shape of shapes) visit(shape);
+  return [...found];
+}
+
 /** Ints stay within this in the second attempt, where products and sums cannot leave the safe range. */
 const smallInts = 2n ** 26n;
 
@@ -370,6 +400,7 @@ export async function proveLaw(input: ProveInput): Promise<ProofResult> {
     }
   } catch (error) {
     if (error instanceof Unsupported) return { kind: 'unsupported', reason: error.message };
+    if (error instanceof SolverUnavailable) return { kind: 'error', message: error.message };
     throw error;
   }
 }
@@ -426,7 +457,13 @@ async function attempt(input: ProveInput, intLimit: bigint | undefined): Promise
     const { out, vals } = await solve(query.join('\n'), valueQuery, input.timeoutMs);
     const check = out;
     if (check.startsWith('unsat')) {
-      return executor.bounded.length === 0 ? { kind: 'proved' } : { kind: 'bounded', limits: executor.bounded };
+      const assumptions = assumptionsFor(input.shapes, intLimit);
+      if (executor.bounded.length > 0) return { kind: 'bounded', limits: executor.bounded, assumptions };
+      // Only a proof that would stand is sent to the second solver.
+      const unconfirmed = await secondOpinion(input.solvers ?? [], query.join('\n'), input.timeoutMs);
+      return unconfirmed === undefined
+        ? { kind: 'proved', assumptions }
+        : { kind: 'bounded', limits: [unconfirmed], assumptions };
     }
     if (check.startsWith('unknown')) throw new Unsupported(`solver gave up within ${input.timeoutMs} ms`);
     if (!check.startsWith('sat')) throw new Unsupported(`solver said: ${check.split('\n')[0]}`);

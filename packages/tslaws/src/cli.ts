@@ -128,6 +128,8 @@ function describe(result: LawResult): string {
   const head = `${result.status.toUpperCase().padEnd(8)} ${result.name} (${where}) [${result.method}]`;
   const lines = [head];
   if (result.message !== undefined) lines.push(`         ${result.message}`);
+  if (result.assumptions !== undefined && result.assumptions.length > 0)
+    lines.push(`         assuming: ${result.assumptions.join('; ')}`);
   const proposed = proposalText(result);
   if (proposed !== undefined) lines.push(`         ${proposed}`);
   if (result.counterexample !== undefined) lines.push(`         counterexample: ${result.counterexample}`);

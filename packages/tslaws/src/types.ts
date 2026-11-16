@@ -28,6 +28,8 @@ export interface LawResult {
   seed?: number;
   counterexample?: string;
   message?: string;
+  /** The domain assumptions a `proved` or `bounded` result rests on, for the parameter types of this law only. */
+  assumptions?: string[];
   /** Project-relative path of a screenshot of the page at the counterexample (browser laws). */
   screenshot?: string;
   /** The project functions the law reaches and where they are declared, for an editor to mark on both ends. */

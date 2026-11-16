@@ -82,3 +82,32 @@ export function summarise(details: fc.RunDetails<unknown[]>, options?: CheckOpti
     stack: details.errorInstance instanceof Error ? details.errorInstance.stack : undefined,
   };
 }
+
+/** Inputs a law has run on, at least, before a proof of it stands. */
+export const crossCheckRuns = 50;
+
+/**
+ * A `proved` verdict is checked against plain JavaScript: the law's property run (generators that stay inside what the
+ * proof assumes) already passed in this check, and counts when it ran `crossCheckRuns` inputs. A shorter one (a low
+ * `--runs`) is topped up with a run of `crossCheckRuns` from the same seed. Returns the outcome of the top-up when the
+ * law fails on it, `'timeout'` when it does not finish, and `undefined` when nothing disagrees with the proof.
+ */
+export async function crossCheck(
+  passed: Pick<PropertyOutcome, 'numRuns'>,
+  parameters: number,
+  rerun: (runs: number) => Promise<PropertyOutcome | 'timeout'>,
+): Promise<PropertyOutcome | 'timeout' | undefined> {
+  if (parameters === 0 || passed.numRuns >= crossCheckRuns) return undefined;
+  const again = await rerun(crossCheckRuns);
+  if (again === 'timeout') return again;
+  return again.failed && again.counterexample !== undefined ? again : undefined;
+}
+
+/** Why a law counts as failed when the prover said `proved` and a JavaScript run disagrees. */
+export function disagreement(outcome: Pick<PropertyOutcome, 'message'>): string {
+  const reason =
+    outcome.message === undefined || outcome.message.startsWith('Property failed by returning false')
+      ? 'returned false'
+      : `threw: ${outcome.message}`;
+  return `the prover said proved but a JavaScript run disagrees (${reason}); this is likely a translation bug in the prover, please report it`;
+}

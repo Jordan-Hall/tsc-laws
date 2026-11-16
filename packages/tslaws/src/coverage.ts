@@ -11,6 +11,7 @@ import ts from 'typescript';
 import { parseE2eConfig, type E2eConfig } from './e2e.ts';
 import { globMatcher } from './globs.ts';
 import { customLawFile } from './lawFiles.ts';
+import { solversProblem, type SolverName } from './solvers.ts';
 
 export interface CoverageConfig {
   cover?: string[];
@@ -28,6 +29,11 @@ export interface CoverageConfig {
    * (`*.browser.laws.ts`, `*.e2e.laws.ts`). `imports`: the file's import graph; names are still recognised as hints.
    */
   levels?: 'names' | 'imports';
+  /**
+   * The SMT solvers that must agree before a law is `proved`: `["z3"]` (the default) or `["z3", "cvc5"]`, where cvc5
+   * must also answer `unsat` or the law is `bounded`. Z3 is required. See solvers.ts.
+   */
+  solvers?: SolverName[];
   /** esbuild plugin modules (paths relative to tslaws.json) that teach the browser bundler new source formats. */
   bundlerPlugins?: string[];
   /** Run settings; a command line flag beats them and they beat the built-in default. */
@@ -40,7 +46,17 @@ export interface CoverageConfig {
 }
 
 const settingKeys = ['runs', 'propertyTimeoutMs', 'proofTimeoutMs', 'bound'] as const;
-const configKeys = ['cover', 'laws', 'levels', 'compilerOptions', 'e2e', 'bundlerPlugins', 'github', ...settingKeys];
+const configKeys = [
+  'cover',
+  'laws',
+  'levels',
+  'solvers',
+  'compilerOptions',
+  'e2e',
+  'bundlerPlugins',
+  'github',
+  ...settingKeys,
+];
 
 export interface Uncovered {
   file: string;
@@ -91,6 +107,8 @@ export function parseConfig(raw: unknown): CoverageConfig {
   const levels = object.levels;
   if (levels !== undefined && levels !== 'names' && levels !== 'imports')
     fail(`"levels" must be "names" or "imports", got ${JSON.stringify(levels)}`);
+  const problem = object.solvers === undefined ? undefined : solversProblem(object.solvers);
+  if (problem !== undefined) fail(problem);
   const laws = object.laws;
   if (
     laws !== undefined &&
