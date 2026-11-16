@@ -191,7 +191,7 @@ export function classifyPushFailure(output) {
     /GH013|Changes must be made through a pull request|protected branch|rule violations?/i.test(text)
   ) {
     for (const m of text.matchAll(/rule violations found for (refs\/\S+?)\.?(?=\s|$)/gi)) {
-      blocked.add(/^refs\/tags\//.test(m[1]) ? 'tag' : 'branch');
+      blocked.add(m[1].startsWith('refs/tags/') ? 'tag' : 'branch');
     }
     if (blocked.size === 0) return /refs\/heads\/main/.test(text) ? 'protected-branch' : 'protected-unknown';
   }
