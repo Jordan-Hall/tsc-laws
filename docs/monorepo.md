@@ -49,7 +49,8 @@ Each package's `tslaws.json` can inherit from the root file with `extends`:
 
 The package's own keys win, and they replace an inherited array instead of adding to it. A package can set its own
 `runs` or add `levels`, `e2e` or `bundlerPlugins`. A chain works too (a package extends a team base that extends the
-root), and a cycle or a missing file is an error that names the files. `projects` is read from the file you run in and
+root), and a cycle or a missing file is an error that names the files. The path must be relative, use only letters, digits and `. _ - / @`, and
+stay inside the repository, and a symbolic link is refused. `projects` is read from the file you run in and
 is not inherited.
 
 Paths in an inherited file follow one rule:

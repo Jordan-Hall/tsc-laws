@@ -2,6 +2,7 @@
 // logic is tested (test/github-action.test.ts) instead of living in shell. Node only; no dependencies.
 //
 //   node package-manager.mjs detect <dir> [requested]   prints npm|pnpm|yarn|bun
+//   node package-manager.mjs version <pm> <dir> [req]   prints the pnpm or bun version to set up (plain semver)
 //   node package-manager.mjs install <pm> <dir>         a frozen install in <dir>
 //   node package-manager.mjs bin <dir>                  prints the path of tslaws' bin, resolved from <dir>
 import { spawnSync } from 'node:child_process';
@@ -47,6 +48,31 @@ export function detect(dir, requested = 'auto') {
   return managers.includes(field) ? field : 'npm';
 }
 
+/** The versions set up when neither the `pnpm-version`/`bun-version` input nor the trusted package.json names one. */
+export const defaultVersions = { pnpm: '10.12.1', bun: '1.2.19' };
+
+const semver = /^\d+\.\d+\.\d+$/;
+
+/**
+ * The version of pnpm or bun to set up. Only a version this action can trust is used, and it is always passed on
+ * explicitly, so the setup action never falls back to the `packageManager` field of the workspace's package.json (a pull
+ * request can change that file):
+ *   1. the explicit input, when set; it must be plain semver (x.y.z), else an error;
+ *   2. the `packageManager` field of the package.json in `dir` (the trusted tslaws-root), when it names this manager
+ *      with a plain version (a `+sha512...` suffix is dropped);
+ *   3. a pinned default.
+ */
+export function resolveVersion(manager, dir, requested = '') {
+  if (manager !== 'pnpm' && manager !== 'bun') throw new Error(`no version to set up for ${manager}`);
+  const asked = String(requested ?? '').trim();
+  if (asked !== '') {
+    if (!semver.test(asked)) throw new Error(`${manager}-version must be a plain version such as ${defaultVersions[manager]}; got "${asked}"`);
+    return asked;
+  }
+  const [name, version] = (readPackageManagerField(dir) ?? '').split('+')[0].split('@');
+  return name === manager && semver.test(version ?? '') ? version : defaultVersions[manager];
+}
+
 /** Yarn 2+ (Berry) is told from classic by its config file or the `packageManager` field. */
 export function isYarnBerry(dir) {
   if (existsSync(join(dir, '.yarnrc.yml'))) return true;
@@ -83,6 +109,11 @@ function main(argv) {
     process.stdout.write(`${detect(rest[0] ?? '.', rest[1])}\n`);
     return 0;
   }
+  if (verb === 'version') {
+    process.stdout.write(`${resolveVersion(rest[0], rest[1] ?? '.', rest[2])}
+`);
+    return 0;
+  }
   if (verb === 'install') {
     const [manager, dir = '.'] = rest;
     const { command, args } = installCommand(manager, dir);
@@ -95,7 +126,7 @@ function main(argv) {
     process.stdout.write(`${resolveBin(rest[0] ?? '.')}\n`);
     return 0;
   }
-  process.stderr.write('usage: package-manager.mjs detect <dir> [requested] | install <pm> <dir> | bin <dir>\n');
+  process.stderr.write('usage: package-manager.mjs detect <dir> [requested] | version <pm> <dir> [requested] | install <pm> <dir> | bin <dir>\n');
   return 2;
 }
 

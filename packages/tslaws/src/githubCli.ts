@@ -21,7 +21,7 @@ import { execFileSync } from 'node:child_process';
 import { join, posix } from 'node:path';
 import { check, exemptionsOf } from './check.ts';
 import type { CheckReport } from './check.ts';
-import { readConfig } from './coverage.ts';
+import { extendsTarget, readConfig } from './coverage.ts';
 import { discoverFromFiles, discoverySignature, type DiscoveryInputs } from './projects.ts';
 import { readManifest } from './compile.ts';
 import {
@@ -514,6 +514,42 @@ async function everyProposalAccepted(
   return any;
 }
 
+/**
+ * Whether the projects this run decided over are the projects the base commit has. The list in the pull request's own
+ * checkout can be steered by the pull request, so before approving, the base's list is read through the API and the
+ * pull request must not change how projects are found, nor any project's `github` (so `flow`), `standalone` or lock.
+ * It also must not add or remove a project. Anything unreadable counts as a change: no approval.
+ */
+async function discoveryHolds(
+  ctx: GithubContext,
+  api: Api,
+  name: string,
+  pr: PullRequest,
+  discovered: string[],
+): Promise<boolean> {
+  const problems: string[] = [];
+  try {
+    const read = readerOf(api, name);
+    const changed = await changedFiles(api, name, pr.number);
+    const { baseSide, headSide } = await inspectMonorepo(api, name, read, pr, changed, repoPath(ctx, ''), problems);
+    const head = new Set(headSide.paths);
+    const decided = new Set(discovered);
+    for (const rel of baseSide.paths) {
+      if (!head.has(rel)) problems.push(`${rel || '.'} is a project on the base and not on the pull request`);
+      if (!decided.has(rel)) problems.push(`${rel || '.'} is a project on the base that this run did not read`);
+    }
+    const base = new Set(baseSide.paths);
+    for (const rel of headSide.paths) if (!base.has(rel)) problems.push(`${rel || '.'} is a new project`);
+  } catch (error) {
+    problems.push(error instanceof Error ? error.message : String(error));
+  }
+  if (problems.length > 0)
+    ctx.out(
+      `::notice title=tslaws::${escapeGithubData(`not approving the pull request: ${problems[0]}${problems.length > 1 ? ` (and ${problems.length - 1} more)` : ''}`)}\n`,
+    );
+  return problems.length === 0;
+}
+
 async function command(ctx: GithubContext): Promise<number> {
   const monorepo = ctx.projects !== undefined;
   // The base branch's config: the workflow checks the default branch out at the root and the pull request beside it.
@@ -530,6 +566,13 @@ async function command(ctx: GithubContext): Promise<number> {
   const number = Number(ev.issue.number);
   const reply = (text: string) => api('POST', `/repos/${name}/issues/${number}/comments`, { body: text });
   const login = String(ev.comment.user.login);
+  // A command that cannot be followed records nothing, even beside commands that can: a `--project` with no directory
+  // would otherwise read as "every project".
+  const unusable = commands.find((c) => c.error !== undefined);
+  if (unusable !== undefined) {
+    await reply(`@${login} Not recorded: ${unusable.error}.`);
+    return 0;
+  }
   const pr = (await api('GET', `/repos/${name}/pulls/${number}`)) as PullRequest;
   // Each project decides for itself: its own mode and its own approvers. The commenter accepts only where they may.
   const eligible: Active[] = [];
@@ -620,7 +663,10 @@ async function command(ctx: GithubContext): Promise<number> {
   }
   if (records.length > 0 && eligible.some((a) => a.config.approvePullRequest)) {
     const comments = await issueComments(api, name, number);
-    if (await everyProposalAccepted(all, eligible, byProject, comments))
+    if (
+      (await everyProposalAccepted(all, eligible, byProject, comments)) &&
+      (!monorepo || (await discoveryHolds(ctx, api, name, pr, ctx.discovered ?? all.map((a) => a.unit.rel))))
+    )
       await api('POST', `/repos/${name}/pulls/${number}/reviews`, {
         commit_id: pr.head.sha,
         event: 'APPROVE',
@@ -644,14 +690,27 @@ async function command(ctx: GithubContext): Promise<number> {
 
 type Reader = (path: string, ref: string) => Promise<string | undefined>;
 
+/**
+ * The contents API URL of a repository path. Every segment and the ref are encoded, so a `?`, `#`, `&` or `%` in a name
+ * a pull request controls cannot add to or override the query string (for example the `ref`).
+ */
+function contentsUrl(name: string, path: string, ref?: string): string {
+  const encoded = path.split('/').map(encodeURIComponent).join('/');
+  return `/repos/${name}/contents/${encoded}${ref === undefined ? '' : `?ref=${encodeURIComponent(ref)}`}`;
+}
+
 function readerOf(api: Api, name: string): Reader {
   return async (path, ref) => {
+    let file: { type?: string; content?: string } | { type?: string; content?: string }[];
     try {
-      const file = (await api('GET', `/repos/${name}/contents/${path}?ref=${ref}`)) as { content: string };
-      return Buffer.from(file.content, 'base64').toString('utf8');
+      file = (await api('GET', contentsUrl(name, path, ref))) as typeof file;
     } catch {
       return undefined;
     }
+    // A symlink, a submodule or a directory is not a blob: refuse it rather than read it as missing.
+    if (Array.isArray(file) || (file.type !== undefined && file.type !== 'file') || typeof file.content !== 'string')
+      throw new Error(`${path} is not a regular file at ${ref.slice(0, 7)} (a symlink, a submodule or a directory)`);
+    return Buffer.from(file.content, 'base64').toString('utf8');
   };
 }
 
@@ -670,7 +729,7 @@ async function projectsAt(
   sha: string,
   prefix: string,
 ): Promise<{ paths: string[]; inputs: DiscoveryInputs; truncated: boolean }> {
-  const tree = (await api('GET', `/repos/${name}/git/trees/${sha}?recursive=1`)) as {
+  const tree = (await api('GET', `/repos/${name}/git/trees/${encodeURIComponent(sha)}?recursive=1`)) as {
     tree?: { path: string; type: string }[];
     truncated?: boolean;
   };
@@ -699,25 +758,29 @@ async function settingsAt(
 ): Promise<{ github: unknown; standalone: boolean; files: string[] }> {
   const files: string[] = [];
   let standalone = false;
-  const load = async (path: string, first: boolean): Promise<unknown> => {
-    if (files.includes(path)) return undefined;
-    files.push(path);
+  const load = async (path: string, first: boolean, trail: string[]): Promise<unknown> => {
+    if (trail.includes(path)) throw new Error(`${path}: "extends" forms a cycle (${[...trail, path].join(' -> ')})`);
+    if (!files.includes(path)) files.push(path);
     const text = await read(path, ref);
-    if (text === undefined) return undefined;
+    if (text === undefined) {
+      // The project's own file may be absent (a project with no tslaws.json); an `extends` target that cannot be read is
+      // not, because the settings would then be a guess.
+      if (first) return undefined;
+      throw new Error(`${path} is named by "extends" and cannot be read at ${ref.slice(0, 7)}`);
+    }
     const json = JSON.parse(text) as { github?: unknown; extends?: unknown; standalone?: unknown } | null;
-    if (typeof json !== 'object' || json === null) return undefined;
+    if (typeof json !== 'object' || json === null || Array.isArray(json)) throw new Error(`${path} is not an object`);
     if (first) standalone = json.standalone === true;
+    // The same rules loadMerged applies to the files on disk (coverage.ts), so both sides resolve one target.
     const inherited =
-      typeof json.extends === 'string'
-        ? await load(posix.normalize(posix.join(posix.dirname(path), json.extends)), false)
-        : undefined;
+      json.extends === undefined ? undefined : await load(extendsTarget(path, json.extends), false, [...trail, path]);
     const own = json.github;
     if (own === undefined) return inherited;
     const plain = (v: unknown): v is Record<string, unknown> =>
       typeof v === 'object' && v !== null && !Array.isArray(v);
     return plain(inherited) && plain(own) ? { ...inherited, ...own } : own;
   };
-  const github = await load(joinRepo(dir, 'tslaws.json'), true);
+  const github = await load(joinRepo(dir, 'tslaws.json'), true, []);
   return { github, standalone, files };
 }
 
@@ -895,7 +958,7 @@ async function merge(ctx: GithubContext): Promise<number> {
     // push is not the bot's alone (that case returned above), so it must leave the lock exactly as it was.
     const lockAt = async (at: string): Promise<string | undefined> => {
       try {
-        return ((await api('GET', `/repos/${name}/contents/${lockPath}?ref=${at}`)) as { sha: string }).sha;
+        return ((await api('GET', contentsUrl(name, lockPath, at))) as { sha: string }).sha;
       } catch {
         return undefined;
       }
@@ -910,9 +973,9 @@ async function merge(ctx: GithubContext): Promise<number> {
     // run made. Start from the lock on the branch, so this run never undoes what an earlier one accepted, once every
     // commit since this push that changed the lock is shown to be the bot's.
     const branchRef = encodeURIComponent(config.branch);
-    const headLock = (await api('GET', `/repos/${name}/contents/${lockPath}?ref=${branchRef}`).catch(
-      () => undefined,
-    )) as { sha: string; content: string } | undefined;
+    const headLock = (await api('GET', contentsUrl(name, lockPath, config.branch)).catch(() => undefined)) as
+      | { sha: string; content: string }
+      | undefined;
     const localBlob = existsSync(lockFile) ? gitBlobSha(readFileSync(lockFile)) : undefined;
     if (headLock !== undefined && headLock.sha !== localBlob) {
       const range = (await api('GET', `/repos/${name}/compare/${sha}...${branchRef}`)) as {
@@ -1011,7 +1074,7 @@ async function merge(ctx: GithubContext): Promise<number> {
       const [only] = writes;
       // Through the contents API, so GitHub signs the commit as the bot and `verify` can tell it from a forgery. The
       // lock this run started from is the one it replaces: if anything wrote the lock since, GitHub refuses the write.
-      await api('PUT', `/repos/${name}/contents/${only!.path}`, {
+      await api('PUT', contentsUrl(name, only!.path), {
         message,
         content: Buffer.from(only!.text).toString('base64'),
         branch,
@@ -1046,7 +1109,7 @@ async function commitTogether(api: Api, name: string, branch: string, writes: Wr
   for (const w of writes) {
     let now: string | undefined;
     try {
-      now = ((await api('GET', `/repos/${name}/contents/${w.path}?ref=${head}`)) as { sha: string }).sha;
+      now = ((await api('GET', contentsUrl(name, w.path, head))) as { sha: string }).sha;
     } catch {
       now = undefined;
     }
@@ -1061,6 +1124,116 @@ async function commitTogether(api: Api, name: string, branch: string, writes: Wr
     sha: string;
   };
   await api('PATCH', `/repos/${name}/git/refs/heads/${ref}`, { sha: made.sha, force: false });
+}
+
+/** What a project's settings were and are, when the pull request touched a file they come from. */
+async function checkProjectAt(
+  read: Reader,
+  pull: PullRequest,
+  changed: Set<string>,
+  problems: string[],
+  dir: string,
+): Promise<GithubConfig | undefined> {
+  const configPath = joinRepo(dir, 'tslaws.json');
+  const base = await settingsAt(read, pull.base.sha, dir);
+  if (base.files.some((f) => changed.has(f))) {
+    let head: Awaited<ReturnType<typeof settingsAt>> | undefined;
+    try {
+      head = await settingsAt(read, pull.head.sha, dir);
+    } catch (error) {
+      problems.push(
+        `${configPath} does not read on the pull request: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+    if (head !== undefined) {
+      if (JSON.stringify(base.github) !== JSON.stringify(head.github))
+        problems.push(
+          `the pull request changes the "github" section of ${configPath}, which decides who may accept laws`,
+        );
+      else if (base.standalone !== head.standalone)
+        problems.push(
+          `the pull request changes "standalone" in ${configPath}, which decides whether root runs cover it`,
+        );
+    }
+  }
+  return base.github === undefined ? undefined : parseGithubConfig(base.github);
+}
+
+/** The files a pull request changes, with the old name of each file it renames. */
+async function changedFiles(api: Api, name: string, number: number): Promise<Set<string>> {
+  const files = await all<{ filename: string; previous_filename?: string }>(
+    api,
+    `/repos/${name}/pulls/${number}/files`,
+  );
+  return new Set(files.flatMap((f) => [f.filename, ...(f.previous_filename ? [f.previous_filename] : [])]));
+}
+
+/**
+ * Everything a pull request must not change from under a monorepo's checks, read through the API at the base and at the
+ * head: the project list (and how it is found), each project's `github` and `standalone` settings, and any lock. Adds a
+ * line to `problems` for each. Returns what it read, for a caller that decides more from it.
+ */
+async function inspectMonorepo(
+  api: Api,
+  name: string,
+  read: Reader,
+  pull: PullRequest,
+  changed: Set<string>,
+  rootPath: string,
+  problems: string[],
+): Promise<{ baseSide: { paths: string[] }; headSide: { paths: string[] }; union: string[] }> {
+  const checkProject = (dir: string) => checkProjectAt(read, pull, changed, problems, dir);
+  // Every project of the base and every project of the head, read through the API: a pull request that edits the
+  // files that discover projects cannot hide a project from this check.
+  const baseSide = await projectsAt(api, name, read, pull.base.sha, rootPath);
+  const headSide = await projectsAt(api, name, read, pull.head.sha, rootPath);
+  if (baseSide.truncated || headSide.truncated)
+    problems.push('the repository is too large for the API to list its files; the projects cannot be checked');
+  const label = (rel: string) => joinRepo(rootPath, rel) || '.';
+  const headSet = new Set(headSide.paths);
+  for (const rel of baseSide.paths)
+    if (!headSet.has(rel))
+      problems.push(
+        `${label(rel)} is a project on ${pull.base.ref} but the pull request no longer discovers it, so its lock would go unwatched: restore it, or merge this in a pull request of its own by an administrator`,
+      );
+  const inputs: [string, keyof DiscoveryInputs][] = [
+    ['tslaws.json', 'tslaws'],
+    ['package.json', 'packageJson'],
+    ['pnpm-workspace.yaml', 'pnpmWorkspace'],
+  ];
+  for (const [file, key] of inputs) {
+    const path = joinRepo(rootPath, file);
+    if (!changed.has(path)) continue;
+    const was = baseSide.inputs[key];
+    const now = headSide.inputs[key];
+    const sig = (text: string | undefined) => (text === undefined ? 'absent' : discoverySignature({ [key]: text }));
+    if (sig(was) !== sig(now))
+      problems.push(
+        `the pull request changes how projects are discovered (${path}), which decides what this check watches`,
+      );
+  }
+  const union = [...new Set([...baseSide.paths, ...headSide.paths])];
+  const configs = new Map<string, GithubConfig | undefined>();
+  // Every project, whatever the pull request changed: a settings file need not end in .json (an `extends` base in a
+  // .jsonc file, say), so no extension decides whether to look. checkProject compares only the files a project reads.
+  for (const rel of union)
+    try {
+      configs.set(rel, await checkProject(joinRepo(rootPath, rel)));
+    } catch (error) {
+      problems.push(`${label(rel)}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  // Any lock the pull request touches, in a project or not: the bot writes locks, after the merge.
+  for (const file of changed) {
+    if (!isLock(file)) continue;
+    const owner = union.find((rel) => joinRepo(rootPath, joinRepo(rel, 'tsc-laws.lock')) === file);
+    const config = owner === undefined ? undefined : configs.get(owner);
+    problems.push(
+      config === undefined
+        ? `the pull request changes ${file}; a lock changes only when the bot writes it on merge, and this one is ${owner === undefined ? 'outside every project' : 'in a project with no "github" settings'}`
+        : `the pull request changes ${file}; only ${config.bot} writes the lock, on merge into ${config.branch}`,
+    );
+  }
+  return { baseSide, headSide, union };
 }
 
 // ---- verify ---------------------------------------------------------------------------------------------------------
@@ -1078,11 +1251,7 @@ async function verify(ctx: GithubContext): Promise<number> {
   const read = readerOf(api, name);
   const rootPath = repoPath(ctx, '');
   const problems: string[] = [];
-  const files = await all<{ filename: string; previous_filename?: string }>(
-    api,
-    `/repos/${name}/pulls/${pull.number}/files`,
-  );
-  const changed = new Set(files.flatMap((f) => [f.filename, ...(f.previous_filename ? [f.previous_filename] : [])]));
+  const changed = await changedFiles(api, name, pull.number);
   const protectedPaths = String(ctx.flags.get('protect') ?? '')
     .split(',')
     .map((p) => p.trim())
@@ -1091,24 +1260,7 @@ async function verify(ctx: GithubContext): Promise<number> {
     if (changed.has(path))
       problems.push(`${path} is protected: change it in a pull request of its own, merged by an administrator`);
 
-  /** What a project's settings were and are, when the pull request touched a file they come from. */
-  const checkProject = async (dir: string): Promise<GithubConfig | undefined> => {
-    const configPath = joinRepo(dir, 'tslaws.json');
-    const base = await settingsAt(read, pull.base.sha, dir);
-    if (base.files.some((f) => changed.has(f))) {
-      const head = await settingsAt(read, pull.head.sha, dir).catch(() => undefined);
-      if (head === undefined) problems.push(`${configPath} does not parse`);
-      else if (JSON.stringify(base.github) !== JSON.stringify(head.github))
-        problems.push(
-          `the pull request changes the "github" section of ${configPath}, which decides who may accept laws`,
-        );
-      else if (base.standalone !== head.standalone)
-        problems.push(
-          `the pull request changes "standalone" in ${configPath}, which decides whether root runs cover it`,
-        );
-    }
-    return base.github === undefined ? undefined : parseGithubConfig(base.github);
-  };
+  const checkProject = (dir: string) => checkProjectAt(read, pull, changed, problems, dir);
 
   if (!monorepo) {
     // One project, as a package's own workflow runs it: its lock and its settings only.
@@ -1125,55 +1277,7 @@ async function verify(ctx: GithubContext): Promise<number> {
       );
     void configPath;
   } else {
-    // Every project of the base and every project of the head, read through the API: a pull request that edits the
-    // files that discover projects cannot hide a project from this check.
-    const baseSide = await projectsAt(api, name, read, pull.base.sha, rootPath);
-    const headSide = await projectsAt(api, name, read, pull.head.sha, rootPath);
-    if (baseSide.truncated || headSide.truncated)
-      problems.push('the repository is too large for the API to list its files; the projects cannot be checked');
-    const label = (rel: string) => joinRepo(rootPath, rel) || '.';
-    const headSet = new Set(headSide.paths);
-    for (const rel of baseSide.paths)
-      if (!headSet.has(rel))
-        problems.push(
-          `${label(rel)} is a project on ${pull.base.ref} but the pull request no longer discovers it, so its lock would go unwatched: restore it, or merge this in a pull request of its own by an administrator`,
-        );
-    const inputs: [string, keyof DiscoveryInputs][] = [
-      ['tslaws.json', 'tslaws'],
-      ['package.json', 'packageJson'],
-      ['pnpm-workspace.yaml', 'pnpmWorkspace'],
-    ];
-    for (const [file, key] of inputs) {
-      const path = joinRepo(rootPath, file);
-      if (!changed.has(path)) continue;
-      const was = baseSide.inputs[key];
-      const now = headSide.inputs[key];
-      const sig = (text: string | undefined) => (text === undefined ? 'absent' : discoverySignature({ [key]: text }));
-      if (sig(was) !== sig(now))
-        problems.push(
-          `the pull request changes how projects are discovered (${path}), which decides what this check watches`,
-        );
-    }
-    const union = [...new Set([...baseSide.paths, ...headSide.paths])];
-    const configs = new Map<string, GithubConfig | undefined>();
-    if ([...changed].some((f) => f.endsWith('.json') || isLock(f)))
-      for (const rel of union)
-        try {
-          configs.set(rel, await checkProject(joinRepo(rootPath, rel)));
-        } catch (error) {
-          problems.push(`${label(rel)}: ${error instanceof Error ? error.message : String(error)}`);
-        }
-    // Any lock the pull request touches, in a project or not: the bot writes locks, after the merge.
-    for (const file of changed) {
-      if (!isLock(file)) continue;
-      const owner = union.find((rel) => joinRepo(rootPath, joinRepo(rel, 'tsc-laws.lock')) === file);
-      const config = owner === undefined ? undefined : configs.get(owner);
-      problems.push(
-        config === undefined
-          ? `the pull request changes ${file}; a lock changes only when the bot writes it on merge, and this one is ${owner === undefined ? 'outside every project' : 'in a project with no "github" settings'}`
-          : `the pull request changes ${file}; only ${config.bot} writes the lock, on merge into ${config.branch}`,
-      );
-    }
+    await inspectMonorepo(api, name, read, pull, changed, rootPath, problems);
   }
   for (const problem of problems) ctx.out(`::error::${escapeGithubData(problem)}\n`);
   if (problems.length === 0) ctx.out('tslaws: the lock and its settings are untouched by this pull request\n');

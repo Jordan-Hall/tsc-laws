@@ -5,7 +5,7 @@
 // (directly or through other project modules). A function carrying `@tslaws-exempt` in its doc comment is exempt,
 // but only once the exemption is in tsc-laws.lock, so an agent cannot exempt its own code.
 import { parseGithubConfig } from './github.ts';
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, lstatSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, isAbsolute, join, posix, relative, resolve } from 'node:path';
 import ts from 'typescript';
 import { parseE2eConfig, type E2eConfig } from './e2e.ts';
@@ -207,6 +207,34 @@ function deepMerge(base: Record<string, unknown>, child: Record<string, unknown>
 }
 
 /**
+ * The text of an `extends` value if it is one this tool will follow: a non-empty relative path with forward slashes only.
+ * An absolute path, a drive or UNC path, a backslash, or a NUL is refused, so the on-disk loader and the GitHub checks
+ * that read the same files through the API resolve one target and never two.
+ */
+export function checkExtendsValue(value: unknown): string {
+  if (typeof value !== 'string' || value === '')
+    throw new Error(`"extends" must be a path to another tslaws.json, got ${JSON.stringify(value)}`);
+  // Letters, digits and . _ - / @ only: no `?`, `#`, `&` or `%` (which change an API URL's query), no backslash, NUL,
+  // space or drive colon.
+  if (!/^[A-Za-z0-9._\-/@]+$/.test(value) || value.startsWith('/'))
+    throw new Error(
+      `"extends" must be a relative path of letters, digits and . _ - / @ with forward slashes, got ${JSON.stringify(value)}`,
+    );
+  return value;
+}
+
+/**
+ * Where `extends` points, as a repository path: `fromFile` is the repository path of the file that names it. Refuses
+ * what `checkExtendsValue` does, and a target that leaves the repository.
+ */
+export function extendsTarget(fromFile: string, value: unknown): string {
+  const target = posix.normalize(posix.join(posix.dirname(fromFile), checkExtendsValue(value)));
+  if (target === '..' || target.startsWith('../') || posix.isAbsolute(target))
+    throw new Error(`"extends" ${JSON.stringify(value)} in ${fromFile} leaves the repository`);
+  return target;
+}
+
+/**
  * Loads `file` and the files it `extends`, merged, with paths relative to the directory of `file`. `chain` holds the
  * files being loaded, outermost first, so a cycle or a missing file is reported with the way it was reached; every
  * file read is added to `loaded`.
@@ -220,6 +248,12 @@ function loadMerged(file: string, cwd: string, chain: string[], loaded: string[]
   } catch {
     throw new Error(`${shown(file)}: no such file (reached by extends: ${trail.map(shown).join(' -> ')})`);
   }
+  // A symlink is not followed: the GitHub checks read a repository file as a blob and refuse a link, so a link here
+  // would be a file only one side reads.
+  if (lstatSync(file).isSymbolicLink())
+    throw new Error(
+      `${shown(file)}: a symlink, which tslaws does not follow (reached by extends: ${trail.map(shown).join(' -> ')})`,
+    );
   loaded.push(file);
   let json: unknown;
   try {
@@ -229,7 +263,7 @@ function loadMerged(file: string, cwd: string, chain: string[], loaded: string[]
   }
   const { extends: parent, ...own } = checkFile(json, shown(file));
   if (parent === undefined) return own;
-  const baseFile = resolve(dirname(file), parent as string);
+  const baseFile = resolve(dirname(file), checkExtendsValue(parent));
   if (trail.includes(baseFile))
     throw new Error(`${shown(file)}: "extends" forms a cycle (${[...trail, baseFile].map(shown).join(' -> ')})`);
   const base = rebaseFields(loadMerged(baseFile, cwd, trail, loaded), dirname(baseFile), dirname(file));

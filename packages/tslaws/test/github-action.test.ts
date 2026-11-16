@@ -7,7 +7,14 @@ import { dirname, join } from 'node:path';
 import { after, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 // @ts-expect-error: a plain .mjs helper next to the action, with no declaration file
-import { detect, installCommand, isYarnBerry, resolveBin } from '../github/package-manager.mjs';
+import {
+  defaultVersions,
+  detect,
+  installCommand,
+  isYarnBerry,
+  resolveBin,
+  resolveVersion,
+} from '../github/package-manager.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const helper = join(here, '..', 'github', 'package-manager.mjs');
@@ -73,6 +80,41 @@ describe('frozen installs', () => {
   });
 });
 
+describe('the version of pnpm or bun to set up', () => {
+  it('uses the input when it is plain semver, and refuses anything else', () => {
+    const dir = dirWith({ 'package.json': { packageManager: 'pnpm@9.1.0' } });
+    assert.equal(resolveVersion('pnpm', dir, '8.15.4'), '8.15.4');
+    assert.equal(resolveVersion('bun', dir, ' 1.2.3 '), '1.2.3');
+    for (const bad of ['latest', '9', '9.1', '^9.1.0', '9.1.0-rc.1', '9.1.0 && curl x', 'v9.1.0', '9.1.0\n10.0.0'])
+      assert.throws(() => resolveVersion('pnpm', dir, bad), /pnpm-version must be a plain version/, bad);
+  });
+  it('reads the packageManager field when no input is given, dropping a hash suffix', () => {
+    assert.equal(resolveVersion('pnpm', dirWith({ 'package.json': { packageManager: 'pnpm@9.1.0' } }), ''), '9.1.0');
+    assert.equal(
+      resolveVersion('pnpm', dirWith({ 'package.json': { packageManager: 'pnpm@9.1.0+sha512.abc' } })),
+      '9.1.0',
+    );
+    assert.equal(resolveVersion('bun', dirWith({ 'package.json': { packageManager: 'bun@1.1.30' } }), ''), '1.1.30');
+  });
+  it('falls back to a pinned default for a missing, mismatched or unusable field', () => {
+    assert.equal(resolveVersion('pnpm', dirWith({}), ''), defaultVersions.pnpm);
+    assert.equal(
+      resolveVersion('pnpm', dirWith({ 'package.json': { packageManager: 'bun@1.1.30' } }), ''),
+      defaultVersions.pnpm,
+    );
+    assert.equal(
+      resolveVersion('pnpm', dirWith({ 'package.json': { packageManager: 'pnpm@latest' } }), ''),
+      defaultVersions.pnpm,
+    );
+    assert.equal(resolveVersion('bun', dirWith({ 'package.json': '{ not json' }), ''), defaultVersions.bun);
+    assert.match(defaultVersions.pnpm, /^\d+\.\d+\.\d+$/);
+    assert.match(defaultVersions.bun, /^\d+\.\d+\.\d+$/);
+  });
+  it('has no version to set up for npm or yarn', () => {
+    assert.throws(() => resolveVersion('npm', dirWith({}), ''), /no version to set up/);
+  });
+});
+
 describe('finding the tslaws bin', () => {
   const installed = (layout: string) =>
     dirWith({
@@ -106,6 +148,14 @@ describe('the helper as the action runs it', () => {
     const dir = dirWith({ 'node_modules/tslaws/package.json': { bin: { tslaws: 'b.js' } } });
     assert.equal(run('bin', dir).stdout.trim(), join(dir, 'node_modules', 'tslaws', 'b.js'));
   });
+  it('prints the version to set up, and fails on one that is not plain semver', () => {
+    const dir = dirWith({ 'package.json': { packageManager: 'pnpm@9.1.0' } });
+    assert.equal(run('version', 'pnpm', dir).stdout, '9.1.0\n');
+    assert.equal(run('version', 'pnpm', dir, '8.0.0').stdout, '8.0.0\n');
+    const bad = run('version', 'bun', dir, 'latest');
+    assert.equal(bad.status, 1);
+    assert.match(bad.stderr, /^::error::bun-version must be a plain version/);
+  });
   it('fails with an annotation on a name it does not know or a missing install', () => {
     const bad = run('detect', dirWith({}), 'deno');
     assert.equal(bad.status, 1);
@@ -135,6 +185,12 @@ describe('action.yml', () => {
   it('sets up bun and pnpm only when they are the manager, and only when it installs', () => {
     assert.match(text, /if: steps\.detect\.outputs\.manager == 'bun' && inputs\.install == 'true'/);
     assert.match(text, /if: steps\.detect\.outputs\.manager == 'pnpm' && inputs\.install == 'true'/);
+  });
+  it('names the pnpm and bun version from the trusted root, never from the workspace package.json', () => {
+    assert.match(text, /bun-version: \$\{\{ steps\.version\.outputs\.version \}\}/);
+    assert.match(text, /version: \$\{\{ steps\.version\.outputs\.version \}\}/);
+    assert.match(text, /package_json_file: \$\{\{ inputs\.tslaws-root \}\}\/package\.json/);
+    assert.match(text, /node "\$HELPER" version "\$MANAGER" "\$TSLAWS_ROOT" "\$requested"/);
   });
   it('gives the token to the tslaws step only, not to the install', () => {
     const install = text.slice(text.indexOf('run: node "$HELPER" install'));

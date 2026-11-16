@@ -417,6 +417,20 @@ describe('command from the root', needsCompiler, () => {
     assert.equal(records[0]!.items[0]!.key, 'src/f.laws.ts::dblIsTwice');
   });
 
+  it('refuses a --project with no directory instead of reading it as every project', async () => {
+    for (const text of [
+      '/tslaws accept --project',
+      '/tslaws accept dblIsTwice --project',
+      '/tslaws accept --project --other',
+      '/tslaws accept --project=',
+    ]) {
+      const { records, posts } = await say(text, {});
+      assert.deepEqual(records, [], text);
+      assert.equal(posts.length, 1, text);
+      assert.match(posts[0]!.body.body, /`--project` needs a directory/, text);
+    }
+  });
+
   it('routes an accept to the project --project names', async () => {
     const { records } = await say('/tslaws accept dblIsTwice --project packages/b', {});
     assert.deepEqual(
@@ -452,10 +466,34 @@ describe('command from the root', needsCompiler, () => {
   });
 
   describe('approving the pull request', () => {
-    async function approve(body: string, github: Record<string, object>) {
-      const root = repo({ ...rootProjects, ...pkg('a', github.a), ...pkg('b', github.b) });
+    /** `change` edits the head's files (what the pull request does) and says which files it touched. */
+    async function approve(
+      body: string,
+      github: Record<string, object>,
+      change?: (files: Record<string, string>) => string[],
+    ) {
+      const source = { ...rootProjects, ...pkg('a', github.a), ...pkg('b', github.b) };
+      const root = repo(source);
+      const base: Record<string, string> = Object.fromEntries(
+        Object.entries(source).map(([file, content]) => [
+          file,
+          typeof content === 'string' ? content : JSON.stringify(content),
+        ]),
+      );
+      const head = { ...base };
+      const changed = change?.(head) ?? [];
+      const snapshots: Record<string, Record<string, string>> = { b: base, [sha]: head };
       const { api, calls } = fake((method, path) => {
-        if (path.endsWith('/pulls/5')) return { number: 5, user: { login: 'dev', type: 'User' }, head: { sha } };
+        if (path.endsWith('/pulls/5'))
+          return { number: 5, user: { login: 'dev', type: 'User' }, head: { sha }, base: { ref: 'master', sha: 'b' } };
+        if (path.endsWith('/pulls/5/files')) return changed.map((filename) => ({ filename }));
+        const tree = /\/git\/trees\/(\w+)\?recursive=1$/.exec(path);
+        if (tree) return { tree: Object.keys(snapshots[tree[1]!]!).map((p) => ({ path: p, type: 'blob' })) };
+        const file = /\/contents\/(.+)\?ref=(\w+)$/.exec(path);
+        if (file) {
+          const text = snapshots[file[2]!]?.[file[1]!];
+          return text === undefined ? missing : b64(text);
+        }
         if (path.includes('/collaborators/')) return { permission: 'write' };
         if (path.endsWith('/pulls/5/reviews')) return method === 'POST' ? {} : [];
         if (method === 'GET' && path.endsWith('/issues/5/comments'))
@@ -498,6 +536,36 @@ describe('command from the root', needsCompiler, () => {
 
     it('does not approve when a project with proposals was declined for the commenter', async () => {
       const reviews = await approve('/tslaws accept all', { a: optIn, b: { ...optIn, approvers: ['reviewers'] } });
+      assert.deepEqual(reviews, []);
+    });
+
+    it('does not approve when the pull request changes how projects are found', async () => {
+      const reviews = await approve('/tslaws accept all', { a: optIn, b: optIn }, (head) => {
+        head['tslaws.json'] = JSON.stringify({ projects: ['packages/a'] });
+        return ['tslaws.json'];
+      });
+      assert.deepEqual(reviews, []);
+    });
+
+    it('does not approve when the pull request makes a project standalone or hands it its own flow', async () => {
+      const standalone = await approve('/tslaws accept all', { a: optIn, b: optIn }, (head) => {
+        head['packages/b/tslaws.json'] = JSON.stringify({ github: optIn, standalone: true });
+        return ['packages/b/tslaws.json'];
+      });
+      assert.deepEqual(standalone, []);
+      const own = await approve('/tslaws accept all', { a: optIn, b: optIn }, (head) => {
+        head['packages/b/tslaws.json'] = JSON.stringify({ github: { ...optIn, flow: 'own' } });
+        return ['packages/b/tslaws.json'];
+      });
+      assert.deepEqual(own, []);
+    });
+
+    it('does not approve when the pull request adds a project the base did not have', async () => {
+      const reviews = await approve('/tslaws accept all', { a: optIn, b: optIn }, (head) => {
+        head['packages/c/tslaws.json'] = JSON.stringify({ github: optIn });
+        head['packages/c/src/f.laws.ts'] = '';
+        return ['packages/c/tslaws.json'];
+      });
       assert.deepEqual(reviews, []);
     });
 
@@ -546,6 +614,8 @@ describe('verify from the root', () => {
     'packages/a/src/f.laws.ts': '',
   };
   const pull = { number: 3, user: { login: 'a', type: 'User' }, head: { sha: 'h' }, base: { ref: 'master', sha: 'b' } };
+  /** What the contents API reports for a file that is a symbolic link. */
+  const symlink = '@@symlink@@';
 
   /** The repository at the base and at the head, the files the pull request changes, and verify's verdict. */
   async function verify(head: Record<string, string>, changed: string[], base: Record<string, string> = baseFiles) {
@@ -557,6 +627,7 @@ describe('verify from the root', () => {
       const file = /\/contents\/(.+)\?ref=(\w+)$/.exec(path);
       if (file) {
         const text = snapshots[file[2]!]?.[file[1]!];
+        if (text === symlink) return { type: 'symlink', target: 'elsewhere.json' };
         return text === undefined ? missing : b64(text);
       }
       return [];
@@ -570,6 +641,52 @@ describe('verify from the root', () => {
   it('passes a pull request that touches no lock and no discovery file', async () => {
     const { code, out } = await verify(baseFiles, ['packages/a/src/f.laws.ts']);
     assert.equal(code, 0, out);
+  });
+
+  it('catches a settings change in an extends base whose file does not end in .json', async () => {
+    const base = {
+      ...baseFiles,
+      'packages/b/tslaws.json': JSON.stringify({ extends: '../../team.jsonc' }),
+      'team.jsonc': cfg,
+    };
+    const head = { ...base, 'team.jsonc': JSON.stringify({ github: { bot: 'someone-else' } }) };
+    const { code, out } = await verify(head, ['team.jsonc'], base);
+    assert.equal(code, 1, out);
+    assert.match(out, /changes the "github" section of packages\/b\/tslaws\.json/);
+    const quiet = await verify(base, ['team.txt'], base);
+    assert.equal(quiet.code, 0, quiet.out);
+  });
+
+  it('fails closed on an extends target it cannot read, a symlink, or a path it will not follow', async () => {
+    const extending = (target: string, extra: Record<string, string> = {}) => ({
+      ...baseFiles,
+      'packages/b/tslaws.json': JSON.stringify({ extends: target }),
+      ...extra,
+    });
+    const unreadable = await verify(extending('../../gone.jsonc'), [], extending('../../gone.jsonc'));
+    assert.equal(unreadable.code, 1, unreadable.out);
+    assert.match(unreadable.out, /gone\.jsonc is named by "extends" and cannot be read/);
+    const linked = await verify(
+      extending('../../team.jsonc', { 'team.jsonc': symlink }),
+      [],
+      extending('../../team.jsonc', { 'team.jsonc': symlink }),
+    );
+    assert.equal(linked.code, 1, linked.out);
+    assert.match(linked.out, /team\.jsonc is not a regular file/);
+    for (const target of [
+      '/etc/tslaws.json',
+      'C:/tslaws.json',
+      'base.json?ref=evil',
+      'base.json#x',
+      'a&b.json',
+      'a%2e.json',
+      '..\\team.json',
+      '../../../outside.json',
+    ]) {
+      const refused = await verify(extending(target), [], extending(target));
+      assert.equal(refused.code, 1, `${target}: ${refused.out}`);
+      assert.match(refused.out, /packages\/b: "extends"/, target);
+    }
   });
 
   it('fails when the pull request stops discovering a project the base has', async () => {

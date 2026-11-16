@@ -30,10 +30,10 @@ inputs:
       step already installed.
     default: 'true'
   pnpm-version:
-    description: The pnpm version to set up. Empty reads "packageManager" from package.json at the repository root.
+    description: The pnpm version to set up, plain semver (x.y.z). Empty reads "packageManager" from the package.json in tslaws-root, then a pinned default; never from working-directory.
     default: ''
   bun-version:
-    description: The Bun version to set up. Empty uses the setup-bun default (latest).
+    description: The Bun version to set up, plain semver (x.y.z). Empty reads "packageManager" from the package.json in tslaws-root, then a pinned default.
     default: ''
 outputs:
   proposals:
@@ -57,15 +57,32 @@ runs:
       run: |
         manager="$(node "$HELPER" detect "$TSLAWS_ROOT" "$REQUESTED")"
         echo "manager=$manager" >> "$GITHUB_OUTPUT"
+    # The version is always named here, from the input, the trusted tslaws-root's package.json, or a pinned default and
+    # checked to be plain semver. The setup actions then never read the workspace's package.json, which a pull request
+    # can change.
+    - id: version
+      if: inputs.install == 'true' && (steps.detect.outputs.manager == 'bun' || steps.detect.outputs.manager == 'pnpm')
+      shell: bash
+      env:
+        TSLAWS_ROOT: ${{ inputs.tslaws-root }}
+        MANAGER: ${{ steps.detect.outputs.manager }}
+        PNPM_VERSION: ${{ inputs.pnpm-version }}
+        BUN_VERSION: ${{ inputs.bun-version }}
+        HELPER: ${{ github.action_path }}/package-manager.mjs
+      run: |
+        if [ "$MANAGER" = bun ]; then requested="$BUN_VERSION"; else requested="$PNPM_VERSION"; fi
+        version="$(node "$HELPER" version "$MANAGER" "$TSLAWS_ROOT" "$requested")"
+        echo "version=$version" >> "$GITHUB_OUTPUT"
     # Set up only the tool that is needed. Pinned to the commit of the release, so a moved tag cannot change what runs.
     - if: steps.detect.outputs.manager == 'bun' && inputs.install == 'true'
       uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
       with:
-        bun-version: ${{ inputs.bun-version }}
+        bun-version: ${{ steps.version.outputs.version }}
     - if: steps.detect.outputs.manager == 'pnpm' && inputs.install == 'true'
       uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
       with:
-        version: ${{ inputs.pnpm-version }}
+        version: ${{ steps.version.outputs.version }}
+        package_json_file: ${{ inputs.tslaws-root }}/package.json
     - if: inputs.install == 'true'
       shell: bash
       working-directory: ${{ inputs.tslaws-root }}

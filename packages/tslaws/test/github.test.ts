@@ -109,6 +109,22 @@ describe('commands', () => {
     assert.deepEqual(parseCommands('please /tslaws accept all'), []);
   });
 
+  it('marks a --project with no directory, and still reads a --project with one', () => {
+    for (const body of [
+      '/tslaws accept --project',
+      '/tslaws accept grows --project',
+      '/tslaws accept --project --other',
+      '/tslaws accept --project=',
+    ])
+      assert.match(parseCommands(body)[0]!.error ?? '', /needs a directory/, body);
+    assert.deepEqual(parseCommands('/tslaws accept --project packages/a'), [
+      { verb: 'accept', all: true, names: [], projects: ['packages/a'] },
+    ]);
+    assert.deepEqual(parseCommands('/tslaws accept grows --project=packages/a'), [
+      { verb: 'accept', all: false, names: ['grows'], projects: ['packages/a'] },
+    ]);
+  });
+
   it('resolves names, flags unknown and ambiguous ones', () => {
     const proposals = proposalsOf(lockChanges(undefined, [a, c, b], []), undefined);
     const got = resolveNames(proposals, { verb: 'accept', all: false, names: ['keeps', 'grows', 'nope'] });

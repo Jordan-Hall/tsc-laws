@@ -154,6 +154,8 @@ export type Command = {
   names: string[];
   /** `--project <dir>` (repeatable): the command covers only proposals of these projects. */
   projects?: string[];
+  /** Why the line cannot be followed (a `--project` with no directory). Nothing is recorded for a comment with one. */
+  error?: string;
 };
 
 const cleanProject = (dir: string): string =>
@@ -180,17 +182,32 @@ export function parseCommands(body: string): Command[] {
     const projects: string[] = [];
     const token = /`([^`]+)`|"([^"]+)"|'([^']+)'|([^\s,]+)/g;
     let wantsProject = false;
+    let error: string | undefined;
+    const noDirectory = '`--project` needs a directory, as in `--project packages/a`; nothing was recorded';
     for (let m = token.exec(rest); m !== null; m = token.exec(rest)) {
       const word = (m[1] ?? m[2] ?? m[3] ?? m[4])!;
       if (wantsProject) {
-        projects.push(cleanProject(word));
+        // `--project --other` is a flag where a directory belongs: refuse it rather than read it as a directory.
+        if (word.startsWith('-')) error ??= noDirectory;
+        else projects.push(cleanProject(word));
         wantsProject = false;
       } else if (word === '--project') wantsProject = true;
-      else if (word.startsWith('--project=')) projects.push(cleanProject(word.slice('--project='.length)));
-      else names.push(word);
+      else if (word.startsWith('--project=')) {
+        const dir = cleanProject(word.slice('--project='.length));
+        if (word === '--project=') error ??= noDirectory;
+        else projects.push(dir);
+      } else names.push(word);
     }
+    // A dangling `--project` must not widen the command to every project.
+    if (wantsProject) error ??= noDirectory;
     const all = names.length === 0 || names.some((n) => n.toLowerCase() === 'all');
-    commands.push({ verb, all, names: all ? [] : names, ...(projects.length > 0 ? { projects } : {}) });
+    commands.push({
+      verb,
+      all,
+      names: all ? [] : names,
+      ...(projects.length > 0 ? { projects } : {}),
+      ...(error === undefined ? {} : { error }),
+    });
   }
   return commands;
 }

@@ -266,8 +266,8 @@ run that goes ahead accepts every proposal still outstanding.
 | `tslaws-root`       | the workspace | The trusted checkout that holds `tslaws`.                                                                                                                                                                                                       |
 | `package-manager`   | `auto`        | `auto`, `npm`, `pnpm`, `yarn` or `bun`. `auto` reads the lockfile in `tslaws-root`, then the `packageManager` field of its `package.json`, then falls back to npm.                                                                              |
 | `install`           | `true`        | Run a frozen install in `tslaws-root` first (`npm ci`, `pnpm install --frozen-lockfile`, `yarn install --immutable`, `yarn install --frozen-lockfile` for Yarn 1, `bun install --frozen-lockfile`). Set `false` when an earlier step installed. |
-| `pnpm-version`      | empty         | The pnpm version to set up; empty reads `packageManager` from the root `package.json`.                                                                                                                                                          |
-| `bun-version`       | empty         | The Bun version to set up; empty uses the `setup-bun` default.                                                                                                                                                                                  |
+| `pnpm-version`      | empty         | The pnpm version to set up (plain `x.y.z`). Empty reads `packageManager` from the `tslaws-root` `package.json`, then a pinned default; never from the workspace.                                                                                |
+| `bun-version`       | empty         | The Bun version to set up (plain `x.y.z`). Empty reads `packageManager` from the `tslaws-root` `package.json`, then a pinned default.                                                                                                           |
 
 The action sets up Bun or pnpm only when that is the detected manager and `install` is `true`, with
 `oven-sh/setup-bun` and `pnpm/action-setup` pinned to commits. It finds `tslaws` with Node's own resolution from
@@ -298,7 +298,9 @@ commenter to use the path or `--project`. Each project decides for itself: its o
 A commenter who may accept in one package and not another is recorded for the first and told "not recorded" for the
 second.
 
-`approvePullRequest` approves the pull request only when every project that has proposals has all of them accepted and has set it. A project that was declined, runs its own flow or still has a pending proposal stops the review.
+`approvePullRequest` approves the pull request only when every project that has proposals has all of them accepted and has set it. A project that was declined, runs its own flow or still has a pending proposal stops the review. In `command` mode the project list and each project's `flow`, `standalone` and `github` settings are
+read from the base commit, and a pull request that changes how projects are found, any of those settings, or adds or
+removes a project is not approved.
 
 ### Writing the locks
 
@@ -321,7 +323,7 @@ of its lock.
 
 ### What the pull request cannot steer
 
-Two things in a pull request could otherwise change what the checks watch, so both are read from the base branch.
+Some things in a pull request could otherwise change what the checks watch, so they are read from the base branch.
 
 **Approvals belong to a project.** Every record carries the project it was made for (its path from the repository root,
 empty for the root project). `merge`, `report` and `command` count a record only for that project, so
@@ -341,7 +343,15 @@ united with the head's list. A pull request cannot hide a package by editing the
 - `verify` fails on any `tsc-laws.lock` the pull request adds or changes anywhere in the repository, in a project or not;
 - `merge` still checks a project that was in the base and is no longer discovered, and fails the run;
 - the `github` section and `standalone` are read per project from the base, following `extends`, and a change to either
-  fails `verify`.
+  fails `verify` whichever file the change is in (not only `.json` files);
+- an `extends` target must be a relative path of letters, digits and `. _ - / @` that stays inside the repository, and a regular file
+  at both commits. An unreadable target, a symbolic link, a submodule, an absolute path, a backslash or a path that
+  leaves the repository fails `verify` and `merge` instead of being guessed. All of them resolve the path with one
+  helper, so they cannot read different files.
+
+**The package manager version is not the pull request's to set.** The action passes `pnpm` and `bun` an explicit
+plain-semver version (the input, the trusted `tslaws-root` `package.json`, or a pinned default). The setup actions never
+fall back to the `packageManager` field of the workspace under test.
 
 ### Where the project sits
 
