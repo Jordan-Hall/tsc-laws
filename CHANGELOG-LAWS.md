@@ -2,6 +2,13 @@
 
 The upstream tsc-ts changelog is CHANGELOG.md. Releases of tsc-laws are tagged `laws-v<version>` (see RELEASING-LAWS.md).
 
+## [0.9.0](https://github.com/Jordan-Hall/tsc-laws/compare/laws-v0.8.0...laws-v0.9.0) (2026-11-16)
+
+
+### Features
+
+* **tslaws:** run tslaws github per package in a monorepo ([#34](https://github.com/Jordan-Hall/tsc-laws/issues/34)) ([c596656](https://github.com/Jordan-Hall/tsc-laws/commit/c5966560f72df8caf1c8e5cc184dff0b73fdb1b7))
+
 ## [0.8.0](https://github.com/Jordan-Hall/tsc-laws/compare/laws-v0.7.0...laws-v0.8.0) (2026-11-16)
 
 
