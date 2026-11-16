@@ -11,6 +11,7 @@ import ts from 'typescript';
 import { parseE2eConfig, type E2eConfig } from './e2e.ts';
 import { globMatcher } from './globs.ts';
 import { customLawFile } from './lawFiles.ts';
+import { certifyProblem, type CertifyMode } from './certificates.ts';
 import { importMetaEnvOf, parseEnvConfig, type ImportMetaEnv } from './runtimeEnv.ts';
 import { solversProblem, type SolverName } from './solvers.ts';
 
@@ -18,6 +19,11 @@ export interface CoverageConfig {
   cover?: string[];
   /** Compiler options the runner passes to tsc; see `compilerFlags` in compile.ts for the supported keys. */
   compilerOptions?: Record<string, unknown>;
+  /**
+   * Where laws take their module resolution (`paths`, `baseUrl`, project references) from: a tsconfig path relative to
+   * tslaws.json, or `false` for none. Default: the nearest tsconfig.json above the project. See tsconfigResolve.ts.
+   */
+  tsconfig?: string | false;
   /** End-to-end laws: the app to drive; see `parseE2eConfig`. */
   e2e?: E2eConfig;
   /**
@@ -35,6 +41,11 @@ export interface CoverageConfig {
    * must also answer `unsat` or the law is `bounded`. Z3 is required. See solvers.ts.
    */
   solvers?: SolverName[];
+  /**
+   * Check every proof Z3 finds with cvc5 (an Alethe proof) and Carcara, and record the law as `certified` or
+   * `uncertified`. `"require"` makes anything short of `certified` an error. Default off. See certificates.ts.
+   */
+  certify?: CertifyMode;
   /** esbuild plugin modules (paths relative to tslaws.json) that teach the browser bundler new source formats. */
   bundlerPlugins?: string[];
   /**
@@ -57,7 +68,9 @@ const configKeys = [
   'laws',
   'levels',
   'solvers',
+  'certify',
   'compilerOptions',
+  'tsconfig',
   'e2e',
   'bundlerPlugins',
   'env',
@@ -123,6 +136,9 @@ function checkFile(raw: unknown, source: string): Record<string, unknown> {
     if (value !== undefined && (typeof value !== 'number' || !Number.isInteger(value) || value < 1))
       fail(`"${key}" must be an integer of at least 1, got ${JSON.stringify(value)}`);
   }
+  const tsconfig = object.tsconfig;
+  if (tsconfig !== undefined && tsconfig !== false && (typeof tsconfig !== 'string' || tsconfig === ''))
+    fail(`"tsconfig" must be a path to a tsconfig file or false, got ${JSON.stringify(tsconfig)}`);
   const plugins = object.bundlerPlugins;
   if (
     plugins !== undefined &&
@@ -135,6 +151,8 @@ function checkFile(raw: unknown, source: string): Record<string, unknown> {
     fail(`"levels" must be "names" or "imports", got ${JSON.stringify(levels)}`);
   const problem = object.solvers === undefined ? undefined : solversProblem(object.solvers);
   if (problem !== undefined) fail(problem);
+  const certifyIssue = object.certify === undefined ? undefined : certifyProblem(object.certify);
+  if (certifyIssue !== undefined) fail(certifyIssue);
   const laws = object.laws;
   if (
     laws !== undefined &&
@@ -166,7 +184,7 @@ export function parseConfig(raw: unknown, source = 'tslaws.json'): CoverageConfi
  * shared base saying `"cover": ["src/**"]` means each package's own src/. `compilerOptions` and `github` hold no
  * paths. Add a new file-reference option here when it is added to `configKeys`.
  */
-const pathFields: readonly string[] = ['bundlerPlugins[]', 'e2e.server.cwd'];
+const pathFields: readonly string[] = ['bundlerPlugins[]', 'e2e.server.cwd', 'tsconfig'];
 
 /** `entry`, written relative to the directory `from`, as a path relative to `to`. A leading `!` and absolute paths stay. */
 function rebase(entry: string, from: string, to: string): string {

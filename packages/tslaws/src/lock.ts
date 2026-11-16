@@ -2,6 +2,7 @@
 // addition or removal fails the check until a person runs `tslaws accept`.
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import type { CertificateRecord } from './certificates.ts';
 import type { ManifestLaw } from './types.ts';
 
 export type LockEntries = Record<string, string>;
@@ -15,6 +16,11 @@ export interface Lock {
    * (the default) has no such section and keeps the format it always had.
    */
   levels?: Record<string, string>;
+  /**
+   * Only in a lock accepted after `tslaws check --certify`: for each law a checker accepted a proof of, the hashes of the
+   * proof and of the checker's verdict. A record counts only while its `law` is the law's hash in `laws`.
+   */
+  certificates?: Record<string, CertificateRecord>;
 }
 
 export function lawKey(file: string, name: string): string {
@@ -32,8 +38,39 @@ export function readLock(path: string): Lock | undefined {
     laws: LockEntries;
     exempt?: string[];
     levels?: Record<string, string>;
+    certificates?: Record<string, CertificateRecord>;
   };
-  return { laws: lock.laws, exempt: lock.exempt ?? [], ...(lock.levels === undefined ? {} : { levels: lock.levels }) };
+  return {
+    laws: lock.laws,
+    exempt: lock.exempt ?? [],
+    ...(lock.levels === undefined ? {} : { levels: lock.levels }),
+    ...(lock.certificates === undefined ? {} : { certificates: lock.certificates }),
+  };
+}
+
+/** The records that still describe their law: the law is in the lock with the hash the record was made for. */
+export function currentCertificates(
+  laws: LockEntries,
+  records: Record<string, CertificateRecord> | undefined,
+): Record<string, CertificateRecord> {
+  const kept: Record<string, CertificateRecord> = {};
+  for (const key of Object.keys(records ?? {}).sort())
+    if (laws[key] !== undefined && records![key]!.law === laws[key]) kept[key] = records![key]!;
+  return kept;
+}
+
+/** Whether the lock records a certificate for the law as the lock holds it. */
+export function isCertified(lock: Lock | undefined, key: string): boolean {
+  return lock?.laws[key] !== undefined && lock.certificates?.[key]?.law === lock.laws[key];
+}
+
+/** The `certificates` part of a lock body: nothing when no record is current, so an uncertified lock keeps its format. */
+function certificatesBody(
+  laws: LockEntries,
+  records: Record<string, CertificateRecord> | undefined,
+): { certificates?: Record<string, CertificateRecord> } {
+  const current = currentCertificates(laws, records);
+  return Object.keys(current).length === 0 ? {} : { certificates: current };
 }
 
 export function writeLock(
@@ -41,6 +78,7 @@ export function writeLock(
   laws: ManifestLaw[],
   exempt: string[] = [],
   levels?: Record<string, string>,
+  certificates?: Record<string, CertificateRecord>,
 ): void {
   const entries: LockEntries = {};
   for (const law of [...laws].sort((a, b) => lawKey(a.file, a.name).localeCompare(lawKey(b.file, b.name))))
@@ -52,6 +90,7 @@ export function writeLock(
     laws: entries,
     exempt: [...exempt].sort(),
     ...(levels === undefined ? {} : { levels: recorded }),
+    ...certificatesBody(entries, certificates),
   };
   writeFileSync(path, JSON.stringify(body, null, 2) + '\n');
 }
@@ -176,7 +215,12 @@ export function acceptChanges(
     for (const file of Object.keys(recorded))
       if (!(file in levels) && !Object.keys(entries).some((key) => fileOf(key) === file)) delete recorded[file];
   }
-  return { laws: entries, exempt: [...exemptions], ...(recorded === undefined ? {} : { levels: recorded }) };
+  return {
+    laws: entries,
+    exempt: [...exemptions],
+    ...(recorded === undefined ? {} : { levels: recorded }),
+    ...certificatesBody(entries, lock?.certificates),
+  };
 }
 
 /** Writes a lock value in the same canonical form as `writeLock`. */
@@ -196,6 +240,7 @@ export function writeLockValue(path: string, lock: Lock): void {
               .map((f) => [f, lock.levels![f]!]),
           ),
         }),
+    ...certificatesBody(laws, lock.certificates),
   };
   writeFileSync(path, JSON.stringify(body, null, 2) + '\n');
 }
