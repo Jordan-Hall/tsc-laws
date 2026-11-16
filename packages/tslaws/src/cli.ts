@@ -94,6 +94,7 @@ function parse(args: string[]): { command: string; flags: Map<string, string | t
     'head-sha',
     'rerun-workflow',
     'protect',
+    'project-path',
   ]);
   for (let i = 0; i < args.length; i += 1) {
     const arg = args[i]!;
@@ -541,7 +542,7 @@ export async function main(args: string[]): Promise<number> {
   }
 
   if (command === 'github') {
-    const { githubCommand } = await import('./githubCli.ts');
+    const { githubCommand, projectPathOf } = await import('./githubCli.ts');
     // The token stays with tslaws: laws run in worker threads and the compiler in a child process, and both get a copy of
     // process.env, so a law under test could otherwise read the token and act as the bot.
     const env = { ...process.env };
@@ -554,6 +555,7 @@ export async function main(args: string[]): Promise<number> {
       chosen.compiler = checkoutCompiler(resolve(cwd, trusted)) ?? 'tsc-laws';
     return githubCommand(files[0], {
       cwd,
+      projectPath: projectPathOf(cwd, flags.get('project-path')),
       options: chosen,
       env,
       flags,

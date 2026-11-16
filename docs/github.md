@@ -198,6 +198,32 @@ The workflows protect nothing if people can write the lock some other way. Set u
 the bot's, with signatures it verified. It compares the lock before and after the push, so a truncated push payload
 cannot hide a change.
 
+## Monorepos
+
+The project (`tslaws.json` and `tsc-laws.lock`) need not sit at the repository root. Keep one `tslaws.json` per package,
+run the action once per package with a matrix over `working-directory`, and put every job in one shared concurrency
+group so the merge jobs run one after another.
+
+```yaml
+jobs:
+  merge:
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [packages/ui, apps/core/auth]
+    concurrency: { group: tslaws-merge, cancel-in-progress: false }
+    steps:
+      - uses: Jordan-Hall/tsc-laws/packages/tslaws/github@main
+        with: { mode: merge, working-directory: '${{ matrix.project }}', token: '${{ steps.app.outputs.token }}' }
+```
+
+`tslaws github` finds the project's place in the repository with `git rev-parse --show-prefix`; pass
+`--project-path <dir>` to name it yourself. Every lock and config path, every annotation and every link then starts
+with that directory. Each job commits only its own lock, checks only its own lock for outside changes (another
+project's bot commit never blocks it), and starts from the current lock on the branch, so a job that runs after another
+one still writes. `report` keeps one comment per project, headed with the project's path; a root project's comment is
+unchanged. `--protect` paths stay relative to the repository root. In the ruleset, restrict `**/tsc-laws.lock`.
+
 ## Limits
 
 - Pull requests from forks get a read-only token, so `report` cannot write its comment. The annotations and the step

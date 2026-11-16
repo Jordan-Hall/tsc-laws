@@ -13,6 +13,7 @@
 //            tslaws.json or a protected path. Reads the base branch's config, never the pull request's.
 import { readFileSync, writeFileSync, appendFileSync, existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
 import { check, exemptionsOf } from './check.ts';
 import type { CheckReport } from './check.ts';
@@ -31,7 +32,7 @@ import {
   readApprovals,
   renderSticky,
   resolveNames,
-  stickyMarker,
+  stickyMarkerFor,
   type ApprovalRecord,
   type GithubConfig,
   type IssueComment,
@@ -44,6 +45,11 @@ import type { CheckOptions, ManifestLaw } from './types.ts';
 
 export interface GithubContext {
   cwd: string;
+  /**
+   * Where the project sits in the repository, repo-relative with '/' separators and no trailing slash ('' at the root).
+   * Every REST path and annotation names files from the repository root, so they carry it.
+   */
+  projectPath?: string;
   /** The check options for the whole project (every laws file, the lock at the root). */
   options: CheckOptions;
   env: NodeJS.ProcessEnv;
@@ -52,6 +58,33 @@ export interface GithubContext {
   err: (text: string) => void;
   /** For tests: a stand-in for the GitHub REST API. */
   api?: Api;
+}
+
+/** A project-relative file as the repository names it: the project's prefix, then the path. */
+function repoPath(ctx: GithubContext, file: string): string {
+  const prefix = (ctx.projectPath ?? '').replace(/^\/+|\/+$/g, '');
+  const clean = file.replaceAll('\\', '/');
+  return prefix === '' ? clean : `${prefix}/${clean}`;
+}
+
+/** `--project-path`, else where `cwd` sits inside its git repository (`git rev-parse --show-prefix`), else ''. */
+export function projectPathOf(cwd: string, flag: string | true | undefined): string {
+  let raw = typeof flag === 'string' ? flag : '';
+  if (typeof flag !== 'string') {
+    try {
+      raw = execFileSync('git', ['-C', cwd, 'rev-parse', '--show-prefix'], {
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+      });
+    } catch {
+      raw = '';
+    }
+  }
+  return raw
+    .trim()
+    .replaceAll('\\', '/')
+    .replace(/^(\.\/)+/, '')
+    .replace(/^\/+|\/+$/g, '');
 }
 
 // ---- REST -----------------------------------------------------------------------------------------------------------
@@ -155,20 +188,29 @@ async function issueComments(api: Api, name: string, pr: number): Promise<IssueC
   return all<IssueComment>(api, `/repos/${name}/issues/${pr}/comments`);
 }
 
-async function upsertSticky(api: Api, name: string, pr: number, bot: string, body: string, comments: IssueComment[]) {
-  const mine = comments.find((c) => c.user.login === bot && c.body.startsWith(stickyMarker));
+async function upsertSticky(
+  api: Api,
+  name: string,
+  pr: number,
+  bot: string,
+  body: string,
+  comments: IssueComment[],
+  project: string,
+) {
+  const marker = stickyMarkerFor(project);
+  const mine = comments.find((c) => c.user.login === bot && c.body.startsWith(marker));
   if (mine === undefined) await api('POST', `/repos/${name}/issues/${pr}/comments`, { body });
   else if (mine.body !== body) await api('PATCH', `/repos/${name}/issues/comments/${mine.id}`, { body });
 }
 
-function linkFor(env: NodeJS.ProcessEnv, sha: string): (p: Proposal) => string {
+function linkFor(env: NodeJS.ProcessEnv, sha: string, ctx: GithubContext): (p: Proposal) => string {
   const server = env.GITHUB_SERVER_URL ?? 'https://github.com';
   const name = env.GITHUB_REPOSITORY ?? '';
   // Raw text: renderSticky makes the whole cell inert. Brackets and backticks would break the link's markdown.
   return (p) => {
     const label = p.name.replace(/[`[\]]/g, "'");
     if (p.line === 0 || name === '') return `${label} (${p.file})`;
-    return `[${label}](${server}/${name}/blob/${sha}/${p.file.split('/').map(encodeURIComponent).join('/')}#L${p.line})`;
+    return `[${label}](${server}/${name}/blob/${sha}/${repoPath(ctx, p.file).split('/').map(encodeURIComponent).join('/')}#L${p.line})`;
   };
 }
 
@@ -216,14 +258,15 @@ async function report(ctx: GithubContext): Promise<number> {
         ? 'did not run'
         : `${p.reason}; if accepted: ${p.outcome.status}${p.outcome.counterexample ? `; counterexample ${p.outcome.counterexample}` : ''}`;
     ctx.out(
-      `::${level} file=${escapeGithubProperty(p.file)},line=${Math.max(1, p.line)},title=${escapeGithubProperty(title)}::${escapeGithubData(message)}\n`,
+      `::${level} file=${escapeGithubProperty(repoPath(ctx, p.file))},line=${Math.max(1, p.line)},title=${escapeGithubProperty(title)}::${escapeGithubData(message)}\n`,
     );
   }
-  const body = renderSticky(proposals, config, approvals, linkFor(ctx.env, sha));
-  summary(ctx.env, body.replace(stickyMarker, ''));
+  const project = repoPath(ctx, '');
+  const body = renderSticky(proposals, config, approvals, linkFor(ctx.env, sha, ctx), project);
+  summary(ctx.env, body.replace(stickyMarkerFor(project), ''));
   if (api !== undefined && Number.isInteger(pr) && ctx.flags.has('comment')) {
     try {
-      await upsertSticky(api, repo(ctx.env), pr, config.bot, body, comments);
+      await upsertSticky(api, repo(ctx.env), pr, config.bot, body, comments, project);
     } catch (error) {
       // A pull request from a fork gets a read-only token: the step summary and annotations still carry the report.
       ctx.err(`tslaws: cannot write the sticky comment (${String(error)})\n`);
@@ -367,11 +410,12 @@ async function command(ctx: GithubContext): Promise<number> {
 // ---- merge ----------------------------------------------------------------------------------------------------------
 
 async function merge(ctx: GithubContext): Promise<number> {
+  const lockPath = repoPath(ctx, 'tsc-laws.lock');
   const configText = readText(join(ctx.cwd, 'tslaws.json'));
   const config = githubConfigOf(configText);
   if (isSharedBot(config))
     ctx.out(
-      `::warning title=tslaws::"bot" is ${config.bot}, which every workflow can act as; only a ruleset on ${config.branch} that restricts tsc-laws.lock keeps other workflows from writing it. A dedicated GitHub App closes this.
+      `::warning title=tslaws::"bot" is ${config.bot}, which every workflow can act as; only a ruleset on ${config.branch} that restricts ${lockPath} keeps other workflows from writing it. A dedicated GitHub App closes this.
 `,
     );
   const ev = event(ctx.env);
@@ -392,7 +436,7 @@ async function merge(ctx: GithubContext): Promise<number> {
     author?: { username?: string };
   }[];
   const touches = (c: (typeof commits)[number]) =>
-    [...(c.modified ?? []), ...(c.added ?? []), ...(c.removed ?? [])].includes('tsc-laws.lock');
+    [...(c.modified ?? []), ...(c.added ?? []), ...(c.removed ?? [])].includes(lockPath);
   const api = ctx.api ?? restApi(ctx.env);
   const name = repo(ctx.env);
   const sha = String(ev.after ?? ctx.env.GITHUB_SHA ?? '');
@@ -417,7 +461,7 @@ async function merge(ctx: GithubContext): Promise<number> {
   for (const c of commits.filter(touches))
     if (!(await byBot(c.id))) {
       ctx.err(
-        `tslaws: commit ${c.id.slice(0, 7)} changed tsc-laws.lock but was not made by ${config.bot} with a verified signature; nothing accepted. Revert it.\n`,
+        `tslaws: commit ${c.id.slice(0, 7)} changed ${lockPath} but was not made by ${config.bot} with a verified signature; nothing accepted. Revert it.\n`,
       );
       return 1;
     }
@@ -427,13 +471,13 @@ async function merge(ctx: GithubContext): Promise<number> {
   if (/^[0-9a-f]{40}$/.test(before) && !/^0+$/.test(before)) {
     const lockAt = async (ref: string): Promise<string | undefined> => {
       try {
-        return ((await api('GET', `/repos/${name}/contents/tsc-laws.lock?ref=${ref}`)) as { sha: string }).sha;
+        return ((await api('GET', `/repos/${name}/contents/${lockPath}?ref=${ref}`)) as { sha: string }).sha;
       } catch {
         return undefined;
       }
     };
     if ((await lockAt(before)) !== (await lockAt(sha))) {
-      ctx.err(`tslaws: this push changed tsc-laws.lock, and not only through ${config.bot}; nothing accepted. Revert the change.
+      ctx.err(`tslaws: this push changed ${lockPath}, and not only through ${config.bot}; nothing accepted. Revert the change.
 `);
       return 1;
     }
@@ -442,9 +486,9 @@ async function merge(ctx: GithubContext): Promise<number> {
   // run made. Start from the lock on the branch, so this run never undoes what an earlier one accepted, once every
   // commit since this push that changed the lock is shown to be the bot's.
   const branchRef = encodeURIComponent(config.branch);
-  const headLock = (await api('GET', `/repos/${name}/contents/tsc-laws.lock?ref=${branchRef}`).catch(
-    () => undefined,
-  )) as { sha: string; content: string } | undefined;
+  const headLock = (await api('GET', `/repos/${name}/contents/${lockPath}?ref=${branchRef}`).catch(() => undefined)) as
+    | { sha: string; content: string }
+    | undefined;
   const lockFile = ctx.options.lockFile;
   const localBlob = existsSync(lockFile) ? gitBlobSha(readFileSync(lockFile)) : undefined;
   if (headLock !== undefined && headLock.sha !== localBlob) {
@@ -454,14 +498,17 @@ async function merge(ctx: GithubContext): Promise<number> {
       commits: { sha: string }[];
     };
     const since = new Set(range.commits.map((c) => c.sha));
-    const touched = (await api('GET', `/repos/${name}/commits?sha=${branchRef}&path=tsc-laws.lock&per_page=100`)) as {
+    const touched = (await api(
+      'GET',
+      `/repos/${name}/commits?sha=${branchRef}&path=${encodeURIComponent(lockPath)}&per_page=100`,
+    )) as {
       sha: string;
     }[];
     let trusted = range.status === 'ahead' && range.ahead_by === range.commits.length && touched.length < 100;
     for (const c of touched) if (trusted && since.has(c.sha) && !(await byBot(c.sha))) trusted = false;
     if (!trusted) {
       ctx.err(
-        `tslaws: tsc-laws.lock on ${config.branch} has moved on since this push, and not only through ${config.bot}; nothing accepted
+        `tslaws: ${lockPath} on ${config.branch} has moved on since this push, and not only through ${config.bot}; nothing accepted
 `,
       );
       return 1;
@@ -499,7 +546,7 @@ async function merge(ctx: GithubContext): Promise<number> {
     if (!ctx.flags.has('dry-run')) {
       // Through the contents API, so GitHub signs the commit as the bot and `verify` can tell it from a forgery. The
       // lock this run started from is the one it replaces: if anything wrote the lock since, GitHub refuses the write.
-      await api('PUT', `/repos/${name}/contents/tsc-laws.lock`, {
+      await api('PUT', `/repos/${name}/contents/${lockPath}`, {
         message: `chore(tslaws): accept ${accepted.length} law change${accepted.length === 1 ? '' : 's'}${pulls[0] ? ` from #${pulls[0].number}` : ''}\n\n${accepted.map((p) => `- ${p.key} (${p.reason}${p.outcome ? `, ${p.outcome.status}` : ''}${approvals.has(p.fingerprint) ? `, accepted by @${approvals.get(p.fingerprint)}` : ''})`).join('\n')}`,
         content: Buffer.from(text).toString('base64'),
         branch: config.branch,
@@ -517,7 +564,8 @@ async function merge(ctx: GithubContext): Promise<number> {
         `- 🚫 ${shown(proposal.name)} (${shown(proposal.file)}, ${proposal.reason}) not accepted: ${why}`,
     ),
   ];
-  const note = `### tslaws on \`${config.branch}\`\n\n${lines.join('\n')}\n${decision.held.length > 0 ? `\n\`tslaws check\` fails on \`${config.branch}\` until the held proposals are fixed or removed.\n` : ''}`;
+  const where = repoPath(ctx, '');
+  const note = `### tslaws on \`${config.branch}\`${where === '' ? '' : ` (\`${where}\`)`}\n\n${lines.join('\n')}\n${decision.held.length > 0 ? `\n\`tslaws check\` fails on \`${config.branch}\` until the held proposals are fixed or removed.\n` : ''}`;
   summary(ctx.env, note);
   ctx.out(`${note}\n`);
   for (const pr of pulls)
@@ -545,7 +593,9 @@ async function verify(ctx: GithubContext): Promise<number> {
       return undefined;
     }
   };
-  const baseText = await contents('tslaws.json', pull.base.sha);
+  const lockPath = repoPath(ctx, 'tsc-laws.lock');
+  const configPath = repoPath(ctx, 'tslaws.json');
+  const baseText = await contents(configPath, pull.base.sha);
   const config = githubConfigOf(baseText);
   const problems: string[] = [];
   const files = await all<{ filename: string; previous_filename?: string }>(
@@ -560,25 +610,25 @@ async function verify(ctx: GithubContext): Promise<number> {
   for (const path of protectedPaths)
     if (changed.has(path))
       problems.push(`${path} is protected: change it in a pull request of its own, merged by an administrator`);
-  if (changed.has('tslaws.json')) {
-    const headText = await contents('tslaws.json', pull.head.sha);
+  if (changed.has(configPath)) {
+    const headText = await contents(configPath, pull.head.sha);
     const section = (text: string | undefined) =>
       JSON.stringify(text === undefined ? undefined : (JSON.parse(text) as { github?: unknown }).github);
     try {
       if (section(baseText) !== section(headText))
         problems.push(
-          'the pull request changes the "github" section of tslaws.json, which decides who may accept laws',
+          `the pull request changes the "github" section of ${configPath}, which decides who may accept laws`,
         );
     } catch {
-      problems.push('tslaws.json does not parse');
+      problems.push(`${configPath} does not parse`);
     }
   }
   // The bot never commits to a pull request's branch: it writes the lock on ${config.branch} after the merge. So any
   // change to the lock in the pull request's diff (the full list, paginated above) is a forgery. Checking the diff, not
   // each commit, also covers commits whose file list GitHub truncates (the commit API lists at most 300 files).
-  if (changed.has('tsc-laws.lock'))
+  if (changed.has(lockPath))
     problems.push(
-      `the pull request changes tsc-laws.lock; only ${config.bot} writes the lock, on merge into ${config.branch}`,
+      `the pull request changes ${lockPath}; only ${config.bot} writes the lock, on merge into ${config.branch}`,
     );
   for (const problem of problems) ctx.out(`::error::${escapeGithubData(problem)}\n`);
   if (problems.length === 0) ctx.out('tslaws: the lock and its settings are untouched by this pull request\n');

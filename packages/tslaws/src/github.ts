@@ -331,6 +331,12 @@ export function pullRequestVerdict(
 
 export const stickyMarker = '<!-- tslaws-proposals -->';
 
+/** The sticky comment's marker for a project: the root's is unchanged; another project's names its path. */
+export function stickyMarkerFor(project = ''): string {
+  if (project === '') return stickyMarker;
+  return `<!-- tslaws-proposals ${project.replace(/[^\w./@-]/g, '_').replace(/-{2,}/g, '-')} -->`;
+}
+
 const cell = (text: string): string => inert(text).replace(/\|/g, '\\|').replace(/\r?\n/g, ' ');
 
 function outcomeText(p: Proposal): string {
@@ -354,8 +360,10 @@ export function renderSticky(
   config: GithubConfig,
   approvals: Map<string, string>,
   link: (p: Proposal) => string,
+  project = '',
 ): string {
-  const head = `${stickyMarker}\n### tslaws proposals\n\n`;
+  const title = project === '' ? '' : ` for \`${project.replace(/`/g, "'")}\``;
+  const head = `${stickyMarkerFor(project)}\n### tslaws proposals${title}\n\n`;
   if (proposals.length === 0) return `${head}No law, level or coverage exemption differs from \`tsc-laws.lock\`.\n`;
   const rows = proposals.map((p) => {
     const state =
