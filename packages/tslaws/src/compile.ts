@@ -202,14 +202,30 @@ function lowerModule(text: string, sourcefile: string): string {
 }
 
 /**
+ * `import.meta.env` becomes the runner's global and any other `import.meta` an empty object, found as syntax so that a
+ * string or comment that says the same words is left alone.
+ */
+function rewriteImportMeta(text: string, file: string): string {
+  const source = ts.createSourceFile(file, text, ts.ScriptTarget.ES2022, false, ts.ScriptKind.JS);
+  const edits: { start: number; end: number; text: string }[] = [];
+  const isMeta = (node: ts.Node): boolean =>
+    ts.isMetaProperty(node) && node.keywordToken === ts.SyntaxKind.ImportKeyword && node.name.text === 'meta';
+  const visit = (node: ts.Node): void => {
+    if (ts.isPropertyAccessExpression(node) && isMeta(node.expression) && node.name.text === 'env')
+      edits.push({ start: node.getStart(source), end: node.end, text: `globalThis.${importMetaEnvGlobal}` });
+    else if (isMeta(node)) edits.push({ start: node.getStart(source), end: node.end, text: '({})' });
+    else ts.forEachChild(node, visit);
+  };
+  visit(source);
+  return edits.reduceRight((out, e) => out.slice(0, e.start) + e.text + out.slice(e.end), text);
+}
+
+/**
  * CommonJS for ES module text the native compiler emitted, with `import.meta.env` read from the runner's global. TypeScript
  * does the lowering, not esbuild, so the comments stay: the coverage analysis reads `@tslaws-exempt` from this output.
  */
 function lowerEmitted(text: string, file: string): string {
-  const source = text
-    .replace(/\bimport\.meta\.env\b/g, `globalThis.${importMetaEnvGlobal}`)
-    .replace(/\bimport\.meta\b/g, '({})');
-  return ts.transpileModule(source, {
+  return ts.transpileModule(rewriteImportMeta(text, file), {
     fileName: file,
     compilerOptions: {
       module: ts.ModuleKind.CommonJS,

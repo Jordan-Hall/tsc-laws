@@ -10,20 +10,29 @@ export const importMetaEnvGlobal = '__tslawsImportMetaEnv';
 /** The value of `import.meta.env` in every place a law runs. */
 export type ImportMetaEnv = Record<string, string | boolean>;
 
-/** The `env` setting of tslaws.json: a name to a string (or a boolean, for `DEV`, `PROD` and `SSR`). */
+/** The keys that are booleans, as in Vite; every other name is a string. */
+const booleanKeys = new Set(['DEV', 'PROD', 'SSR']);
+
+/** The `env` setting of tslaws.json: a name to a string, or to a boolean for `DEV`, `PROD` and `SSR` (and only those). */
 export function parseEnvConfig(raw: unknown): Record<string, string | boolean> {
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw))
     throw new Error(`tslaws.json: "env" must be an object of names to strings, got ${JSON.stringify(raw)}`);
-  for (const [key, value] of Object.entries(raw))
-    if (typeof value !== 'string' && typeof value !== 'boolean')
-      throw new Error(`tslaws.json: "env.${key}" must be a string or a boolean, got ${JSON.stringify(value)}`);
+  for (const [key, value] of Object.entries(raw)) {
+    const want = booleanKeys.has(key) ? 'boolean' : 'string';
+    if (typeof value !== want)
+      throw new Error(`tslaws.json: "env.${key}" must be a ${want}, got ${JSON.stringify(value)}`);
+  }
   return raw as Record<string, string | boolean>;
 }
 
+/** The prefix of the `process.env` entries a page may see: Vite's convention for values that are safe to ship. */
+const publicPrefix = 'VITE_';
+
 /**
- * The environment of a law: every `process.env` entry, then `MODE` (`test`), `DEV` (true), `PROD` (false), `SSR` (true
- * in Node, false in a page) and `BASE_URL` (`/`), then the `env` of tslaws.json, which overrides all of it. `MODE` and
- * `BASE_URL` keep the value `process.env` gives them.
+ * The environment of a law: every `process.env` entry in Node, but in a page only those that start with `VITE_` (a page
+ * runs project and dependency code that could send what it reads, so credentials in the process stay out), then `MODE`
+ * (`test`), `DEV` (true), `PROD` (false), `SSR` (true in Node, false in a page) and `BASE_URL` (`/`), then the `env` of
+ * tslaws.json, which overrides all of it. `MODE` and `BASE_URL` keep the value `process.env` gives them.
  */
 export function importMetaEnvOf(
   configured: Record<string, string | boolean> | undefined,
@@ -31,7 +40,8 @@ export function importMetaEnvOf(
   processEnv: NodeJS.ProcessEnv = process.env,
 ): ImportMetaEnv {
   const env: ImportMetaEnv = {};
-  for (const [key, value] of Object.entries(processEnv)) if (value !== undefined) env[key] = value;
+  for (const [key, value] of Object.entries(processEnv))
+    if (value !== undefined && (surface === 'node' || key.startsWith(publicPrefix))) env[key] = value;
   return {
     ...env,
     MODE: processEnv.MODE ?? 'test',
