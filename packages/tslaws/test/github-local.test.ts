@@ -440,6 +440,16 @@ describe('merge on demand', () => {
     assert.equal(code, 0, out);
     assert.equal(wrote(calls).length, 1);
   });
+  it('holds a maintainer to approvers that name only admin, and lets an admin through', async () => {
+    const github = { bot: 'tslaws[bot]', approvers: ['admin'] };
+    const maint = await run('merge', { ...dispatch('maint'), github, permissions: { maint: 'maintain' } });
+    assert.equal(maint.code, 1);
+    assert.match(maint.out, /@maint needs admin access to accept in this project on demand/);
+    assert.equal(wrote(maint.calls).length, 0);
+    const owner = await run('merge', { ...dispatch('owner'), github, permissions: { owner: 'admin' } });
+    assert.equal(owner.code, 0, owner.out);
+    assert.equal(wrote(owner.calls).length, 1);
+  });
   it('refuses someone with only write access', async () => {
     const { code, out, calls } = await run('merge', { ...dispatch('dev'), permissions: { dev: 'write' } });
     assert.equal(code, 1);

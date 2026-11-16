@@ -1074,6 +1074,20 @@ async function merge(ctx: GithubContext): Promise<number> {
     // commit that changed it must be trusted. (The bot refuses to build on an untrusted lock, and a maintainer answers
     // for the lock they merge, so an older change under a trusted commit was vouched for by whoever made that commit.)
     if (dispatched) {
+      // No pull request means no author or reviewers to match, so the project's access levels decide: whoever starts
+      // or re-runs the job must reach the lowest level its "approvers" names (admin when it names only admin), and
+      // never less than maintain.
+      const levels = config.approvers.flatMap((kind) => (kind in rank ? [rank[kind]!] : []));
+      const needed = Math.max(rank.maintain!, ...(levels.length > 0 ? [Math.min(...levels)] : []));
+      let short: string | undefined;
+      for (const login of new Set(rerunner === '' ? [starter] : [starter, rerunner]))
+        if (short === undefined && (await permissionRank(api, name, login).catch(() => 0)) < needed) short = login;
+      if (short !== undefined) {
+        stop(
+          `tslaws: @${short} needs ${needed >= rank.admin! ? 'admin' : 'admin or maintain'} access to accept in this project on demand (its approvers are ${config.approvers.join(', ')}); nothing accepted.`,
+        );
+        continue;
+      }
       const latest = await api(
         'GET',
         `/repos/${name}/commits?sha=${encodeURIComponent(config.branch)}&path=${encodeURIComponent(lockPath)}&per_page=1`,
