@@ -415,7 +415,9 @@ Projects built with Vite, rsbuild or Bun write things that Node does not accept 
 written, in three ways.
 
 `import.meta.env` is an object wherever a law runs: in a property worker, in the main process (end-to-end laws), and in a
-browser page. It holds every `process.env` entry, then `MODE` (`test`), `DEV` (`true`), `PROD` (`false`), `SSR` (`true` for a
+browser page. It holds every `process.env` entry for a Node law, but for a browser law only the entries whose name starts with `VITE_`: a
+page runs project and dependency code that can send what it reads, so other values in the process (tokens, credentials) stay
+out of it. Then `MODE` (`test`), `DEV` (`true`), `PROD` (`false`), `SSR` (`true` for a
 Node law, `false` for a browser law) and `BASE_URL` (`/`), then the `env` of `tslaws.json`, which overrides everything before
 it. `MODE` and `BASE_URL` keep the value `process.env` gives them when it has one.
 
@@ -423,7 +425,8 @@ it. `MODE` and `BASE_URL` keep the value `process.env` gives them when it has on
 { "env": { "VITE_API_URL": "http://localhost:3000", "MODE": "staging" } }
 ```
 
-Each value is a string, or a boolean for `DEV`, `PROD` and `SSR`; another type is a config error that names the key. The
+Each value is a string, except `DEV`, `PROD` and `SSR`, which are booleans; another type is a config error that names the key
+(`"SSR": "false"` is rejected, as the string would be truthy). The
 compilers read the project as ES modules, so `import.meta` is not an error, and the output is lowered to CommonJS with
 `import.meta.env` rewritten to a global (`globalThis.__tslawsImportMetaEnv`) that the runner sets before any law module loads.
 TypeScript files that Node loads itself (a workspace package that exports its `.ts` source) get the same rewrite through a
