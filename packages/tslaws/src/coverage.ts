@@ -6,12 +6,13 @@
 // but only once the exemption is in tsc-laws.lock, so an agent cannot exempt its own code.
 import { parseGithubConfig } from './github.ts';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
-import { dirname, join, relative, resolve } from 'node:path';
+import { dirname, isAbsolute, join, posix, relative, resolve } from 'node:path';
 import ts from 'typescript';
 import { parseE2eConfig, type E2eConfig } from './e2e.ts';
 import { globMatcher } from './globs.ts';
 import { customLawFile } from './lawFiles.ts';
 import { certifyProblem, type CertifyMode } from './certificates.ts';
+import { importMetaEnvOf, parseEnvConfig, type ImportMetaEnv } from './runtimeEnv.ts';
 import { solversProblem, type SolverName } from './solvers.ts';
 
 export interface CoverageConfig {
@@ -42,6 +43,11 @@ export interface CoverageConfig {
   certify?: CertifyMode;
   /** esbuild plugin modules (paths relative to tslaws.json) that teach the browser bundler new source formats. */
   bundlerPlugins?: string[];
+  /**
+   * `import.meta.env` for code laws reach, on top of `process.env` and the defaults (`MODE` `test`, `DEV`, `PROD`, `SSR`,
+   * `BASE_URL`); its entries override both. See runtimeEnv.ts.
+   */
+  env?: Record<string, string | boolean>;
   /** Run settings; a command line flag beats them and they beat the built-in default. */
   runs?: number;
   propertyTimeoutMs?: number;
@@ -61,9 +67,12 @@ const configKeys = [
   'compilerOptions',
   'e2e',
   'bundlerPlugins',
+  'env',
   'github',
   ...settingKeys,
 ];
+/** Keys that steer inheritance and discovery rather than a run; `readConfig` acts on them and drops them. */
+const structuralKeys = ['extends', 'projects'];
 
 export interface Uncovered {
   file: string;
@@ -89,17 +98,31 @@ interface Module {
   imports: Map<string, string>;
 }
 
-/** Validates the top level of tslaws.json: known keys only, and the run settings are integers of at least 1. */
-export function parseConfig(raw: unknown): CoverageConfig {
+/** Why `value` is not a usable `projects` list (directory globs relative to the file), or undefined. */
+export function projectsProblem(value: unknown): string | undefined {
+  if (
+    !Array.isArray(value) ||
+    value.some((entry) => typeof entry !== 'string' || entry.replace(/^!/, '') === '' || entry.startsWith('/'))
+  )
+    return `"projects" must be an array of directory globs relative to tslaws.json, got ${JSON.stringify(value)}`;
+  return undefined;
+}
+
+/** The top-level checks that hold for one file on its own; `source` names that file in every message. */
+function checkFile(raw: unknown, source: string): Record<string, unknown> {
   const fail = (message: string): never => {
-    throw new Error(`tslaws.json: ${message}`);
+    throw new Error(`${source}: ${message}`);
   };
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return fail('must be a JSON object');
   const object = raw as Record<string, unknown>;
   for (const key of Object.keys(object)) {
-    if (key !== '$schema' && !configKeys.includes(key))
-      fail(`unknown option "${key}"; supported options are ${configKeys.join(', ')}`);
+    if (key !== '$schema' && !configKeys.includes(key) && !structuralKeys.includes(key))
+      fail(`unknown option "${key}"; supported options are ${[...configKeys, ...structuralKeys].join(', ')}`);
   }
+  if (object.extends !== undefined && (typeof object.extends !== 'string' || object.extends === ''))
+    fail(`"extends" must be a path to another tslaws.json, got ${JSON.stringify(object.extends)}`);
+  const projects = object.projects === undefined ? undefined : projectsProblem(object.projects);
+  if (projects !== undefined) fail(projects);
   for (const key of settingKeys) {
     const value = object[key];
     if (value !== undefined && (typeof value !== 'number' || !Number.isInteger(value) || value < 1))
@@ -111,6 +134,7 @@ export function parseConfig(raw: unknown): CoverageConfig {
     (!Array.isArray(plugins) || plugins.some((entry) => typeof entry !== 'string' || entry === ''))
   )
     fail(`"bundlerPlugins" must be an array of module paths, got ${JSON.stringify(plugins)}`);
+  if (object.env !== undefined) parseEnvConfig(object.env);
   const levels = object.levels;
   if (levels !== undefined && levels !== 'names' && levels !== 'imports')
     fail(`"levels" must be "names" or "imports", got ${JSON.stringify(levels)}`);
@@ -125,16 +149,131 @@ export function parseConfig(raw: unknown): CoverageConfig {
       laws.some((entry) => typeof entry !== 'string' || entry.replace(/^!/, '') === '' || entry.startsWith('/')))
   )
     fail(`"laws" must be an array of project-relative globs, got ${JSON.stringify(laws)}`);
-  if (object.github !== undefined) parseGithubConfig(object.github);
-  return object as CoverageConfig;
+  return object;
 }
 
+/**
+ * Validates the top level of tslaws.json: known keys only, and the run settings are integers of at least 1. `extends`
+ * and `projects` are accepted (a string, and a list of globs) but are not part of the result: `readConfig` has
+ * already acted on `extends`, and discovery reads `projects` from the file itself.
+ */
+export function parseConfig(raw: unknown, source = 'tslaws.json'): CoverageConfig {
+  const object = checkFile(raw, source);
+  if (object.github !== undefined) parseGithubConfig(object.github);
+  const config = { ...object };
+  for (const key of structuralKeys) delete config[key];
+  return config as CoverageConfig;
+}
+
+/**
+ * The settings that name a file or directory by path, rebased when inherited through `extends`: a value is written
+ * relative to the file that declares it (as in tsconfig), so it is rebased to the extending file. `bundlerPlugins` are
+ * module paths and `e2e.server.cwd` is the directory the dev server runs in. A trailing `[]` means every element of an
+ * array. `cover` and `laws` are not here on purpose: they are globs relative to the project that uses the config, so a
+ * shared base saying `"cover": ["src/**"]` means each package's own src/. `compilerOptions` and `github` hold no
+ * paths. Add a new file-reference option here when it is added to `configKeys`.
+ */
+const pathFields: readonly string[] = ['bundlerPlugins[]', 'e2e.server.cwd'];
+
+/** `entry`, written relative to the directory `from`, as a path relative to `to`. A leading `!` and absolute paths stay. */
+function rebase(entry: string, from: string, to: string): string {
+  const negated = entry.startsWith('!');
+  const body = negated ? entry.slice(1) : entry;
+  const prefix = relative(to, from).replaceAll('\\', '/');
+  if (prefix === '' || isAbsolute(body)) return entry;
+  return `${negated ? '!' : ''}${posix.join(prefix, body)}`;
+}
+
+function rebaseFields(config: Record<string, unknown>, from: string, to: string): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...config };
+  for (const field of pathFields) {
+    const parts = field.split('.');
+    let node = out;
+    for (const [index, part] of parts.entries()) {
+      const list = part.endsWith('[]');
+      const key = list ? part.slice(0, -2) : part;
+      const value = node[key];
+      if (index === parts.length - 1) {
+        if (list && Array.isArray(value))
+          node[key] = value.map((entry) => (typeof entry === 'string' ? rebase(entry, from, to) : entry));
+        else if (!list && typeof value === 'string') node[key] = rebase(value, from, to);
+      } else if (isPlain(value)) {
+        node[key] = { ...value };
+        node = node[key] as Record<string, unknown>;
+      } else break;
+    }
+  }
+  return out;
+}
+
+function isPlain(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/** Objects merge key by key; anything else, arrays included, is replaced. The child wins. */
+function deepMerge(base: Record<string, unknown>, child: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...base };
+  for (const [key, value] of Object.entries(child)) {
+    if (key === '__proto__') continue;
+    const inherited = out[key];
+    out[key] = isPlain(value) && isPlain(inherited) ? deepMerge(inherited, value) : value;
+  }
+  return out;
+}
+
+/**
+ * Loads `file` and the files it `extends`, merged, with paths relative to the directory of `file`. `chain` holds the
+ * files being loaded, outermost first, so a cycle or a missing file is reported with the way it was reached; every
+ * file read is added to `loaded`.
+ */
+function loadMerged(file: string, cwd: string, chain: string[], loaded: string[]): Record<string, unknown> {
+  const shown = (path: string): string => relative(cwd, path).replaceAll('\\', '/') || path;
+  const trail = [...chain, file];
+  let text: string;
+  try {
+    text = readFileSync(file, 'utf8');
+  } catch {
+    throw new Error(`${shown(file)}: no such file (reached by extends: ${trail.map(shown).join(' -> ')})`);
+  }
+  loaded.push(file);
+  let json: unknown;
+  try {
+    json = JSON.parse(text);
+  } catch (error) {
+    throw new Error(`${shown(file)}: ${(error as Error).message}`);
+  }
+  const { extends: parent, ...own } = checkFile(json, shown(file));
+  if (parent === undefined) return own;
+  const baseFile = resolve(dirname(file), parent as string);
+  if (trail.includes(baseFile))
+    throw new Error(`${shown(file)}: "extends" forms a cycle (${[...trail, baseFile].map(shown).join(' -> ')})`);
+  const base = rebaseFields(loadMerged(baseFile, cwd, trail, loaded), dirname(baseFile), dirname(file));
+  // `projects` lists directories under the file that wrote it, so it is never inherited.
+  delete base.projects;
+  return deepMerge(base, own);
+}
+
+/** The settings of tslaws.json in `cwd`, with every `extends` followed; `{}` when there is no file. */
 export function readConfig(cwd: string): CoverageConfig {
   const path = join(cwd, 'tslaws.json');
   if (!existsSync(path)) return {};
-  const config = parseConfig(JSON.parse(readFileSync(path, 'utf8')) as unknown);
-  if (config.e2e !== undefined) config.e2e = parseE2eConfig(config.e2e);
+  const loaded: string[] = [];
+  const merged = loadMerged(path, cwd, [], loaded);
+  let config: CoverageConfig;
+  try {
+    config = parseConfig(merged);
+    if (config.e2e !== undefined) config.e2e = parseE2eConfig(config.e2e);
+  } catch (error) {
+    if (loaded.length === 1) throw error;
+    const files = loaded.map((file) => relative(cwd, file).replaceAll('\\', '/')).join(', ');
+    throw new Error(`${(error as Error).message} (merged from ${files})`);
+  }
   return config;
+}
+
+/** The `import.meta.env` of the project's laws: `process.env`, the defaults and the `env` of tslaws.json. */
+export function lawEnv(cwd: string, surface: 'node' | 'browser'): ImportMetaEnv {
+  return importMetaEnvOf(readConfig(cwd).env, surface);
 }
 
 /** Source files matching the `cover` globs (a leading `!` excludes), minus laws files and declarations. */

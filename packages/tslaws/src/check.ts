@@ -13,12 +13,13 @@ import {
   type LawTypes,
   type PropertyOutcome,
 } from './property.ts';
-import { analyzeCoverage, coverFiles, readConfig } from './coverage.ts';
+import { analyzeCoverage, coverFiles, lawEnv, readConfig } from './coverage.ts';
 import { derivedStore } from './derived.ts';
 import { jobs } from './pool.ts';
 import { certificateFailure, recordOf, writeRecords, type CertificateRecord } from './certificates.ts';
 import { compareLock, lawHash, lawKey, readLock, type Lock } from './lock.ts';
 import { crossCheck, disagreement } from './propertyRun.ts';
+import { prepareRuntime } from './runtimeEnv.ts';
 import { proveLaw } from './smt.ts';
 import { decodeExample, loadExamples, regressionMessage, saveExample } from './regressions.ts';
 import { closeBrowser, runBrowserLaw } from './browser.ts';
@@ -218,6 +219,8 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
     (programOf ??= built.program ?? ts.createProgram(declarationFiles(built.outDir), compilerOptions));
   const sourceCwd = built.program === undefined ? undefined : options.cwd;
   const require = createRequire(import.meta.url);
+  // Laws that run here (end to end) and the code they load read `import.meta.env` and extensionless imports as bundled.
+  prepareRuntime(lawEnv(options.cwd, 'node'));
 
   const runOne = async (law: ManifestLaw, index: number): Promise<void> => {
     const buffered: (() => void)[] = [];

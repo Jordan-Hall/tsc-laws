@@ -4,6 +4,7 @@ import { join, resolve } from 'node:path';
 import type * as fc from 'fast-check';
 import ts from 'typescript';
 import { GeneratorFactory } from './generators.ts';
+import { lawEnv } from './coverage.ts';
 import { arbitraryOf, UnsupportedType, type Plan } from './plan.ts';
 import { type PropertyOutcome } from './propertyRun.ts';
 import { WorkerPool } from './pool.ts';
@@ -139,6 +140,12 @@ export async function runLawGuarded(
     };
     current.once('message', onMessage);
     // Functions cannot cross to the worker; it needs only the numbers.
-    current.postMessage({ outDir, law, plans, options: { ...options, onEvent: undefined } });
+    current.postMessage({
+      outDir,
+      law,
+      plans,
+      options: { ...options, onEvent: undefined },
+      env: lawEnv(options.cwd, 'node'),
+    });
   });
 }

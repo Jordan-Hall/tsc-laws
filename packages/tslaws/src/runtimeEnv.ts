@@ -1,0 +1,113 @@
+// What laws need at run time to load project code written for a bundler: `import.meta.env`, and relative imports without
+// an extension in TypeScript files that Node loads itself. Nothing here loads the TypeScript compiler, so a property worker
+// can import it.
+import nodeModule from 'node:module';
+import { fileURLToPath } from 'node:url';
+
+/** The global that `import.meta.env` is rewritten to, in compiled laws, bundles and natively loaded TypeScript. */
+export const importMetaEnvGlobal = '__tslawsImportMetaEnv';
+
+/** The value of `import.meta.env` in every place a law runs. */
+export type ImportMetaEnv = Record<string, string | boolean>;
+
+/** The `env` setting of tslaws.json: a name to a string (or a boolean, for `DEV`, `PROD` and `SSR`). */
+export function parseEnvConfig(raw: unknown): Record<string, string | boolean> {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw))
+    throw new Error(`tslaws.json: "env" must be an object of names to strings, got ${JSON.stringify(raw)}`);
+  for (const [key, value] of Object.entries(raw))
+    if (typeof value !== 'string' && typeof value !== 'boolean')
+      throw new Error(`tslaws.json: "env.${key}" must be a string or a boolean, got ${JSON.stringify(value)}`);
+  return raw as Record<string, string | boolean>;
+}
+
+/**
+ * The environment of a law: every `process.env` entry, then `MODE` (`test`), `DEV` (true), `PROD` (false), `SSR` (true
+ * in Node, false in a page) and `BASE_URL` (`/`), then the `env` of tslaws.json, which overrides all of it. `MODE` and
+ * `BASE_URL` keep the value `process.env` gives them.
+ */
+export function importMetaEnvOf(
+  configured: Record<string, string | boolean> | undefined,
+  surface: 'node' | 'browser',
+  processEnv: NodeJS.ProcessEnv = process.env,
+): ImportMetaEnv {
+  const env: ImportMetaEnv = {};
+  for (const [key, value] of Object.entries(processEnv)) if (value !== undefined) env[key] = value;
+  return {
+    ...env,
+    MODE: processEnv.MODE ?? 'test',
+    DEV: true,
+    PROD: false,
+    SSR: surface === 'node',
+    BASE_URL: processEnv.BASE_URL ?? '/',
+    ...configured,
+  };
+}
+
+/** Sets `import.meta.env` for everything loaded afterwards in this thread. */
+export function setImportMetaEnv(env: ImportMetaEnv): void {
+  (globalThis as Record<string, unknown>)[importMetaEnvGlobal] = env;
+}
+
+const sourceFile = /\.[cm]?tsx?$/;
+const unresolved = ['.ts', '.tsx', '.mts', '.js', '/index.ts', '/index.tsx'];
+const javascriptEnding = /\.[cm]?jsx?$/;
+const slash = (path: string): string => path.replaceAll(String.fromCharCode(92), '/');
+
+/** Whether `url` is project TypeScript: a TypeScript file that is not inside a dependency. */
+function isProjectSource(url: string | undefined): boolean {
+  if (url === undefined || !url.startsWith('file:')) return false;
+  const path = slash(fileURLToPath(url));
+  return sourceFile.test(path) && !path.includes('/node_modules/');
+}
+
+let installed: boolean | undefined;
+
+/**
+ * Teaches Node's own loading of TypeScript two things a bundler does: a relative import without an extension
+ * (`export * from './database'`) finds the `.ts` file, and `import.meta.env` reads the environment of the laws. Both
+ * apply to project TypeScript only, never to anything under `node_modules`. Needs `module.registerHooks`
+ * (Node 22.15, 23.5 or later); on an older Node the hooks are skipped and such imports fail as they did before.
+ * Returns whether the hooks are in place. Registers once per thread.
+ */
+export function installLoaderHooks(): boolean {
+  if (installed !== undefined) return installed;
+  installed = false;
+  const { registerHooks } = nodeModule;
+  if (typeof registerHooks !== 'function') return installed;
+  registerHooks({
+    resolve(specifier, context, nextResolve) {
+      try {
+        return nextResolve(specifier, context);
+      } catch (error) {
+        if (!specifier.startsWith('.') || !isProjectSource(context.parentURL)) throw error;
+        const stem = specifier.replace(javascriptEnding, '');
+        const candidates = unresolved.map((ending) => `${specifier}${ending}`);
+        // `./a.js` names a `.ts` file in TypeScript, as `./a` does for a bundler.
+        if (stem !== specifier) candidates.push(`${stem}.ts`, `${stem}.tsx`, `${stem}.mts`);
+        for (const candidate of candidates) {
+          try {
+            return nextResolve(candidate, context);
+          } catch {
+            // The next candidate.
+          }
+        }
+        throw error;
+      }
+    },
+    load(url, context, nextLoad) {
+      const loaded = nextLoad(url, context);
+      if (loaded.source === undefined || loaded.source === null || !isProjectSource(url)) return loaded;
+      const text = typeof loaded.source === 'string' ? loaded.source : new TextDecoder().decode(loaded.source);
+      if (!text.includes('import.meta.env')) return loaded;
+      return { ...loaded, source: text.replace(/\bimport\.meta\.env\b/g, `globalThis.${importMetaEnvGlobal}`) };
+    },
+  });
+  installed = true;
+  return installed;
+}
+
+/** Everything a law needs before its module loads: the hooks and the environment. */
+export function prepareRuntime(env: ImportMetaEnv): void {
+  installLoaderHooks();
+  setImportMetaEnv(env);
+}
