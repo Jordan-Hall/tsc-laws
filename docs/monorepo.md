@@ -4,10 +4,10 @@ A monorepo has many packages and each can have laws of its own. A package is a t
 `tslaws.json` and its own `tsc-laws.lock`. Run `tslaws` at the repository root and it runs every project in turn, each
 in its own directory with its own config and lock, then ends with one summary line. You do not write a loop.
 
-The examples use a repository shaped like dds: Bun workspaces, `apps/*` and `packages/*`, about nineteen packages.
+The examples use a Bun workspace with `apps/*` and `packages/*`, about nineteen packages in all.
 
 ```
-dds/
+repo/
   package.json              { "workspaces": ["apps/*", "packages/*"] }
   tslaws.json               the project list and the settings every package shares
   apps/web/
@@ -55,7 +55,7 @@ is not inherited.
 Paths in an inherited file follow one rule:
 
 - Globs are relative to the project that uses the config. `cover` and `laws` are globs. A root that says
-  `"cover": ["src/**/*.ts"]` means each package's own `src/`, so one setting covers all nineteen.
+  `"cover": ["src/**/*.ts"]` means each package's own `src/`, so one setting covers every package.
 - References to a file are relative to the file that declares them, as in `tsconfig.json`. `bundlerPlugins` module paths
   and `e2e.server.cwd` are rebased to each package, so `"bundlerPlugins": ["./tools/plugin.mjs"]` in the root file still
   finds the root's `tools/plugin.mjs` from `packages/ui`.
