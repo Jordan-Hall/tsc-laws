@@ -138,6 +138,13 @@ test('release notes are the version section without its heading', () => {
   assert.equal(releaseNotes('## 1.0.0\n\n## 0.9.0\n\n- x\n', '1.0.0'), undefined);
 });
 
+test('release notes read a release-please heading', () => {
+  const log =
+    '# T\n\n## [0.8.0](https://x/compare/laws-v0.7.0...laws-v0.8.0) (2026-11-16)\n\n### Features\n\n* a\n\n## 0.7.0\n\n- old\n';
+  assert.equal(releaseNotes(log, '0.8.0'), '### Features\n\n* a\n');
+  assert.equal(releaseNotes(log, '0.8'), undefined);
+});
+
 const branchLog = [
   'remote: error: GH013: Repository rule violations found for refs/heads/main.',
   'remote: - Changes must be made through a pull request.',

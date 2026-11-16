@@ -1,0 +1,50 @@
+name: release-please
+
+# Every push to main updates one release pull request, `chore(release): tslaws <next>`, from the conventional commits since
+# the latest `laws-v*` release: it bumps tslaws and the VS Code extension, the lockfile and CHANGELOG-LAWS.md. Nothing is
+# pushed to main directly, so the main ruleset needs no bypass. Merging that pull request creates the `laws-v<version>` tag
+# and GitHub release, then runs laws.yml on the tag, which builds, uploads the assets and publishes to npm and the
+# marketplaces. See RELEASING-LAWS.md.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-please
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    name: release-please
+    if: github.repository == 'Jordan-Hall/tsc-laws'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      actions: write
+    env:
+      # Whether RELEASE_PLEASE_TOKEN is set (a step's if cannot read secrets).
+      OWN_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN != '' }}
+    steps:
+      - id: release
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          # Optional: a token that is not GITHUB_TOKEN (a GitHub App token or a fine-grained PAT) makes CI run on the release
+          # pull request and makes the tag push start laws.yml by itself.
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || github.token }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+      - name: Start the release pipeline on the tag
+        if: steps.release.outputs.release_created == 'true' && env.OWN_TOKEN != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.release.outputs.tag_name }}
+        # A tag created with GITHUB_TOKEN starts no workflow, so run laws.yml on it explicitly. With RELEASE_PLEASE_TOKEN set
+        # the tag push starts it, and this step is skipped so the release is not published twice.
+        run: gh workflow run laws.yml --ref "$TAG"

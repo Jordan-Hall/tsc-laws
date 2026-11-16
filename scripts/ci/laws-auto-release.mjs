@@ -109,7 +109,11 @@ export function insertSection(changelog, section) {
 /** The `## <version>` section of a changelog without its heading, or undefined when there is none (or it is empty). */
 export function releaseNotes(changelog, version) {
   const lines = changelog.replace(/\r\n/g, '\n').split('\n');
-  const start = lines.findIndex((line) => line.trim() === `## ${version}`);
+  // `## 0.7.0` (hand-written) or `## [0.8.0](compare-url) (date)` (release-please).
+  const start = lines.findIndex((line) => {
+    const heading = line.trim();
+    return heading === `## ${version}` || heading.startsWith(`## [${version}]`);
+  });
   if (start === -1) return undefined;
   const end = lines.findIndex((line, i) => i > start && line.startsWith('## '));
   const body = lines
@@ -187,7 +191,7 @@ export function classifyPushFailure(output) {
     /GH013|Changes must be made through a pull request|protected branch|rule violations?/i.test(text)
   ) {
     for (const m of text.matchAll(/rule violations found for (refs\/\S+?)\.?(?=\s|$)/gi)) {
-      blocked.add(/^refs\/tags\//.test(m[1]) ? 'tag' : 'branch');
+      blocked.add(m[1].startsWith('refs/tags/') ? 'tag' : 'branch');
     }
     if (blocked.size === 0) return /refs\/heads\/main/.test(text) ? 'protected-branch' : 'protected-unknown';
   }

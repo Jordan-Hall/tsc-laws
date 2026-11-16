@@ -2,66 +2,48 @@
 
 The upstream `RELEASING.md` covers tsc-ts. tsc-laws releases are separate and tagged `laws-v<version>`.
 
+## Automatic releases (release-please)
+
+Releases are made by [release-please](https://github.com/googleapis/release-please) from conventional commit messages
+(`.github/workflows/release-please.yml`, configured by `release-please-config.json` and `.release-please-manifest.json`).
+
+1. Every push to `main` opens or updates one pull request, `chore(release): tslaws <next>`. It sets the version in
+   `version.txt`, `packages/tslaws/package.json`, `packages/vscode-tslaws/package.json` and the lockfile, and adds the
+   version's section to `CHANGELOG-LAWS.md`.
+2. Merging it creates the `laws-v<version>` tag and the GitHub release, then runs the `tsc-laws` workflow (`laws.yml`) on the
+   tag.
+3. That run tests, builds the compilers, uploads them, the `tslaws` tarball and the `.vsix` to the release, publishes to npm
+   and, when enabled, to the VS Code Marketplace and Open VSX.
+
+Nothing is pushed to `main` directly, so the `main` ruleset (pull requests required) needs no bypass.
+
+- **The bump** follows the commits since the latest `laws-v*` release: `fix:` and `perf:` give a patch, `feat:` a minor,
+  `type!:` or a `BREAKING CHANGE:` footer a major. `chore:`, `ci:`, `docs:`, `test:`, `style:` and `refactor:` commits, and
+  commits that only touch `apps/`, `docs/` or `examples/`, release nothing and stay out of the changelog.
+- **To choose a version**, add a `Release-As: 1.0.0` footer to a commit on `main`.
+- **To hold a release**, leave the release pull request open; it keeps collecting commits.
+- **Tokens:** with the default `GITHUB_TOKEN`, CI does not run on the release pull request, and the tag does not start a
+  workflow by itself, so the release-please workflow starts `laws.yml` on the tag. To have CI checks on the release pull
+  request, add a repository secret `RELEASE_PLEASE_TOKEN` (a GitHub App token or a fine-grained token with contents, pull
+  requests and issues write); the tag push then starts `laws.yml` and the explicit start is skipped.
+- **Setup:** Settings > Actions > General > Workflow permissions: read and write, and "Allow GitHub Actions to create and
+  approve pull requests".
+- **To retry** a failed publish: `gh workflow run laws.yml --ref laws-v<version>` (or re-run it in the Actions tab). The
+  release step uploads to the existing release instead of creating a second one.
+
+## By hand
+
+A tag pushed by hand releases too (the release then gets the version's `CHANGELOG-LAWS.md` section, or generated notes):
+
 ```sh
-# set "version" in packages/tslaws/package.json, commit to main, then
+# set the version in version.txt and both package.json files, merge to main, then
 git tag -a laws-v0.1.2 -m "tsc-laws 0.1.2" && git push origin laws-v0.1.2
 ```
 
-The `tsc-laws` workflow then:
-
-1. runs the tests on Linux and Windows,
-2. builds the compiler for macOS (arm64, x64), Linux (arm64, x64 glibc) and Windows (x64),
-3. publishes a GitHub release with those builds and the `tslaws` tarball,
-4. publishes to npm, if enabled (below).
+Set `.release-please-manifest.json` to the same version in that pull request so release-please continues from it.
 
 The GitHub release, the npm packages (`tslaws` and the compilers) and the VS Code extension are released together from one tag
-and share its version. The release notes are the version's section of `CHANGELOG-LAWS.md` (generated notes when the tag has
-no section).
-
-## Automatic releases
-
-Every push to `main` runs `.github/workflows/laws-auto-release.yml`. When the commits since the latest `laws-v*` tag change
-code, it releases (the manual steps above are then only a fallback):
-
-- Code is anything under `packages/tslaws`, `packages/tsc-ts`, `packages/vscode-tslaws` or `scripts`, plus `upstream.json`,
-  `package.json`, `package-lock.json` and `.github/workflows/laws.yml`. Markdown, `docs/`, `examples/`, `LICENSE`, `CHANGELOG*`
-  and other workflow files do not count, so a merge with only those releases nothing.
-- The bump is patch, minor if a commit subject starts with `feat`, major for `type!:` or a `BREAKING CHANGE:` footer.
-- It sets the version in both packages and the lockfile, adds a section to `CHANGELOG-LAWS.md`, commits
-  `chore(release): tslaws <version>`, tags `laws-v<version>`, pushes both to `main`, and runs `laws.yml` on the tag (a tag
-  pushed with the default token starts no workflow by itself). That run tests, builds, publishes the GitHub release and
-  publishes to npm. The auto-release workflow never publishes to npm itself.
-- To skip a release, put `[skip release]` in the message of the merge or squash commit that triggers the run (a manual run reads it from the latest main commit instead). If main moves before the release push, nothing is pushed and the run ends with a notice; the newer push's own run releases. The release commit is
-  never released again.
-- To retry: if the tag exists but the pipeline failed, run `gh workflow run laws.yml --ref laws-v<version>` (or re-run it in
-  the Actions tab). If no tag was pushed, re-run the `tslaws auto release` workflow. It does nothing when the tag exists.
-
-Setup: the workflow pushes to `main` as `github-actions[bot]`, so Actions need read and write workflow permissions, and the
-bot must be able to push to `main`.
-
-### When a ruleset blocks the release
-
-A version bump is a commit, and the release tags it. A ruleset can block either. While a ruleset that requires a pull request
-has no bypass for the bot, or a tag ruleset restricts creating `laws-v*` tags, the workflow cannot release. It does not fail: it
-pushes the commit and tag atomically, reads which ref GitHub rejected from git's per-ref lines (`GH013`, "push declined due
-to repository rule violations"), prints one warning, writes it to the job summary, and stops. Nothing is pushed, no tag is made,
-`laws.yml` is not started, and the run is green. The local release commit and tag exist only in that run's checkout and are
-discarded; a re-run starts from a clean checkout and plans again.
-
-The warning names the ref that was rejected:
-
-- **main** (the commit): the `main` ruleset needs a bypass for the bot (Settings > Rules > Rulesets > the `main` ruleset >
-  Bypass list > add the GitHub Actions app or a repository role the bot holds), or releases must go through a pull request: bump
-  the versions and `CHANGELOG-LAWS.md` in a pull request, merge it, then tag the merge commit by hand
-  (`git tag -a laws-v<version> -m "tsc-laws <version>" && git push origin laws-v<version>`) or run
-  `gh workflow run laws.yml --ref laws-v<version>`.
-- **the tag**: the ruleset that targets tags matching `laws-v*` (Settings > Rules) needs a bypass for the bot, or must not block
-  creating those tags.
-- **both**: do both.
-- **unknown**: a repository rule blocked the push but git did not say which ref. Check both rulesets.
-
-A push refused because `main` moved (not a fast-forward) ends with a notice and nothing pushed; the newer push releases. Any
-other failure (authentication, network) still fails the run and shows git's output.
+and share its version.
 
 ## npm
 
