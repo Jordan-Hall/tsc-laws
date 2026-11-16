@@ -1,12 +1,14 @@
 import { spawnSync, type SpawnSyncOptionsWithStringEncoding, type SpawnSyncReturns } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { transformSync } from 'esbuild';
 import ts from 'typescript';
 import { lowerLawFile, usesLegacySyntax, type Lowered } from './lower.ts';
 import { readConfig } from './coverage.ts';
+import { installLawRuntime, runtimeFile, type LawRuntime } from './lawRuntime.ts';
+import { commonRoot, readResolution, resolutionCompilerOptions, type Resolution } from './tsconfigResolve.ts';
 import { importMetaEnvGlobal } from './runtimeEnv.ts';
 import type { ManifestLaw } from './types.ts';
 
@@ -244,15 +246,36 @@ const lacksEnvTypes = (text: string): boolean => /TS2339.*'ImportMeta'/.test(tex
 const usesImportMeta = (text: string): boolean => /TS1343/.test(text);
 
 /**
- * Compiles `files` to CommonJS plus declarations in `.tslaws/out` under `cwd`, so `node_modules` still resolves. The
- * built-in compiler always reads the project as ES modules and lowers the output. The native compiler does so only for a
- * project that uses `import.meta` (it reports TS1343 as CommonJS), so every other project builds exactly as before.
+ * Compiles `files` to CommonJS plus declarations in `.tslaws/out` under `cwd`, so `node_modules` still resolves.
+ * Module resolution follows the project's tsconfig (see tsconfigResolve.ts), for the compiler and, through the runtime
+ * hooks, for Node when it loads the output. The built-in compiler always reads the project as ES modules and lowers the
+ * output. The native compiler does so only for a project that uses `import.meta` (it reports TS1343 as CommonJS), so
+ * every other project builds exactly as before.
  */
 export function build(compiler: string, files: string[], cwd: string): BuildResult {
+  const resolution = readResolution(cwd);
+  const result = compile(compiler, files, cwd, resolution);
+  installLawRuntime({ cwd, options: resolution?.options, outDir: result.outDir });
+  try {
+    writeFileSync(
+      join(result.outDir, runtimeFile),
+      JSON.stringify({ cwd, options: resolution?.options, outDir: result.outDir } satisfies LawRuntime),
+    );
+  } catch {
+    // A worker then loads the output without the aliases; the error it reports names the import.
+  }
+  return result;
+}
+
+function compile(compiler: string, files: string[], cwd: string, resolution: Resolution | undefined): BuildResult {
   const outDir = join(cwd, '.tslaws', 'out');
+  const builtin = usesBuiltin(compiler, files, cwd);
+  // The compiler wants every source file under one root, and `paths` can lead out of the project (a sibling package),
+  // so the root is the common ancestor and the output mirrors the tree from there. The built-in path writes only what
+  // is inside the project, so it keeps the project as the root.
+  const root = builtin ? cwd : commonRoot(cwd, resolution?.options);
   const extra = compilerFlags(readConfig(cwd).compilerOptions);
-  const args = [
-    '--ignoreConfig',
+  const flags = [
     '--target',
     'es2022',
     '--module',
@@ -264,21 +287,37 @@ export function build(compiler: string, files: string[], cwd: string): BuildResu
     '--esModuleInterop',
     '--declaration',
     '--rootDir',
-    cwd,
+    root,
     '--outDir',
     outDir,
     ...extra,
-    ...files,
   ];
-  const builtin = usesBuiltin(compiler, files, cwd);
-  const reused = builtin ? cachedBuild(args, files, cwd, outDir) : undefined;
+  const args = ['--ignoreConfig', ...flags, ...files];
+  // What the options say is part of what was built.
+  const keyArgs = [...args, JSON.stringify(resolution?.options ?? null)];
+  const reused = builtin ? cachedBuild(keyArgs, files, cwd, outDir) : undefined;
   if (reused !== undefined) return reused;
   rmSync(outDir, { recursive: true, force: true });
   mkdirSync(outDir, { recursive: true });
   // The output is CommonJS whatever the project's own package.json says.
   writeFileSync(join(outDir, 'package.json'), JSON.stringify({ type: 'commonjs' }));
-  if (builtin) return buildBuiltin(args, files, cwd, outDir);
-  let run = launch(compiler, args, { cwd, encoding: 'utf8', maxBuffer: 64 << 20, env: compilerEnv(cwd, compiler) });
+  if (builtin) return buildBuiltin(args, keyArgs, files, cwd, outDir, resolution);
+  // `paths` is not a command line option, so the compiler gets the resolution options in a generated tsconfig that names
+  // the files; everything else stays a flag, and flags win over the file. Without any, the flags alone do as before.
+  const project = join(cwd, '.tslaws', 'resolution.tsconfig.json');
+  const argsFor = (flagList: string[], more: string[] = []): string[] => {
+    if (resolution === undefined) return ['--ignoreConfig', ...flagList, ...files, ...more];
+    writeFileSync(
+      project,
+      JSON.stringify({
+        compilerOptions: { ...resolution.options, rootDir: root },
+        files: [...files, ...more].map((f) => resolve(cwd, f)),
+      }),
+    );
+    return ['-p', project, ...flagList];
+  };
+  const given = argsFor(flags);
+  let run = launch(compiler, given, { cwd, encoding: 'utf8', maxBuffer: 64 << 20, env: compilerEnv(cwd, compiler) });
   // A compiler that dies without a word (out of memory on a busy machine) is run again; a type error always says so.
   for (
     let attempt = 0;
@@ -288,30 +327,35 @@ export function build(compiler: string, files: string[], cwd: string): BuildResu
     `${run.stdout ?? ''}${run.stderr ?? ''}`.trim() === '';
     attempt += 1
   )
-    run = launch(compiler, args, { cwd, encoding: 'utf8', maxBuffer: 64 << 20, env: compilerEnv(cwd, compiler) });
+    run = launch(compiler, given, { cwd, encoding: 'utf8', maxBuffer: 64 << 20, env: compilerEnv(cwd, compiler) });
   if (run.error !== undefined) throw new Error(cannotRun(compiler, run.error));
   const output = (): string => `${run.stdout ?? ''}${run.stderr ?? ''}`;
-  const again = (again: string[]): void => {
-    const next = launch(compiler, again, {
+  const again = (next: string[]): void => {
+    const rerun = launch(compiler, next, {
       cwd,
       encoding: 'utf8',
       maxBuffer: 64 << 20,
       env: compilerEnv(cwd, compiler),
     });
-    if (next.error === undefined) run = next;
+    if (rerun.error === undefined) run = rerun;
   };
   // CommonJS output does not allow `import.meta`: read the project as ES modules instead, and lower the output below.
   let lowering = false;
-  let used = args;
+  let used = flags;
   if (usesImportMeta(output())) {
-    used = args.map((arg, i) => (args[i - 1] === '--module' ? 'preserve' : arg));
+    used = flags.map((flag, i) => (flags[i - 1] === '--module' ? 'preserve' : flag));
     lowering = true;
-    again(used);
+    again(argsFor(used));
   }
   // A project without an `ImportMeta.env` declaration gets the one that ships with tslaws, and the build runs again.
-  if (lacksEnvTypes(output())) again([...used, envTypes]);
+  if (lacksEnvTypes(output())) again(argsFor(used, [envTypes]));
   if (lowering) lowerEmittedModules(outDir);
-  return { outDir, diagnostics: `${run.stdout ?? ''}${run.stderr ?? ''}`.trim(), ok: run.status === 0 };
+  // The project's own files sit where they do under the root, so its output is that deep in `outDir`.
+  return {
+    outDir: join(outDir, relative(root, cwd)),
+    diagnostics: output().trim(),
+    ok: run.status === 0,
+  };
 }
 
 /** Every `node_modules/@types` from `cwd` upwards: where the compiler looks for global declarations by default. */
@@ -325,11 +369,20 @@ function typeRootsOf(cwd: string): string[] {
 }
 
 /** Compiles in-process with stock TypeScript: law files are lowered in memory, nothing is written next to them. */
-function buildBuiltin(args: string[], files: string[], cwd: string, outDir: string): BuildResult {
+function buildBuiltin(
+  args: string[],
+  keyArgs: string[],
+  files: string[],
+  cwd: string,
+  outDir: string,
+  resolution: Resolution | undefined,
+): BuildResult {
   const at = args.indexOf('--moduleResolution');
   const parsed = ts.parseCommandLine(at < 0 ? args : [...args.slice(0, at), ...args.slice(at + 2)]);
   // Types resolve the bundler way, so package `exports` (tslaws/browser) work; the ES output is made CommonJS below.
   const options: ts.CompilerOptions = {
+    // The tsconfig's resolution first, so the project's own compilerOptions win over it.
+    ...resolutionCompilerOptions(resolution?.options),
     ...parsed.options,
     module: ts.ModuleKind.ESNext,
     moduleResolution: ts.ModuleResolutionKind.Bundler,
@@ -357,7 +410,7 @@ function buildBuiltin(args: string[], files: string[], cwd: string, outDir: stri
   const roots = parsed.fileNames.map((f) => resolve(cwd, f));
   let used = options;
   let program = ts.createProgram(roots, options, host);
-  let diagnostics = ts.getPreEmitDiagnostics(program);
+  let diagnostics: readonly ts.Diagnostic[] = ts.getPreEmitDiagnostics(program);
   // An error may only be a global the narrow setup left out (`process`, `document`, a test runner's types): check again
   // with exactly what the compiler's own defaults include before reporting it, so no law is judged on less than before.
   if (
@@ -381,10 +434,15 @@ function buildBuiltin(args: string[], files: string[], cwd: string, outDir: stri
     diagnostics = ts.getPreEmitDiagnostics(program);
   }
   program.emit(undefined, (name, text) => {
+    // A source file outside the project (reached through `paths`) is checked and loaded in place, never written here.
+    const under = relative(outDir, name);
+    if (under.startsWith('..') || isAbsolute(under)) return;
     mkdirSync(dirname(name), { recursive: true });
     const code = name.endsWith('.js') ? lowerModule(text, name) : text;
     writeFileSync(name, code);
   });
+  // Such a file is outside the root directory by design (TS6059).
+  diagnostics = diagnostics.filter((d) => d.code !== 6059);
   const text = ts.formatDiagnostics(diagnostics, {
     getCanonicalFileName: (f) => f,
     getCurrentDirectory: () => cwd,
@@ -397,7 +455,7 @@ function buildBuiltin(args: string[], files: string[], cwd: string, outDir: stri
   };
   Object.defineProperty(result, 'program', { value: program, enumerable: false });
   saveBuildCache(
-    args,
+    keyArgs,
     files,
     cwd,
     result,
