@@ -5,6 +5,7 @@
   "ignorePatterns": [
     "THIRD_PARTY_NOTICES.md",
     "LICENSE",
+    "CHANGELOG-LAWS.md",
     "packages/tsc-ts/tests/fixtures/**",
     "**/dist/**",
     "**/.next/**",
