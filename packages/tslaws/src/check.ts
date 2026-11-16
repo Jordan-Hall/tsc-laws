@@ -2,6 +2,7 @@ import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import ts from 'typescript';
 import { build, readManifest } from './compile.ts';
+import { withResolution } from './lawRuntime.ts';
 import {
   compilerOptions,
   declarationFiles,
@@ -68,7 +69,7 @@ export function exemptionsOf(options: CheckOptions): string[] {
   const covered = coverFiles(options.cwd, readConfig(options.cwd).cover ?? []);
   const compiled = [...new Set([...options.files, ...covered])];
   const built = build(options.compiler, compiled, options.cwd);
-  const program = ts.createProgram(declarationFiles(built.outDir), compilerOptions);
+  const program = ts.createProgram(declarationFiles(built.outDir), withResolution(built.outDir, compilerOptions));
   return analyzeCoverage({
     cwd: options.cwd,
     outDir: built.outDir,
@@ -211,7 +212,8 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
   const derived = derivedStore(options.cwd, built.key);
   let programOf: ts.Program | undefined;
   const program = (): ts.Program =>
-    (programOf ??= built.program ?? ts.createProgram(declarationFiles(built.outDir), compilerOptions));
+    (programOf ??=
+      built.program ?? ts.createProgram(declarationFiles(built.outDir), withResolution(built.outDir, compilerOptions)));
   const sourceCwd = built.program === undefined ? undefined : options.cwd;
   const require = createRequire(import.meta.url);
 

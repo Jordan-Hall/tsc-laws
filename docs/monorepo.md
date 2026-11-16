@@ -115,6 +115,36 @@ root with more than one project they stop with a message naming `--project <dir>
 the repository has exactly one project) they run in that project's directory. `tslaws init --project .` scaffolds the
 root itself.
 
+## TypeScript resolution
+
+Laws are compiled with the module resolution of the package's own tsconfig, so a law can import what the package's code
+imports: `paths` aliases, `baseUrl`, packages that `extends` a shared config (`"extends": "@repo/typescript-config/base.json"`
+resolves through `node_modules`), and workspace packages that point `exports` or `types` at TypeScript source.
+
+```json
+{ "tsconfig": "tsconfig.audits.json" }
+```
+
+- The tsconfig is the one `"tsconfig"` names in `tslaws.json` (relative to that file), else the nearest `tsconfig.json`
+  from the project directory upwards. `"tsconfig": false` opts out. A named file that is missing is an error; a
+  discovered one that cannot be read is skipped.
+- Only resolution options are taken, after following `extends`: `baseUrl`, `paths`, `rootDirs`, `customConditions`,
+  `moduleSuffixes`, `resolveJsonModule`, `allowArbitraryExtensions`, `resolvePackageJsonExports` and
+  `resolvePackageJsonImports`, with every path made absolute and `baseUrl` folded into `paths`.
+  `allowImportingTsExtensions` becomes `rewriteRelativeImportExtensions`, because tslaws emits JavaScript. `include`,
+  `files`, `outDir`, `noEmit`, `module`, `moduleResolution`, `types` and `typeRoots` are ignored: tslaws chooses the law
+  files, compiles to CommonJS and resolves the way a bundler does. `compilerOptions` in `tslaws.json` still win.
+- The compiler gets these options in-process (the built-in path) or in a generated `.tslaws/resolution.tsconfig.json`
+  (the tsc-laws compiler, where `paths` is not a command line option). The compiler's flags stay on the command line and
+  win over that file.
+- The compiled laws run in Node, which knows nothing of `paths`. When Node cannot resolve an import, tslaws asks
+  TypeScript with the same options and runs the file it finds (the compiled output for project source). `.ts` and
+  `.tsx` files that no compiler wrote out, such as a workspace package's source reached through `node_modules`, are
+  transpiled with esbuild as they load. Property workers get the same hooks, and the browser bundler uses the same
+  tsconfig through esbuild.
+- Source files outside the project reached through `paths` are type-checked and loaded in place. They work with the
+  built-in path (laws written as `law(...)` calls); the tsc-laws compiler reports them as outside its root directory.
+
 ## One lock per package
 
 Every project has its own `tsc-laws.lock`, written by `tslaws accept` in that project (`tslaws accept` at the root asks

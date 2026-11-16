@@ -201,6 +201,16 @@ const assetExtensions = [
   '.eot',
 ];
 
+/**
+ * esbuild reads the nearest tsconfig.json by itself (paths, baseUrl, extends); this carries the tslaws.json setting over:
+ * a named file, or none for `"tsconfig": false`.
+ */
+function bundlerTsconfig(cwd: string): { tsconfig: string } | { tsconfigRaw: string } | object {
+  const setting = readConfig(cwd).tsconfig;
+  if (setting === false) return { tsconfigRaw: '{}' };
+  return setting === undefined ? {} : { tsconfig: resolve(cwd, setting) };
+}
+
 /** The project's `bundlerPlugins` from tslaws.json come first, so they can claim a format before the built-in resolver. */
 async function bundleOf(jsFile: string, cwd: string): Promise<{ js: string; css: string }> {
   const projectPlugins = await loadBundlerPlugins(cwd, readConfig(cwd).bundlerPlugins);
@@ -219,6 +229,7 @@ async function bundleOf(jsFile: string, cwd: string): Promise<{ js: string; css:
       platform: 'browser',
       target: 'es2022',
       absWorkingDir: cwd,
+      ...bundlerTsconfig(cwd),
       logLevel: 'silent',
       define: { 'process.env.NODE_ENV': '"development"', global: 'globalThis' },
     });

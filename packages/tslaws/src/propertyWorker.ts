@@ -1,5 +1,8 @@
+import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { join } from 'node:path';
 import { parentPort } from 'node:worker_threads';
+import { installLawRuntime, runtimeFile, type LawRuntime } from './lawRuntime.ts';
 import { arbitraryOf, type Plan } from './plan.ts';
 import { jsPath, runLaw, summarise } from './propertyRun.ts';
 import type { CheckOptions, ManifestLaw } from './types.ts';
@@ -14,6 +17,8 @@ parentPort!.on(
     try {
       const { outDir, law, plans, options } = request;
       const generators = plans.map(arbitraryOf);
+      // The build left the project's module resolution beside the output (aliases from its tsconfig, TypeScript sources).
+      installLawRuntime(JSON.parse(readFileSync(join(outDir, runtimeFile), 'utf8')) as LawRuntime);
       // The worker outlives a check, and the code may have been recompiled since the last one.
       for (const loaded of Object.keys(require.cache)) if (loaded.startsWith(outDir)) delete require.cache[loaded];
       const fn = (require(jsPath(outDir, law.file)) as Record<string, (...args: unknown[]) => unknown>)[

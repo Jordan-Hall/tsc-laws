@@ -330,6 +330,9 @@ Supported keys: `jsx` (`react`, `react-jsx`, `react-jsxdev`, `preserve`), `jsxFa
 `jsxImportSource`, `experimentalDecorators`, `emitDecoratorMetadata`, `useDefineForClassFields`, `strict`,
 `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `allowJs`, `checkJs` (booleans), `lib` and `types` (arrays of strings). Values replace the
 fixed defaults where they clash (`strict`). An unknown key is an error that lists these; nothing else reaches the compiler.
+
+Module resolution is not set here: it comes from the package's tsconfig (`paths`, `baseUrl`, `extends`), so laws can import
+the way the package does. See [TypeScript resolution](monorepo.md#typescript-resolution); `"tsconfig": false` turns it off.
 `jsx: "preserve"` type-checks but emits `.jsx`, which the runner cannot load, so use `react` or `react-jsx` for laws.
 
 Plain JavaScript: set `allowJs` (and `checkJs` to type-check it). The compiler then emits the `.js` sources and a `.d.ts` for
