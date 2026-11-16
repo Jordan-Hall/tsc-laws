@@ -200,6 +200,8 @@ cannot hide a change.
 
 ## Monorepos
 
+To run `check`, `list` and the other commands across every package from the root, see [monorepo.md](monorepo.md).
+
 The project (`tslaws.json` and `tsc-laws.lock`) need not sit at the repository root. Keep one `tslaws.json` per package
 and run `merge` for each package, one after another, in a single job. Do not use a matrix with a job-level concurrency
 group: a group holds one pending job, so with three or more packages GitHub cancels the jobs waiting behind the first.

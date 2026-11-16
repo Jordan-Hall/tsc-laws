@@ -785,6 +785,9 @@ tslaws check [files...] [--json] [--summary] [--watch] [--runs N] [--seed N] [--
              [--proof-timeout MS] [--proposed] [--compiler PATH] [--reporter text|json|junit|github|ndjson] [--law NAME[,NAME]]
 ```
 
+In a monorepo, run these at the root and they run in every project; `--project <dir>` and `--filter <glob>` narrow it. See
+[monorepo.md](monorepo.md).
+
 Exit status is 0 only when every law is `proved`, `bounded` or `tested`, nothing is `uncovered`, the files compile and the
 lock matches. `--json` adds a `hint` to each result: the concrete next action for an agent. `--summary` prints only the
 results that do not pass, and the totals.
