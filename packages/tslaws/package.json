@@ -1,6 +1,6 @@
 {
   "name": "tslaws",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "description": "Runs and checks `law` declarations compiled by tsc-laws: property tests, SMT proofs, tamper lock.",
   "bin": {
     "tslaws": "bin/tslaws.js"
@@ -8,6 +8,7 @@
   "files": [
     "bin",
     "dist",
+    "env.d.ts",
     "hooks",
     "ui"
   ],
@@ -41,6 +42,9 @@
     "./adapters/element": {
       "types": "./dist/adapters/element.d.ts",
       "default": "./dist/adapters/element.js"
+    },
+    "./env": {
+      "types": "./env.d.ts"
     },
     "./internal/*": "./dist/*.js",
     "./package.json": "./package.json"

@@ -7,6 +7,7 @@ import Module, { createRequire } from 'node:module';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { transformSync } from 'esbuild';
 import type ts from 'typescript';
+import { importMetaEnvGlobal } from './runtimeEnv.ts';
 import { nearestTsconfig, readResolutionOf, resolutionCompilerOptions } from './tsconfigResolve.ts';
 import type { ResolutionOptions } from './tsconfigResolve.ts';
 
@@ -79,6 +80,7 @@ export function installLawRuntime(runtime: LawRuntime): void {
         target: 'es2022',
         sourcefile: file,
         sourcemap: 'inline',
+        define: { 'import.meta.env': `globalThis.${importMetaEnvGlobal}` },
       });
       module._compile(code, file);
     };

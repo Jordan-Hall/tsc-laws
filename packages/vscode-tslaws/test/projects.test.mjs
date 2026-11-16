@@ -47,25 +47,6 @@ test('without a tslaws.json the workspace folder stands in, and the search stops
   assert.deepEqual(locate(at('src/x.ts'), [at()], none), { dir: at(), folder: at(), kind: 'folder' });
 });
 
-test('a workspace root without its own tslaws.json is a root, so Check runs every project', () => {
-  const npm = io({
-    [at('package.json')]: JSON.stringify({ workspaces: ['packages/*'] }),
-    [at('packages/a/tslaws.json')]: '{}',
-  });
-  assert.equal(locate(at('scripts/x.ts'), [at()], npm).kind, 'root');
-  const bunObject = io({ [at('package.json')]: JSON.stringify({ workspaces: { packages: ['packages/*'] } }) });
-  assert.equal(locate(at('x.ts'), [at()], bunObject).kind, 'root');
-  const pnpm = io({ [at('pnpm-workspace.yaml')]: 'packages: [packages/*]' });
-  assert.equal(locate(at('x.ts'), [at()], pnpm).kind, 'root');
-  // A package.json without workspaces, or one that does not parse, leaves the folder standing in.
-  const plain = io({ [at('package.json')]: JSON.stringify({ name: 'x' }) });
-  assert.equal(locate(at('x.ts'), [at()], plain).kind, 'folder');
-  const broken = io({ [at('package.json')]: '{' });
-  assert.equal(locate(at('x.ts'), [at()], broken).kind, 'folder');
-  // The workspace's own project still wins for a file inside it.
-  assert.equal(locate(at('packages/a/x.ts'), [at()], npm).kind, 'project');
-});
-
 test('a file outside every workspace folder has no project', () => {
   assert.equal(locate(path.resolve('/elsewhere/x.ts'), [at()], monorepo), undefined);
   assert.equal(locate(at('x.ts'), [], monorepo), undefined);

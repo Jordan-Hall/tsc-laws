@@ -8,7 +8,6 @@
 //   project  the nearest tslaws.json (a package of a monorepo, or the one project of a folder)
 //   root     the nearest tslaws.json lists `projects`, so it is the root of a monorepo and the file is in none of them
 //   folder   there is no tslaws.json up to the workspace folder; the folder itself stands in, as it always did
-//            (a folder that declares workspaces is a root instead: its projects are the ones to check)
 
 /**
  * @typedef {{dir: string, folder: string, kind: 'project' | 'root' | 'folder'}} Project
@@ -67,24 +66,7 @@ function locateIn(start, folders, io) {
     if (config !== undefined) return { dir, folder, kind: config.lists ? 'root' : 'project' };
     if (fold(path, dir) === fold(path, folder) || path.dirname(dir) === dir) break;
   }
-  return { dir: norm(path, folder), folder, kind: isWorkspaceRoot(io, folder) ? 'root' : 'folder' };
-}
-
-/**
- * Whether a folder with no tslaws.json is a workspace root: its package.json lists `workspaces` (npm, yarn, bun) or it
- * has a pnpm-workspace.yaml. tslaws finds the projects below it, so it is a root run, not one project.
- */
-function isWorkspaceRoot(io, folder) {
-  const path = io.path ?? nodePath;
-  if (io.fs.existsSync(path.join(folder, 'pnpm-workspace.yaml'))) return true;
-  const file = path.join(folder, 'package.json');
-  if (!io.fs.existsSync(file)) return false;
-  try {
-    const { workspaces } = JSON.parse(io.fs.readFileSync(file, 'utf8'));
-    return Array.isArray(workspaces) || (workspaces !== null && typeof workspaces === 'object');
-  } catch {
-    return false;
-  }
+  return { dir: norm(path, folder), folder, kind: 'folder' };
 }
 
 /** The project that holds the file `file`. */

@@ -136,7 +136,7 @@ A project is selected when:
 
 Dependencies come from three places:
 
-1. The nearest `package.json`, for `dependencies`, `devDependencies`, `peerDependencies` and `optionalDependencies` that name another workspace
+1. The nearest `package.json`, for `dependencies`, `devDependencies` and `peerDependencies` that name another workspace
    package. A package without a `tslaws.json` is still a node in the graph, so `app` depends on `util` depends on `core`
    selects `app` when `core` changes, even though `util` has no laws.
 2. The project's tsconfig `paths` (the same resolution as [TypeScript resolution](#typescript-resolution)): a target that
