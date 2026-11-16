@@ -64,6 +64,21 @@ describe('tsconfig resolution', () => {
     assert.deepEqual(statuses, ['tested'], text);
   });
 
+  it('runs the aliased file when a paths entry shares its name with an installed package', async () => {
+    const options = project('shadow', {
+      'app/tsconfig.json': json({ compilerOptions: { paths: { dup: ['./lib/dup.ts'] } } }),
+      'app/lib/dup.ts': double,
+      // The installed package of the same name has a different answer; the type checker never looked at it.
+      'app/node_modules/dup/package.json': json({ name: 'dup', main: 'index.js', types: 'index.d.ts' }),
+      'app/node_modules/dup/index.js': 'exports.double = (n) => n * 3;\n',
+      'app/node_modules/dup/index.d.ts': 'export declare const double: (n: number) => number;\n',
+      'app/a.laws.ts': law('dup'),
+    });
+    const { statuses, text, compiled } = await run(options);
+    assert.equal(compiled, true, text);
+    assert.deepEqual(statuses, ['tested'], text);
+  });
+
   it('imports through baseUrl', async () => {
     const options = project('base', {
       'app/tsconfig.json': json({ compilerOptions: { baseUrl: './src' } }),

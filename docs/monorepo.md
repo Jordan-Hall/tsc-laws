@@ -107,7 +107,7 @@ and a flag that matches nothing is an error listing the projects there are.
 
 Machine output stays valid. `--json` (or `--reporter json`) on `check`, `list` or `mutate` prints one object keyed by
 project path (`.` for the root) with each project's report as the value, and the summary goes to stderr.
-`--reporter ndjson` tags every line with a `project` field. `--reporter junit` is refused at a root, because several XML
+`--reporter ndjson` tags every line with a `project` field. `--reporter junit` is refused at a root with several projects, because several XML
 documents do not make one; run it with `--project`. File arguments are refused too: they belong to one project.
 
 `init`, `ui`, `mcp`, `github`, `propose`, `promote`, `delegate`, `migrate` and `check --watch` work in one project. At a
@@ -136,7 +136,7 @@ A project is selected when:
 
 Dependencies come from three places:
 
-1. The nearest `package.json`, for `dependencies`, `devDependencies` and `peerDependencies` that name another workspace
+1. The nearest `package.json`, for `dependencies`, `devDependencies`, `peerDependencies` and `optionalDependencies` that name another workspace
    package. A package without a `tslaws.json` is still a node in the graph, so `app` depends on `util` depends on `core`
    selects `app` when `core` changes, even though `util` has no laws.
 2. The project's tsconfig `paths` (the same resolution as [TypeScript resolution](#typescript-resolution)): a target that

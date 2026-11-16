@@ -4,8 +4,9 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
-import { projectsProblem } from './coverage.ts';
+import { projectsProblem, readConfig } from './coverage.ts';
 import { globMatcher } from './globs.ts';
+import { customLawFile } from './lawFiles.ts';
 import { readResolution } from './tsconfigResolve.ts';
 
 export interface Project {
@@ -135,16 +136,22 @@ function matchingProjects(root: string, globs: string[], marker = 'tslaws.json')
 }
 
 /**
- * The cheap test for "the root has laws of its own": a tsc-laws.lock beside it, or any `*.laws.ts` file outside the
- * projects. It reads directory names only (no file contents), skips node_modules, .git, dist and each project, and
- * stops at the first hit.
+ * The cheap test for "the root has laws of its own": a tsc-laws.lock beside it, any `*.laws.ts` file outside the
+ * projects, or a file the root's `laws` globs pick that declares a law. It reads directory names, and the contents of
+ * only those files the `laws` globs match; it skips node_modules, .git, dist and each project, and stops at the first
+ * hit.
  */
 function rootHasLaws(root: string, projects: string[]): boolean {
   if (existsSync(join(root, 'tsc-laws.lock'))) return true;
   const inProject = new Set(projects);
+  const custom = customLawFile(root, readConfig(root).laws);
   const walk = (path: string): boolean => {
     for (const entry of readdirSync(path === '' ? root : join(root, path), { withFileTypes: true })) {
-      if (entry.isFile() && entry.name.endsWith('.laws.ts')) return true;
+      if (
+        entry.isFile() &&
+        (entry.name.endsWith('.laws.ts') || custom(path === '' ? entry.name : `${path}/${entry.name}`))
+      )
+        return true;
       if (!entry.isDirectory() || skipped.has(entry.name)) continue;
       const next = path === '' ? entry.name : `${path}/${entry.name}`;
       if (!inProject.has(next) && walk(next)) return true;
@@ -258,7 +265,7 @@ function manifestIn(dir: string): Manifest | undefined {
   if (!existsSync(file)) return undefined;
   try {
     const json = readJson(file) as Record<string, unknown> | null;
-    const deps = ['dependencies', 'devDependencies', 'peerDependencies'].flatMap((key) => {
+    const deps = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'].flatMap((key) => {
       const table = json?.[key];
       return typeof table === 'object' && table !== null ? Object.keys(table) : [];
     });
@@ -273,7 +280,7 @@ const parentOf = (path: string): string => (path.includes('/') ? path.slice(0, p
 
 /**
  * The dependency edges between the projects and workspace packages of `root`, as `path -> paths it depends on`. Sources:
- * package.json `dependencies`, `devDependencies` and `peerDependencies` that name another workspace package (a project
+ * package.json `dependencies`, `devDependencies`, `peerDependencies` and `optionalDependencies` that name another workspace package (a project
  * without a package.json uses the nearest one above it); tsconfig `paths` targets that land in another package (a
  * wildcard inside a target, as in `packages/*` + `/src`, counts as every package under it); and a nested package or
  * project, which depends on the one around it.

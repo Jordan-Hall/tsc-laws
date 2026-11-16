@@ -145,6 +145,17 @@ describe('affectedProjects', () => {
     ]);
   });
 
+  it('follows an optional dependency on another workspace package', () => {
+    const root = workspace();
+    write(root, {
+      'packages/leaf/package.json': pkg('@w/leaf', {}, { optionalDependencies: { '@w/shared': '*' } }),
+    });
+    git(root, 'add', '-A');
+    git(root, 'commit', '-q', '-m', 'leaf needs shared, optionally');
+    const paths = selected({ 'packages/shared/src/s.ts': 'export const s = 2;\n' }, root);
+    assert.ok(paths.includes('packages/leaf'), paths.join(', '));
+  });
+
   it('follows a package without a tslaws.json to the projects that depend on it', () => {
     assert.deepEqual(selected({ 'packages/util/src/u.ts': 'export const u = 2;\n' }), ['packages/tool']);
   });

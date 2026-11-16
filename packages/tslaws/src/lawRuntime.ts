@@ -59,10 +59,14 @@ export function installLawRuntime(runtime: LawRuntime): void {
   const internals = Module as unknown as Internals;
   const original = internals._resolveFilename;
   internals._resolveFilename = function (request, parent, ...rest) {
+    const bare = !/^(\.{0,2}[\\/]|\w:|node:)/.test(request) && !Module.isBuiltin(request);
+    // An alias that shares its name with an installed package must run what the type checker saw, not the package.
+    const mapped = bare && namedInPaths(request, parent) ? resolveThroughTypeScript(request, parent) : undefined;
+    if (mapped !== undefined) return mapped;
     try {
       return original.call(this, request, parent, ...rest);
     } catch (error) {
-      const found = /^(\.{0,2}[\\/]|\w:)/.test(request) ? undefined : resolveThroughTypeScript(request, parent);
+      const found = bare ? resolveThroughTypeScript(request, parent) : undefined;
       if (found === undefined) throw error;
       return found;
     }
@@ -90,6 +94,21 @@ function optionsAround(file: string): ResolutionOptions | undefined {
     byConfig.set(config, options);
   }
   return options;
+}
+
+/** Whether a `paths` entry other than the catch-all `*` (`baseUrl`'s fallback) names the request. */
+function namedInPaths(request: string, parent: Parent | undefined): boolean {
+  const from = parent?.filename;
+  if (from === undefined) return false;
+  const owner = [...projects].find(([top]) => from.startsWith(top + sep))?.[1];
+  const options = owner === undefined ? optionsAround(from) : owner.options;
+  return Object.keys((options?.paths ?? {}) as Record<string, unknown>).some((pattern) => {
+    if (pattern === '*') return false;
+    const star = pattern.indexOf('*');
+    if (star < 0) return pattern === request;
+    const [head, tail] = [pattern.slice(0, star), pattern.slice(star + 1)];
+    return request.length >= head.length + tail.length && request.startsWith(head) && request.endsWith(tail);
+  });
 }
 
 function resolveThroughTypeScript(request: string, parent: Parent | undefined): string | undefined {
