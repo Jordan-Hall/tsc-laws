@@ -53,12 +53,18 @@ and share its version.
 Packages published, all at the same version: `tslaws`, `tslaws-compiler-darwin-arm64`, `tslaws-compiler-darwin-x64`,
 `tslaws-compiler-linux-arm64-gnu`, `tslaws-compiler-linux-x64-gnu`, `tslaws-compiler-win32-x64-msvc`. There is no musl build yet.
 
-To publish, add the repository secret `NPM_TOKEN` (Settings, Secrets and variables, Actions): an npm token that can publish these
-package names (a granular access token with read and write on packages, allowed to publish without a 2FA prompt). The `npm` job
-runs on every `laws-v*` tag after the GitHub release succeeds.
+Publishing uses **npm trusted publishing**: each package trusts the workflow `laws.yml` in `Jordan-Hall/tsc-laws`, and the
+`npm` job proves it is that workflow with a GitHub OIDC token. No npm token is stored in the repository. The `npm` job runs on
+every `laws-v*` tag after the GitHub release succeeds.
 
-Instead of a token you can use **trusted publishing**: on npmjs.com give each package a trusted publisher (repository
-`Jordan-Hall/tsc-laws`, workflow `laws.yml`). A package that does not exist yet must be published once with a token.
+To set it up, or to add a package, log in to npm and run, for each package:
+
+```sh
+npm trust github <package> --repo Jordan-Hall/tsc-laws --file laws.yml --allow-publish --registry https://registry.npmjs.org
+```
+
+`npm trust list <package>` shows what is trusted. A package that does not exist yet must be published once by hand before it
+can be trusted.
 
 Packages are published with provenance and `--access public`. The compilers go first, so `tslaws` never points at a package
 that is not there yet. `scripts/ci/laws-npm.mjs` does the repacking (the tsc-ts platform tarballs are renamed and given

@@ -184,8 +184,8 @@ jobs:
             gh release create "$GITHUB_REF_NAME" release/* --title "$GITHUB_REF_NAME" "${notes[@]}"
           fi
 
-  # Publishes to npm on a release tag, using the repository secret NPM_TOKEN (Settings > Secrets and variables > Actions),
-  # or npm trusted publishing if you set that up instead. See RELEASING-LAWS.md.
+  # Publishes to npm on a release tag with npm trusted publishing: npm trusts this workflow through GitHub OIDC
+  # (id-token: write), so no npm token is stored. See RELEASING-LAWS.md.
   npm:
     name: npm
     if: startsWith(github.ref, 'refs/tags/laws-v')
@@ -212,10 +212,7 @@ jobs:
           node scripts/ci/laws-npm.mjs main compilers
           cp LICENSE packages/tslaws/LICENSE
       - name: Publish
-        env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          if [ -n "$NPM_TOKEN" ]; then echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" >> ~/.npmrc; fi
           # The compilers first, so tslaws never points at a package that is not there yet.
           # "./" matters: npm reads a bare "compilers/x.tgz" as the GitHub repository compilers/x.tgz.
           for package in ./compilers/*.tgz; do
