@@ -6,6 +6,10 @@
 //   refuted   Z3 found an input and the compiled law really fails on it in JavaScript
 //   unsupported  the code uses something that does not lower, Z3 gave up, or its model did not reproduce
 //
+// Arrays that are parameters, with integer, bigint or boolean elements, are SMT arrays of any length, and a loop
+// becomes constrained Horn clauses for Z3's Spacer to find an invariant (see chc.ts): both are proved without a bound.
+// Anything outside that runs again the old way, with arrays cut at `bound` and loops unrolled that far.
+//
 // Numbers are IEEE doubles; a parameter typed `number` is a finite double (the generators exclude NaN and the
 // infinities too). A parameter typed `int` (from 'tslaws') or `bigint` is an exact integer.
 import { createHash } from 'node:crypto';
@@ -16,9 +20,10 @@ import { jobs, WorkerPool } from './pool.ts';
 import { dirname, join } from 'node:path';
 import ts from 'typescript';
 import { certify, type Certificate, type CertifyMode } from './certificates.ts';
+import { runExternalSolvers, solveHorn, type HornSystem } from './chc.ts';
 import { lawKey } from './lock.ts';
 import { SolverUnavailable, secondOpinion, type SolverName } from './solvers.ts';
-import { Executor, SpuriousModel, Unsupported, and, type Value } from './symbolic.ts';
+import { Executor, SpuriousModel, Unsupported, and, not, type SeqElement, type Value } from './symbolic.ts';
 import type { ManifestLaw } from './types.ts';
 
 export type Shape =
@@ -64,24 +69,51 @@ type Sort = 'fp' | 'int' | 'bool' | 'str';
 interface Declared {
   name: string;
   sort: Sort;
+  /** The term to ask the model for when it is not the constant itself (an element of an array of any length). */
+  term?: string;
 }
+
+/** How many elements of an array of any length a counterexample can show; a longer one is left to the bounded proof. */
+const shownElements = 16;
 
 const safeRange = (t: string): string => `(and (<= (- 9007199254740991) ${t}) (<= ${t} 9007199254740991))`;
 
 class Declarations {
   readonly lines: string[] = [];
   readonly constants: Declared[] = [];
+  /** Every `declare-const`, with its SMT sort, for the Horn clauses that quantify over them. */
+  readonly declared: { name: string; sort: string }[] = [];
+  /** The length constant of each array of any length. */
+  readonly lengths: string[] = [];
   readonly assumptions: string[] = [];
 
   constant(name: string, sort: Sort): void {
     const smt = { fp: '(_ FloatingPoint 11 53)', int: 'Int', bool: 'Bool', str: 'String' }[sort];
     this.lines.push(`(declare-const ${name} ${smt})`);
+    this.declared.push({ name, sort: smt });
     this.constants.push({ name, sort });
+  }
+
+  /** An array of any length: a length and an SMT array, and the first few elements for a counterexample to show. */
+  sequence(name: string, elem: SeqElement): void {
+    const sort = elem === 'bool' ? 'bool' : 'int';
+    this.constant(`${name}__len`, 'int');
+    this.lengths.push(`${name}__len`);
+    const smt = `(Array Int ${elem === 'bool' ? 'Bool' : 'Int'})`;
+    this.lines.push(`(declare-const ${name}__data ${smt})`);
+    this.declared.push({ name: `${name}__data`, sort: smt });
+    this.assumptions.push(`(and (<= 0 ${name}__len) (<= ${name}__len 4294967295))`);
+    for (let k = 0; k < shownElements; k += 1)
+      this.constants.push({ name: `${name}__${k}`, sort, term: `(select ${name}__data ${k})` });
   }
 }
 
 /** JavaScript strings stop near 2^29 units; a longer one would also push their lengths out of the safe integers. */
 const maxStringLength = 536870888;
+
+function sequenceElement(shape: Shape): SeqElement | undefined {
+  return shape === 'int' ? 'int' : shape === 'bigint' ? 'big' : shape === 'boolean' ? 'bool' : undefined;
+}
 
 function declareParam(
   name: string,
@@ -89,6 +121,7 @@ function declareParam(
   bound: number,
   decl: Declarations,
   intLimit: bigint | undefined,
+  theory: boolean,
 ): Value {
   if (shape === 'number') {
     decl.constant(name, 'fp');
@@ -118,17 +151,24 @@ function declareParam(
     return { k: 'str', t: name };
   }
   if (shape === undefined) throw new Unsupported('a parameter type is not modelled');
+  if ('array' in shape && theory) {
+    const elem = sequenceElement(shape.array);
+    if (elem === undefined) throw new Unsupported('arrays of this element type are proved only within the bound');
+    decl.sequence(name, elem);
+    return { k: 'seq', len: { k: 'int', t: `${name}__len` }, data: `${name}__data`, elem, id: { escaped: true } };
+  }
   if ('array' in shape) {
     const len = `${name}__len`;
     decl.constant(len, 'int');
     decl.assumptions.push(`(and (<= 0 ${len}) (<= ${len} ${bound}))`);
     const slots: Value[] = [];
-    for (let i = 0; i < bound; i += 1) slots.push(declareParam(`${name}__${i}`, shape.array, bound, decl, intLimit));
+    for (let i = 0; i < bound; i += 1)
+      slots.push(declareParam(`${name}__${i}`, shape.array, bound, decl, intLimit, theory));
     return { k: 'arr', len: { k: 'int', t: len }, slots, id: { escaped: true } };
   }
   const fields = new Map<string, Value>();
   for (const [field, fieldShape] of Object.entries(shape.fields))
-    fields.set(field, declareParam(`${name}__${field}`, fieldShape, bound, decl, intLimit));
+    fields.set(field, declareParam(`${name}__${field}`, fieldShape, bound, decl, intLimit, theory));
   return { k: 'rec', fields };
 }
 
@@ -301,7 +341,7 @@ const solvers = new WorkerPool(startWorker, Math.min(4, jobs()));
  * Runs the query, and runs it again in a fresh worker when the solver itself fell over (a WebAssembly allocation that
  * fails on a machine short of memory). A query that merely ran too long is not retried: it would only run long again.
  */
-async function solve(query: string, values: string, timeoutMs: number): Promise<{ out: string; vals: string }> {
+export async function solve(query: string, values: string, timeoutMs: number): Promise<{ out: string; vals: string }> {
   for (let attempt = 0; ; attempt += 1) {
     try {
       return await solveOnce(query, values, timeoutMs);
@@ -430,81 +470,143 @@ function keepOf(
   return { dir: certify.dir, root: certify.root, name: `${slug}-${hash}` };
 }
 
+/**
+ * One proof attempt: first with arrays of any length and loop invariants found by a Horn solver, and when that cannot
+ * express the law or reach a verdict, the bounded way (arrays and loops cut at `bound`).
+ */
 async function attempt(input: ProveInput, intLimit: bigint | undefined): Promise<ProofResult> {
-  {
-    const source = ts.createSourceFile(
-      input.jsFile,
-      readFileSync(input.jsFile, 'utf8'),
-      ts.ScriptTarget.ES2022,
-      true,
-      ts.ScriptKind.JS,
-    );
-    const fn = source.statements.find(
-      (s): s is ts.FunctionDeclaration =>
-        ts.isFunctionDeclaration(s) && s.name?.text === (input.law.symbol ?? input.law.name),
-    );
-    if (fn === undefined || fn.body === undefined)
-      throw new Unsupported('law function not found in the compiled output');
-    if (fn.parameters.length !== input.shapes.length) throw new Unsupported('parameter count mismatch');
-    const names = fn.parameters.map((p) => (ts.isIdentifier(p.name) ? p.name.text : ''));
-    const executor = new Executor(input.bound);
-    const decl = new Declarations();
-    const params = names.map((name, i) => declareParam(name, input.shapes[i], input.bound, decl, intLimit));
-    if (intLimit !== undefined) executor.bounded.push(`int values stay within ±2^26`);
-    if (input.shapes.some(containsArray)) executor.bounded.push(`arrays hold at most ${input.bound} elements`);
-    const result = executor.runLaw(input.jsFile, fn, params);
-    const holds = resultOf(result);
-    const safe = and(...executor.obligations);
-    const query = [
-      `(set-option :timeout ${input.timeoutMs})`,
-      ...decl.lines,
-      ...executor.freshDecls,
-      ...executor.defs,
-      ...[...decl.assumptions, ...executor.assumptions].map((a) => `(assert ${a})`),
-      `(assert (or (not ${holds}) (not ${safe})))`,
-      '(check-sat)',
-    ];
-    const watch = decl.constants.map((c) => (c.sort === 'fp' ? `(fp.to_real ${c.name})` : c.name));
-    // TSLAWS_DEBUG=1 keeps each query next to the compiled output, to replay in z3.
-    if (process.env.TSLAWS_DEBUG !== undefined) {
-      const dir = join(dirname(input.jsFile), '..', 'smt');
-      mkdirSync(dir, { recursive: true });
-      writeFileSync(join(dir, `${input.law.name}.smt2`), `${query.join('\n')}\n(get-model)\n`);
-    }
-    const valueQuery = watch.length === 0 ? '' : `(get-value (${watch.join(' ')}))`;
-    const { out, vals } = await solve(query.join('\n'), valueQuery, input.timeoutMs);
-    const check = out;
-    if (check.startsWith('unsat')) {
-      const assumptions = assumptionsFor(input.shapes, intLimit);
-      const text = query.join(String.fromCharCode(10));
-      const certifyQuery = async (): Promise<{ certificate?: Certificate }> =>
-        input.certify === undefined || input.certify.mode === false
-          ? {}
-          : { certificate: await certify(text, { timeoutMs: input.timeoutMs, keep: keepOf(input, input.certify) }) };
-      if (executor.bounded.length > 0)
-        return { kind: 'bounded', limits: executor.bounded, assumptions, ...(await certifyQuery()) };
-      // Only a proof that would stand is sent to the second solver.
-      const unconfirmed = await secondOpinion(input.solvers ?? [], query.join('\n'), input.timeoutMs);
-      return unconfirmed === undefined
-        ? { kind: 'proved', assumptions, ...(await certifyQuery()) }
-        : { kind: 'bounded', limits: [unconfirmed], assumptions };
-    }
-    if (check.startsWith('unknown')) throw new Unsupported(`solver gave up within ${input.timeoutMs} ms`);
-    if (!check.startsWith('sat')) throw new Unsupported(`solver said: ${check.split('\n')[0]}`);
-    const values = watch.length === 0 ? '()' : vals;
-    const pairs = parseSexp(values) as Sexp[];
-    const model = new Map<string, number | bigint | boolean | string>();
-    decl.constants.forEach((c, i) => {
-      const pair = pairs[i];
-      if (Array.isArray(pair) && pair.length === 2) model.set(c.name, modelValue(c.sort, pair[1]!));
-    });
-    const inputs = names.map((name, i) => jsValue(input.shapes[i], name, model));
-    // A model may break only an obligation, or rest on float effects the replay does not share.
-    if (input.holds(inputs)) {
-      const why = `Z3 model ${show(inputs)} passes in JavaScript (an integer may leave the safe range, an index may leave its array, or the bound cut the code)`;
-      const advice = executor.hints.length === 0 ? '' : `; ${executor.hints.join('; ')}`;
-      throw intLimit === undefined ? new SpuriousModel(why + advice) : new Unsupported(why + advice);
-    }
-    return { kind: 'refuted', model: names.map((n, i) => `${n} = ${show(inputs[i])}`).join(', '), inputs };
+  try {
+    const unbounded = await attemptWith(input, intLimit, true);
+    if (unbounded !== undefined) return unbounded;
+  } catch (error) {
+    if (!(error instanceof Unsupported)) throw error;
   }
+  return (await attemptWith(input, intLimit, false))!;
+}
+
+const declaredConstant = /^\(declare-const (\S+) (.+)\)$/;
+
+/** The Horn clauses of the loops, closed over every constant, and the query that the law and its obligations hold. */
+function hornSystem(executor: Executor, decl: Declarations, facts: string[], holds: string, safe: string): HornSystem {
+  const constants = [...decl.declared];
+  for (const line of executor.freshDecls) {
+    const m = declaredConstant.exec(line);
+    if (m !== null) constants.push({ name: m[1]!, sort: m[2]! });
+  }
+  return {
+    predicates: executor.predicates,
+    constants,
+    clauses: [...executor.clauses, `(=> ${and(...facts, not(and(holds, safe)))} false)`],
+    shared: executor.sharedTerms,
+  };
+}
+
+/**
+ * `theory`: arrays are of any length and loops get inferred invariants. Undefined when that changes nothing, or no
+ * verdict came of it, and the caller runs the bounded proof.
+ */
+async function attemptWith(
+  input: ProveInput,
+  intLimit: bigint | undefined,
+  theory: boolean,
+): Promise<ProofResult | undefined> {
+  const source = ts.createSourceFile(
+    input.jsFile,
+    readFileSync(input.jsFile, 'utf8'),
+    ts.ScriptTarget.ES2022,
+    true,
+    ts.ScriptKind.JS,
+  );
+  const fn = source.statements.find(
+    (s): s is ts.FunctionDeclaration =>
+      ts.isFunctionDeclaration(s) && s.name?.text === (input.law.symbol ?? input.law.name),
+  );
+  if (fn === undefined || fn.body === undefined) throw new Unsupported('law function not found in the compiled output');
+  if (fn.parameters.length !== input.shapes.length) throw new Unsupported('parameter count mismatch');
+  const names = fn.parameters.map((p) => (ts.isIdentifier(p.name) ? p.name.text : ''));
+  const executor = new Executor(input.bound);
+  executor.infer = theory;
+  executor.intLimit = intLimit;
+  const decl = new Declarations();
+  const params = names.map((name, i) => declareParam(name, input.shapes[i], input.bound, decl, intLimit, theory));
+  // In the clauses of a loop the parameters' domains are facts like any other, so they go where the executor keeps them.
+  if (theory) executor.assumptions.push(...decl.assumptions);
+  if (intLimit !== undefined) executor.bounded.push(`int values stay within ±2^26`);
+  if (!theory && input.shapes.some(containsArray)) executor.bounded.push(`arrays hold at most ${input.bound} elements`);
+  const result = executor.runLaw(input.jsFile, fn, params);
+  const holds = resultOf(result);
+  const safe = and(...executor.obligations);
+  const facts = theory ? executor.assumptions : [...decl.assumptions, ...executor.assumptions];
+  if (theory && decl.lengths.length === 0 && executor.predicates.length === 0) return undefined;
+  if (executor.predicates.length > 0) {
+    // Cvc5 does not solve Horn clauses, so a proof it must confirm is left to the bounded way.
+    if (input.solvers?.includes('cvc5')) return undefined;
+    const verdict = await solveHorn(
+      hornSystem(executor, decl, facts, holds, safe),
+      { z3: solve, external: runExternalSolvers },
+      input.timeoutMs,
+    );
+    if (verdict.kind === 'disagree') return { kind: 'unsupported', reason: verdict.reason };
+    if (verdict.kind !== 'safe') return undefined;
+    const assumptions = [...assumptionsFor(input.shapes, intLimit), ...verdict.invariants, ...verdict.notes];
+    return executor.bounded.length > 0
+      ? { kind: 'bounded', limits: executor.bounded, assumptions }
+      : { kind: 'proved', assumptions };
+  }
+  const query = [
+    `(set-option :timeout ${input.timeoutMs})`,
+    ...decl.lines,
+    ...executor.freshDecls,
+    ...executor.defs,
+    ...facts.map((a) => `(assert ${a})`),
+    `(assert (or (not ${holds}) (not ${safe})))`,
+    '(check-sat)',
+  ];
+  const watch = decl.constants.map((c) => {
+    const term = c.term ?? c.name;
+    return c.sort === 'fp' ? `(fp.to_real ${term})` : term;
+  });
+  // TSLAWS_DEBUG=1 keeps each query next to the compiled output, to replay in z3.
+  if (process.env.TSLAWS_DEBUG !== undefined) {
+    const dir = join(dirname(input.jsFile), '..', 'smt');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, `${input.law.name}.smt2`), `${query.join('\n')}\n(get-model)\n`);
+  }
+  const valueQuery = watch.length === 0 ? '' : `(get-value (${watch.join(' ')}))`;
+  const { out, vals } = await solve(query.join('\n'), valueQuery, input.timeoutMs);
+  const check = out;
+  if (check.startsWith('unsat')) {
+    const assumptions = assumptionsFor(input.shapes, intLimit);
+    const text = query.join('\n');
+    const certifyQuery = async (): Promise<{ certificate?: Certificate }> =>
+      input.certify === undefined || input.certify.mode === false
+        ? {}
+        : { certificate: await certify(text, { timeoutMs: input.timeoutMs, keep: keepOf(input, input.certify) }) };
+    if (executor.bounded.length > 0)
+      return { kind: 'bounded', limits: executor.bounded, assumptions, ...(await certifyQuery()) };
+    // Only a proof that would stand is sent to the second solver.
+    const unconfirmed = await secondOpinion(input.solvers ?? [], text, input.timeoutMs);
+    return unconfirmed === undefined
+      ? { kind: 'proved', assumptions, ...(await certifyQuery()) }
+      : { kind: 'bounded', limits: [unconfirmed], assumptions };
+  }
+  if (check.startsWith('unknown')) throw new Unsupported(`solver gave up within ${input.timeoutMs} ms`);
+  if (!check.startsWith('sat')) throw new Unsupported(`solver said: ${check.split('\n')[0]}`);
+  const values = watch.length === 0 ? '()' : vals;
+  const pairs = parseSexp(values) as Sexp[];
+  const model = new Map<string, number | bigint | boolean | string>();
+  decl.constants.forEach((c, i) => {
+    const pair = pairs[i];
+    if (Array.isArray(pair) && pair.length === 2) model.set(c.name, modelValue(c.sort, pair[1]!));
+  });
+  if (decl.lengths.some((len) => Number(model.get(len) ?? 0) > shownElements))
+    throw new Unsupported(`the counterexample has more than ${shownElements} elements`);
+  const inputs = names.map((name, i) => jsValue(input.shapes[i], name, model));
+  // A model may break only an obligation, or rest on float effects the replay does not share.
+  if (input.holds(inputs)) {
+    const why = `Z3 model ${show(inputs)} passes in JavaScript (an integer may leave the safe range, an index may leave its array, or the bound cut the code)`;
+    const advice = executor.hints.length === 0 ? '' : `; ${executor.hints.join('; ')}`;
+    throw intLimit === undefined ? new SpuriousModel(why + advice) : new Unsupported(why + advice);
+  }
+  return { kind: 'refuted', model: names.map((n, i) => `${n} = ${show(inputs[i])}`).join(', '), inputs };
 }

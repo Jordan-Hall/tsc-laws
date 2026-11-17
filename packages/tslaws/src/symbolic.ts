@@ -11,6 +11,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import ts from 'typescript';
+import type { Predicate } from './chc.ts';
 
 export class Unsupported extends Error {}
 
@@ -46,6 +47,20 @@ export interface Arr {
   /** Shared by every version of one array: set when a second name could see it, which forbids mutation. */
   id: { escaped: boolean };
 }
+/**
+ * An array of any length, as an SMT array from index to element plus a length: a claim about it holds for every length.
+ * Only parameters and copies of them take this form, and only with integer, bigint or boolean elements.
+ */
+export interface Seq {
+  k: 'seq';
+  len: Int;
+  /** An SMT array term from Int to the element sort. */
+  data: string;
+  elem: SeqElement;
+  id: { escaped: boolean };
+}
+export type SeqElement = 'int' | 'big' | 'bool';
+export const elementSort = (e: SeqElement): string => (e === 'bool' ? 'Bool' : 'Int');
 export interface Rec {
   k: 'rec';
   fields: Map<string, Value>;
@@ -53,7 +68,7 @@ export interface Rec {
 export interface Undef {
   k: 'undef';
 }
-export type Value = Bool | Int | Big | Fp | Str | Arr | Rec | Undef;
+export type Value = Bool | Int | Big | Fp | Str | Arr | Seq | Rec | Undef;
 
 type FunctionNode = ts.FunctionDeclaration | ts.ArrowFunction | ts.FunctionExpression;
 
@@ -144,6 +159,22 @@ export class Executor {
   readonly bounded: string[] = [];
   /** Advice for the reader when a proof fails on an obligation (a divisor that may be 0). */
   readonly hints: string[] = [];
+  /** Terms `share` named, by name, for a consumer that cannot keep the `define-fun`s (a Horn clause is closed). */
+  readonly sharedTerms = new Map<string, string>();
+  /**
+   * Prove loops for every iteration count: arrays that are parameters become SMT arrays of any length, and a loop
+   * without an `invariant` becomes constrained Horn clauses (`predicates` and `clauses`) for a solver to find one.
+   * Anything this cannot express throws `Unsupported`, and the caller runs again without it, unrolling to the bound.
+   */
+  infer = false;
+  /** The unknown invariant predicates, one per loop that was turned into clauses. */
+  readonly predicates: Predicate[] = [];
+  /** `(=> body head)` for the entry and the step of each such loop; the final query is added by the caller. */
+  readonly clauses: string[] = [];
+  /** Facts that hold inside the loops being executed (each loop's invariant on its arbitrary state), innermost last. */
+  private readonly scope: string[] = [];
+  /** Ints stay within this in the second attempt (see smt.ts), which the elements of an array read share. */
+  intLimit: bigint | undefined;
   private readonly files = new Map<string, FileIndex>();
 
   readonly bound: number;
@@ -355,12 +386,13 @@ export class Executor {
   // ---- values -------------------------------------------------------------------------------------------------
 
   private share<V extends Value>(v: V): V {
-    if (v.k === 'arr' || v.k === 'rec' || v.k === 'undef') return v;
+    if (v.k === 'arr' || v.k === 'seq' || v.k === 'rec' || v.k === 'undef') return v;
     const t = (v as Bool | Int | Big | Fp | Str).t;
     if (t.length < 160) return v;
     const sort = { bool: 'Bool', int: 'Int', big: 'Int', fp: '(_ FloatingPoint 11 53)', str: 'String' }[v.k];
     const name = `_s${this.shared++}`;
     this.defs.push(`(define-fun ${name} () ${sort} ${t})`);
+    this.sharedTerms.set(name, t);
     return { ...v, t: name };
   }
 
@@ -401,6 +433,18 @@ export class Executor {
         if (a.id !== o.id) a.id.escaped = o.id.escaped = true;
         return { k: 'arr', len: this.merge(c, a.len, o.len) as Int, slots, id: a.id };
       }
+      case 'seq': {
+        const o = b as Seq;
+        if (a.elem !== o.elem) throw new Unsupported('arrays of different element kinds meet on two paths');
+        if (a.id !== o.id) a.id.escaped = o.id.escaped = true;
+        return {
+          k: 'seq',
+          len: this.merge(c, a.len, o.len) as Int,
+          data: ite(c, a.data, o.data),
+          elem: a.elem,
+          id: a.id,
+        };
+      }
       case 'rec': {
         const o = b as Rec;
         const fields = new Map<string, Value>();
@@ -440,7 +484,7 @@ export class Executor {
 
   /** `v` used as a value somewhere other than a method receiver or index: a second name may now reach an array. */
   private escape(v: Value): Value {
-    if (v.k === 'arr') v.id.escaped = true;
+    if (v.k === 'arr' || v.k === 'seq') v.id.escaped = true;
     if (v.k === 'rec') for (const field of v.fields.values()) this.escape(field);
     return v;
   }
@@ -552,6 +596,10 @@ export class Executor {
     const invariants = this.invariantsOf(body);
     if (invariants !== undefined) {
       this.invariantLoop(condition, incrementor, invariants.rest, invariants.exprs, f, pc);
+      return;
+    }
+    if (this.infer) {
+      this.inferLoop(condition, incrementor, body, f, pc);
       return;
     }
     for (let iteration = 0; ; iteration += 1) {
@@ -673,6 +721,12 @@ export class Executor {
           id: { escaped: v.id.escaped },
         };
       }
+      case 'seq': {
+        const data = declare(`(Array Int ${elementSort(v.elem)})`);
+        const len = declare('Int');
+        this.assumptions.push(this.lengthRange(len));
+        return { k: 'seq', len: { k: 'int', t: len }, data, elem: v.elem, id: { escaped: v.id.escaped } };
+      }
       case 'undef':
         return v;
     }
@@ -694,6 +748,9 @@ export class Executor {
     f: Frame,
     pc: string,
   ): void {
+    // The condition is read from the arbitrary state of the loop, so a write in it would go unmodelled.
+    if (condition !== undefined && this.modifiedNames([condition]).size > 0)
+      throw new Unsupported('a loop whose condition changes a variable');
     this.oblige(f, pc, this.invariantTerm(exprs, f, this.guard(f, pc)));
     const touched = this.modifiedNames([...rest, ...(incrementor === undefined ? [] : [incrementor])]);
     const kinds = new Map<string, Value['k']>();
@@ -734,6 +791,90 @@ export class Executor {
       this.mergeFrames(choice, run, f, f);
     }
     f.brk = 'false';
+  }
+
+  // ---- loops without an invariant: Horn clauses for a solver to find one ----------------------------------------
+
+  /** The SMT terms a value contributes as predicate arguments, with their sorts; undefined when it is not one. */
+  private terms(v: Value): { terms: string[]; sorts: string[] } | undefined {
+    if (v.k === 'int' || v.k === 'big') return { terms: [v.t], sorts: ['Int'] };
+    if (v.k === 'bool') return { terms: [v.t], sorts: ['Bool'] };
+    if (v.k === 'seq') return { terms: [v.len.t, v.data], sorts: ['Int', `(Array Int ${elementSort(v.elem)})`] };
+    return undefined;
+  }
+
+  /**
+   * The loop as constrained Horn clauses over an unknown predicate `Inv` of the live variables: the state on entry
+   * satisfies it, one pass of the body keeps it, and after the loop the code sees an arbitrary state satisfying it with
+   * the condition false. The caller asks a solver for an `Inv` that makes the law hold; there is no unrolling and no
+   * bound. A loop that returns or breaks is left to the unrolling.
+   */
+  private inferLoop(
+    condition: ts.Expression | undefined,
+    incrementor: ts.Expression | undefined,
+    body: ts.Statement,
+    f: Frame,
+    pc: string,
+  ): void {
+    const g = this.guard(f, pc);
+    if (g === 'false') return;
+    if (f.brk !== 'false' || f.cnt !== 'false') throw new Unsupported('a loop inside a break or continue');
+    // The condition is read again from every state of the loop, so one that writes (`while (i++ < n)`) is left to the
+    // unrolling, which runs it once per iteration.
+    if (condition !== undefined && this.modifiedNames([condition]).size > 0)
+      throw new Unsupported('a loop whose condition changes a variable');
+    const touched = this.modifiedNames([body, ...(incrementor === undefined ? [] : [incrementor])]);
+    // The live variables are the arguments: the invariant may relate any of them, the ones the loop leaves alone too.
+    const live = [...f.env].filter(([, v]) => this.terms(v) !== undefined);
+    for (const name of touched) {
+      const old = f.env.get(name);
+      if (old !== undefined && this.terms(old) === undefined)
+        throw new Unsupported(`${name} is a ${old.k}, which a loop without an invariant cannot change`);
+    }
+    const arguments_ = (env: Map<string, Value>): string[] =>
+      live.flatMap(([name]) => {
+        const v = env.get(name);
+        const t = v === undefined ? undefined : this.terms(v);
+        if (v === undefined || t === undefined || v.k !== f.env.get(name)!.k)
+          throw new Unsupported(`${name} changes kind in a loop`);
+        return t.terms;
+      });
+    const predicate: Predicate = {
+      name: `Inv${this.predicates.length}`,
+      sorts: live.flatMap(([, v]) => this.terms(v)!.sorts),
+      names: live.flatMap(([name, v]) => (v.k === 'seq' ? [`${name}.length`, name] : [name])),
+    };
+    this.predicates.push(predicate);
+    const atom = (args: string[]): string =>
+      args.length === 0 ? predicate.name : `(${predicate.name} ${args.join(' ')})`;
+
+    this.clauses.push(`(=> ${and(...this.assumptions, ...this.scope, g)} ${atom(arguments_(f.env))})`);
+    for (const name of touched) {
+      const old = f.env.get(name);
+      if (old !== undefined) f.env.set(name, this.fresh(old));
+    }
+    const inv = atom(arguments_(f.env));
+    const c = condition === undefined ? 'true' : this.asBool(this.ev(condition, f, g));
+    const inside = and(pc, c);
+
+    const run = f.fork();
+    this.scope.push(and(g, inv));
+    this.branch(body, run, inside);
+    run.cnt = 'false';
+    if (incrementor !== undefined) this.ev(incrementor, run, inside, true);
+    this.scope.pop();
+    if (run.done !== f.done || run.brk !== 'false') throw new Unsupported('a loop that returns or breaks');
+    this.clauses.push(`(=> ${and(...this.assumptions, ...this.scope, g, inv, c)} ${atom(arguments_(run.env))})`);
+
+    // After the loop: any state satisfying the invariant in which the condition is false.
+    this.assumptions.push(or(not(g), inv));
+    this.assume(f, pc, not(c));
+    f.brk = 'false';
+  }
+
+  /** A length of an array that is a parameter or a copy of one: not negative, and at most what JavaScript allows. */
+  private lengthRange(t: string): string {
+    return `(and (<= 0 ${t}) (<= ${t} 4294967295))`;
   }
 
   private forOf(node: ts.ForOfStatement, f: Frame, pc: string): void {
@@ -818,6 +959,7 @@ export class Executor {
       bool: 'boolean',
       str: 'string',
       arr: 'object',
+      seq: 'object',
       rec: 'object',
       undef: 'undefined',
     }[v.k];
@@ -907,7 +1049,7 @@ export class Executor {
     }
     const base = this.ev(node.expression, f, pc);
     if (name === 'length') {
-      if (base.k === 'arr') return base.len;
+      if (base.k === 'arr' || base.k === 'seq') return base.len;
       if (base.k === 'str')
         return base.c !== undefined ? intLit(BigInt(base.c.length)) : { k: 'int', t: `(str.len ${base.t})` };
     }
@@ -923,11 +1065,24 @@ export class Executor {
     const index = this.ev(node.argumentExpression, f, pc);
     if (index.k !== 'int') throw new Unsupported('index is not an integer value');
     if (base.k === 'arr') return this.readSlot(base, index, f, pc);
+    if (base.k === 'seq') return this.readElement(base, index, f, pc);
     if (base.k === 'str') {
       this.oblige(f, pc, and(this.le(intLit(0n), index).t, this.lt(index, { k: 'int', t: `(str.len ${base.t})` }).t));
       return { k: 'str', t: `(str.at ${base.t} ${index.t})` };
     }
     throw new Unsupported('indexing something other than an array or string');
+  }
+
+  /** `xs[i]` of an array of any length: the index must be inside it, and the element is one of the domain. */
+  private readElement(seq: Seq, index: Int, f: Frame, pc: string): Value {
+    this.oblige(f, pc, and(this.le(intLit(0n), index).t, this.lt(index, seq.len).t));
+    const t = `(select ${seq.data} ${index.t})`;
+    if (seq.elem === 'bool') return bool(t);
+    if (seq.elem === 'big') return { k: 'big', t };
+    // Every element of an array parameter is in the int range, as a parameter is; this is that fact for this one.
+    const limit = this.intLimit ?? maxSafe;
+    this.assume(f, pc, `(and (<= (- ${limit}) ${t}) (<= ${t} ${limit}))`);
+    return { k: 'int', t };
   }
 
   private readSlot(arr: Arr, index: Int, f: Frame, pc: string): Value {
@@ -948,6 +1103,12 @@ export class Executor {
   }
 
   private arrayLiteral(node: ts.ArrayLiteralExpression, f: Frame, pc: string): Value {
+    const only = node.elements.length === 1 ? node.elements[0]! : undefined;
+    if (only !== undefined && ts.isSpreadElement(only)) {
+      // `[...xs]` of an array of any length is a copy of it.
+      const source = this.ev(only.expression, f, pc);
+      if (source.k === 'seq') return { ...source, id: { escaped: false } };
+    }
     let out: Arr = { k: 'arr', len: intLit(0n), slots: [], id: { escaped: false } };
     for (const element of node.elements) {
       if (ts.isSpreadElement(element)) {
@@ -1192,10 +1353,9 @@ export class Executor {
       return bool(p === q ? `(not (fp.isNaN ${p}))` : `(fp.eq ${p} ${q})`);
     }
     if (a.k !== b.k) {
-      if ((a.k === 'arr' || a.k === 'rec') && (b.k === 'arr' || b.k === 'rec')) return F;
       return F;
     }
-    if (a.k === 'rec' || a.k === 'arr') throw new Unsupported('=== on objects compares references');
+    if (a.k === 'rec' || a.k === 'arr' || a.k === 'seq') throw new Unsupported('=== on objects compares references');
     const [p, q] = sorted((a as Bool).t, (b as Bool).t);
     return bool(p === q ? 'true' : `(= ${p} ${q})`);
   }
@@ -1274,6 +1434,14 @@ export class Executor {
       const arr = f.env.get(target.expression.text);
       const index = this.ev(target.argumentExpression, f, pc);
       const value = this.escape(this.ev(node.right, f, pc));
+      if (arr?.k === 'seq' && index.k === 'int') {
+        if (arr.id.escaped) throw new Unsupported('mutation of an array another name can reach');
+        if (value.k !== arr.elem) throw new Unsupported(`an array of ${arr.elem} elements is given a ${value.k}`);
+        this.oblige(f, pc, and(this.le(intLit(0n), index).t, this.lt(index, arr.len).t));
+        const data = `(store ${arr.data} ${index.t} ${(value as Int | Big | Bool).t})`;
+        this.setVar(f, target.expression.text, { ...arr, data });
+        return value;
+      }
       if (arr?.k !== 'arr' || index.k !== 'int')
         throw new Unsupported('indexed assignment only on arrays with integer indexes');
       if (arr.id.escaped) throw new Unsupported('mutation of an array another name can reach');
@@ -1385,6 +1553,7 @@ export class Executor {
   ): Value {
     const target = this.ev(receiver, f, pc);
     if (target.k === 'str') return this.stringMethod(target, name, args, f, pc);
+    if (target.k === 'seq') return this.seqMethod(target, receiver, name, args, f, pc, statement);
     if (target.k !== 'arr') throw new Unsupported(`method ${name} on a ${target.k}`);
     const arr = target;
     const evalArg = (i: number): Value => this.ev(args[i]!, f, pc);
@@ -1503,6 +1672,48 @@ export class Executor {
         return this.sort(arr, args, receiver, mutate, f, pc);
     }
     throw new Unsupported(`array method ${name} does not lower`);
+  }
+
+  /** What an array of any length supports: copying, push and pop (on a copy), length and indexing are elsewhere. */
+  private seqMethod(
+    seq: Seq,
+    receiver: ts.Expression,
+    name: string,
+    args: readonly ts.Expression[],
+    f: Frame,
+    pc: string,
+    statement: boolean,
+  ): Value {
+    const mutate = (next: Seq): void => {
+      if (!ts.isIdentifier(receiver)) throw new Unsupported(`${name} on something other than a named array`);
+      if (seq.id.escaped) throw new Unsupported('mutation of an array another name can reach');
+      this.setVar(f, receiver.text, next);
+    };
+    const one = intLit(1n);
+    switch (name) {
+      case 'slice':
+        if (args.length !== 0) throw new Unsupported('slice of an array of any length takes no arguments here');
+        return { ...seq, id: { escaped: false } };
+      case 'push': {
+        if (args.length !== 1) throw new Unsupported('push takes one value here');
+        if (!statement) throw new Unsupported('the result of push is not modelled');
+        const value = this.escape(this.ev(args[0]!, f, pc));
+        if (value.k !== seq.elem) throw new Unsupported(`an array of ${seq.elem} elements is given a ${value.k}`);
+        const len = this.addLen(seq.len, one);
+        mutate({ ...seq, len, data: `(store ${seq.data} ${seq.len.t} ${(value as Int | Big | Bool).t})` });
+        return { k: 'undef' };
+      }
+      case 'pop': {
+        if (args.length !== 0) throw new Unsupported('pop takes no arguments');
+        // Popping an empty array gives undefined in JavaScript; that is not modelled, so it must not happen.
+        this.oblige(f, pc, this.lt(intLit(0n), seq.len).t);
+        const last: Int = { k: 'int', t: `(- ${seq.len.t} 1)` };
+        const value = this.readElement(seq, last, f, pc);
+        mutate({ ...seq, len: last });
+        return value;
+      }
+    }
+    throw new Unsupported(`array method ${name} does not lower on an array of any length`);
   }
 
   /** Insertion sort as a fixed network of guarded swaps; stable, as `Array.prototype.sort` is. */
