@@ -42,8 +42,7 @@ function tslaws(cwd: string, ...args: string[]): { status: number | null; stdout
   return {
     status: run.status,
     stdout: run.stdout,
-    stderr: run.error ? [run.stderr, run.error.message].join('
-') : run.stderr,
+    stderr: run.error ? [run.stderr, run.error.message].join('\n') : run.stderr,
   };
 }
 
