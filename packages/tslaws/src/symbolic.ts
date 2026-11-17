@@ -748,6 +748,9 @@ export class Executor {
     f: Frame,
     pc: string,
   ): void {
+    // The condition is read from the arbitrary state of the loop, so a write in it would go unmodelled.
+    if (condition !== undefined && this.modifiedNames([condition]).size > 0)
+      throw new Unsupported('a loop whose condition changes a variable');
     this.oblige(f, pc, this.invariantTerm(exprs, f, this.guard(f, pc)));
     const touched = this.modifiedNames([...rest, ...(incrementor === undefined ? [] : [incrementor])]);
     const kinds = new Map<string, Value['k']>();
