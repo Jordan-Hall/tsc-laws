@@ -1,5 +1,6 @@
 import { appendFileSync } from 'node:fs';
 import type { CheckReport } from './check.ts';
+import { certificateLabel } from './certificates.ts';
 import { hintFor } from './hints.ts';
 import type { LawResult } from './types.ts';
 
@@ -56,6 +57,7 @@ function detail(result: LawResult): string {
   if (result.counterexample !== undefined) parts.push(`counterexample ${result.counterexample}`);
   if (result.assumptions !== undefined && result.assumptions.length > 0)
     parts.push(`assuming ${result.assumptions.join('; ')}`);
+  if (result.certificate !== undefined) parts.push(`certificate ${certificateLabel(result.certificate)}`);
   if (result.status === 'failed' && result.seed !== undefined) parts.push(`seed ${result.seed}`);
   return parts.join('; ');
 }

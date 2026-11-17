@@ -50,16 +50,18 @@ export function cvc5Text(query: string): string {
 }
 
 /**
- * Where the binary is and how to start it: `TSLAWS_CVC5`, else `cvc5` on the PATH. A path ending in .js, .mjs or .cjs is
- * a Node script and runs under the current Node (the tests use one as a fake solver, which a .cmd file could not do on
- * every platform); anything else is run as it is. No shell is involved.
+ * Where a tool's binary is and how to start it: the path in the environment variable `env`, else `binary` on the PATH. A
+ * path ending in .js, .mjs or .cjs is a Node script and runs under the current Node (the tests use one as a fake tool,
+ * which a .cmd file could not do on every platform); anything else is run as it is. No shell is involved.
  */
-function command(): { file: string; args: string[] } {
-  const path = process.env.TSLAWS_CVC5 ?? 'cvc5';
+export function toolCommand(env: string, binary: string): { file: string; args: string[] } {
+  const path = process.env[env] ?? binary;
   return ['.js', '.mjs', '.cjs'].includes(extname(path))
     ? { file: process.execPath, args: [path] }
     : { file: path, args: [] };
 }
+
+const command = (): { file: string; args: string[] } => toolCommand('TSLAWS_CVC5', 'cvc5');
 
 const missing = (): SolverUnavailable =>
   new SolverUnavailable(

@@ -5,7 +5,9 @@ import { mkdirSync } from 'node:fs';
 import { delimiter, join, relative as pathRelative, resolve, sep } from 'node:path';
 import { build as bundleWith, type Plugin } from 'esbuild';
 import { explainBundleError, loadBundlerPlugins } from './bundlerPlugins.ts';
-import { readConfig } from './coverage.ts';
+import { lawEnv, readConfig } from './coverage.ts';
+import { compiledDirOf } from './lawRuntime.ts';
+import { importMetaEnvGlobal } from './runtimeEnv.ts';
 import { chromium, firefox, webkit, type Browser, type BrowserType, type Page } from 'playwright-core';
 import type * as fc from 'fast-check';
 import { toWire } from './generators.ts';
@@ -171,6 +173,8 @@ function projectModulesPlugin(cwd: string): Plugin {
 // template, a stylesheet, an image) would look for it there. Such an import resolves to the file beside the source.
 function sourceFilesPlugin(cwd: string): Plugin {
   const out = join(cwd, '.tslaws', 'out');
+  // The project's own output may sit below `out` (when sources outside it were compiled too); paths map from there.
+  const project = compiledDirOf(cwd);
   return {
     name: 'tslaws-source-files',
     setup(build) {
@@ -178,7 +182,7 @@ function sourceFilesPlugin(cwd: string): Plugin {
         if (args.resolveDir !== out && !args.resolveDir.startsWith(out + sep)) return undefined;
         const inOut = resolve(args.resolveDir, args.path);
         if (existsSync(inOut)) return undefined;
-        const source = join(cwd, pathRelative(out, inOut));
+        const source = join(cwd, pathRelative(project, inOut));
         return existsSync(source) && !source.endsWith('.js') ? { path: source } : undefined;
       });
     },
@@ -201,6 +205,16 @@ const assetExtensions = [
   '.eot',
 ];
 
+/**
+ * esbuild reads the nearest tsconfig.json by itself (paths, baseUrl, extends); this carries the tslaws.json setting over:
+ * a named file, or none for `"tsconfig": false`.
+ */
+function bundlerTsconfig(cwd: string): { tsconfig: string } | { tsconfigRaw: string } | object {
+  const setting = readConfig(cwd).tsconfig;
+  if (setting === false) return { tsconfigRaw: '{}' };
+  return setting === undefined ? {} : { tsconfig: resolve(cwd, setting) };
+}
+
 /** The project's `bundlerPlugins` from tslaws.json come first, so they can claim a format before the built-in resolver. */
 async function bundleOf(jsFile: string, cwd: string): Promise<{ js: string; css: string }> {
   const projectPlugins = await loadBundlerPlugins(cwd, readConfig(cwd).bundlerPlugins);
@@ -219,8 +233,14 @@ async function bundleOf(jsFile: string, cwd: string): Promise<{ js: string; css:
       platform: 'browser',
       target: 'es2022',
       absWorkingDir: cwd,
+      ...bundlerTsconfig(cwd),
       logLevel: 'silent',
-      define: { 'process.env.NODE_ENV': '"development"', global: 'globalThis' },
+      // A dependency's `import.meta.env` reads the same global the compiled laws do; the page sets it before the bundle.
+      define: {
+        'process.env.NODE_ENV': '"development"',
+        global: 'globalThis',
+        'import.meta.env': `globalThis.${importMetaEnvGlobal}`,
+      },
     });
     const emitted = (extension: string): string =>
       result.outputFiles
@@ -307,6 +327,9 @@ export async function runBrowserLaw(law: BrowserLaw, options: CheckOptions): Pro
     await page.setContent('<!doctype html><html><head><meta charset="utf-8"></head><body></body></html>');
     // The stylesheet goes in before the script runs, as a linked one would.
     if (css !== '') await page.addStyleTag({ content: css });
+    await page.addScriptTag({
+      content: `globalThis.${importMetaEnvGlobal} = ${JSON.stringify(lawEnv(options.cwd, 'browser'))};`,
+    });
     await page.addScriptTag({ content: code });
     await page.addScriptTag({ content: harness });
     const call = async (...args: unknown[]): Promise<unknown> => {

@@ -167,6 +167,7 @@ See [docs/laws.md](../../docs/laws.md#the-dashboard).
 `tslaws mutate [files...] [--max N] [--seed N] [--json]` mutation-tests the laws: it mutates the covered code, re-runs the laws against each mutant, and lists the survivors no law caught. It handles `.tsx`/`.jsx` and projects with a lock, and takes the run flags of `check`. See [docs/laws.md](../../docs/laws.md#mutation-testing).
 
 - **Other source formats:** `tslaws.json` `bundlerPlugins` lists esbuild plugin modules (paths relative to the file) that teach the browser bundler formats like `.tsrx`. See [docs/laws.md](../../docs/laws.md#bundler-plugins).
+- **Bundler-style source:** `import.meta.env` works in laws, in the code they reach and in browser pages (`tslaws.json` `env` adds or overrides entries), and a TypeScript dependency may import its own files without extensions. See [docs/laws.md](../../docs/laws.md#source-written-for-a-bundler).
 - **Settings:** `tslaws.json` `runs`, `bound`, `proofTimeoutMs` and `propertyTimeoutMs` set the run defaults; a command line flag beats them. `"solvers": ["z3", "cvc5"]` makes cvc5 confirm every Z3 proof (set `TSLAWS_CVC5` to its path, or put it on the PATH). See [docs/laws.md](../../docs/laws.md#settings).
 
 ## Agents cannot move the goalposts
@@ -174,7 +175,7 @@ See [docs/laws.md](../../docs/laws.md#the-dashboard).
 `tsc-laws.lock` holds a hash of every law declaration and the list of coverage exemptions. A change, an added law, a removed
 law or a new `@tslaws-exempt` fails the check until a person runs `tslaws accept`, which refuses to run without a terminal,
 under `CI`, or with `TSLAWS_AGENT` set, unless a person has lent it for a limited time with `tslaws delegate grant`. Agents propose laws in `*.proposed.laws.ts` files (or optionally in `.tslaws/proposals/`, outside the tree and git-ignored; `tslaws propose` or the MCP tool) and try them with `tslaws check
---proposed` (no lock, no coverage gate); a person moves one into the tree with `tslaws promote` and accepts. Every laws file in the tree must be in the lock.
+--proposed` (no lock, no coverage gate); a person moves one into the tree with `tslaws promote` and accepts. Every laws file in the tree must be in the lock. A project that accepts laws on GitHub (a `github` section in `tslaws.json`) still lets a person run `tslaws accept` by hand, and a maintainer can run the workflow on demand; set `github.local` to false to leave the lock to the workflow alone. See [docs/github.md](../../docs/github.md).
 
 `hooks/claude-hook.mjs` is a Claude Code hook that blocks `git commit` and sends an agent back to work when the check fails;
 `hooks/claude-settings.example.json` wires it up and `hooks/AGENTS.snippet.md` tells the agent the rules.

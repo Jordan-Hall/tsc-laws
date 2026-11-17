@@ -192,6 +192,24 @@ else `critical` for `MAL-` (malicious package) ids, else `unknown`. An `unknown`
 Offline with an empty or partial cache lists the packages it could not check, and does not fail for them. Add
 `.tslaws/` to `.gitignore`, or commit the cache to share answers with an air-gapped CI.
 
+### In a monorepo
+
+Each package owns its security laws and its `security` settings. From the root, `tslaws security deps` runs once per
+package, under a `── path ──` header, with that package's own `cover` globs and `security` section (it follows
+`extends`, like the other settings). `--project`, `--filter` and `--changed` pick the packages, `--json` prints one
+object keyed by package path, and the exit status is nonzero when any package failed. A package nested inside another
+is left to itself. The lockfile is the nearest one at or above the package, so a single root lockfile serves all of
+them, and workspace packages (links) are never sent anywhere. The cache is kept per package in
+`.tslaws/osv-cache.json`.
+
+### What goes over the network
+
+Only the npm package name, its version and the ecosystem (`npm`), plus the advisory ids OSV answers with, are sent to
+`api.osv.dev`. No source, path, project or repository name leaves the machine. Each request times out after 30
+seconds. With `--offline` (or `security.offline`) nothing is sent and answers come from the cache. When the network
+is down the command exits with status 2, says so, and points at `--offline`. The tests use a fake `fetch` and never
+reach the network.
+
 ## Limits
 
 - The laws check the properties stated here, on generated and fixed inputs. A pass is not a proof, and not a

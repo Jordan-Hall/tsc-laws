@@ -14,6 +14,8 @@ export async function securityCommand(
   flags: Map<string, string | true>,
   write: (text: string) => void,
   fetch?: FetchLike,
+  /** Project-relative paths of projects nested in this one: each checks its own imports and config. */
+  skip: string[] = [],
 ): Promise<number> {
   if (args[0] !== 'deps') {
     write(`${securityUsage}\n`);
@@ -33,6 +35,7 @@ export async function securityCommand(
       failOn: failOn as typeof security.failOn | undefined,
       offline: flags.has('offline') ? true : undefined,
       noCache: flags.has('no-cache'),
+      skip,
       fetch,
     });
     write(flags.has('json') ? `${JSON.stringify(report, null, 2)}\n` : renderDeps(report));

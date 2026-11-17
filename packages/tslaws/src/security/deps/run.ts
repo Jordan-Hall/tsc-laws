@@ -17,6 +17,8 @@ export interface DepsOptions {
   cwd: string;
   /** `cover` globs of tslaws.json; without them, every non-laws source file. */
   cover?: string[];
+  /** Project-relative paths of nested projects: their files belong to them, not to this run. */
+  skip?: string[];
   config?: SecurityConfig;
   /** Flags that beat the config. */
   failOn?: SecurityConfig['failOn'];
@@ -94,7 +96,10 @@ export async function checkDeps(options: DepsOptions): Promise<DepsReport> {
   const fetch = options.fetch ?? (globalThis.fetch as unknown as FetchLike);
   const freshness = { now, ttlMs: config.cacheTtlHours * 3600_000, stale: offline };
 
-  const files = coverFiles(options.cwd, options.cover ?? ['**']);
+  const skip = options.skip ?? [];
+  const files = coverFiles(options.cwd, options.cover ?? ['**']).filter(
+    (file) => !skip.some((dir) => file === dir || file.startsWith(`${dir}/`)),
+  );
   const { source, packages, unresolved } = resolvePackages(options.cwd, collectImports(options.cwd, files));
 
   const ids = new Map<string, string[]>();
