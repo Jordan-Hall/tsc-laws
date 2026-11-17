@@ -1,5 +1,8 @@
-// The OSV answers kept in `.tslaws/osv-cache.json`, so a rerun or an offline run does not need the network.
+// The OSV answers kept in the user's cache directory (`tslaws/osv-cache.json`), so a rerun or an offline run does not
+// need the network. The file is never read from the project: a cache a repository commits could hide known
+// vulnerabilities from a run that trusts it.
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import type { Vuln } from './osv.ts';
 
@@ -19,28 +22,82 @@ export interface OsvCache {
   save(): void;
 }
 
-export const cachePath = (cwd: string): string => join(cwd, '.tslaws', 'osv-cache.json');
+/** The per-user cache directory: `%LOCALAPPDATA%\tslaws` on Windows, else `$XDG_CACHE_HOME/tslaws` or `~/.cache/tslaws`. */
+export function cacheDir(
+  env: NodeJS.ProcessEnv = process.env,
+  platform: NodeJS.Platform = process.platform,
+  home: string = homedir(),
+): string {
+  const set = (value: string | undefined): string | undefined =>
+    value === undefined || value === '' ? undefined : value;
+  if (platform === 'win32') return join(set(env.LOCALAPPDATA) ?? join(home, 'AppData', 'Local'), 'tslaws');
+  return join(set(env.XDG_CACHE_HOME) ?? join(home, '.cache'), 'tslaws');
+}
 
-const fresh = (at: number, o: { now: number; ttlMs: number; stale: boolean }): boolean =>
-  o.stale || o.now - at <= o.ttlMs;
+export const cachePath = (env: NodeJS.ProcessEnv = process.env): string => join(cacheDir(env), 'osv-cache.json');
+
+/** An entry dated further ahead than this is not believed: clocks drift a little, a planted file is not that close. */
+const skewMs = 5 * 60_000;
+
+const fresh = (at: number, o: { now: number; ttlMs: number; stale: boolean }): boolean => {
+  // Offline there is no newer answer to prefer, so any age is accepted; online a date in the future never is.
+  if (o.stale) return true;
+  return at <= o.now + skewMs && o.now - at <= o.ttlMs;
+};
+
+const isObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+const isStrings = (value: unknown): value is string[] =>
+  Array.isArray(value) && value.every((item) => typeof item === 'string');
+const isTime = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value);
+const optional = (value: unknown, ok: (v: unknown) => boolean): boolean => value === undefined || ok(value);
+
+/** Whether `value` has the shape `trimVuln` writes, and is the advisory `id`. */
+function isVuln(value: unknown, id: string): value is Vuln {
+  if (!isObject(value) || value.id !== id) return false;
+  return (
+    optional(value.aliases, isStrings) &&
+    optional(value.summary, (v) => typeof v === 'string') &&
+    optional(value.severity, (v) => Array.isArray(v) && v.every(isObject)) &&
+    optional(value.database_specific, isObject) &&
+    optional(value.affected, (v) => Array.isArray(v) && v.every(isObject))
+  );
+}
+
+/** Objects without a prototype, so a key such as `__proto__` in a planted file is only a key. */
+const empty = (): Stored => ({ version: 1, packages: Object.create(null), advisories: Object.create(null) });
+
+/** The entries of a cache file that are well formed; the rest are dropped, so they are asked of OSV again. */
+function validated(read: unknown): Stored {
+  const out: Stored = empty();
+  if (!isObject(read) || read.version !== 1) return out;
+  if (isObject(read.packages))
+    for (const [key, entry] of Object.entries(read.packages))
+      if (isObject(entry) && isStrings(entry.ids) && isTime(entry.at))
+        out.packages[key] = { ids: entry.ids, at: entry.at };
+  if (isObject(read.advisories))
+    for (const [id, entry] of Object.entries(read.advisories))
+      if (isObject(entry) && isTime(entry.at) && isVuln(entry.vuln, id))
+        out.advisories[id] = { vuln: entry.vuln, at: entry.at };
+  return out;
+}
 
 /** Reads the cache file (an empty cache when it is missing or unreadable). */
-export function openCache(cwd: string): OsvCache {
-  const path = cachePath(cwd);
-  let stored: Stored = { version: 1, packages: {}, advisories: {} };
+export function openCache(env: NodeJS.ProcessEnv = process.env): OsvCache {
+  const path = cachePath(env);
+  let stored: Stored = empty();
   try {
-    const read = JSON.parse(readFileSync(path, 'utf8')) as Stored;
-    if (read.version === 1) stored = read;
+    stored = validated(JSON.parse(readFileSync(path, 'utf8')));
   } catch {
     // Nothing cached yet.
   }
   return {
     ids: (key, o) => {
-      const entry = stored.packages[key];
+      const entry = Object.hasOwn(stored.packages, key) ? stored.packages[key] : undefined;
       return entry !== undefined && fresh(entry.at, o) ? entry.ids : undefined;
     },
     advisory: (id, o) => {
-      const entry = stored.advisories[id];
+      const entry = Object.hasOwn(stored.advisories, id) ? stored.advisories[id] : undefined;
       return entry !== undefined && fresh(entry.at, o) ? entry.vuln : undefined;
     },
     setIds: (key, ids, now) => {

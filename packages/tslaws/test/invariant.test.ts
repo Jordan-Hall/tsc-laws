@@ -281,4 +281,47 @@ describe('loop invariants', { skip: compiler === undefined ? 'set TSC_LAWS_BIN' 
     const { results } = await check(opts, true);
     assert.equal(byName(results, 'keepsLength').status, 'proved', JSON.stringify(byName(results, 'keepsLength')));
   });
+
+  it('does not prove a loop whose body breaks an obligation on a later iteration', async () => {
+    const opts = project('obligations', {
+      'src/f.ts': [
+        "import { invariant } from 'tslaws';",
+        "import type { int } from 'tslaws';",
+        'export function scan(a: int[]): int {',
+        '  let i = 0;',
+        '  let hits = 0;',
+        '  while (i < 3) {',
+        '    invariant(0 <= i && i <= 3);',
+        '    if (a[i] === 7) hits = 1;',
+        '    i += 1;',
+        '  }',
+        '  return i as int;',
+        '}',
+        'export function grow(n: int): int {',
+        '  let s = 1;',
+        '  let i = 0;',
+        '  while (i < n) {',
+        '    invariant(0 <= i && i <= n && s >= 1);',
+        '    s = s * 2;',
+        '    i += 1;',
+        '  }',
+        '  return s as int;',
+        '}',
+        '',
+      ].join('\n'),
+      'src/f.laws.ts': [
+        "import { assume } from 'tslaws';",
+        "import type { int } from 'tslaws';",
+        "import { grow, scan } from './f';",
+        'export law proved scansThree(a: int[]) { return scan(a) === 3; }',
+        'export law proved growsPositive(n: int) { assume(n >= 0 && n <= 100); return grow(n) >= 1; }',
+        '',
+      ].join('\n'),
+    });
+    const { results } = await check(opts, true);
+    for (const name of ['scansThree', 'growsPositive']) {
+      const status = byName(results, name).status;
+      assert.ok(status !== 'proved' && status !== 'bounded', `${name} was called ${status}`);
+    }
+  });
 });

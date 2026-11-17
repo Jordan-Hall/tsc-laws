@@ -169,6 +169,70 @@ describe(
   },
 );
 
+describe(
+  'obligations of a loop body hold on every iteration, not only on the last',
+  { skip: compiler === undefined ? 'set TSC_LAWS_BIN' : false },
+  () => {
+    const notProved = (r: LawResult): void =>
+      assert.ok(
+        r.status !== 'proved' && r.status !== 'bounded',
+        `a broken obligation was called proved: ${JSON.stringify(r)}`,
+      );
+
+    it('does not prove a loop that indexes out of its array on a later iteration', async () => {
+      const opts = project('index-later', {
+        'src/f.ts': [
+          "import type { int } from 'tslaws';",
+          'export function scan(a: int[]): int {',
+          '  let i = 0;',
+          '  let hits = 0;',
+          '  while (i < 3) {',
+          '    if (a[i] === 7) hits = 1;',
+          '    i += 1;',
+          '  }',
+          '  return i as int;',
+          '}',
+          '',
+        ].join('\n'),
+        'src/f.laws.ts': [
+          ...header,
+          "import { scan } from './f';",
+          'export law proved scansThree(a: int[]) { return scan(a) === 3; }',
+          '',
+        ].join('\n'),
+      });
+      const { results } = await check(opts, true);
+      notProved(byName(results, 'scansThree'));
+    });
+
+    it('does not prove a loop that leaves the int range on a later iteration', async () => {
+      const opts = project('overflow-later', {
+        'src/f.ts': [
+          "import type { int } from 'tslaws';",
+          'export function grow(n: int): int {',
+          '  let s = 1;',
+          '  let i = 0;',
+          '  while (i < n) {',
+          '    s = s * 2;',
+          '    i += 1;',
+          '  }',
+          '  return s as int;',
+          '}',
+          '',
+        ].join('\n'),
+        'src/f.laws.ts': [
+          ...header,
+          "import { grow } from './f';",
+          'export law proved growsPositive(n: int) { assume(n >= 0 && n <= 100); return grow(n) >= 1; }',
+          '',
+        ].join('\n'),
+      });
+      const { results } = await check(opts, true);
+      notProved(byName(results, 'growsPositive'));
+    });
+  },
+);
+
 /** An engine for solveHorn whose Z3 is the real one and whose other solvers say what the test wants. */
 function engine(answers: { solver: string; answer: 'sat' | 'unsat' | 'unknown' }[]): Engine {
   return { z3: solve, external: async () => answers };

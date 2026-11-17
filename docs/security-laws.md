@@ -185,12 +185,20 @@ else `critical` for `MAL-` (malicious package) ids, else `unknown`. An `unknown`
 | --------------- | ------- | ----------------------------------------------------------------------------------------- |
 | `failOn`        | `high`  | Lowest severity that fails: `low`, `moderate`, `high`, `critical`. `--fail-on` overrides. |
 | `offline`       | `false` | Never touch the network; answer from the cache. `--offline` sets it.                      |
-| `cache`         | `true`  | Keep answers in `.tslaws/osv-cache.json`. `--no-cache` skips it for one run.              |
+| `cache`         | `true`  | Keep answers in the per-user cache directory (below). `--no-cache` skips it for one run.  |
 | `cacheTtlHours` | `24`    | How long a cached answer stays fresh when online. Offline runs accept any age.            |
 | `ignore`        | `[]`    | Advisory ids (GHSA, CVE or OSV) a person has reviewed. Listed as `ignored`, never fail.   |
 
-Offline with an empty or partial cache lists the packages it could not check, and does not fail for them. Add
-`.tslaws/` to `.gitignore`, or commit the cache to share answers with an air-gapped CI.
+Offline with an empty or partial cache lists the packages it could not check, and does not fail for them.
+
+The cache is one file per user, `osv-cache.json` in `%LOCALAPPDATA%\tslaws` on Windows and otherwise in
+`$XDG_CACHE_HOME/tslaws` (`~/.cache/tslaws` when that is unset). It is never read from the project, so a cache file a
+repository commits cannot hide a known vulnerability. An entry that is not well formed is dropped and asked of OSV
+again. Online, an entry dated more than 5 minutes ahead of the clock counts as stale, so a wrong date cannot keep an
+answer fresh for ever.
+
+**CI should run `tslaws security deps --no-cache`** (or set `security.cache` to `false`): a fresh runner has no cache
+to use, and a run that always asks OSV cannot be served an old answer.
 
 ### In a monorepo
 
@@ -199,8 +207,8 @@ package, under a `── path ──` header, with that package's own `cover` gl
 `extends`, like the other settings). `--project`, `--filter` and `--changed` pick the packages, `--json` prints one
 object keyed by package path, and the exit status is nonzero when any package failed. A package nested inside another
 is left to itself. The lockfile is the nearest one at or above the package, so a single root lockfile serves all of
-them, and workspace packages (links) are never sent anywhere. The cache is kept per package in
-`.tslaws/osv-cache.json`.
+them, and workspace packages (links) are never sent anywhere. The cache is shared by every package, keyed by
+`name@version`, in the per-user directory above.
 
 ### What goes over the network
 

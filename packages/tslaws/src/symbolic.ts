@@ -737,6 +737,23 @@ export class Executor {
   }
 
   /**
+   * The invariants and the condition read in an arbitrary state. What reading them owes (`2 * s` in range) is owed
+   * only in a state that satisfies the invariants, which is the only kind of state the loop is in.
+   */
+  private evaluatedWhere(
+    exprs: readonly ts.Expression[],
+    condition: ts.Expression | undefined,
+    f: Frame,
+    g: string,
+  ): [holds: string, condition: string] {
+    const from = this.obligations.length;
+    const holds = this.invariantTerm(exprs, f, g);
+    const c = condition === undefined ? 'true' : this.asBool(this.ev(condition, f, g));
+    for (const fact of this.obligations.splice(from)) this.obligations.push(`(=> ${holds} ${fact})`);
+    return [holds, c];
+  }
+
+  /**
    * Hoare-style: the invariant must hold on entry and after any iteration that starts from a state satisfying it; the
    * code after the loop sees an arbitrary such state where the condition is false. No unrolling, so no bound.
    */
@@ -760,11 +777,15 @@ export class Executor {
       kinds.set(name, old.k);
       f.env.set(name, this.fresh(old));
     }
-    const holds = this.invariantTerm(exprs, f, this.guard(f, pc));
-    this.assume(f, pc, holds);
-    const c = condition === undefined ? 'true' : this.asBool(this.ev(condition, f, this.guard(f, pc)));
-
+    // Two arbitrary states: `run` is the one an iteration starts from, and `f` is the one the code after the loop
+    // sees. They are different constants, so what the body owes is checked where the condition holds even though the
+    // code after the loop assumes it does not.
     const run = f.fork();
+    for (const name of touched) {
+      const old = run.env.get(name);
+      if (old !== undefined) run.env.set(name, this.fresh(old));
+    }
+    const [holds, c] = this.evaluatedWhere(exprs, condition, run, this.guard(f, pc));
     const inside = and(pc, holds, c);
     this.execList(rest, run, inside);
     run.cnt = 'false';
@@ -779,13 +800,16 @@ export class Executor {
     // After the loop: any state satisfying the invariant in which the condition is false, or the state of an iteration
     // that started from such a state and left through a return or break. Which of the two is not known: a fresh choice.
     const left = or(and(run.done, not(f.done)), run.brk);
+    const [holdsAfter, continues] = this.evaluatedWhere(exprs, condition, f, this.guard(f, pc));
+    const stopped = not(continues);
     if (left === 'false') {
-      this.assume(f, pc, not(c));
+      this.assume(f, pc, holdsAfter);
+      this.assume(f, pc, stopped);
     } else {
       const choice = `_h${this.havocked++}`;
       this.freshDecls.push(`(declare-const ${choice} Bool)`);
       this.assume(f, pc, or(not(choice), and(holds, c, left)));
-      this.assume(f, pc, or(choice, not(c)));
+      this.assume(f, pc, or(choice, and(holdsAfter, stopped)));
       run.brk = 'false';
       run.cnt = 'false';
       this.mergeFrames(choice, run, f, f);
@@ -858,13 +882,21 @@ export class Executor {
     const inside = and(pc, c);
 
     const run = f.fork();
+    // What the body and the incrementor owe (an index in range, an int in range, a divisor not 0) is owed on every
+    // iteration, so it is checked from a state that satisfies the invariant and the condition. Left in
+    // `obligations` it would only be checked after the loop, where the condition is false and it holds vacuously.
+    const owedFrom = this.obligations.length;
     this.scope.push(and(g, inv));
     this.branch(body, run, inside);
     run.cnt = 'false';
     if (incrementor !== undefined) this.ev(incrementor, run, inside, true);
     this.scope.pop();
     if (run.done !== f.done || run.brk !== 'false') throw new Unsupported('a loop that returns or breaks');
-    this.clauses.push(`(=> ${and(...this.assumptions, ...this.scope, g, inv, c)} ${atom(arguments_(run.env))})`);
+    const owed = this.obligations.splice(owedFrom);
+    const inStep = [...this.assumptions, ...this.scope, g, inv, c];
+    this.clauses.push(`(=> ${and(...inStep)} ${atom(arguments_(run.env))})`);
+    // A query clause: no state satisfying the invariant and the condition breaks what one pass owes.
+    for (const fact of owed) this.clauses.push(`(=> ${and(...inStep, not(fact))} false)`);
 
     // After the loop: any state satisfying the invariant in which the condition is false.
     this.assumptions.push(or(not(g), inv));

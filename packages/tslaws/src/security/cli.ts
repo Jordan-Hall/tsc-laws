@@ -42,7 +42,7 @@ export async function securityCommand(
     return report.failed ? 1 : 0;
   } catch (error) {
     write(
-      `security deps: ${error instanceof Error ? error.message : String(error)}\nUse --offline to check from the cache (.tslaws/osv-cache.json) without the network.\n`,
+      `security deps: ${error instanceof Error ? error.message : String(error)}\nUse --offline to check from the cache (in your user cache directory) without the network.\n`,
     );
     return 2;
   }

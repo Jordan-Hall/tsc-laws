@@ -92,7 +92,7 @@ export async function checkDeps(options: DepsOptions): Promise<DepsReport> {
   const failOn = options.failOn ?? config.failOn;
   const offline = options.offline ?? config.offline;
   const now = (options.now ?? Date.now)();
-  const cache: OsvCache = options.noCache === true || !config.cache ? noCache : openCache(options.cwd);
+  const cache: OsvCache = options.noCache === true || !config.cache ? noCache : openCache();
   const fetch = options.fetch ?? (globalThis.fetch as unknown as FetchLike);
   const freshness = { now, ttlMs: config.cacheTtlHours * 3600_000, stale: offline };
 

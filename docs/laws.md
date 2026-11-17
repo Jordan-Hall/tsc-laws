@@ -777,6 +777,12 @@ reported as `failed`.
   are what Spacer finds; one that needs multiplication (`2 * s === i * (i - 1)`) is usually not found, so write it as an
   `invariant(...)`.
 
+  What the body of a loop owes (an index inside its array, an `int` inside ±(2^53 − 1), a divisor that is not 0) is owed on
+  every iteration. Each such fact becomes a query clause under `Inv` and the loop condition, so it is checked from an
+  arbitrary state of the loop, and the same clauses go to Eldarica or Golem. The same holds for a loop with an
+  `invariant(...)`: the body is read from a state of its own that satisfies the invariant and the condition, apart from
+  the state the code after the loop sees.
+
   When Eldarica (`eld`) or Golem is on the `PATH`, or named by `TSLAWS_ELDARICA` or `TSLAWS_GOLEM`, it solves the same
   clauses. If it agrees the result says so (`Eldarica agrees`). If it says the clauses have no solution where Spacer found
   one, the solvers disagree: the law stays `tested` (a `law proved` is `open`) with that reason, never `proved`. A solver that is missing, times out or says
