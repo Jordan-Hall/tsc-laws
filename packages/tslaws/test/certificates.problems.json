@@ -1,0 +1,7 @@
+{
+  "int-commutes": "(set-option :timeout 5000)\n(declare-const a Int)\n(declare-const b Int)\n(assert (and (<= (- 9007199254740991) a) (<= a 9007199254740991)))\n(assert (and (<= (- 9007199254740991) b) (<= b 9007199254740991)))\n(define-fun v1 () Int (+ a b))\n(define-fun v2 () Int (+ b a))\n(assert (or (not (= v1 v2)) (not true)))\n(check-sat)",
+  "int-define-fun-ite": "(set-option :timeout 5000)\n(declare-const a Int)\n(assert (and (<= (- 9007199254740991) a) (<= a 9007199254740991)))\n(define-fun m () Int (ite (< a 0) (- a) a))\n(define-fun ok () Bool (>= m 0))\n(assert (or (not ok) (not (and (<= (- 9007199254740991) m) (<= m 9007199254740991)))))\n(check-sat)",
+  "bigint-double": "(set-option :timeout 5000)\n(declare-const a Int)\n(assert (not (= (* 2 a) (+ a a))))\n(check-sat)",
+  "bigint-div": "(set-option :timeout 5000)\n(declare-const a Int)\n(define-fun twice () Int (* 2 a))\n(assert (not (= (div twice 2) a)))\n(check-sat)",
+  "boolean-commutes": "(set-option :timeout 5000)\n(declare-const a Bool)\n(declare-const b Bool)\n(define-fun l () Bool (and a b))\n(define-fun r () Bool (and b a))\n(assert (or (not (= l r)) (not true)))\n(check-sat)"
+}

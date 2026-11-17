@@ -3,7 +3,7 @@ import { existsSync, readFileSync, watch } from 'node:fs';
 import { join, relative, resolve, sep } from 'node:path';
 import { resolveEngine } from './browser.ts';
 import { bundledCompiler, checkoutCompiler } from './bundled.ts';
-import { check, exemptionsOf } from './check.ts';
+import { certificatesToAccept, check, exemptionsOf } from './check.ts';
 import type { CheckReport } from './check.ts';
 import { readManifest } from './compile.ts';
 import { hintFor } from './hints.ts';
@@ -35,7 +35,7 @@ import {
   personOnly,
   revokeFor,
 } from './delegation.ts';
-import { certificateLabel, readRecords } from './certificates.ts';
+import { certificateLabel } from './certificates.ts';
 import { readLock, writeLock } from './lock.ts';
 import { lockLevels } from './lawKinds.ts';
 import type { CheckOptions, LawEvent, LawResult } from './types.ts';
@@ -415,11 +415,9 @@ export async function acceptCommand(
   // tslaws/browser reads as tampered until a person accepts again. By name (the default) the lock is unchanged.
   const mode = readConfig(cwd).levels ?? 'names';
   const levels = lockLevels(cwd, laws, mode);
-  // The certificates a `tslaws check --certify` left, and those the old lock had, stay for the laws they still describe.
-  writeLock(opts.lockFile, laws, exempt, levels, {
-    ...readLock(opts.lockFile)?.certificates,
-    ...readRecords(cwd),
-  });
+  // Certificates enter the lock only for the proofs and problems of this run; see certificatesToAccept.
+  const certificates = await certificatesToAccept(opts, laws, readLock(opts.lockFile)?.certificates, out);
+  writeLock(opts.lockFile, laws, exempt, levels, certificates);
   out('tsc-laws.lock written\n');
   if (gate.delegated) {
     logDelegatedAccept(cwd, gate.grant, before, fileHash(opts.lockFile), ctx.now ?? new Date());

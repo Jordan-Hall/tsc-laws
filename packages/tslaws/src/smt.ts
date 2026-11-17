@@ -8,14 +8,13 @@
 //
 // Numbers are IEEE doubles; a parameter typed `number` is a finite double (the generators exclude NaN and the
 // infinities too). A parameter typed `int` (from 'tslaws') or `bigint` is an exact integer.
-import { createHash } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { Worker } from 'node:worker_threads';
 import { jobs, WorkerPool } from './pool.ts';
 import { dirname, join } from 'node:path';
 import ts from 'typescript';
-import { certify, type Certificate, type CertifyMode } from './certificates.ts';
+import { certificateName, certify, problemText, type Certificate, type CertifyMode } from './certificates.ts';
 import { lawKey } from './lock.ts';
 import { SolverUnavailable, secondOpinion, type SolverName } from './solvers.ts';
 import { Executor, SpuriousModel, Unsupported, and, type Value } from './symbolic.ts';
@@ -425,12 +424,11 @@ function keepOf(
   input: ProveInput,
   certify: NonNullable<ProveInput['certify']>,
 ): { dir: string; name: string; root: string } {
-  const slug = input.law.name.replace(/[^A-Za-z0-9]+/g, '-').slice(0, 40);
-  const hash = createHash('sha256').update(lawKey(input.law.file, input.law.name)).digest('hex').slice(0, 8);
-  return { dir: certify.dir, root: certify.root, name: `${slug}-${hash}` };
+  return { dir: certify.dir, root: certify.root, name: certificateName(lawKey(input.law.file, input.law.name)) };
 }
 
-async function attempt(input: ProveInput, intLimit: bigint | undefined): Promise<ProofResult> {
+/** The query for a law, built the way the prover sends it to Z3, with what the build learnt about the law. */
+function buildQuery(input: ProveInput, intLimit: bigint | undefined) {
   {
     const source = ts.createSourceFile(
       input.jsFile,
@@ -464,6 +462,30 @@ async function attempt(input: ProveInput, intLimit: bigint | undefined): Promise
       `(assert (or (not ${holds}) (not ${safe})))`,
       '(check-sat)',
     ];
+    return { query, executor, decl, names };
+  }
+}
+
+/**
+ * The SMT-LIB problems the prover can send for a law (the full safe range, then the small-int retry), as the checkers
+ * read them. `tslaws accept` compares a certificate's problem hash with these, so a certificate counts only for what
+ * the law proves now. A law the prover cannot model has none.
+ */
+export function problemTexts(input: ProveInput): string[] {
+  const texts: string[] = [];
+  for (const limit of [undefined, ...(input.shapes.some(containsInt) ? [smallInts] : [])]) {
+    try {
+      texts.push(problemText(buildQuery(input, limit).query.join(String.fromCharCode(10))));
+    } catch {
+      // A limit the law cannot be built under proves nothing.
+    }
+  }
+  return texts;
+}
+
+async function attempt(input: ProveInput, intLimit: bigint | undefined): Promise<ProofResult> {
+  {
+    const { query, executor, decl, names } = buildQuery(input, intLimit);
     const watch = decl.constants.map((c) => (c.sort === 'fp' ? `(fp.to_real ${c.name})` : c.name));
     // TSLAWS_DEBUG=1 keeps each query next to the compiled output, to replay in z3.
     if (process.env.TSLAWS_DEBUG !== undefined) {
@@ -487,7 +509,15 @@ async function attempt(input: ProveInput, intLimit: bigint | undefined): Promise
       const unconfirmed = await secondOpinion(input.solvers ?? [], query.join('\n'), input.timeoutMs);
       return unconfirmed === undefined
         ? { kind: 'proved', assumptions, ...(await certifyQuery()) }
-        : { kind: 'bounded', limits: [unconfirmed], assumptions };
+        : {
+            kind: 'bounded',
+            limits: [unconfirmed],
+            assumptions,
+            // Nothing was proved, so nothing is certified; `require` must not let this pass.
+            ...(input.certify === undefined
+              ? {}
+              : { certificate: { status: 'uncertified', reason: unconfirmed } as Certificate }),
+          };
     }
     if (check.startsWith('unknown')) throw new Unsupported(`solver gave up within ${input.timeoutMs} ms`);
     if (!check.startsWith('sat')) throw new Unsupported(`solver said: ${check.split('\n')[0]}`);
