@@ -112,6 +112,38 @@ describe(
       );
     });
 
+    it('leaves a proof by invariant uncertified, so "require" fails it', async () => {
+      const files = {
+        'src/f.ts': sources,
+        'src/f.laws.ts': [
+          ...header,
+          "import { twice } from './f';",
+          'export law proved twiceIsDouble(n: int) { assume(n >= 0 && n <= 1000000); return twice(n) === 2 * n; }',
+          '',
+        ].join('\n'),
+      };
+      // No cvc5 proof of a Horn problem exists: with "certify" the law stays proved and says so.
+      const lenient = byName(
+        (await check({ ...project('horn-certify', files), certify: true }, true)).results,
+        'twiceIsDouble',
+      );
+      assert.equal(lenient.status, 'proved', JSON.stringify(lenient));
+      assert.equal(lenient.certificate?.status, 'uncertified');
+      assert.match(lenient.certificate?.reason ?? '', /loop invariants.*Horn/);
+      // With "require" it is an error, not a pass for want of a certificate.
+      const required = byName(
+        (await check({ ...project('horn-require', files), certify: 'require' }, true)).results,
+        'twiceIsDouble',
+      );
+      assert.equal(required.status, 'error', JSON.stringify(required));
+      assert.match(required.message ?? '', /"certify": "require" is set but the proof is uncertified/);
+      // Without certification asked for, nothing changes.
+      assert.equal(
+        byName((await check(project('horn-plain', files), true)).results, 'twiceIsDouble').certificate,
+        undefined,
+      );
+    });
+
     it('proves a max loop and a countdown', async () => {
       const opts = project('max', {
         'src/f.ts': sources,

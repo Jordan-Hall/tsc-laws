@@ -18,11 +18,21 @@ import { analyzeCoverage, coverFiles, lawEnv, readConfig } from './coverage.ts';
 import { parseGithubConfig } from './github.ts';
 import { derivedStore } from './derived.ts';
 import { jobs } from './pool.ts';
-import { certificateFailure, recordOf, writeRecords, type CertificateRecord } from './certificates.ts';
-import { compareLock, lawHash, lawKey, readLock, type Lock } from './lock.ts';
+import {
+  certificateFailure,
+  hashOf,
+  noCertificate,
+  recordOf,
+  staleRecord,
+  verifyRecord,
+  writeRecords,
+  readRecords,
+  type CertificateRecord,
+} from './certificates.ts';
+import { compareLock, lawHash, lawKey, proofStatus, readLock, type Lock } from './lock.ts';
 import { crossCheck, disagreement } from './propertyRun.ts';
 import { prepareRuntime } from './runtimeEnv.ts';
-import { proveLaw } from './smt.ts';
+import { problemTexts, proveLaw } from './smt.ts';
 import { decodeExample, loadExamples, regressionMessage, saveExample } from './regressions.ts';
 import { closeBrowser, runBrowserLaw } from './browser.ts';
 import { ensureServer, runE2eLaw, stopServer } from './e2e.ts';
@@ -82,6 +92,80 @@ export function exemptionsOf(options: CheckOptions): string[] {
   }).exempt;
 }
 
+/**
+ * The hash of each SMT-LIB problem the prover would send for each law now, rebuilt from the compiled code without
+ * running a solver. A certificate is for a law only while its problem hash is one of these.
+ */
+export function problemHashesOf(options: CheckOptions, laws: ManifestLaw[]): Map<string, Set<string>> {
+  const covered = coverFiles(options.cwd, readConfig(options.cwd).cover ?? []);
+  const built = build(options.compiler, [...new Set([...options.files, ...covered])], options.cwd);
+  const program =
+    built.program ?? ts.createProgram(declarationFiles(built.outDir), withResolution(built.outDir, compilerOptions));
+  const sourceCwd = built.program === undefined ? undefined : options.cwd;
+  const hashes = new Map<string, Set<string>>();
+  for (const law of laws) {
+    if (law.problems.length > 0) continue;
+    try {
+      const types = typesOf(program, built.outDir, law, sourceCwd);
+      const texts = problemTexts({
+        law,
+        shapes: types.shapes,
+        jsFile: jsPath(built.outDir, law.file),
+        bound: options.bound,
+        timeoutMs: options.proofTimeoutMs,
+        holds: () => true,
+      });
+      hashes.set(lawKey(law.file, law.name), new Set(texts.map(hashOf)));
+    } catch {
+      // A law whose types cannot be read has no problem to match.
+    }
+  }
+  return hashes;
+}
+
+/**
+ * The certificates `tslaws accept` writes into the lock. The ones in the old lock stay only while their law and their
+ * problem are unchanged. The ones `tslaws check --certify` left in the sidecar file enter only after `verifyRecord`
+ * passes: the file is not trusted. Every record turned away is reported through `say`.
+ */
+export async function certificatesToAccept(
+  options: CheckOptions,
+  laws: ManifestLaw[],
+  held: Record<string, CertificateRecord> | undefined,
+  say: (text: string) => void,
+): Promise<Record<string, CertificateRecord>> {
+  const fresh = readRecords(options.cwd);
+  const accepted: Record<string, CertificateRecord> = {};
+  if (Object.keys(held ?? {}).length === 0 && Object.keys(fresh).length === 0) return accepted;
+  const now = new Map(laws.map((law) => [lawKey(law.file, law.name), lawHash(law)]));
+  const problems = problemHashesOf(options, laws);
+  const drop = (key: string, why: string): void =>
+    say(`certificate dropped for ${key}: ${why}
+`);
+  let toolsMissing = false;
+  // The sidecar file is only a candidate: its records enter after `verifyRecord` passes.
+  for (const [key, record] of Object.entries(fresh)) {
+    const hash = now.get(key);
+    if (hash === undefined) continue;
+    const why = await verifyRecord(options.cwd, key, record, hash, problems.get(key) ?? new Set());
+    if (why === undefined) accepted[key] = record;
+    else {
+      drop(key, why);
+      if (why.includes('binary was not found')) toolsMissing = true;
+    }
+  }
+  // A record the lock holds stays while its law and problem match, unless a verified fresh record replaced it, so a
+  // failed candidate never costs the lock a certificate that is still current.
+  for (const [key, record] of Object.entries(held ?? {})) {
+    if (accepted[key] !== undefined) continue;
+    if (now.get(key) === record?.law && problems.get(key)?.has(record.problemHash)) accepted[key] = record;
+    else drop(key, 'the law or its proof problem changed since it was certified');
+  }
+  if (toolsMissing)
+    say('no new certificates were recorded: cvc5 and Carcara are needed to check them again when accepting\n');
+  return accepted;
+}
+
 export async function check(options: CheckOptions, enforceLock: boolean): Promise<CheckReport> {
   // A proposal placed in .tslaws/proposals by hand may write its imports from the project root; store them where they resolve.
   for (const file of options.files) if (inProposals(file)) normaliseProposal(options.cwd, file);
@@ -93,7 +177,7 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
   const config = readConfig(options.cwd);
   const levelsMode = config.levels ?? 'names';
   const certifyMode = options.certify ?? config.certify ?? false;
-  // The certificate of each law proved this run, or undefined when its proof was not certified.
+  // The certificate each law proved this run got, or undefined when its proof was not certified.
   const records = new Map<string, CertificateRecord | undefined>();
   // Who records a law in the lock: a person locally, or the tslaws workflow on merge when "github" is configured. A
   // project that leaves "github.local" on lets a person accept by hand as well.
@@ -157,6 +241,7 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
               method,
               ...(extra.counterexample === undefined ? {} : { counterexample: extra.counterexample }),
               ...(extra.message === undefined ? {} : { message: extra.message }),
+              ...(extra.certificate === undefined ? {} : { certificate: extra.certificate }),
             },
             ...(exercises.length > 0 ? { exercises } : {}),
           };
@@ -380,13 +465,22 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
     const certified = (certificate: LawResult['certificate']): Pick<LawResult, 'certificate'> =>
       certificate === undefined ? {} : { certificate };
     const assumed = (list: string[]): Pick<LawResult, 'assumptions'> => (list.length > 0 ? { assumptions: list } : {});
-    if ((proof.kind === 'proved' || proof.kind === 'bounded') && proof.certificate !== undefined) {
-      // The lock gets a record only for a law whose proof a checker accepted.
-      records.set(lawKey(law.file, law.name), recordOf(lawHash(law), proof.certificate));
-      const required = certificateFailure(certifyMode, proof.certificate);
-      if (required !== undefined) {
-        add(law, 'error', 'smt', { certificate: proof.certificate, message: required });
-        return;
+    if (proof.kind === 'proved' || proof.kind === 'bounded') {
+      // With certifying on, every proof has a certificate; one that is missing counts as uncertified, so `require`
+      // cannot pass a proof nobody checked.
+      if (certifyMode !== false) proof.certificate ??= noCertificate;
+      if (proof.certificate !== undefined) {
+        records.set(lawKey(law.file, law.name), recordOf(lawHash(law), proof.certificate));
+        const required = certificateFailure(certifyMode, proof.certificate);
+        if (required !== undefined) {
+          add(law, 'error', 'smt', { certificate: proof.certificate, message: required });
+          return;
+        }
+        // A lock certificate for a different problem than the one proved now no longer vouches for the law.
+        if (lock !== undefined && staleRecord(lock.certificates?.[lawKey(law.file, law.name)], proof.certificate))
+          notices.push(
+            `${lawKey(law.file, law.name)}: the certificate in the lock is for a different proof problem; run \`tslaws accept --certify\` to record the new one`,
+          );
       }
     }
     if (proof.kind === 'proved') {
@@ -514,11 +608,10 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
   await closeBrowser();
   await stopServer();
 
-  // Records for `tslaws accept` to copy into the lock; a law that did not end proved or bounded keeps no certificate.
+  // Records for `tslaws accept` to consider; a law that did not end proved or bounded keeps no certificate.
   if (certifyMode !== false && enforceLock && records.size > 0) {
-    const held = new Set(
-      results.filter((r) => r.status === 'proved' || r.status === 'bounded').map((r) => lawKey(r.file, r.name)),
-    );
+    // A law the lock does not record yet is reported `tampered`; its proof counts through the proposal it carries.
+    const held = new Set(results.filter((r) => proofStatus(r) !== undefined).map((r) => lawKey(r.file, r.name)));
     for (const key of records.keys()) if (!held.has(key)) records.set(key, undefined);
     writeRecords(options.cwd, records);
   }

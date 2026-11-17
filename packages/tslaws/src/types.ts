@@ -53,6 +53,8 @@ export interface ProposalOutcome {
   method: string;
   counterexample?: string;
   message?: string;
+  /** The certificate of the proof, for `tslaws accept` to record with the law. */
+  certificate?: Certificate;
 }
 
 export interface CheckOptions {

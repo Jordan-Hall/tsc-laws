@@ -49,7 +49,7 @@ import {
   type Proposal,
 } from './github.ts';
 import { classifyLawFile, lockLevels } from './lawKinds.ts';
-import { acceptChanges, lockChanges, readLock, writeLockValue, type Lock } from './lock.ts';
+import { acceptChanges, certificatesFromRun, lockChanges, readLock, writeLockValue, type Lock } from './lock.ts';
 import { escapeGithubData, escapeGithubProperty } from './reporters.ts';
 import type { CheckOptions, ManifestLaw } from './types.ts';
 
@@ -1206,6 +1206,9 @@ async function merge(ctx: GithubContext): Promise<number> {
     const wins = proposals.filter((p) => decision.accept.has(p.fingerprint));
     if (wins.length > 0) {
       const next = acceptChanges(state.lock, state.laws, state.exempt, state.levels, decision.accept);
+      // Certificates come only from this run's own proofs; none is carried over from the lock it replaces.
+      const certificates = certificatesFromRun(next, state.laws, checked.results);
+      if (Object.keys(certificates).length > 0) next.certificates = certificates;
       writeLockValue(lockFile, next);
       writes.push({
         path: lockPath,

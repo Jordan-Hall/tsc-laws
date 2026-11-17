@@ -3,7 +3,7 @@
 // fixed verdict). One test at the end runs the real tools and is skipped when either is not installed.
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -15,16 +15,20 @@ import {
   certify,
   cvc5ProofArgs,
   problemText,
+  hashOf,
+  noCertificate,
   readRecords,
+  rareRulesOf,
   recordOf,
   uncertifiable,
   writeRecords,
 } from '../dist/certificates.js';
-import { check } from '../dist/check.js';
+import { certificatesToAccept, check } from '../dist/check.js';
 import { readManifest } from '../dist/compile.js';
 import { parseConfig } from '../dist/coverage.js';
 import {
   acceptChanges,
+  certificatesFromRun,
   isCertified,
   lawHash,
   lawKey,
@@ -112,6 +116,22 @@ describe('"certify" in tslaws.json', () => {
         (error: Error) =>
           error.message.startsWith('tslaws.json: "certify"') && /true, false or "require"/.test(error.message),
       );
+  });
+});
+
+describe('the RARE rules of a proof', () => {
+  it('finds the rules, with or without premises, once each', () => {
+    const proof = [
+      '(step t1 (cl (= a b)) :rule rare_rewrite :args ("eq-refl" a))',
+      '(step t2 (cl (= c d)) :rule rare_rewrite :premises (t1) :args ("arith-int-div-total" a 2))',
+      '(step t3 (cl (= e f)) :rule rare_rewrite :args ("eq-refl" e))',
+      '(step t4 (cl) :rule resolution :premises (t1 t2))',
+    ].join(String.fromCharCode(10));
+    assert.deepEqual(rareRulesOf(proof), ['eq-refl', 'arith-int-div-total']);
+  });
+
+  it('finds none in a proof that uses no RARE rule', () => {
+    assert.deepEqual(rareRulesOf('(step t1 (cl) :rule hole)'), []);
   });
 });
 
@@ -286,9 +306,9 @@ describe('certificate records in the lock', () => {
   it('records the hashes of a certified proof and nothing for any other status', () => {
     assert.deepEqual(recordOf('h', certified), {
       law: 'h',
-      problem: 'a'.repeat(64),
-      proof: 'b'.repeat(64),
-      checker: 'c'.repeat(64),
+      problemHash: 'a'.repeat(64),
+      proofHash: 'b'.repeat(64),
+      checkerHash: 'c'.repeat(64),
     });
     assert.equal(recordOf('h', { status: 'uncertified', reason: 'x' }), undefined);
     assert.equal(recordOf('h', { status: 'unavailable', reason: 'x' }), undefined);
@@ -301,7 +321,7 @@ describe('certificate records in the lock', () => {
     writeLock(path, laws, [], undefined, { [key]: recordOf(lawHash(laws[0]!), certified)! });
     const lock = readLock(path)!;
     assert.deepEqual(Object.keys(lock.certificates ?? {}), [key]);
-    assert.equal(lock.certificates![key]!.proof, 'b'.repeat(64));
+    assert.equal(lock.certificates![key]!.proofHash, 'b'.repeat(64));
     assert.equal(isCertified(lock, key), true);
     assert.equal(isCertified(lock, lawKey('src/f.laws.ts', 'two')), false);
   });
@@ -329,14 +349,20 @@ describe('certificate records in the lock', () => {
     assert.doesNotMatch(readFileSync(a, 'utf8'), /certificates/);
   });
 
-  it('keeps a certificate through accepting other changes, and drops it with its law', () => {
+  it('writes a certificate only from the ones given, never from the old lock', () => {
     const path = join(root, 'd.lock');
     const laws = [law('one'), law('two')];
     const key = lawKey('src/f.laws.ts', 'one');
     writeLock(path, laws, [], undefined, { [key]: recordOf(lawHash(laws[0]!), certified)! });
     const lock = readLock(path)!;
-    const accept = (now: ManifestLaw[]) =>
-      acceptChanges(lock, now, [], undefined, new Set(lockChanges(lock, now, []).map((c) => c.fingerprint)));
+    const given = { [key]: recordOf(lawHash(laws[0]!), certified)! };
+    const accept = (now: ManifestLaw[], records = given) =>
+      acceptChanges(lock, now, [], undefined, new Set(lockChanges(lock, now, []).map((c) => c.fingerprint)), records);
+    assert.equal(
+      acceptChanges(lock, laws, [], undefined, new Set()).certificates,
+      undefined,
+      'the old lock certificate is not carried over',
+    );
     const withThree = accept([...laws, law('three')]);
     assert.deepEqual(Object.keys(withThree.certificates ?? {}), [key]);
     writeLockValue(path, withThree);
@@ -424,8 +450,8 @@ describe('certificates in a check', { skip: compiler === undefined ? 'set TSC_LA
     const lock = readLock(options.lockFile)!;
     const key = lawKey('src/f.laws.ts', 'commutes');
     assert.equal(isCertified(lock, key), true);
-    assert.equal(lock.certificates![key]!.proof, result.certificate!.proofHash);
-    assert.equal(lock.certificates![key]!.checker, result.certificate!.checkerHash);
+    assert.equal(lock.certificates![key]!.proofHash, result.certificate!.proofHash);
+    assert.equal(lock.certificates![key]!.checkerHash, result.certificate!.checkerHash);
   });
 
   it('certifies from the flag when tslaws.json is silent', async () => {
@@ -459,6 +485,23 @@ describe('certificates in a check', { skip: compiler === undefined ? 'set TSC_LA
     assert.equal((await run('require-flag', booleanLaw, {}, 'require')).result.status, 'error');
   });
 
+  it('fails "require" for a proof that has no certificate at all, and for a result cvc5 did not confirm', async () => {
+    assert.match(certificateFailure('require', noCertificate) ?? '', /uncertified \(no certificate produced\)/);
+    // With the second solver set, cvc5 disagrees (it says sat), so Z3's proof does not stand: the law is only bounded,
+    // and with "require" that must still fail, not pass for want of a certificate.
+    process.env.TSLAWS_CVC5 = fake("console.log('sat');").path;
+    process.env.TSLAWS_CARCARA = carcaraAccepts().path;
+    const config = { certify: 'require', solvers: ['z3', 'cvc5'] };
+    const required = await run('require-unconfirmed', booleanLaw, config);
+    assert.equal(required.result.status, 'error');
+    assert.match(required.result.message ?? '', /"certify": "require" is set but the proof is uncertified/);
+    // Without "require" the law keeps its status and says it is uncertified.
+    const lenient = await run('lenient-unconfirmed', booleanLaw, { ...config, certify: true });
+    assert.equal(lenient.result.status, 'bounded');
+    assert.equal(lenient.result.certificate?.status, 'uncertified');
+    assert.deepEqual(readRecords(lenient.options.cwd), {});
+  });
+
   it('passes "require" when the proof is certified', async () => {
     process.env.TSLAWS_CVC5 = cvc5Proves().path;
     process.env.TSLAWS_CARCARA = carcaraAccepts().path;
@@ -474,6 +517,158 @@ describe('certificates in a check', { skip: compiler === undefined ? 'set TSC_LA
   });
 });
 
+describe('accepting certificates', { skip: compiler === undefined ? 'set TSC_LAWS_BIN' : false }, () => {
+  const key = lawKey('src/f.laws.ts', 'commutes');
+  /** A project whose law was certified by the fakes, with the sidecar record and saved files a check leaves. */
+  async function certifiedProject(
+    name: string,
+    law = booleanLaw,
+  ): Promise<{
+    options: CheckOptions;
+    laws: ManifestLaw[];
+    certificate: NonNullable<LawResult['certificate']>;
+  }> {
+    process.env.TSLAWS_CVC5 = cvc5Proves().path;
+    process.env.TSLAWS_CARCARA = carcaraAccepts().path;
+    const { result, options } = await run(name, law, { certify: true });
+    assert.equal(result.certificate?.status, 'certified', JSON.stringify(result));
+    return {
+      options,
+      laws: readManifest(compiler!, options.files, options.cwd),
+      certificate: result.certificate!,
+    };
+  }
+  const saved = (options: CheckOptions, extension: string): string => {
+    const dir = join(options.cwd, '.tslaws', 'certificates');
+    return join(
+      dir,
+      readdirSync(dir).find((f) => f.endsWith(extension))!,
+    );
+  };
+  const accept = async (
+    options: CheckOptions,
+    laws: ManifestLaw[],
+    held?: Record<string, NonNullable<ReturnType<typeof recordOf>>>,
+  ): Promise<{ records: Record<string, unknown>; said: string }> => {
+    let said = '';
+    const records = await certificatesToAccept(options, laws, held, (text) => (said += text));
+    return { records, said };
+  };
+
+  it('keeps a record whose files, hashes and Carcara check all hold', async () => {
+    const { options, laws, certificate } = await certifiedProject('accept-ok');
+    const { records, said } = await accept(options, laws);
+    assert.deepEqual(Object.keys(records), [key]);
+    assert.equal((records[key] as { proofHash: string }).proofHash, certificate.proofHash);
+    assert.equal(said, '');
+  });
+
+  it('keeps the record of a law proved for arrays of any length', async () => {
+    // The prover sends arrays as unbounded SMT arrays; accept must rebuild that same problem to find the record's hash.
+    const arrayLaw = [
+      "import type { int } from 'tslaws';",
+      'export law commutes(xs: int[]) { return xs.length + 0 === xs.length; }',
+      '',
+    ].join(String.fromCharCode(10));
+    const { options, laws } = await certifiedProject('accept-arrays', arrayLaw);
+    const { records, said } = await accept(options, laws);
+    assert.deepEqual(Object.keys(records), [key]);
+    assert.equal(said, '');
+  });
+
+  it('drops a forged record whose saved problem and proof are missing', async () => {
+    const { options, laws } = await certifiedProject('accept-forged');
+    rmSync(join(options.cwd, '.tslaws', 'certificates'), { recursive: true, force: true });
+    const { records, said } = await accept(options, laws);
+    assert.deepEqual(records, {});
+    assert.match(said, /certificate dropped for .*commutes: the saved problem or proof is missing/);
+  });
+
+  it('drops a record when a saved file no longer matches its hash', async () => {
+    const proofEdited = await certifiedProject('accept-proof-edited');
+    writeFileSync(saved(proofEdited.options, '.alethe'), '(step t1 (cl) :rule hole)\n');
+    const first = await accept(proofEdited.options, proofEdited.laws);
+    assert.deepEqual(first.records, {});
+    assert.match(first.said, /the saved proof does not match the record/);
+    const problemEdited = await certifiedProject('accept-problem-edited');
+    writeFileSync(saved(problemEdited.options, '.smt2'), '(assert true)\n');
+    const second = await accept(problemEdited.options, problemEdited.laws);
+    assert.deepEqual(second.records, {});
+    assert.match(second.said, /the saved problem does not match the record/);
+  });
+
+  it('drops a record Carcara no longer accepts, and keeps none when Carcara is missing', async () => {
+    const { options, laws } = await certifiedProject('accept-recheck');
+    process.env.TSLAWS_CARCARA = fake("console.log('invalid'); process.exitCode = 1;").path;
+    const rejected = await accept(options, laws);
+    assert.deepEqual(rejected.records, {});
+    assert.match(rejected.said, /Carcara did not accept the proof/);
+    process.env.TSLAWS_CARCARA = join(root, 'missing', 'carcara');
+    const missing = await accept(options, laws);
+    assert.deepEqual(missing.records, {});
+    assert.match(missing.said, /no new certificates were recorded/);
+  });
+
+  it('drops a record for a law that changed since it was certified', async () => {
+    const { options, laws } = await certifiedProject('accept-law-changed');
+    const edited = laws.map((l) => ({ ...l, text: l.text.replace('return', 'return true &&') }));
+    const { records, said } = await accept(options, edited);
+    assert.deepEqual(records, {});
+    assert.match(said, /the law changed since it was certified/);
+  });
+
+  it('drops a record that is for another problem than the law yields, even with matching files', async () => {
+    const { options, laws } = await certifiedProject('accept-other-problem');
+    // A forger who writes a different problem and a matching record still cannot bind it to this law.
+    const other = '(set-logic ALL)\n(declare-const x Int)\n(assert (> x x))\n(check-sat)\n';
+    const record = readRecords(options.cwd)[key]!;
+    writeFileSync(saved(options, '.smt2'), other);
+    const forged = { ...record, problemHash: hashOf(other) };
+    writeFileSync(join(options.cwd, '.tslaws', 'certificates.json'), JSON.stringify({ [key]: forged }));
+    const { records, said } = await accept(options, laws);
+    assert.deepEqual(records, {});
+    assert.match(said, /different proof problem than the law yields now/);
+  });
+
+  it('keeps the certificate of a law the lock does not record yet, so accepting it can record the proof', async () => {
+    process.env.TSLAWS_CVC5 = cvc5Proves().path;
+    process.env.TSLAWS_CARCARA = carcaraAccepts().path;
+    const options = project('accept-new-law', {
+      'src/f.laws.ts': booleanLaw,
+      'tslaws.json': JSON.stringify({ certify: true }),
+    });
+    writeLock(options.lockFile, []);
+    const checked = await check(options, true);
+    const result = checked.results.find((r) => r.name === 'commutes')!;
+    assert.equal(result.status, 'tampered');
+    assert.equal(result.proposal?.status, 'proved');
+    assert.equal(result.proposal?.certificate?.status, 'certified');
+    assert.deepEqual(Object.keys(readRecords(options.cwd)), [key]);
+    const laws = readManifest(compiler!, options.files, options.cwd);
+    assert.deepEqual(Object.keys((await accept(options, laws)).records), [key]);
+    // The GitHub flow takes the certificate from the same result once the lock records the law.
+    const lock = acceptChanges(
+      undefined,
+      laws,
+      [],
+      undefined,
+      new Set(lockChanges(undefined, laws, []).map((c) => c.fingerprint)),
+    );
+    assert.deepEqual(Object.keys(certificatesFromRun(lock, laws, checked.results)), [key]);
+  });
+
+  it('carries a lock certificate over only while its law and its problem still match', async () => {
+    const { options, laws, certificate } = await certifiedProject('accept-old-lock');
+    rmSync(join(options.cwd, '.tslaws', 'certificates.json'));
+    const current = recordOf(lawHash(laws[0]!), certificate)!;
+    const kept = await accept(options, laws, { [key]: current });
+    assert.deepEqual(Object.keys(kept.records), [key]);
+    const stale = await accept(options, laws, { [key]: { ...current, problemHash: 'd'.repeat(64) } });
+    assert.deepEqual(stale.records, {});
+    assert.match(stale.said, /the law or its proof problem changed since it was certified/);
+  });
+});
+
 /** Whether a tool answers `--version`. */
 function installed(env: string, binary: string): boolean {
   const path = process.env[env] ?? binary;
@@ -482,19 +677,49 @@ function installed(env: string, binary: string): boolean {
   return found.error === undefined && found.status === 0;
 }
 
+// TSLAWS_REQUIRE_CERT_TOOLS=1 (set by the certificates workflow) makes missing tools a failure instead of a skip.
+const requireTools = process.env.TSLAWS_REQUIRE_CERT_TOOLS === '1';
 const realTools = installed('TSLAWS_CVC5', 'cvc5') && installed('TSLAWS_CARCARA', 'carcara');
+// cvc5 1.4.2 and Carcara cannot yet check these together: `ite-eq` is not declared for Carcara, and Carcara does not know `div_total`.
+const limited = new Set(['int-define-fun-ite', 'bigint-div']);
+const problems = JSON.parse(readFileSync(join(here, 'certificates.problems.json'), 'utf8')) as Record<string, string>;
 
-describe('with the real cvc5 and Carcara', { skip: realTools ? false : 'cvc5 or carcara is not installed' }, () => {
-  it('certifies an integer proof and refuses to certify a satisfiable query', async () => {
-    const proved = await certify(
-      '(set-option :timeout 5000)\n(declare-const x Int)\n(assert (> x 5))\n(assert (< x 3))\n(check-sat)',
-      {
-        timeoutMs: 10000,
-      },
-    );
-    assert.equal(proved.status, 'certified', proved.reason);
-    assert.match(proved.proofHash ?? '', /^[0-9a-f]{64}$/);
-    const open = await certify('(declare-const x Int)\n(assert (> x 5))\n(check-sat)', { timeoutMs: 10000 });
-    assert.equal(open.status, 'uncertified');
-  });
-});
+describe(
+  'with the real cvc5 and Carcara',
+  { skip: realTools || requireTools ? false : 'cvc5 or carcara is not installed' },
+  () => {
+    it('has the tools when they are required', () => {
+      if (requireTools)
+        assert.ok(realTools, 'TSLAWS_REQUIRE_CERT_TOOLS=1 but cvc5 or carcara does not answer --version');
+    });
+
+    // The problems are shaped like the prover's queries: int and bigint (Int) and boolean laws, with define-fun terms.
+    for (const name of Object.keys(problems)) {
+      if (limited.has(name)) continue;
+      it(`certifies ${name}`, async () => {
+        const certificate = await certify(problems[name]!, { timeoutMs: 20000 });
+        assert.equal(certificate.status, 'certified', certificate.reason);
+        assert.match(certificate.proofHash ?? '', /^[0-9a-f]{64}$/);
+      });
+    }
+
+    // The honest answers are `certified` (a newer cvc5 or Carcara) or `uncertified`; never a certificate that was not checked.
+    for (const name of limited) {
+      it(`certifies ${name}, or declines to`, async () => {
+        const certificate = await certify(problems[name]!, { timeoutMs: 20000 });
+        assert.ok(
+          ['certified', 'uncertified'].includes(certificate.status),
+          `${certificate.status}: ${certificate.reason}`,
+        );
+      });
+    }
+
+    it('refuses to certify a satisfiable query', async () => {
+      const open = await certify(
+        ['(declare-const x Int)', '(assert (> x 5))', '(check-sat)'].join(String.fromCharCode(10)),
+        { timeoutMs: 10000 },
+      );
+      assert.equal(open.status, 'uncertified');
+    });
+  },
+);
