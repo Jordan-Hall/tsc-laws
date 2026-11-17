@@ -33,10 +33,16 @@ When Z3 proves a law, `tslaws` writes the query (without Z3's timeout option and
 to a file and runs
 
 ```
-cvc5 --lang smt2 --dump-proofs --proof-format-mode=alethe --proof-granularity=theory-rewrite --proof-alethe-res-pivots \
+cvc5 --lang smt2 --dump-proofs --proof-format-mode=alethe --proof-granularity=dsl-rewrite --proof-alethe-res-pivots \
      --dag-thresh=0 --simplification=none --enum-inst-interleave --cegqi-all --tlimit <proof timeout> problem.smt2
-carcara check proof.alethe problem.smt2 --allow-int-real-subtyping --expand-let-bindings
+carcara check proof.alethe problem.smt2 --allow-int-real-subtyping --expand-let-bindings [--rare-file rules.rare]
 ```
+
+The `dsl-rewrite` granularity keeps cvc5 from writing unchecked `hole` steps for its rewrites; it writes `rare_rewrite` steps
+instead, which Carcara checks against the rule's declaration. `tslaws` gets those declarations (`rules.rare`) by asking the
+cvc5 binary for its rewrite-rule database (`-o rare-db`) and keeping the rules the proof names, so they never come from a
+file beside the proof. If cvc5 does not declare a rule its proof uses (cvc5 1.4.2 proves some `ite` laws with `ite-eq`, which
+it does not declare), the law is `uncertified` and the reason names the rule.
 
 The proof counts only if cvc5 answers `unsat` and Carcara prints `valid` and exits 0. A proof Carcara reports as `holey`
 (some steps unchecked) is not certified.
@@ -78,7 +84,8 @@ proof, so Carcara can run again on them) and the hashes in `.tslaws/certificates
 - the saved `.smt2` and `.alethe` exist and hash as the record says;
 - Carcara accepts them again, now, and its verdict hashes to the record's `checkerHash`.
 
-A record that fails any step is dropped and accept says why. With Carcara missing, no new certificate is recorded.
+A record that fails any step is dropped and accept says why. With Carcara missing (or cvc5, for a proof with `rare_rewrite`
+steps), no new certificate is recorded.
 Records already in the lock are kept only while their law and problem still match. The records that pass are copied into
 `tsc-laws.lock` beside the law's own hash:
 

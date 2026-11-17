@@ -148,7 +148,8 @@ const checkerHashOf = (verdict: string, problemHash: string, proofHash: string):
 /** The names of the RARE rewrite rules an Alethe proof applies. */
 export function rareRulesOf(proof: string): string[] {
   const names = new Set<string>();
-  for (const match of proof.matchAll(/:rule rare_rewrite\s+:args\s+\(\s*"([^"]+)"/g)) names.add(match[1]!);
+  for (const match of proof.matchAll(/:rule rare_rewrite\s+(?::premises\s+\([^)]*\)\s+)?:args\s+\(\s*"([^"]+)"/g))
+    names.add(match[1]!);
   return [...names];
 }
 

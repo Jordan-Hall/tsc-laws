@@ -18,6 +18,7 @@ import {
   hashOf,
   noCertificate,
   readRecords,
+  rareRulesOf,
   recordOf,
   uncertifiable,
   writeRecords,
@@ -115,6 +116,22 @@ describe('"certify" in tslaws.json', () => {
         (error: Error) =>
           error.message.startsWith('tslaws.json: "certify"') && /true, false or "require"/.test(error.message),
       );
+  });
+});
+
+describe('the RARE rules of a proof', () => {
+  it('finds the rules, with or without premises, once each', () => {
+    const proof = [
+      '(step t1 (cl (= a b)) :rule rare_rewrite :args ("eq-refl" a))',
+      '(step t2 (cl (= c d)) :rule rare_rewrite :premises (t1) :args ("arith-int-div-total" a 2))',
+      '(step t3 (cl (= e f)) :rule rare_rewrite :args ("eq-refl" e))',
+      '(step t4 (cl) :rule resolution :premises (t1 t2))',
+    ].join(String.fromCharCode(10));
+    assert.deepEqual(rareRulesOf(proof), ['eq-refl', 'arith-int-div-total']);
+  });
+
+  it('finds none in a proof that uses no RARE rule', () => {
+    assert.deepEqual(rareRulesOf('(step t1 (cl) :rule hole)'), []);
   });
 });
 
@@ -647,6 +664,7 @@ function installed(env: string, binary: string): boolean {
 // TSLAWS_REQUIRE_CERT_TOOLS=1 (set by the certificates workflow) makes missing tools a failure instead of a skip.
 const requireTools = process.env.TSLAWS_REQUIRE_CERT_TOOLS === '1';
 const realTools = installed('TSLAWS_CVC5', 'cvc5') && installed('TSLAWS_CARCARA', 'carcara');
+const iteProblem = 'int-define-fun-ite';
 const problems = JSON.parse(readFileSync(join(here, 'certificates.problems.json'), 'utf8')) as Record<string, string>;
 
 describe(
@@ -660,12 +678,23 @@ describe(
 
     // The problems are shaped like the prover's queries: int and bigint (Int) and boolean laws, with define-fun terms.
     for (const name of Object.keys(problems)) {
+      if (name === iteProblem) continue;
       it(`certifies ${name}`, async () => {
         const certificate = await certify(problems[name]!, { timeoutMs: 20000 });
         assert.equal(certificate.status, 'certified', certificate.reason);
         assert.match(certificate.proofHash ?? '', /^[0-9a-f]{64}$/);
       });
     }
+
+    // cvc5 1.4.2 proves this with an `ite-eq` rewrite it does not declare for Carcara (the declaration came later), so the
+    // honest answers are `certified` (a newer cvc5) or `uncertified` naming the missing rule; never a certificate that was not checked.
+    it(`certifies ${iteProblem}, or says which rule cvc5 does not define`, async () => {
+      const certificate = await certify(problems[iteProblem]!, { timeoutMs: 20000 });
+      if (certificate.status !== 'certified') {
+        assert.equal(certificate.status, 'uncertified');
+        assert.match(certificate.reason ?? '', /does not define the rewrite rules.*ite-eq/);
+      }
+    });
 
     it('refuses to certify a satisfiable query', async () => {
       const open = await certify(
