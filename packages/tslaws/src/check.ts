@@ -99,7 +99,8 @@ export function exemptionsOf(options: CheckOptions): string[] {
 export function problemHashesOf(options: CheckOptions, laws: ManifestLaw[]): Map<string, Set<string>> {
   const covered = coverFiles(options.cwd, readConfig(options.cwd).cover ?? []);
   const built = build(options.compiler, [...new Set([...options.files, ...covered])], options.cwd);
-  const program = built.program ?? ts.createProgram(declarationFiles(built.outDir), compilerOptions);
+  const program =
+    built.program ?? ts.createProgram(declarationFiles(built.outDir), withResolution(built.outDir, compilerOptions));
   const sourceCwd = built.program === undefined ? undefined : options.cwd;
   const hashes = new Map<string, Set<string>>();
   for (const law of laws) {
@@ -141,12 +142,8 @@ export async function certificatesToAccept(
   const drop = (key: string, why: string): void =>
     say(`certificate dropped for ${key}: ${why}
 `);
-  for (const [key, record] of Object.entries(held ?? {})) {
-    if (fresh[key] !== undefined) continue;
-    if (now.get(key) === record?.law && problems.get(key)?.has(record.problemHash)) accepted[key] = record;
-    else drop(key, 'the law or its proof problem changed since it was certified');
-  }
   let toolsMissing = false;
+  // The sidecar file is only a candidate: its records enter after `verifyRecord` passes.
   for (const [key, record] of Object.entries(fresh)) {
     const hash = now.get(key);
     if (hash === undefined) continue;
@@ -157,7 +154,15 @@ export async function certificatesToAccept(
       if (why.includes('binary was not found')) toolsMissing = true;
     }
   }
-  if (toolsMissing) say('no new certificates were recorded: Carcara is needed to check them again when accepting\n');
+  // A record the lock holds stays while its law and problem match, unless a verified fresh record replaced it, so a
+  // failed candidate never costs the lock a certificate that is still current.
+  for (const [key, record] of Object.entries(held ?? {})) {
+    if (accepted[key] !== undefined) continue;
+    if (now.get(key) === record?.law && problems.get(key)?.has(record.problemHash)) accepted[key] = record;
+    else drop(key, 'the law or its proof problem changed since it was certified');
+  }
+  if (toolsMissing)
+    say('no new certificates were recorded: cvc5 and Carcara are needed to check them again when accepting\n');
   return accepted;
 }
 

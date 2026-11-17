@@ -6,9 +6,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 const problems = JSON.parse(readFileSync('packages/tslaws/test/certificates.problems.json', 'utf8'));
-const { cvc5ProofArgs, carcaraArgs, problemText } = await import('../../packages/tslaws/dist/certificates.js').catch(
-  () => ({ cvc5ProofArgs: undefined }),
-);
+const { cvc5ProofArgs, carcaraArgs, problemText, rareRulesOf, rareDeclarations } =
+  await import('../../packages/tslaws/dist/certificates.js').catch(() => ({ cvc5ProofArgs: undefined }));
 if (cvc5ProofArgs === undefined) {
   console.log('tslaws is not built yet; build it before this step');
   process.exit(0);
@@ -22,12 +21,28 @@ for (const [name, query] of Object.entries(problems)) {
   const cvc5 = spawnSync(process.env.TSLAWS_CVC5, [...cvc5ProofArgs, '--tlimit', '10000', problem], {
     encoding: 'utf8',
   });
-  console.log(`cvc5 exit ${cvc5.status}\n${cvc5.stdout.slice(0, 4000)}\n${cvc5.stderr}`);
   const out = cvc5.stdout;
+  console.log(`cvc5 exit ${cvc5.status}\n${out.slice(0, 1500)}\n${cvc5.stderr}`);
   if (cvc5.status === 0 && out.startsWith('unsat')) {
+    const proofText = out.slice(out.indexOf('\n') + 1);
     const proof = join(dir, `${name}.alethe`);
-    writeFileSync(proof, out.slice(out.indexOf('\n') + 1));
-    const carcara = spawnSync(process.env.TSLAWS_CARCARA, ['check', proof, problem, ...carcaraArgs], {
+    writeFileSync(proof, proofText);
+    const rare = rareRulesOf(proofText);
+    const extra = [];
+    if (rare.length > 0) {
+      const declared = await rareDeclarations(rare, dir, 30000);
+      console.log(`rare rules: ${rare.join(', ')}`);
+      if (declared.text === undefined) {
+        console.log(`rare rules unavailable: ${declared.reason}`);
+        failed = true;
+      } else {
+        const file = join(dir, `${name}.rare`);
+        writeFileSync(file, declared.text);
+        console.log(declared.text.slice(0, 1500));
+        extra.push('--rare-file', file);
+      }
+    }
+    const carcara = spawnSync(process.env.TSLAWS_CARCARA, ['check', proof, problem, ...carcaraArgs, ...extra], {
       encoding: 'utf8',
     });
     console.log(`carcara exit ${carcara.status}\n${carcara.stdout}\n${carcara.stderr}`);

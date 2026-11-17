@@ -81,7 +81,7 @@ export const cvc5ProofArgs: readonly string[] = [
   'smt2',
   '--dump-proofs',
   '--proof-format-mode=alethe',
-  '--proof-granularity=theory-rewrite',
+  '--proof-granularity=dsl-rewrite',
   '--proof-alethe-res-pivots',
   '--dag-thresh=0',
   '--simplification=none',
@@ -145,6 +145,62 @@ export interface CertifyOptions {
 const checkerHashOf = (verdict: string, problemHash: string, proofHash: string): string =>
   hashOf(JSON.stringify({ verdict, problem: problemHash, proof: proofHash }));
 
+/** The names of the RARE rewrite rules an Alethe proof applies. */
+export function rareRulesOf(proof: string): string[] {
+  const names = new Set<string>();
+  for (const match of proof.matchAll(/:rule rare_rewrite\s+:args\s+\(\s*"([^"]+)"/g)) names.add(match[1]!);
+  return [...names];
+}
+
+/**
+ * The RARE rule declarations for `names`, in the form Carcara reads. cvc5 itself prints its database of rewrite rules, so
+ * the rules a proof may lean on come from the same binary that wrote the proof and never from a file beside the proof.
+ */
+export async function rareDeclarations(
+  names: string[],
+  work: string,
+  budget: number,
+): Promise<{ text: string } | { status: 'uncertified' | 'unavailable'; reason: string }> {
+  const cvc5 = toolCommand('TSLAWS_CVC5', 'cvc5');
+  const input = join(work, 'rare.smt2');
+  writeFileSync(input, '(check-sat)\n');
+  const printed = await run(
+    cvc5.file,
+    [
+      ...cvc5.args,
+      '-o',
+      'rare-db',
+      '--force-logic=ALL',
+      '--produce-proofs',
+      '--proof-granularity=dsl-rewrite',
+      '--proof-format-mode=alethe',
+      input,
+    ],
+    budget,
+  );
+  if (printed === undefined) return { status: 'unavailable', reason: cvc5Missing };
+  if (printed === 'timeout')
+    return { status: 'uncertified', reason: `cvc5 did not print its rewrite rules within ${budget} ms` };
+  const blocks = new Map<string, string>();
+  let current: { name: string; lines: string[] } | undefined;
+  for (const line of printed.stdout.split(/\r?\n/)) {
+    const start = /^\(declare-rule\s+(\S+)/.exec(line);
+    if (start !== null) current = { name: start[1]!, lines: [] };
+    if (current !== undefined) current.lines.push(line);
+    if (current !== undefined && line === ')') {
+      blocks.set(current.name, current.lines.join('\n').replace('(declare-rule ', '(declare-rare-rule '));
+      current = undefined;
+    }
+  }
+  const missing = names.filter((name) => !blocks.has(name));
+  if (missing.length > 0)
+    return {
+      status: 'uncertified',
+      reason: `cvc5 does not define the rewrite rules the proof uses: ${missing.join(', ')}`,
+    };
+  return { text: `${names.map((name) => blocks.get(name)).join('\n')}\n` };
+}
+
 /** Runs Carcara on a saved proof and problem: `certified` (with its verdict) only when Carcara says `valid`. */
 async function recheck(
   problemFile: string,
@@ -152,7 +208,35 @@ async function recheck(
   budget: number,
 ): Promise<(Certificate & { verdict: string }) | { status: 'uncertified' | 'unavailable'; reason: string }> {
   const carcara = toolCommand('TSLAWS_CARCARA', 'carcara');
-  const checked = await run(carcara.file, [...carcara.args, 'check', proofFile, problemFile, ...carcaraArgs], budget);
+  const rare = rareRulesOf(readFileSync(proofFile, 'utf8'));
+  const work = mkdtempSync(join(tmpdir(), 'tslaws-rare-'));
+  try {
+    const extra: string[] = [];
+    if (rare.length > 0) {
+      const declared = await rareDeclarations(rare, work, budget);
+      if (!('text' in declared)) return declared;
+      const rareFile = join(work, 'rules.rare');
+      writeFileSync(rareFile, declared.text);
+      extra.push('--rare-file', rareFile);
+    }
+    return await runCarcara(carcara, proofFile, problemFile, extra, budget);
+  } finally {
+    rmSync(work, { recursive: true, force: true });
+  }
+}
+
+async function runCarcara(
+  carcara: { file: string; args: string[] },
+  proofFile: string,
+  problemFile: string,
+  extra: string[],
+  budget: number,
+): Promise<(Certificate & { verdict: string }) | { status: 'uncertified' | 'unavailable'; reason: string }> {
+  const checked = await run(
+    carcara.file,
+    [...carcara.args, 'check', proofFile, problemFile, ...carcaraArgs, ...extra],
+    budget,
+  );
   if (checked === undefined) return { status: 'unavailable', reason: carcaraMissing };
   if (checked === 'timeout') return { status: 'uncertified', reason: `Carcara did not finish within ${budget} ms` };
   const verdict = firstLine(checked.stdout);
