@@ -43,6 +43,8 @@ instead, which Carcara checks against the rule's declaration. `tslaws` gets thos
 cvc5 binary for its rewrite-rule database (`-o rare-db`) and keeping the rules the proof names, so they never come from a
 file beside the proof. If cvc5 does not declare a rule its proof uses (cvc5 1.4.2 proves some `ite` laws with `ite-eq`, which
 it does not declare), the law is `uncertified` and the reason names the rule.
+Carcara itself does not yet read the `div_total` symbol cvc5 uses when it rewrites integer `div`, so such a law is
+`uncertified` too. Laws that fall in these gaps still prove with Z3; they only lack a certificate.
 
 The proof counts only if cvc5 answers `unsat` and Carcara prints `valid` and exits 0. A proof Carcara reports as `holey`
 (some steps unchecked) is not certified.
