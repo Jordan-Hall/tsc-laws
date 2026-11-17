@@ -32,8 +32,19 @@ function repo(files: Record<string, string | object>): string {
 }
 
 function tslaws(cwd: string, ...args: string[]): { status: number | null; stdout: string; stderr: string } {
-  const run = spawnSync('node', [bin, ...args], { cwd, encoding: 'utf8' });
-  return { status: run.status, stdout: run.stdout, stderr: run.stderr };
+  const run = spawnSync('node', [bin, ...args], {
+    cwd,
+    encoding: 'utf8',
+    // A hung CLI fails this test by name instead of stalling the whole run.
+    timeout: 300_000,
+    killSignal: 'SIGKILL',
+  });
+  return {
+    status: run.status,
+    stdout: run.stdout,
+    stderr: run.error ? [run.stderr, run.error.message].join('
+') : run.stderr,
+  };
 }
 
 const monorepo = (): string =>
