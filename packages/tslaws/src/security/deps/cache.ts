@@ -3,7 +3,7 @@
 // vulnerabilities from a run that trusts it.
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, posix, win32 } from 'node:path';
 import type { Vuln } from './osv.ts';
 
 interface Stored {
@@ -22,16 +22,21 @@ export interface OsvCache {
   save(): void;
 }
 
-/** The per-user cache directory: `%LOCALAPPDATA%\tslaws` on Windows, else `$XDG_CACHE_HOME/tslaws` or `~/.cache/tslaws`. */
+/**
+ * The per-user cache directory: `%LOCALAPPDATA%	slaws` on Windows, else `$XDG_CACHE_HOME/tslaws` or `~/.cache/tslaws`.
+ * A variable that is empty or not an absolute path is ignored, as the XDG spec says: a relative one would put the cache
+ * inside whichever directory the run starts in, which can be the repository.
+ */
 export function cacheDir(
   env: NodeJS.ProcessEnv = process.env,
   platform: NodeJS.Platform = process.platform,
   home: string = homedir(),
 ): string {
-  const set = (value: string | undefined): string | undefined =>
-    value === undefined || value === '' ? undefined : value;
-  if (platform === 'win32') return join(set(env.LOCALAPPDATA) ?? join(home, 'AppData', 'Local'), 'tslaws');
-  return join(set(env.XDG_CACHE_HOME) ?? join(home, '.cache'), 'tslaws');
+  const isAbsolute = platform === 'win32' ? win32.isAbsolute : posix.isAbsolute;
+  const absolute = (value: string | undefined): string | undefined =>
+    value !== undefined && isAbsolute(value) ? value : undefined;
+  if (platform === 'win32') return join(absolute(env.LOCALAPPDATA) ?? join(home, 'AppData', 'Local'), 'tslaws');
+  return join(absolute(env.XDG_CACHE_HOME) ?? join(home, '.cache'), 'tslaws');
 }
 
 export const cachePath = (env: NodeJS.ProcessEnv = process.env): string => join(cacheDir(env), 'osv-cache.json');
@@ -52,15 +57,30 @@ const isStrings = (value: unknown): value is string[] =>
 const isTime = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value);
 const optional = (value: unknown, ok: (v: unknown) => boolean): boolean => value === undefined || ok(value);
 
-/** Whether `value` has the shape `trimVuln` writes, and is the advisory `id`. */
+const isString = (value: unknown): value is string => typeof value === 'string';
+const isArrayOf = (value: unknown, ok: (item: unknown) => boolean): boolean => Array.isArray(value) && value.every(ok);
+
+/** An OSV range event: `introduced`, `fixed`, `last_affected` or `limit`, each a version string. */
+const isEvent = (value: unknown): boolean => isObject(value) && Object.values(value).every(isString);
+const isRange = (value: unknown): boolean =>
+  isObject(value) && optional(value.type, isString) && optional(value.events, (v) => isArrayOf(v, isEvent));
+const isAffected = (value: unknown): boolean =>
+  isObject(value) &&
+  optional(value.package, (v) => isObject(v) && optional(v.name, isString) && optional(v.ecosystem, isString)) &&
+  optional(value.ranges, (v) => isArrayOf(v, isRange)) &&
+  optional(value.ecosystem_specific, isObject);
+const isScore = (value: unknown): boolean =>
+  isObject(value) && optional(value.type, isString) && optional(value.score, isString);
+
+/** Whether `value` has the shape `trimVuln` writes, all the way down, and is the advisory `id`. */
 function isVuln(value: unknown, id: string): value is Vuln {
   if (!isObject(value) || value.id !== id) return false;
   return (
     optional(value.aliases, isStrings) &&
-    optional(value.summary, (v) => typeof v === 'string') &&
-    optional(value.severity, (v) => Array.isArray(v) && v.every(isObject)) &&
+    optional(value.summary, isString) &&
+    optional(value.severity, (v) => isArrayOf(v, isScore)) &&
     optional(value.database_specific, isObject) &&
-    optional(value.affected, (v) => Array.isArray(v) && v.every(isObject))
+    optional(value.affected, (v) => isArrayOf(v, isAffected))
   );
 }
 

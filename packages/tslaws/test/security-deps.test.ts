@@ -6,7 +6,7 @@ import { dirname, join } from 'node:path';
 import { after, describe, it } from 'node:test';
 import { parseConfig } from '../dist/coverage.js';
 import { securityCommand } from '../dist/security/cli.js';
-import { cacheDir, cachePath } from '../dist/security/deps/cache.js';
+import { cacheDir, cachePath, openCache } from '../dist/security/deps/cache.js';
 import { parseSecurityConfig } from '../dist/security/deps/config.js';
 import { packageOf } from '../dist/security/deps/imports.js';
 import {
@@ -475,12 +475,60 @@ describe('checkDeps', () => {
     );
   });
 
+  it('drops an advisory whose nested fields are malformed, so no bad entry reaches the code that reads it', async () => {
+    const cwd = project('malformed-nested', { 'package-lock.json': npmLock, ...sources });
+    const now = Date.now();
+    const bad: Record<string, unknown>[] = [
+      { affected: [{ package: { name: 'lodash', ecosystem: 'npm' }, ranges: {} }] },
+      { affected: [{ ranges: [{ type: 'SEMVER', events: {} }] }] },
+      { affected: [{ ranges: [{ events: [{ fixed: 5 }] }] }] },
+      { affected: [{ ranges: [null] }] },
+      { affected: [{ package: 'lodash' }] },
+      { affected: [{ package: { name: 7 } }] },
+      { affected: {} },
+      { severity: [{ score: 9 }] },
+      { severity: {} },
+      { aliases: 'CVE-2020-1' },
+    ];
+    const advisories = Object.fromEntries(
+      bad.map((fields, index) => [`GHSA-bad${index}`, { vuln: { id: `GHSA-bad${index}`, ...fields }, at: now }]),
+    );
+    advisories['GHSA-good'] = {
+      vuln: {
+        id: 'GHSA-good',
+        affected: [
+          {
+            package: { name: 'lodash', ecosystem: 'npm' },
+            ranges: [{ type: 'SEMVER', events: [{ introduced: '0' }, { fixed: '4.17.21' }] }],
+          },
+        ],
+      },
+      at: now,
+    };
+    mkdirSync(cacheDir(), { recursive: true });
+    writeFileSync(cachePath(), JSON.stringify({ version: 1, packages: {}, advisories }));
+    const opened = openCache();
+    const options = { now, ttlMs: 3600_000, stale: true };
+    for (let index = 0; index < bad.length; index += 1)
+      assert.equal(opened.advisory(`GHSA-bad${index}`, options), undefined, `entry ${index} is dropped`);
+    assert.equal(opened.advisory('GHSA-good', options)?.id, 'GHSA-good');
+    const online = osv();
+    await assert.doesNotReject(checkDeps({ cwd, cover: ['src/**/*.ts'], fetch: online.fetch }));
+  });
+
   it('puts the cache in the user directory of the platform', () => {
     assert.equal(cacheDir({ LOCALAPPDATA: '/local' }, 'win32', '/h'), join('/local', 'tslaws'));
     assert.equal(cacheDir({}, 'win32', '/h'), join('/h', 'AppData', 'Local', 'tslaws'));
     assert.equal(cacheDir({ XDG_CACHE_HOME: '/xdg' }, 'linux', '/h'), join('/xdg', 'tslaws'));
     assert.equal(cacheDir({}, 'linux', '/h'), join('/h', '.cache', 'tslaws'));
     assert.equal(cacheDir({ XDG_CACHE_HOME: '' }, 'darwin', '/h'), join('/h', '.cache', 'tslaws'));
+  });
+
+  it('ignores a relative cache directory in the environment, so the cache is never read from the repository', () => {
+    assert.equal(cacheDir({ XDG_CACHE_HOME: 'cache' }, 'linux', '/h'), join('/h', '.cache', 'tslaws'));
+    assert.equal(cacheDir({ XDG_CACHE_HOME: './.cache' }, 'darwin', '/h'), join('/h', '.cache', 'tslaws'));
+    assert.equal(cacheDir({ LOCALAPPDATA: 'local' }, 'win32', '/h'), join('/h', 'AppData', 'Local', 'tslaws'));
+    assert.equal(cacheDir({ LOCALAPPDATA: '..\\local' }, 'win32', '/h'), join('/h', 'AppData', 'Local', 'tslaws'));
   });
 
   it('offline with an empty cache lists what it could not check and does not fail', async () => {
