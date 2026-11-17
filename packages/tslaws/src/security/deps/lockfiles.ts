@@ -1,6 +1,6 @@
 // Versions of installed packages, from the project's lockfile (npm, pnpm, yarn or bun) or its node_modules.
-import { existsSync, lstatSync, readFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { existsSync, lstatSync, readFileSync, realpathSync } from 'node:fs';
+import { dirname, join, relative, resolve, sep } from 'node:path';
 
 export interface Locked {
   /** Which file the versions came from. */
@@ -133,12 +133,15 @@ export function readLockfile(cwd: string): Locked | undefined {
   return undefined;
 }
 
-/** The installed version of a package, from the nearest `node_modules/<name>/package.json`, plus whether it is a workspace link. */
+/** The installed version of a package, from the nearest `node_modules/<name>/package.json`, plus whether it is a workspace link (a symlink to a folder outside node_modules, not a pnpm store link). */
 export function installedVersion(cwd: string, name: string): { version?: string; link: boolean } {
   for (let dir = resolve(cwd), depth = 0; depth < 8; dir = dirname(dir), depth += 1) {
     const folder = join(dir, 'node_modules', ...name.split('/'));
     if (existsSync(folder)) {
-      const link = lstatSync(folder).isSymbolicLink();
+      // pnpm links registry packages from its store (inside a node_modules folder); only a link that leaves
+      // node_modules is a workspace package.
+      const link =
+        lstatSync(folder).isSymbolicLink() && !relative(dir, realpathSync(folder)).split(sep).includes('node_modules');
       try {
         const version = (JSON.parse(readFileSync(join(folder, 'package.json'), 'utf8')) as { version?: unknown })
           .version;

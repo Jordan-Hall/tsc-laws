@@ -1,6 +1,6 @@
 // `tslaws security deps`: lockfiles, OSV through a mocked fetch, severity, cache, offline mode and exit codes.
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, describe, it } from 'node:test';
@@ -8,7 +8,13 @@ import { parseConfig } from '../dist/coverage.js';
 import { securityCommand } from '../dist/security/cli.js';
 import { parseSecurityConfig } from '../dist/security/deps/config.js';
 import { packageOf } from '../dist/security/deps/imports.js';
-import { parseBunLock, parseNpmLock, parsePnpmLock, parseYarnLock } from '../dist/security/deps/lockfiles.js';
+import {
+  installedVersion,
+  parseBunLock,
+  parseNpmLock,
+  parsePnpmLock,
+  parseYarnLock,
+} from '../dist/security/deps/lockfiles.js';
 import { compareVersions, fixedVersions } from '../dist/security/deps/osv.js';
 import { checkDeps, renderDeps } from '../dist/security/deps/run.js';
 import { cvssScore, severityOf } from '../dist/security/deps/severity.js';
@@ -392,6 +398,21 @@ describe('checkDeps', () => {
     const cwd = project('osv-down', { 'package-lock.json': npmLock, ...sources });
     const down = async () => ({ ok: false, status: 503, json: async () => ({}) });
     await assert.rejects(checkDeps({ cwd, cover: ['src/**/*.ts'], fetch: down, noCache: true }), /OSV answered 503/);
+  });
+
+  it('reads a pnpm store link as an installed package and a workspace link as private', () => {
+    const cwd = project('pnpm-links', {
+      'node_modules/.pnpm/lodash@4.17.20/node_modules/lodash/package.json': '{"name":"lodash","version":"4.17.20"}',
+      'packages/mylib/package.json': '{"name":"mylib","version":"1.0.0"}',
+    });
+    symlinkSync(
+      join(cwd, 'node_modules/.pnpm/lodash@4.17.20/node_modules/lodash'),
+      join(cwd, 'node_modules/lodash'),
+      'junction',
+    );
+    symlinkSync(join(cwd, 'packages/mylib'), join(cwd, 'node_modules/mylib'), 'junction');
+    assert.deepEqual(installedVersion(cwd, 'lodash'), { version: '4.17.20', link: false });
+    assert.equal(installedVersion(cwd, 'mylib').link, true);
   });
 
   it('follows next_page_token', async () => {
