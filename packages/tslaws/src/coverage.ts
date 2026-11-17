@@ -5,6 +5,7 @@
 // (directly or through other project modules). A function carrying `@tslaws-exempt` in its doc comment is exempt,
 // but only once the exemption is in tsc-laws.lock, so an agent cannot exempt its own code.
 import { parseGithubConfig } from './github.ts';
+import { parseSecurityConfig } from './security/deps/config.ts';
 import { existsSync, lstatSync, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { dirname, isAbsolute, join, posix, relative, resolve } from 'node:path';
 import ts from 'typescript';
@@ -60,6 +61,8 @@ export interface CoverageConfig {
   bound?: number;
   /** Accepting laws on GitHub: see github.ts. When present, `tslaws accept` refuses to run unless `github.local` is true (the default). */
   github?: unknown;
+  /** `tslaws security deps`: the severity that fails the check, offline mode, the cache; see security/deps/config.ts. */
+  security?: unknown;
 }
 
 const settingKeys = ['runs', 'propertyTimeoutMs', 'proofTimeoutMs', 'bound'] as const;
@@ -75,6 +78,7 @@ const configKeys = [
   'bundlerPlugins',
   'env',
   'github',
+  'security',
   ...settingKeys,
 ];
 /** Keys that steer inheritance and discovery rather than a run; `readConfig` acts on them and drops them. */
@@ -160,6 +164,7 @@ function checkFile(raw: unknown, source: string): Record<string, unknown> {
       laws.some((entry) => typeof entry !== 'string' || entry.replace(/^!/, '') === '' || entry.startsWith('/')))
   )
     fail(`"laws" must be an array of project-relative globs, got ${JSON.stringify(laws)}`);
+  if (object.security !== undefined) parseSecurityConfig(object.security);
   return object;
 }
 
@@ -181,7 +186,7 @@ export function parseConfig(raw: unknown, source = 'tslaws.json'): CoverageConfi
  * relative to the file that declares it (as in tsconfig), so it is rebased to the extending file. `bundlerPlugins` are
  * module paths and `e2e.server.cwd` is the directory the dev server runs in. A trailing `[]` means every element of an
  * array. `cover` and `laws` are not here on purpose: they are globs relative to the project that uses the config, so a
- * shared base saying `"cover": ["src/**"]` means each package's own src/. `compilerOptions` and `github` hold no
+ * shared base saying `"cover": ["src/**"]` means each package's own src/. `compilerOptions`, `github` and `security` hold no
  * paths. Add a new file-reference option here when it is added to `configKeys`.
  */
 const pathFields: readonly string[] = ['bundlerPlugins[]', 'e2e.server.cwd', 'tsconfig'];

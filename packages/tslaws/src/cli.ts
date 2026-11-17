@@ -40,6 +40,8 @@ import { readLock, writeLock } from './lock.ts';
 import { lockLevels } from './lawKinds.ts';
 import type { CheckOptions, LawEvent, LawResult } from './types.ts';
 
+import { securityUsage } from './security/cli.ts';
+
 const usage = `tslaws init [--force]       scaffold tslaws.json, .gitignore, AGENTS.md, Claude Code hooks and a starter law (never writes the lock)
 tslaws check [files...] [--reporter text|json|junit|github|ndjson] [--law NAME[,NAME]] [--json] [--summary] [--watch] [--runs N] [--seed N] [--no-prove] [--certify] [--require-certify] [--no-regressions] [--bound N] [--proof-timeout MS] [--property-timeout MS] [--proposed] [--compiler PATH] [--browser chromium|firefox|webkit]
 tslaws ui [files...] [--port N] [--no-open] [--tab]   open a dashboard of the laws in its own desktop window (--tab: a browser tab): tree, filters, search, source, live reruns on save
@@ -55,8 +57,9 @@ tslaws list [--json]   the laws files and proposals of the project: the level ea
 tslaws github report|command|merge|verify   accept laws on GitHub: flag and run each proposal on a pull request, record /tslaws accept comments, and write tsc-laws.lock on merge or on demand (workflow_dispatch) (CI only; see "github" in tslaws.json)
 tslaws mcp [--compiler PATH]   serve check, check_proposed, explain and propose as Model Context Protocol tools on stdio (cannot accept, promote or touch the lock)
 ${migrateUsage}
+${securityUsage}
 
-In a monorepo (a root tslaws.json with "projects", or package.json/pnpm workspaces whose packages have a tslaws.json), run from the root: check, accept, list, mutate and regressions run in every project, one after another, each with its own config and lock, and end with one summary line. --json and --reporter json print one object keyed by project path; --reporter ndjson tags each line with "project". init, ui, mcp, github, propose, promote, delegate, migrate and --watch run in one project: pick it with --project when the root has several.
+In a monorepo (a root tslaws.json with "projects", or package.json/pnpm workspaces whose packages have a tslaws.json), run from the root: check, accept, list, mutate, regressions and security deps run in every project, one after another, each with its own config and lock, and end with one summary line. --json and --reporter json print one object keyed by project path; --reporter ndjson tags each line with "project". init, ui, mcp, github, propose, promote, delegate, migrate and --watch run in one project: pick it with --project when the root has several.
   --project   run only in this project directory (repeat it, or comma-separate: --project packages/a,packages/b)
   --filter    run only in projects whose path matches this glob (repeatable; a leading ! excludes), for example --filter 'packages/*'
   --changed   run only the projects affected since the merge-base of this ref and HEAD (committed, staged and untracked changes): the projects holding a changed file and everything that depends on them; a root config change runs all. Combines with --project and --filter. In one project: runs only if something there changed. For example --changed origin/main
@@ -116,6 +119,7 @@ function parse(args: string[]): Parsed {
     'rerun-workflow',
     'protect',
     'project-path',
+    'fail-on',
     'changed',
   ]);
   for (let i = 0; i < args.length; i += 1) {
@@ -148,7 +152,8 @@ function parse(args: string[]): Parsed {
         arg === 'list' ||
         arg === 'migrate' ||
         arg === 'delegate' ||
-        arg === 'github')
+        arg === 'github' ||
+        arg === 'security')
     )
       command = arg;
     else files.push(arg);
@@ -665,7 +670,7 @@ function nestedIn(project: Project, all: Project[]): string[] {
 }
 
 /** Commands that run once for every project of a monorepo; the rest run in one project. */
-const fansOut = new Set(['check', 'accept', 'list', 'mutate', 'regressions']);
+const fansOut = new Set(['check', 'accept', 'list', 'mutate', 'regressions', 'security']);
 
 type Machine = 'text' | 'json' | 'ndjson';
 
@@ -677,7 +682,7 @@ function machineOf(command: string, flags: Map<string, string | true>): Machine 
       throw new Error('--reporter junit writes one XML document per project: pick one project with --project <dir>');
     return reporter === 'json' || reporter === 'ndjson' ? reporter : 'text';
   }
-  return (command === 'list' || command === 'mutate') && flags.has('json') ? 'json' : 'text';
+  return (command === 'list' || command === 'mutate' || command === 'security') && flags.has('json') ? 'json' : 'text';
 }
 
 /** One project at a time, each under a `── path ──` header, then one summary line. Nonzero if any project failed. */
@@ -756,7 +761,8 @@ export async function main(args: string[]): Promise<number> {
   const oneDocument =
     command === 'check' && flags.get('reporter') === 'junit' && selection.chosen.length === 1 && !flags.has('watch');
   if (selection.fanOut && fansOut.has(command) && !flags.has('watch') && !oneDocument) {
-    if (files.length > 0 && command !== 'regressions') {
+    // `security deps` names a subcommand, not a file.
+    if (files.length > 0 && command !== 'regressions' && command !== 'security') {
       stderrWrite(
         `name files only inside one project: run \`tslaws ${command} ${files[0]}\` there, or pick it with --project <dir>\n`,
       );
@@ -875,6 +881,11 @@ async function runOne(
 
   if (command === 'migrate')
     return migrateCommand(cwd, files[0], files.slice(1), flags, (text) => process.stdout.write(text));
+
+  if (command === 'security') {
+    const { securityCommand } = await import('./security/cli.ts');
+    return securityCommand(cwd, files, flags, run.out, undefined, run.skip);
+  }
 
   if (command === 'mcp') return serveMcp({ cwd, compiler: options(cwd, flags, []).compiler });
 
