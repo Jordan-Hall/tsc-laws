@@ -143,6 +143,29 @@ describe(
       const r = byName(results, 'wrong');
       assert.ok(r.status === 'failed' || r.status === 'open', JSON.stringify(r));
     });
+
+    it('does not prove a claim about a loop whose condition changes a variable', async () => {
+      const opts = project('condition', {
+        'src/f.ts': [
+          "import type { int } from 'tslaws';",
+          'export function walk(n: int): int {',
+          '  let i = 0;',
+          '  while (i++ < n) {}',
+          '  return i as int;',
+          '}',
+          '',
+        ].join('\n'),
+        'src/f.laws.ts': [
+          ...header,
+          "import { walk } from './f';",
+          'export law proved walkIsOne(n: int) { assume(n >= 1 && n <= 1000); return walk(n) === 1; }',
+          '',
+        ].join('\n'),
+      });
+      const { results } = await check(opts, true);
+      const r = byName(results, 'walkIsOne');
+      assert.ok(r.status === 'failed' || r.status === 'open', JSON.stringify(r));
+    });
   },
 );
 

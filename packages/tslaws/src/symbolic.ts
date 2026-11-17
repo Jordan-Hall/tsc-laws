@@ -816,6 +816,10 @@ export class Executor {
     const g = this.guard(f, pc);
     if (g === 'false') return;
     if (f.brk !== 'false' || f.cnt !== 'false') throw new Unsupported('a loop inside a break or continue');
+    // The condition is read again from every state of the loop, so one that writes (`while (i++ < n)`) is left to the
+    // unrolling, which runs it once per iteration.
+    if (condition !== undefined && this.modifiedNames([condition]).size > 0)
+      throw new Unsupported('a loop whose condition changes a variable');
     const touched = this.modifiedNames([body, ...(incrementor === undefined ? [] : [incrementor])]);
     // The live variables are the arguments: the invariant may relate any of them, the ones the loop leaves alone too.
     const live = [...f.env].filter(([, v]) => this.terms(v) !== undefined);
