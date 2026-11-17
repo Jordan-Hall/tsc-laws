@@ -1,11 +1,12 @@
 // `tslaws security deps`: lockfiles, OSV through a mocked fetch, severity, cache, offline mode and exit codes.
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, describe, it } from 'node:test';
 import { parseConfig } from '../dist/coverage.js';
 import { securityCommand } from '../dist/security/cli.js';
+import { cacheDir, cachePath, openCache } from '../dist/security/deps/cache.js';
 import { parseSecurityConfig } from '../dist/security/deps/config.js';
 import { packageOf } from '../dist/security/deps/imports.js';
 import {
@@ -82,7 +83,10 @@ function osv(
   return { fetch, calls };
 }
 
+/** Each project gets a user cache directory of its own, so no test reads another's answers or the real cache. */
 function project(name: string, files: Record<string, string>): string {
+  process.env.LOCALAPPDATA = join(root, 'user-cache', name);
+  process.env.XDG_CACHE_HOME = join(root, 'user-cache', name);
   const cwd = join(root, name);
   for (const [file, text] of Object.entries(files)) {
     mkdirSync(dirname(join(cwd, file)), { recursive: true });
@@ -356,7 +360,8 @@ describe('checkDeps', () => {
     const cwd = project('cache', { 'package-lock.json': npmLock, ...sources });
     const online = osv();
     await checkDeps({ cwd, cover: ['src/**/*.ts'], fetch: online.fetch });
-    assert.ok(existsSync(join(cwd, '.tslaws', 'osv-cache.json')));
+    assert.ok(existsSync(cachePath()), 'the cache is in the user cache directory');
+    assert.ok(!existsSync(join(cwd, '.tslaws')), 'and not in the project');
     const calls = online.calls.length;
     const again = osv();
     const cached = await checkDeps({ cwd, cover: ['src/**/*.ts'], fetch: again.fetch });
@@ -379,6 +384,151 @@ describe('checkDeps', () => {
     const stale = osv();
     await checkDeps({ cwd, cover: ['src/**/*.ts'], fetch: stale.fetch, now: () => Date.now() + 1000 * 3600 * 48 });
     assert.ok(stale.calls.length > 0);
+  });
+
+  it('ignores a cache the project carries', async () => {
+    const cwd = project('planted', { 'package-lock.json': npmLock, ...sources });
+    // A repository that commits a cache claiming nothing is vulnerable must not hide the advisories.
+    const planted = {
+      version: 1,
+      packages: Object.fromEntries(
+        ['lodash@4.17.20', 'left-pad@1.3.0', 'lodash@3.0.0', '@scope/pkg@2.0.0'].map((key) => [
+          key,
+          { ids: [], at: Date.now() },
+        ]),
+      ),
+      advisories: {},
+    };
+    mkdirSync(join(cwd, '.tslaws'), { recursive: true });
+    writeFileSync(join(cwd, '.tslaws', 'osv-cache.json'), JSON.stringify(planted));
+    const online = osv();
+    const report = await checkDeps({ cwd, cover: ['src/**/*.ts'], fetch: online.fetch });
+    assert.ok(online.calls.length > 0, 'OSV was asked');
+    assert.equal(report.failed, true);
+    const offline = await checkDeps({
+      cwd,
+      cover: ['src/**/*.ts'],
+      offline: true,
+      fetch: (() => assert.fail('network')) as never,
+    });
+    assert.equal(offline.failed, true, 'offline answers come from the user cache, which the online run filled');
+  });
+
+  it('does not keep an answer dated in the future', async () => {
+    const cwd = project('future', { 'package-lock.json': npmLock, ...sources });
+    const future = Date.now() + 1000 * 3600 * 24 * 365;
+    const keys = ['lodash@4.17.20', 'left-pad@1.3.0', 'lodash@3.0.0', '@scope/pkg@2.0.0'];
+    mkdirSync(cacheDir(), { recursive: true });
+    writeFileSync(
+      cachePath(),
+      JSON.stringify({
+        version: 1,
+        packages: Object.fromEntries(keys.map((key) => [key, { ids: [], at: future }])),
+        advisories: {},
+      }),
+    );
+    const online = osv();
+    const report = await checkDeps({ cwd, cover: ['src/**/*.ts'], fetch: online.fetch });
+    assert.ok(online.calls.length > 0, 'a future date is stale, so OSV is asked again');
+    assert.equal(report.failed, true);
+    // Clock drift of a few minutes is fine.
+    const writes = JSON.parse(readFileSync(cachePath(), 'utf8')) as { packages: Record<string, { at: number }> };
+    assert.ok(writes.packages['lodash@4.17.20']!.at < future, 'the answer was rewritten with the real time');
+    const skew = osv();
+    await checkDeps({ cwd, cover: ['src/**/*.ts'], fetch: skew.fetch, now: () => Date.now() - 2 * 60_000 });
+    assert.equal(skew.calls.length, 0, 'two minutes of skew still counts as fresh');
+  });
+
+  it('drops cache entries that are malformed', async () => {
+    const cwd = project('malformed', { 'package-lock.json': npmLock, ...sources });
+    const now = Date.now();
+    mkdirSync(cacheDir(), { recursive: true });
+    writeFileSync(
+      cachePath(),
+      JSON.stringify({
+        version: 1,
+        packages: {
+          'lodash@4.17.20': { ids: 'none', at: now },
+          'left-pad@1.3.0': { ids: [], at: 'now' },
+          'lodash@3.0.0': { ids: [7], at: now },
+          '@scope/pkg@2.0.0': null,
+          __proto__: { ids: [], at: now },
+        },
+        advisories: {
+          'GHSA-aaaa-bbbb-cccc': { vuln: { id: 'GHSA-other', summary: 'wrong advisory' }, at: now },
+          'GHSA-dddd-eeee-ffff': { vuln: 'fine', at: now },
+        },
+      }),
+    );
+    const online = osv();
+    const report = await checkDeps({ cwd, cover: ['src/**/*.ts'], fetch: online.fetch });
+    assert.ok(online.calls.length > 0, 'every package was asked again');
+    assert.equal(report.failed, true);
+    assert.ok(report.findings.some((a) => a.id === 'GHSA-aaaa-bbbb-cccc' && a.summary.includes('lodash')));
+    await assert.doesNotReject(checkDeps({ cwd, cover: ['src/**/*.ts'], fetch: osv().fetch }));
+    mkdirSync(cacheDir(), { recursive: true });
+    writeFileSync(cachePath(), '[1, 2');
+    assert.equal(
+      (await checkDeps({ cwd, cover: ['src/**/*.ts'], fetch: osv().fetch })).failed,
+      true,
+      'bad JSON is an empty cache',
+    );
+  });
+
+  it('drops an advisory whose nested fields are malformed, so no bad entry reaches the code that reads it', async () => {
+    const cwd = project('malformed-nested', { 'package-lock.json': npmLock, ...sources });
+    const now = Date.now();
+    const bad: Record<string, unknown>[] = [
+      { affected: [{ package: { name: 'lodash', ecosystem: 'npm' }, ranges: {} }] },
+      { affected: [{ ranges: [{ type: 'SEMVER', events: {} }] }] },
+      { affected: [{ ranges: [{ events: [{ fixed: 5 }] }] }] },
+      { affected: [{ ranges: [null] }] },
+      { affected: [{ package: 'lodash' }] },
+      { affected: [{ package: { name: 7 } }] },
+      { affected: {} },
+      { severity: [{ score: 9 }] },
+      { severity: {} },
+      { aliases: 'CVE-2020-1' },
+    ];
+    const advisories = Object.fromEntries(
+      bad.map((fields, index) => [`GHSA-bad${index}`, { vuln: { id: `GHSA-bad${index}`, ...fields }, at: now }]),
+    );
+    advisories['GHSA-good'] = {
+      vuln: {
+        id: 'GHSA-good',
+        affected: [
+          {
+            package: { name: 'lodash', ecosystem: 'npm' },
+            ranges: [{ type: 'SEMVER', events: [{ introduced: '0' }, { fixed: '4.17.21' }] }],
+          },
+        ],
+      },
+      at: now,
+    };
+    mkdirSync(cacheDir(), { recursive: true });
+    writeFileSync(cachePath(), JSON.stringify({ version: 1, packages: {}, advisories }));
+    const opened = openCache();
+    const options = { now, ttlMs: 3600_000, stale: true };
+    for (let index = 0; index < bad.length; index += 1)
+      assert.equal(opened.advisory(`GHSA-bad${index}`, options), undefined, `entry ${index} is dropped`);
+    assert.equal(opened.advisory('GHSA-good', options)?.id, 'GHSA-good');
+    const online = osv();
+    await assert.doesNotReject(checkDeps({ cwd, cover: ['src/**/*.ts'], fetch: online.fetch }));
+  });
+
+  it('puts the cache in the user directory of the platform', () => {
+    assert.equal(cacheDir({ LOCALAPPDATA: '/local' }, 'win32', '/h'), join('/local', 'tslaws'));
+    assert.equal(cacheDir({}, 'win32', '/h'), join('/h', 'AppData', 'Local', 'tslaws'));
+    assert.equal(cacheDir({ XDG_CACHE_HOME: '/xdg' }, 'linux', '/h'), join('/xdg', 'tslaws'));
+    assert.equal(cacheDir({}, 'linux', '/h'), join('/h', '.cache', 'tslaws'));
+    assert.equal(cacheDir({ XDG_CACHE_HOME: '' }, 'darwin', '/h'), join('/h', '.cache', 'tslaws'));
+  });
+
+  it('ignores a relative cache directory in the environment, so the cache is never read from the repository', () => {
+    assert.equal(cacheDir({ XDG_CACHE_HOME: 'cache' }, 'linux', '/h'), join('/h', '.cache', 'tslaws'));
+    assert.equal(cacheDir({ XDG_CACHE_HOME: './.cache' }, 'darwin', '/h'), join('/h', '.cache', 'tslaws'));
+    assert.equal(cacheDir({ LOCALAPPDATA: 'local' }, 'win32', '/h'), join('/h', 'AppData', 'Local', 'tslaws'));
+    assert.equal(cacheDir({ LOCALAPPDATA: '..\\local' }, 'win32', '/h'), join('/h', 'AppData', 'Local', 'tslaws'));
   });
 
   it('offline with an empty cache lists what it could not check and does not fail', async () => {

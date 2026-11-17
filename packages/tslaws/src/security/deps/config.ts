@@ -7,7 +7,7 @@ export interface SecurityConfig {
   failOn: Exclude<Severity, 'unknown'>;
   /** Use only the cache and never touch the network. Default false. */
   offline: boolean;
-  /** Keep answers in `.tslaws/osv-cache.json`. Default true. */
+  /** Keep answers in the per-user cache directory (`tslaws/osv-cache.json`). Default true. */
   cache: boolean;
   /** How long a cached answer stays fresh when online, in hours. Default 24. */
   cacheTtlHours: number;
