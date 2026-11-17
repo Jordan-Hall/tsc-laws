@@ -33,10 +33,18 @@ When Z3 proves a law, `tslaws` writes the query (without Z3's timeout option and
 to a file and runs
 
 ```
-cvc5 --lang smt2 --dump-proofs --proof-format-mode=alethe --proof-granularity=theory-rewrite --proof-alethe-res-pivots \
+cvc5 --lang smt2 --dump-proofs --proof-format-mode=alethe --proof-granularity=dsl-rewrite --proof-alethe-res-pivots \
      --dag-thresh=0 --simplification=none --enum-inst-interleave --cegqi-all --tlimit <proof timeout> problem.smt2
-carcara check proof.alethe problem.smt2 --allow-int-real-subtyping --expand-let-bindings
+carcara check proof.alethe problem.smt2 --allow-int-real-subtyping --expand-let-bindings [--rare-file rules.rare]
 ```
+
+The `dsl-rewrite` granularity keeps cvc5 from writing unchecked `hole` steps for its rewrites; it writes `rare_rewrite` steps
+instead, which Carcara checks against the rule's declaration. `tslaws` gets those declarations (`rules.rare`) by asking the
+cvc5 binary for its rewrite-rule database (`-o rare-db`) and keeping the rules the proof names, so they never come from a
+file beside the proof. If cvc5 does not declare a rule its proof uses (cvc5 1.4.2 proves some `ite` laws with `ite-eq`, which
+it does not declare), the law is `uncertified` and the reason names the rule.
+Carcara itself does not yet read the `div_total` symbol cvc5 uses when it rewrites integer `div`, so such a law is
+`uncertified` too. Laws that fall in these gaps still prove with Z3; they only lack a certificate.
 
 The proof counts only if cvc5 answers `unsat` and Carcara prints `valid` and exits 0. A proof Carcara reports as `holey`
 (some steps unchecked) is not certified.
@@ -68,8 +76,20 @@ options above follow cvc5's documented Alethe workflow; if a newer cvc5 or Carca
 ## In the lock
 
 `tslaws check --certify` keeps each certified proof in `.tslaws/certificates/` (the `.smt2` problem and the `.alethe`
-proof, so Carcara can run again on them) and the hashes in `.tslaws/certificates.json`. `tslaws accept` copies those
-hashes into `tsc-laws.lock` beside the law's own hash:
+proof, so Carcara can run again on them) and the hashes in `.tslaws/certificates.json`. Anyone can write those files, so
+`tslaws accept` trusts none of them. For each record it checks that:
+
+- the law is unchanged (the record's `law` is the law's hash now);
+- the record's `problemHash` is the hash of a problem the law yields now: accept rebuilds the SMT-LIB problem of every
+  law from the compiled code, without a solver, so a change to code the law calls voids the certificate even when the
+  law's own text is unchanged;
+- the saved `.smt2` and `.alethe` exist and hash as the record says;
+- Carcara accepts them again, now, and its verdict hashes to the record's `checkerHash`.
+
+A record that fails any step is dropped and accept says why. With Carcara missing (or cvc5, for a proof with `rare_rewrite`
+steps), no new certificate is recorded.
+Records already in the lock are kept only while their law and problem still match. The records that pass are copied into
+`tsc-laws.lock` beside the law's own hash:
 
 ```json
 {
@@ -77,17 +97,20 @@ hashes into `tsc-laws.lock` beside the law's own hash:
   "certificates": {
     "laws/math.laws.ts::addition commutes": {
       "law": "<law hash>",
-      "problem": "<sha-256 of the SMT-LIB problem>",
-      "proof": "<sha-256 of the Alethe proof>",
-      "checker": "<sha-256 of Carcara's verdict, bound to the problem and proof>"
+      "problemHash": "<sha-256 of the SMT-LIB problem>",
+      "proofHash": "<sha-256 of the Alethe proof>",
+      "checkerHash": "<sha-256 of Carcara's verdict, bound to the problem and proof>"
     }
   }
 }
 ```
 
-A record counts only while its `law` is the hash of the law in the lock, so editing a law voids its certificate until a new
-`tslaws check --certify` and `tslaws accept` record another. A lock with no certified laws has no `certificates` key.
-Laws the GitHub accept workflow records keep the certificates the lock already had for unchanged laws.
+`tslaws check` also compares the lock's record with the problem it just proved, and tells you when they differ. A lock with
+no certified laws has no `certificates` key. The GitHub accept workflow writes only certificates its own run produced for
+the laws it accepts, and carries none over from the lock it replaces.
+
+With `"certify": "require"` a law that is proved or bounded and has no certified proof is an error, including a law whose
+proof the second solver did not confirm (`uncertified: no certificate produced` when nothing was attempted).
 
 ## In CI
 

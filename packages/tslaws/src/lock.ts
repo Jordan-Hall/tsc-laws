@@ -2,8 +2,8 @@
 // addition or removal fails the check until a person runs `tslaws accept`.
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import type { CertificateRecord } from './certificates.ts';
-import type { ManifestLaw } from './types.ts';
+import { recordOf, type CertificateRecord } from './certificates.ts';
+import type { LawResult, ManifestLaw } from './types.ts';
 
 export type LockEntries = Record<string, string>;
 
@@ -188,6 +188,7 @@ export function acceptChanges(
   exempt: string[],
   levels: Record<string, string> | undefined,
   accepted: ReadonlySet<string>,
+  certificates?: Record<string, CertificateRecord>,
 ): Lock {
   const changes = lockChanges(lock, laws, exempt, levels);
   const taken = changes.filter((c) => accepted.has(c.fingerprint));
@@ -219,8 +220,38 @@ export function acceptChanges(
     laws: entries,
     exempt: [...exemptions],
     ...(recorded === undefined ? {} : { levels: recorded }),
-    ...certificatesBody(entries, lock?.certificates),
+    ...certificatesBody(entries, certificates),
   };
+}
+
+/** `proved` or `bounded` when the law's proof held, whether the result says so or is the proposal of a law the lock lacks. */
+export function proofStatus(result: LawResult): 'proved' | 'bounded' | undefined {
+  const status = result.status === 'tampered' ? result.proposal?.status : result.status;
+  return status === 'proved' || status === 'bounded' ? status : undefined;
+}
+
+/**
+ * The certificates a run vouches for: one for each law this run proved and certified, made from this run's proof and
+ * only while the law is the one the lock holds. Nothing is carried over from an older lock, since a certificate for the
+ * same law text can be for a problem that the code it calls has since changed.
+ */
+export function certificatesFromRun(
+  lock: Lock,
+  laws: ManifestLaw[],
+  results: LawResult[],
+): Record<string, CertificateRecord> {
+  const current = new Map(laws.map((law) => [lawKey(law.file, law.name), lawHash(law)]));
+  const records: Record<string, CertificateRecord> = {};
+  for (const result of results) {
+    const key = lawKey(result.file, result.name);
+    const hash = current.get(key);
+    const certificate =
+      proofStatus(result) === undefined ? undefined : (result.proposal?.certificate ?? result.certificate);
+    if (certificate === undefined || hash === undefined || lock.laws[key] !== hash) continue;
+    const record = recordOf(hash, certificate);
+    if (record !== undefined) records[key] = record;
+  }
+  return records;
 }
 
 /** Writes a lock value in the same canonical form as `writeLock`. */

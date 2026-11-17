@@ -1,0 +1,75 @@
+name: certificates
+
+# Runs the real cvc5 and Carcara against the proof certificates of tslaws: cvc5 writes an Alethe proof of an `unsat`
+# query and Carcara checks it. The tools are pinned (cvc5 by release and sha256, Carcara by commit), so a change in
+# their options or output shows up here and not in a user's CI.
+on:
+  push:
+    branches: [main, laws]
+  pull_request:
+    paths:
+      - 'packages/tslaws/src/certificates.ts'
+      - 'packages/tslaws/src/solvers.ts'
+      - 'packages/tslaws/src/smt.ts'
+      - 'packages/tslaws/src/lock.ts'
+      - 'packages/tslaws/src/check.ts'
+      - 'packages/tslaws/test/certificates.test.ts'
+      - 'scripts/ci/certificates-*'
+      - '.github/workflows/certificates.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CVC5_RELEASE: cvc5-1.4.2
+  CVC5_ASSET: cvc5-Linux-x86_64-static.zip
+  CVC5_SHA256: 7eb18f8c814c36a46c5a7d003983e9cfbc4b0a9828d6dd596239291bd4cc61d8
+  CARCARA_REV: 20bf49c5ce31089ac83118574c888669355aaae1
+
+jobs:
+  certificates:
+    name: cvc5 and Carcara
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install cvc5
+        run: |
+          mkdir -p "$HOME/cvc5" "$RUNNER_TEMP/cvc5-download"
+          curl -fsSL -o "$RUNNER_TEMP/cvc5-download/$CVC5_ASSET" \
+            "https://github.com/cvc5/cvc5/releases/download/$CVC5_RELEASE/$CVC5_ASSET"
+          echo "$CVC5_SHA256  $RUNNER_TEMP/cvc5-download/$CVC5_ASSET" | sha256sum -c -
+          unzip -q "$RUNNER_TEMP/cvc5-download/$CVC5_ASSET" -d "$HOME/cvc5"
+          echo "TSLAWS_CVC5=$(echo "$HOME"/cvc5/*/bin/cvc5)" >> "$GITHUB_ENV"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        id: carcara-cache
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ~/.carcara
+          key: carcara-${{ runner.os }}-${{ env.CARCARA_REV }}
+      - name: Install Carcara
+        if: steps.carcara-cache.outputs.cache-hit != 'true'
+        run: cargo install --locked --git https://github.com/ufmg-smite/carcara --rev "$CARCARA_REV" --root "$HOME/.carcara" carcara
+      - run: echo "TSLAWS_CARCARA=$HOME/.carcara/bin/carcara" >> "$GITHUB_ENV"
+      - name: Show the tools
+        run: |
+          "$TSLAWS_CVC5" --version | head -2
+          "$TSLAWS_CARCARA" --version
+      - run: npm ci --ignore-scripts
+      - run: npm run build -w tslaws
+      # The same sample problems the test certifies, with the tools' full output, to see why a certificate fails.
+      - name: Try the tools by hand
+        if: always()
+        run: node scripts/ci/certificates-smoke.mjs
+      - name: Certify with the real tools
+        working-directory: packages/tslaws
+        env:
+          TSLAWS_REQUIRE_CERT_TOOLS: '1'
+        run: node --test test/certificates.test.ts

@@ -81,7 +81,7 @@ export const cvc5ProofArgs: readonly string[] = [
   'smt2',
   '--dump-proofs',
   '--proof-format-mode=alethe',
-  '--proof-granularity=theory-rewrite',
+  '--proof-granularity=dsl-rewrite',
   '--proof-alethe-res-pivots',
   '--dag-thresh=0',
   '--simplification=none',
@@ -92,7 +92,7 @@ export const cvc5ProofArgs: readonly string[] = [
 /** Carcara's arguments after `check <proof> <problem>`: the options cvc5's proofs need. */
 export const carcaraArgs: readonly string[] = ['--allow-int-real-subtyping', '--expand-let-bindings'];
 
-const sha256 = (text: string): string => createHash('sha256').update(text).digest('hex');
+export const hashOf = (text: string): string => createHash('sha256').update(text).digest('hex');
 
 interface Ran {
   stdout: string;
@@ -141,6 +141,116 @@ export interface CertifyOptions {
   keep?: { dir: string; name: string; root: string };
 }
 
+/** The hash that binds a checker's verdict to the problem and the proof it checked. */
+const checkerHashOf = (verdict: string, problemHash: string, proofHash: string): string =>
+  hashOf(JSON.stringify({ verdict, problem: problemHash, proof: proofHash }));
+
+/** The names of the RARE rewrite rules an Alethe proof applies. */
+export function rareRulesOf(proof: string): string[] {
+  const names = new Set<string>();
+  for (const match of proof.matchAll(/:rule rare_rewrite\s+(?::premises\s+\([^)]*\)\s+)?:args\s+\(\s*"([^"]+)"/g))
+    names.add(match[1]!);
+  return [...names];
+}
+
+/**
+ * The RARE rule declarations for `names`, in the form Carcara reads. cvc5 itself prints its database of rewrite rules, so
+ * the rules a proof may lean on come from the same binary that wrote the proof and never from a file beside the proof.
+ */
+export async function rareDeclarations(
+  names: string[],
+  work: string,
+  budget: number,
+): Promise<{ text: string } | { status: 'uncertified' | 'unavailable'; reason: string }> {
+  const cvc5 = toolCommand('TSLAWS_CVC5', 'cvc5');
+  const input = join(work, 'rare.smt2');
+  writeFileSync(input, '(check-sat)\n');
+  const printed = await run(
+    cvc5.file,
+    [
+      ...cvc5.args,
+      '-o',
+      'rare-db',
+      '--force-logic=ALL',
+      '--produce-proofs',
+      '--proof-granularity=dsl-rewrite',
+      '--proof-format-mode=alethe',
+      input,
+    ],
+    budget,
+  );
+  if (printed === undefined) return { status: 'unavailable', reason: cvc5Missing };
+  if (printed === 'timeout')
+    return { status: 'uncertified', reason: `cvc5 did not print its rewrite rules within ${budget} ms` };
+  const blocks = new Map<string, string>();
+  let current: { name: string; lines: string[] } | undefined;
+  for (const line of printed.stdout.split(/\r?\n/)) {
+    const start = /^\(declare-rule\s+(\S+)/.exec(line);
+    if (start !== null) current = { name: start[1]!, lines: [] };
+    if (current !== undefined) current.lines.push(line);
+    if (current !== undefined && line === ')') {
+      blocks.set(current.name, current.lines.join('\n').replace('(declare-rule ', '(declare-rare-rule '));
+      current = undefined;
+    }
+  }
+  const missing = names.filter((name) => !blocks.has(name));
+  if (missing.length > 0)
+    return {
+      status: 'uncertified',
+      reason: `cvc5 does not define the rewrite rules the proof uses: ${missing.join(', ')}`,
+    };
+  return { text: `${names.map((name) => blocks.get(name)).join('\n')}\n` };
+}
+
+/** Runs Carcara on a saved proof and problem: `certified` (with its verdict) only when Carcara says `valid`. */
+async function recheck(
+  problemFile: string,
+  proofFile: string,
+  budget: number,
+): Promise<(Certificate & { verdict: string }) | { status: 'uncertified' | 'unavailable'; reason: string }> {
+  const carcara = toolCommand('TSLAWS_CARCARA', 'carcara');
+  const rare = rareRulesOf(readFileSync(proofFile, 'utf8'));
+  const work = mkdtempSync(join(tmpdir(), 'tslaws-rare-'));
+  try {
+    const extra: string[] = [];
+    if (rare.length > 0) {
+      const declared = await rareDeclarations(rare, work, budget);
+      if (!('text' in declared)) return declared;
+      const rareFile = join(work, 'rules.rare');
+      writeFileSync(rareFile, declared.text);
+      extra.push('--rare-file', rareFile);
+    }
+    return await runCarcara(carcara, proofFile, problemFile, extra, budget);
+  } finally {
+    rmSync(work, { recursive: true, force: true });
+  }
+}
+
+async function runCarcara(
+  carcara: { file: string; args: string[] },
+  proofFile: string,
+  problemFile: string,
+  extra: string[],
+  budget: number,
+): Promise<(Certificate & { verdict: string }) | { status: 'uncertified' | 'unavailable'; reason: string }> {
+  const checked = await run(
+    carcara.file,
+    [...carcara.args, 'check', proofFile, problemFile, ...carcaraArgs, ...extra],
+    budget,
+  );
+  if (checked === undefined) return { status: 'unavailable', reason: carcaraMissing };
+  if (checked === 'timeout') return { status: 'uncertified', reason: `Carcara did not finish within ${budget} ms` };
+  const verdict = firstLine(checked.stdout);
+  if (checked.code !== 0 || verdict !== 'valid') {
+    const why =
+      verdict === 'holey'
+        ? 'the proof has steps Carcara could not check'
+        : (verdict !== '' ? verdict : firstLine(checked.stderr)) || `exited with code ${checked.code}`;
+    return { status: 'uncertified', reason: `Carcara did not accept the proof (${why})` };
+  }
+  return { status: 'certified', verdict };
+}
+
 /**
  * Certifies the `unsat` answer of a query: cvc5 proves it again in Alethe, Carcara checks the proof. Never throws for a
  * missing or failing tool; the outcome is in the certificate's status.
@@ -172,25 +282,16 @@ export async function certify(query: string, options: CertifyOptions): Promise<C
     const proof = proved.stdout.slice(proved.stdout.indexOf('\n') + 1).trim();
     if (proof === '') return { status: 'uncertified', reason: 'cvc5 answered unsat but printed no proof' };
     writeFileSync(proofFile, `${proof}\n`);
-    const carcara = toolCommand('TSLAWS_CARCARA', 'carcara');
-    const checked = await run(carcara.file, [...carcara.args, 'check', proofFile, problemFile, ...carcaraArgs], budget);
-    if (checked === undefined) return { status: 'unavailable', reason: carcaraMissing };
-    if (checked === 'timeout') return { status: 'uncertified', reason: `Carcara did not finish within ${budget} ms` };
-    const verdict = firstLine(checked.stdout);
-    if (checked.code !== 0 || verdict !== 'valid') {
-      const why =
-        verdict === 'holey'
-          ? 'the proof has steps Carcara could not check'
-          : (verdict !== '' ? verdict : firstLine(checked.stderr)) || `exited with code ${checked.code}`;
-      return { status: 'uncertified', reason: `Carcara did not accept the proof (${why})` };
-    }
-    const problemHash = sha256(problem);
-    const proofHash = sha256(`${proof}\n`);
+    const checked = await recheck(problemFile, proofFile, budget);
+    if (checked.status !== 'certified') return checked;
+    const verdict = checked.verdict;
+    const problemHash = hashOf(problem);
+    const proofHash = hashOf(`${proof}\n`);
     const certificate: Certificate = {
       status: 'certified',
       problemHash,
       proofHash,
-      checkerHash: sha256(JSON.stringify({ verdict, problem: problemHash, proof: proofHash })),
+      checkerHash: checkerHashOf(verdict, problemHash, proofHash),
     };
     if (options.keep !== undefined) {
       const { dir, name, root } = options.keep;
@@ -207,15 +308,34 @@ export async function certify(query: string, options: CertifyOptions): Promise<C
   }
 }
 
-/** One certified law as the lock records it. `law` is the law's lock hash, so a later edit voids the record. */
+/**
+ * One certified law as the lock records it. `law` is the law's lock hash, so a later edit voids the record, and
+ * `problemHash` is the hash of the exact SMT-LIB problem that was proved, so a change to code the law calls (which the
+ * law's own hash does not cover) voids it too: a record is made only from a proof this run produced.
+ */
 export interface CertificateRecord {
   law: string;
-  problem: string;
-  proof: string;
-  checker: string;
+  problemHash: string;
+  proofHash: string;
+  checkerHash: string;
 }
 
-/** Where `tslaws check` leaves the records of the laws it certified, for `tslaws accept` to copy into the lock. */
+/** The file name a law's problem and proof are kept under, beside `.tslaws/certificates/`. */
+export function certificateName(key: string): string {
+  const slug = key
+    .slice(key.indexOf('::') + 2)
+    .replace(/[^A-Za-z0-9]+/g, '-')
+    .slice(0, 40);
+  return `${slug}-${hashOf(key).slice(0, 8)}`;
+}
+
+/** Where `tslaws check` keeps the problems and proofs of the laws it certified. */
+export const certificatesDir = (cwd: string): string => join(cwd, '.tslaws', 'certificates');
+
+/**
+ * Where `tslaws check` leaves the records of the laws it certified, for `tslaws accept` to consider. Anyone can write this
+ * file, so accept trusts none of it: see `verifyRecord`.
+ */
 export const recordsPath = (cwd: string): string => join(cwd, '.tslaws', 'certificates.json');
 
 export function readRecords(cwd: string): Record<string, CertificateRecord> {
@@ -223,7 +343,7 @@ export function readRecords(cwd: string): Record<string, CertificateRecord> {
   if (!existsSync(path)) return {};
   try {
     const value = JSON.parse(readFileSync(path, 'utf8')) as Record<string, CertificateRecord>;
-    return typeof value === 'object' && value !== null ? value : {};
+    return typeof value === 'object' && value !== null && !Array.isArray(value) ? value : {};
   } catch {
     return {};
   }
@@ -244,13 +364,58 @@ export function writeRecords(cwd: string, updates: Map<string, CertificateRecord
   writeFileSync(path, JSON.stringify(records, null, 2) + '\n');
 }
 
+const isHash = (value: unknown): value is string => typeof value === 'string' && /^[0-9a-f]{64}$/.test(value);
+
+/**
+ * Whether a record from the sidecar may enter the lock, or why not. Nothing in the sidecar is trusted. The record must
+ * be for the law as it is now (`lawNow`) and for a problem the law still yields (`problems`, the hashes of the problems
+ * `tslaws accept` rebuilt from the code); the saved problem and proof must exist and hash as the record says; and
+ * Carcara must accept them again, here and now. With Carcara missing nothing is kept.
+ */
+export async function verifyRecord(
+  cwd: string,
+  key: string,
+  record: unknown,
+  lawNow: string,
+  problems: ReadonlySet<string>,
+  timeoutMs = 20000,
+): Promise<string | undefined> {
+  const r = record as Partial<CertificateRecord> | null;
+  if (typeof r !== 'object' || r === null || !isHash(r.problemHash) || !isHash(r.proofHash) || !isHash(r.checkerHash))
+    return 'the record is malformed';
+  if (r.law !== lawNow) return 'the law changed since it was certified';
+  if (!problems.has(r.problemHash)) return 'the record is for a different proof problem than the law yields now';
+  const name = certificateName(key);
+  const problemFile = join(certificatesDir(cwd), `${name}.smt2`);
+  const proofFile = join(certificatesDir(cwd), `${name}.alethe`);
+  if (!existsSync(problemFile) || !existsSync(proofFile)) return 'the saved problem or proof is missing';
+  if (hashOf(readFileSync(problemFile, 'utf8')) !== r.problemHash) return 'the saved problem does not match the record';
+  if (hashOf(readFileSync(proofFile, 'utf8')) !== r.proofHash) return 'the saved proof does not match the record';
+  const checked = await recheck(problemFile, proofFile, timeoutMs);
+  if (checked.status !== 'certified') return checked.reason;
+  if (checkerHashOf(checked.verdict, r.problemHash, r.proofHash) !== r.checkerHash)
+    return 'the checker verdict does not match the record';
+  return undefined;
+}
+
 /** The record for a certified certificate, or undefined for any other. */
 export function recordOf(lawHash: string, certificate: Certificate): CertificateRecord | undefined {
   if (certificate.status !== 'certified') return undefined;
   return {
     law: lawHash,
-    problem: certificate.problemHash!,
-    proof: certificate.proofHash!,
-    checker: certificate.checkerHash!,
+    problemHash: certificate.problemHash!,
+    proofHash: certificate.proofHash!,
+    checkerHash: certificate.checkerHash!,
   };
+}
+
+/** The certificate a proved or bounded law gets when certifying is on but no proof was checked. */
+export const noCertificate: Certificate = { status: 'uncertified', reason: 'no certificate produced' };
+
+/**
+ * Whether a lock record still describes what a run just proved: the same problem. A law with no record, or a run
+ * that did not certify it, has nothing to compare.
+ */
+export function staleRecord(record: CertificateRecord | undefined, certificate: Certificate): boolean {
+  return record !== undefined && (certificate.status !== 'certified' || certificate.problemHash !== record.problemHash);
 }

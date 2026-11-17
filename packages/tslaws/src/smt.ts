@@ -12,14 +12,13 @@
 //
 // Numbers are IEEE doubles; a parameter typed `number` is a finite double (the generators exclude NaN and the
 // infinities too). A parameter typed `int` (from 'tslaws') or `bigint` is an exact integer.
-import { createHash } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { Worker } from 'node:worker_threads';
 import { jobs, WorkerPool } from './pool.ts';
 import { dirname, join } from 'node:path';
 import ts from 'typescript';
-import { certify, type Certificate, type CertifyMode } from './certificates.ts';
+import { certificateName, certify, problemText, type Certificate, type CertifyMode } from './certificates.ts';
 import { runExternalSolvers, solveHorn, type HornSystem } from './chc.ts';
 import { lawKey } from './lock.ts';
 import { SolverUnavailable, secondOpinion, type SolverName } from './solvers.ts';
@@ -465,9 +464,84 @@ function keepOf(
   input: ProveInput,
   certify: NonNullable<ProveInput['certify']>,
 ): { dir: string; name: string; root: string } {
-  const slug = input.law.name.replace(/[^A-Za-z0-9]+/g, '-').slice(0, 40);
-  const hash = createHash('sha256').update(lawKey(input.law.file, input.law.name)).digest('hex').slice(0, 8);
-  return { dir: certify.dir, root: certify.root, name: `${slug}-${hash}` };
+  return { dir: certify.dir, root: certify.root, name: certificateName(lawKey(input.law.file, input.law.name)) };
+}
+
+/** What the build learnt about a law and the query it yields; `attemptWith` and `problemTexts` both start here. */
+interface Problem {
+  executor: Executor;
+  decl: Declarations;
+  names: string[];
+  holds: string;
+  safe: string;
+  facts: string[];
+}
+
+function buildProblem(input: ProveInput, intLimit: bigint | undefined, theory: boolean): Problem {
+  const source = ts.createSourceFile(
+    input.jsFile,
+    readFileSync(input.jsFile, 'utf8'),
+    ts.ScriptTarget.ES2022,
+    true,
+    ts.ScriptKind.JS,
+  );
+  const fn = source.statements.find(
+    (s): s is ts.FunctionDeclaration =>
+      ts.isFunctionDeclaration(s) && s.name?.text === (input.law.symbol ?? input.law.name),
+  );
+  if (fn === undefined || fn.body === undefined) throw new Unsupported('law function not found in the compiled output');
+  if (fn.parameters.length !== input.shapes.length) throw new Unsupported('parameter count mismatch');
+  const names = fn.parameters.map((p) => (ts.isIdentifier(p.name) ? p.name.text : ''));
+  const executor = new Executor(input.bound);
+  executor.infer = theory;
+  executor.intLimit = intLimit;
+  const decl = new Declarations();
+  const params = names.map((name, i) => declareParam(name, input.shapes[i], input.bound, decl, intLimit, theory));
+  // In the clauses of a loop the parameters' domains are facts like any other, so they go where the executor keeps them.
+  if (theory) executor.assumptions.push(...decl.assumptions);
+  if (intLimit !== undefined) executor.bounded.push(`int values stay within ±2^26`);
+  if (!theory && input.shapes.some(containsArray)) executor.bounded.push(`arrays hold at most ${input.bound} elements`);
+  const result = executor.runLaw(input.jsFile, fn, params);
+  const holds = resultOf(result);
+  const safe = and(...executor.obligations);
+  const facts = theory ? executor.assumptions : [...decl.assumptions, ...executor.assumptions];
+  return { executor, decl, names, holds, safe, facts };
+}
+
+/** The SMT-LIB query for a problem without loops, as the prover sends it to Z3. */
+function queryOf(input: ProveInput, { decl, executor, facts, holds, safe }: Problem): string[] {
+  return [
+    `(set-option :timeout ${input.timeoutMs})`,
+    ...decl.lines,
+    ...executor.freshDecls,
+    ...executor.defs,
+    ...facts.map((a) => `(assert ${a})`),
+    `(assert (or (not ${holds}) (not ${safe})))`,
+    '(check-sat)',
+  ];
+}
+
+/**
+ * The SMT-LIB problems the prover can send for a law (unbounded arrays, then bounded; the full safe range, then the
+ * small-int retry), as the checkers read them. `tslaws accept` compares a certificate's problem hash with these, so a
+ * certificate counts only for what the law proves now. A law the prover cannot model has none, and a law proved with
+ * loop invariants is a Horn problem that gets no certificate.
+ */
+export function problemTexts(input: ProveInput): string[] {
+  const texts = new Set<string>();
+  for (const theory of [true, false]) {
+    for (const limit of [undefined, ...(input.shapes.some(containsInt) ? [smallInts] : [])]) {
+      try {
+        const problem = buildProblem(input, limit, theory);
+        if (problem.executor.predicates.length > 0) continue;
+        if (theory && problem.decl.lengths.length === 0) continue;
+        texts.add(problemText(queryOf(input, problem).join('\n')));
+      } catch {
+        // A limit the law cannot be built under proves nothing.
+      }
+    }
+  }
+  return [...texts];
 }
 
 /**
@@ -501,6 +575,17 @@ function hornSystem(executor: Executor, decl: Declarations, facts: string[], hol
   };
 }
 
+/** The certificate of a proof by loop invariants: none can exist, and with `certify` on the law says so. */
+function hornCertificate(input: ProveInput): { certificate?: Certificate } {
+  if (input.certify === undefined || input.certify.mode === false) return {};
+  return {
+    certificate: {
+      status: 'uncertified',
+      reason: 'proved with loop invariants found by a Horn solver; cvc5 and Carcara have no proof of that to check',
+    },
+  };
+}
+
 /**
  * `theory`: arrays are of any length and loops get inferred invariants. Undefined when that changes nothing, or no
  * verdict came of it, and the caller runs the bounded proof.
@@ -510,33 +595,8 @@ async function attemptWith(
   intLimit: bigint | undefined,
   theory: boolean,
 ): Promise<ProofResult | undefined> {
-  const source = ts.createSourceFile(
-    input.jsFile,
-    readFileSync(input.jsFile, 'utf8'),
-    ts.ScriptTarget.ES2022,
-    true,
-    ts.ScriptKind.JS,
-  );
-  const fn = source.statements.find(
-    (s): s is ts.FunctionDeclaration =>
-      ts.isFunctionDeclaration(s) && s.name?.text === (input.law.symbol ?? input.law.name),
-  );
-  if (fn === undefined || fn.body === undefined) throw new Unsupported('law function not found in the compiled output');
-  if (fn.parameters.length !== input.shapes.length) throw new Unsupported('parameter count mismatch');
-  const names = fn.parameters.map((p) => (ts.isIdentifier(p.name) ? p.name.text : ''));
-  const executor = new Executor(input.bound);
-  executor.infer = theory;
-  executor.intLimit = intLimit;
-  const decl = new Declarations();
-  const params = names.map((name, i) => declareParam(name, input.shapes[i], input.bound, decl, intLimit, theory));
-  // In the clauses of a loop the parameters' domains are facts like any other, so they go where the executor keeps them.
-  if (theory) executor.assumptions.push(...decl.assumptions);
-  if (intLimit !== undefined) executor.bounded.push(`int values stay within ±2^26`);
-  if (!theory && input.shapes.some(containsArray)) executor.bounded.push(`arrays hold at most ${input.bound} elements`);
-  const result = executor.runLaw(input.jsFile, fn, params);
-  const holds = resultOf(result);
-  const safe = and(...executor.obligations);
-  const facts = theory ? executor.assumptions : [...decl.assumptions, ...executor.assumptions];
+  const problem = buildProblem(input, intLimit, theory);
+  const { executor, decl, names, holds, safe, facts } = problem;
   if (theory && decl.lengths.length === 0 && executor.predicates.length === 0) return undefined;
   if (executor.predicates.length > 0) {
     // Cvc5 does not solve Horn clauses, so a proof it must confirm is left to the bounded way.
@@ -549,19 +609,13 @@ async function attemptWith(
     if (verdict.kind === 'disagree') return { kind: 'unsupported', reason: verdict.reason };
     if (verdict.kind !== 'safe') return undefined;
     const assumptions = [...assumptionsFor(input.shapes, intLimit), ...verdict.invariants, ...verdict.notes];
+    // A Horn proof has no SMT-LIB refutation for cvc5 and Carcara to check, so it is never certified, and `require` fails it.
+    const certificate = hornCertificate(input);
     return executor.bounded.length > 0
-      ? { kind: 'bounded', limits: executor.bounded, assumptions }
-      : { kind: 'proved', assumptions };
+      ? { kind: 'bounded', limits: executor.bounded, assumptions, ...certificate }
+      : { kind: 'proved', assumptions, ...certificate };
   }
-  const query = [
-    `(set-option :timeout ${input.timeoutMs})`,
-    ...decl.lines,
-    ...executor.freshDecls,
-    ...executor.defs,
-    ...facts.map((a) => `(assert ${a})`),
-    `(assert (or (not ${holds}) (not ${safe})))`,
-    '(check-sat)',
-  ];
+  const query = queryOf(input, problem);
   const watch = decl.constants.map((c) => {
     const term = c.term ?? c.name;
     return c.sort === 'fp' ? `(fp.to_real ${term})` : term;
@@ -588,7 +642,15 @@ async function attemptWith(
     const unconfirmed = await secondOpinion(input.solvers ?? [], text, input.timeoutMs);
     return unconfirmed === undefined
       ? { kind: 'proved', assumptions, ...(await certifyQuery()) }
-      : { kind: 'bounded', limits: [unconfirmed], assumptions };
+      : {
+          kind: 'bounded',
+          limits: [unconfirmed],
+          assumptions,
+          // Nothing was proved, so nothing is certified; `require` must not let this pass.
+          ...(input.certify === undefined || input.certify.mode === false
+            ? {}
+            : { certificate: { status: 'uncertified', reason: unconfirmed } as Certificate }),
+        };
   }
   if (check.startsWith('unknown')) throw new Unsupported(`solver gave up within ${input.timeoutMs} ms`);
   if (!check.startsWith('sat')) throw new Unsupported(`solver said: ${check.split('\n')[0]}`);
