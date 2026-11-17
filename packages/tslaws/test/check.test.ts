@@ -204,7 +204,8 @@ describe('tslaws check', { skip: compiler === undefined ? 'set TSC_LAWS_BIN' : f
     assert.equal(byName(results, 'sortOrders').status, 'bounded');
     assert.equal(byName(results, 'revTwice').status, 'bounded');
     assert.equal(byName(results, 'dedupeKeepsLength').status, 'failed');
-    assert.equal(byName(results, 'sumOfEmpty').status, 'bounded');
+    // A loop over an array parameter is proved for every length now, so no bound is involved.
+    assert.equal(byName(results, 'sumOfEmpty').status, 'proved');
     assert.equal(byName(results, 'shoutAddsOne').status, 'proved');
     assert.equal(byName(results, 'shoutEndsBang').status, 'proved');
   });

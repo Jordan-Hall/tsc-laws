@@ -103,11 +103,12 @@ FAILED   tint keeps contrast (src/tint.laws.ts:5) [property]
 The exit status is nonzero when any project failed. A project that cannot run (no laws files, a broken config) counts as
 failed; the run goes on with the rest.
 
-These commands run in every selected project: `check` (with `--proposed`), `accept`, `list`, `mutate` and
-`regressions`. `--project` and `--filter` also work in a single-project repository: `--project .` names the project,
+These commands run in every selected project: `check` (with `--proposed`), `accept`, `list`, `mutate`,
+`regressions` and `security deps` (each package checks the packages its own covered code imports, under its own `security`
+settings; see [security-laws.md](security-laws.md#in-a-monorepo)). `--project` and `--filter` also work in a single-project repository: `--project .` names the project,
 and a flag that matches nothing is an error listing the projects there are.
 
-Machine output stays valid. `--json` (or `--reporter json`) on `check`, `list` or `mutate` prints one object keyed by
+Machine output stays valid. `--json` (or `--reporter json`) on `check`, `list`, `mutate` or `security deps` prints one object keyed by
 project path (`.` for the root) with each project's report as the value, and the summary goes to stderr.
 `--reporter ndjson` tags every line with a `project` field. `--reporter junit` is refused at a root with several projects, because several XML
 documents do not make one; run it with `--project`. File arguments are refused too: they belong to one project.

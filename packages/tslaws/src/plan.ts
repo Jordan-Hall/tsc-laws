@@ -4,6 +4,7 @@
 import { sequence } from './sequence.ts';
 import * as fc from 'fast-check';
 import { arbitraryRegistry } from './api.ts';
+import { registerSecurityGenerators } from './security/generators.ts';
 
 export class UnsupportedType extends Error {}
 
@@ -15,7 +16,7 @@ export type Plan =
   | { k: 'union'; of: Plan[] }
   | { k: 'template'; texts: string[]; parts: Plan[] }
   /** A type with a registered generator; `fallback` is what to generate when none is registered by the time of use. */
-  | { k: 'named'; name: string; fallback?: Plan }
+  | { k: 'named'; name: string; fallback?: Plan; security?: true }
   | { k: 'array'; of: Plan }
   | { k: 'tuple'; required: Plan[]; optional: Plan[] }
   | { k: 'fn'; returns: Plan }
@@ -117,6 +118,8 @@ export function arbitraryOf(plan: Plan): fc.Arbitrary<unknown> {
       return fc.tuple(...parts).map((p) => p.join(''));
     }
     case 'named': {
+      // A payload type of tslaws/security: a worker has not loaded the law yet, so it registers these itself.
+      if (plan.security === true && !arbitraryRegistry().has(plan.name)) registerSecurityGenerators();
       const registered = arbitraryRegistry().get(plan.name);
       if (registered !== undefined) return registered;
       if (plan.fallback === undefined) throw new UnsupportedType(`no generator registered for ${plan.name}`);

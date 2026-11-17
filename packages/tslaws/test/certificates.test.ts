@@ -520,15 +520,18 @@ describe('certificates in a check', { skip: compiler === undefined ? 'set TSC_LA
 describe('accepting certificates', { skip: compiler === undefined ? 'set TSC_LAWS_BIN' : false }, () => {
   const key = lawKey('src/f.laws.ts', 'commutes');
   /** A project whose law was certified by the fakes, with the sidecar record and saved files a check leaves. */
-  async function certifiedProject(name: string): Promise<{
+  async function certifiedProject(
+    name: string,
+    law = booleanLaw,
+  ): Promise<{
     options: CheckOptions;
     laws: ManifestLaw[];
     certificate: NonNullable<LawResult['certificate']>;
   }> {
     process.env.TSLAWS_CVC5 = cvc5Proves().path;
     process.env.TSLAWS_CARCARA = carcaraAccepts().path;
-    const { result, options } = await run(name, booleanLaw, { certify: true });
-    assert.equal(result.certificate?.status, 'certified');
+    const { result, options } = await run(name, law, { certify: true });
+    assert.equal(result.certificate?.status, 'certified', JSON.stringify(result));
     return {
       options,
       laws: readManifest(compiler!, options.files, options.cwd),
@@ -557,6 +560,19 @@ describe('accepting certificates', { skip: compiler === undefined ? 'set TSC_LAW
     const { records, said } = await accept(options, laws);
     assert.deepEqual(Object.keys(records), [key]);
     assert.equal((records[key] as { proofHash: string }).proofHash, certificate.proofHash);
+    assert.equal(said, '');
+  });
+
+  it('keeps the record of a law proved for arrays of any length', async () => {
+    // The prover sends arrays as unbounded SMT arrays; accept must rebuild that same problem to find the record's hash.
+    const arrayLaw = [
+      "import type { int } from 'tslaws';",
+      'export law commutes(xs: int[]) { return xs.length + 0 === xs.length; }',
+      '',
+    ].join(String.fromCharCode(10));
+    const { options, laws } = await certifiedProject('accept-arrays', arrayLaw);
+    const { records, said } = await accept(options, laws);
+    assert.deepEqual(Object.keys(records), [key]);
     assert.equal(said, '');
   });
 

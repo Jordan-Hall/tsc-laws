@@ -78,6 +78,34 @@ describe('loop invariants', { skip: compiler === undefined ? 'set TSC_LAWS_BIN' 
     assert.equal(r.status, 'proved', JSON.stringify(r));
   });
 
+  it('does not prove a claim about a loop whose condition changes a variable', async () => {
+    const opts = project('condition', {
+      'src/f.ts': [
+        "import { invariant } from 'tslaws';",
+        "import type { int } from 'tslaws';",
+        'export function walk(n: int): int {',
+        '  let i = 0;',
+        '  while (i++ < n) {',
+        '    invariant(i >= 0);',
+        '  }',
+        '  return i as int;',
+        '}',
+        '',
+      ].join('\n'),
+      'src/f.laws.ts': [
+        "import { assume } from 'tslaws';",
+        "import type { int } from 'tslaws';",
+        "import { walk } from './f';",
+        'export law proved walkIsOne(n: int) { assume(n >= 1 && n <= 1000000); return walk(n) !== 123457; }',
+        '',
+      ].join('\n'),
+    });
+    const { results } = await check(opts, true);
+    const r = byName(results, 'walkIsOne');
+    assert.notEqual(r.status, 'proved', JSON.stringify(r));
+    assert.notEqual(r.status, 'bounded', JSON.stringify(r));
+  });
+
   it('reject an invariant that does not hold on entry or is not preserved', async () => {
     const opts = project('bad', {
       'src/f.ts': [
@@ -251,6 +279,6 @@ describe('loop invariants', { skip: compiler === undefined ? 'set TSC_LAWS_BIN' 
       ].join('\n'),
     });
     const { results } = await check(opts, true);
-    assert.equal(byName(results, 'keepsLength').status, 'bounded', JSON.stringify(byName(results, 'keepsLength')));
+    assert.equal(byName(results, 'keepsLength').status, 'proved', JSON.stringify(byName(results, 'keepsLength')));
   });
 });

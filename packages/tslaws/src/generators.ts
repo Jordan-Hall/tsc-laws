@@ -5,9 +5,15 @@
 import type * as fc from 'fast-check';
 import ts from 'typescript';
 import { arbitraryRegistry } from './api.ts';
+import { registerSecurityGenerators, securityTypeNames } from './security/generators.ts';
 import { arbitraryOf, UnsupportedType, type Plan } from './plan.ts';
 
 export { toWire, UnsupportedType, wireKey } from './plan.ts';
+
+/** Whether a type is declared in tslaws' own security module, not by a project that reuses the name. */
+function declaredBySecurity(symbol: ts.Symbol): boolean {
+  return (symbol.declarations ?? []).some((d) => /\/tslaws\/(dist|src)\/security\//.test(d.getSourceFile().fileName));
+}
 
 export class GeneratorFactory {
   private readonly checker: ts.TypeChecker;
@@ -63,14 +69,18 @@ export class GeneratorFactory {
     const symbol = type.aliasSymbol ?? type.getSymbol();
     if (symbol === undefined) return undefined;
     const name = symbol.getName();
+    // The payload types of tslaws/security have their generators even when the law has not been loaded yet.
+    const security = securityTypeNames.has(name) && declaredBySecurity(symbol);
+    if (security && !arbitraryRegistry().has(name)) registerSecurityGenerators();
     if (!arbitraryRegistry().has(name)) return undefined;
     if (name === 'int') return { k: 'named', name };
+    const tag = security ? { security: true as const } : {};
     // What to generate if the registration is not there where the plan is used (a worker has only the built-in ones).
     // `int` and the like are intersections that have no useful structure, so a type that cannot be planned has none.
     try {
-      return { k: 'named', name, fallback: this.structural(type, depth) };
+      return { k: 'named', name, fallback: this.structural(type, depth), ...tag };
     } catch (error) {
-      if (error instanceof UnsupportedType) return { k: 'named', name };
+      if (error instanceof UnsupportedType) return { k: 'named', name, ...tag };
       throw error;
     }
   }
