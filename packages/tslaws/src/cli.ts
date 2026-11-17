@@ -1,5 +1,5 @@
 import { createInterface } from 'node:readline/promises';
-import { readFileSync, watch } from 'node:fs';
+import { existsSync, readFileSync, watch } from 'node:fs';
 import { join, relative, resolve, sep } from 'node:path';
 import { resolveEngine } from './browser.ts';
 import { bundledCompiler, checkoutCompiler } from './bundled.ts';
@@ -12,11 +12,14 @@ import { isProposedLawFile } from './lawNames.ts';
 import { init, nextStep } from './init.ts';
 import { listLawFiles, renderList } from './list.ts';
 import { serveMcp } from './mcp.ts';
+import { affectedProjects, changedSince, discoverProjects, isMonorepoRoot } from './projects.ts';
+import type { Project } from './projects.ts';
 import { promoteFiles, promoteProposal } from './promote.ts';
 import { addProposal, ProposalError } from './proposals.ts';
 import { clearCorpus, listCorpus } from './regressions.ts';
 import { proposalText, reporterNames, reportAs } from './reporters.ts';
 import { readConfig } from './coverage.ts';
+import { parseGithubConfig } from './github.ts';
 import { migrateCommand, migrateUsage } from './migrate/index.ts';
 import { mutate, renderMutation } from './mutate.ts';
 import { mutateDefaults, resolveSettings } from './settings.ts';
@@ -32,12 +35,13 @@ import {
   personOnly,
   revokeFor,
 } from './delegation.ts';
-import { writeLock } from './lock.ts';
+import { certificateLabel, readRecords } from './certificates.ts';
+import { readLock, writeLock } from './lock.ts';
 import { lockLevels } from './lawKinds.ts';
 import type { CheckOptions, LawEvent, LawResult } from './types.ts';
 
 const usage = `tslaws init [--force]       scaffold tslaws.json, .gitignore, AGENTS.md, Claude Code hooks and a starter law (never writes the lock)
-tslaws check [files...] [--reporter text|json|junit|github|ndjson] [--law NAME[,NAME]] [--json] [--summary] [--watch] [--runs N] [--seed N] [--no-prove] [--no-regressions] [--bound N] [--proof-timeout MS] [--property-timeout MS] [--proposed] [--compiler PATH] [--browser chromium|firefox|webkit]
+tslaws check [files...] [--reporter text|json|junit|github|ndjson] [--law NAME[,NAME]] [--json] [--summary] [--watch] [--runs N] [--seed N] [--no-prove] [--certify] [--require-certify] [--no-regressions] [--bound N] [--proof-timeout MS] [--property-timeout MS] [--proposed] [--compiler PATH] [--browser chromium|firefox|webkit]
 tslaws ui [files...] [--port N] [--no-open] [--tab]   open a dashboard of the laws in its own desktop window (--tab: a browser tab): tree, filters, search, source, live reruns on save
 tslaws mutate [files...] [--max N] [--seed N] [--runs N] [--bound N] [--proof-timeout MS] [--property-timeout MS] [--browser ENGINE] [--json]   mutation-test the laws: mutate covered code, report mutants no law kills
 tslaws regressions [list|clear]   show or delete the stored counterexamples (.tslaws/regressions); check replays them first, --no-regressions skips them
@@ -48,9 +52,14 @@ tslaws delegate status        list delegations and when they end
 tslaws propose <file.ts> [--from PATH]   write a proposal into .tslaws/proposals/ from PATH or stdin (outside the tree, git-ignored; never touches the lock or any other file)
 tslaws promote <proposal> [--to PATH]   move a proposal from .tslaws/proposals/ into the tree at a path you confirm (people only: needs a terminal; run accept afterwards). In-tree *.proposed.laws.ts files (the usual proposals) promote with --all or by name
 tslaws list [--json]   the laws files and proposals of the project: the level each runs at (from its name, or its imports with levels: imports) and whether it is accepted, unaccepted or proposed (reads files and the lock; runs nothing)
-tslaws github report|command|merge|verify   accept laws on GitHub: flag and run each proposal on a pull request, record /tslaws accept comments, and write tsc-laws.lock on merge (CI only; see "github" in tslaws.json)
+tslaws github report|command|merge|verify   accept laws on GitHub: flag and run each proposal on a pull request, record /tslaws accept comments, and write tsc-laws.lock on merge or on demand (workflow_dispatch) (CI only; see "github" in tslaws.json)
 tslaws mcp [--compiler PATH]   serve check, check_proposed, explain and propose as Model Context Protocol tools on stdio (cannot accept, promote or touch the lock)
 ${migrateUsage}
+
+In a monorepo (a root tslaws.json with "projects", or package.json/pnpm workspaces whose packages have a tslaws.json), run from the root: check, accept, list, mutate and regressions run in every project, one after another, each with its own config and lock, and end with one summary line. --json and --reporter json print one object keyed by project path; --reporter ndjson tags each line with "project". init, ui, mcp, github, propose, promote, delegate, migrate and --watch run in one project: pick it with --project when the root has several.
+  --project   run only in this project directory (repeat it, or comma-separate: --project packages/a,packages/b)
+  --filter    run only in projects whose path matches this glob (repeatable; a leading ! excludes), for example --filter 'packages/*'
+  --changed   run only the projects affected since the merge-base of this ref and HEAD (committed, staged and untracked changes): the projects holding a changed file and everything that depends on them; a root config change runs all. Combines with --project and --filter. In one project: runs only if something there changed. For example --changed origin/main
 
 Without files, every *.laws.ts under the current directory (and every file the "laws" globs of tslaws.json pick that declares a law) is checked; with --proposed, the in-tree *.proposed.laws.ts files are (and any proposals in .tslaws/proposals/), with no lock and no coverage gate.
 A laws file's level comes from its name by default: *.browser.laws.ts is a browser law, *.e2e.laws.ts an end-to-end law, anything else runs in Node. With "levels": "imports" in tslaws.json it comes from the import graph instead (tslaws/browser, tslaws/adapters/* or tslaws/e2e, directly or through the file's own modules), and the names are hints.
@@ -68,9 +77,21 @@ function discover(cwd: string, proposed: boolean): string[] {
   return proposed ? [...discoverLaws(cwd, true), ...discoverProposals(cwd)] : discoverLaws(cwd, false);
 }
 
-function parse(args: string[]): { command: string; flags: Map<string, string | true>; files: string[] } {
+interface Parsed {
+  command: string;
+  flags: Map<string, string | true>;
+  files: string[];
+  /** `--project` values, comma lists split. */
+  projects: string[];
+  /** `--filter` values, one glob each (a glob may hold commas). */
+  filters: string[];
+}
+
+function parse(args: string[]): Parsed {
   const flags = new Map<string, string | true>();
   const files: string[] = [];
+  const projects: string[] = [];
+  const filters: string[] = [];
   let command = 'check';
   const valued = new Set([
     'runs',
@@ -95,12 +116,23 @@ function parse(args: string[]): { command: string; flags: Map<string, string | t
     'rerun-workflow',
     'protect',
     'project-path',
+    'changed',
   ]);
   for (let i = 0; i < args.length; i += 1) {
     const arg = args[i]!;
     if (arg.startsWith('--')) {
       const name = arg.slice(2);
-      if (valued.has(name)) flags.set(name, args[(i += 1)] ?? '');
+      if (name === 'project') {
+        projects.push(
+          ...(args[(i += 1)] ?? '')
+            .split(',')
+            .map((p) => p.trim())
+            .filter(Boolean),
+        );
+      } else if (name === 'filter') {
+        const glob = args[(i += 1)] ?? '';
+        if (glob !== '') filters.push(glob);
+      } else if (valued.has(name)) flags.set(name, args[(i += 1)] ?? '');
       else flags.set(name, true);
     } else if (
       i === 0 &&
@@ -121,7 +153,7 @@ function parse(args: string[]): { command: string; flags: Map<string, string | t
       command = arg;
     else files.push(arg);
   }
-  return { command, flags, files };
+  return { command, flags, files, projects, filters };
 }
 
 function describe(result: LawResult): string {
@@ -131,6 +163,7 @@ function describe(result: LawResult): string {
   if (result.message !== undefined) lines.push(`         ${result.message}`);
   if (result.assumptions !== undefined && result.assumptions.length > 0)
     lines.push(`         assuming: ${result.assumptions.join('; ')}`);
+  if (result.certificate !== undefined) lines.push(`         certificate: ${certificateLabel(result.certificate)}`);
   const proposed = proposalText(result);
   if (proposed !== undefined) lines.push(`         ${proposed}`);
   if (result.counterexample !== undefined) lines.push(`         counterexample: ${result.counterexample}`);
@@ -158,7 +191,7 @@ function totals(report: CheckReport): string {
   return `${report.results.length} laws: ${count('proved')} proved, ${count('bounded')} bounded, ${count('tested')} tested, ${count('open')} open, ${count('failed')} failed, ${count('tampered')} tampered, ${count('error')} errors`;
 }
 
-function render(report: CheckReport, flags: Map<string, string | true>): string {
+function render(report: CheckReport, flags: Map<string, string | true>, project?: string): string {
   const reporter = String(flags.get('reporter') ?? (flags.has('json') ? 'json' : 'text'));
   if (!(reporterNames as readonly string[]).includes(reporter)) {
     throw new Error(`unknown reporter '${reporter}' (expected ${reporterNames.join(', ')})`);
@@ -168,7 +201,7 @@ function render(report: CheckReport, flags: Map<string, string | true>): string 
     return `${JSON.stringify({ ...report, results: report.results.map((r) => ({ ...r, hint: hintFor(r) })) }, null, 2)}\n`;
   }
   if (reporter === 'ndjson') {
-    return `${JSON.stringify({ type: 'report', ...report, results: report.results.map((r) => ({ ...r, hint: hintFor(r) })) })}\n`;
+    return `${JSON.stringify({ ...(project === undefined ? {} : { project }), type: 'report', ...report, results: report.results.map((r) => ({ ...r, hint: hintFor(r) })) })}\n`;
   }
   let text = '';
   if (report.compileDiagnostics !== '') text += `${report.compileDiagnostics}\n\n`;
@@ -195,6 +228,14 @@ function options(cwd: string, flags: Map<string, string | true>, chosen: string[
     ),
     lockFile: join(cwd, 'tsc-laws.lock'),
     noProve: flags.has('no-prove'),
+    // `--certify` turns certificates on (and keeps a "require" from tslaws.json); `--require-certify` makes them required.
+    certify: flags.has('require-certify')
+      ? 'require'
+      : flags.has('certify')
+        ? readConfig(cwd).certify === 'require'
+          ? 'require'
+          : true
+        : undefined,
     noRegressions: flags.has('no-regressions'),
     only: typeof flags.get('law') === 'string' ? String(flags.get('law')).split(',').filter(Boolean) : undefined,
     bound: settings.bound,
@@ -207,15 +248,38 @@ function options(cwd: string, flags: Map<string, string | true>, chosen: string[
   };
 }
 
-function lawFiles(cwd: string, flags: Map<string, string | true>, files: string[]): string[] {
-  return files.length > 0
-    ? files.map((f) => relative(cwd, resolve(cwd, f)).replace(/\\/g, '/'))
-    : discover(cwd, flags.has('proposed'));
+/** Files outside the directories `skip` (project-relative paths of projects nested in this one). */
+function outside(files: string[], skip: string[]): string[] {
+  return skip.length === 0 ? files : files.filter((f) => !skip.some((dir) => f === dir || f.startsWith(`${dir}/`)));
 }
 
+function lawFiles(cwd: string, flags: Map<string, string | true>, files: string[], skip: string[] = []): string[] {
+  return files.length > 0
+    ? files.map((f) => relative(cwd, resolve(cwd, f)).replace(/\\/g, '/'))
+    : outside(discover(cwd, flags.has('proposed')), skip);
+}
+
+/**
+ * Where a run of one project writes and what it leaves alone. A root run gives each project its own: `out` can be a
+ * buffer, `skip` lists the projects nested below this one (so a root that is itself a project does not run theirs) and
+ * `tag` names the project on every ndjson line.
+ */
+interface Run {
+  out: (text: string) => void;
+  skip: string[];
+  tag?: string;
+}
+
+const direct: Run = { out: (text) => void process.stdout.write(text), skip: [] };
+
 /** One check of the project. Resolves the exit status. */
-async function runCheck(cwd: string, flags: Map<string, string | true>, files: string[]): Promise<number> {
-  const chosen = lawFiles(cwd, flags, files);
+async function runCheck(
+  cwd: string,
+  flags: Map<string, string | true>,
+  files: string[],
+  run: Run = direct,
+): Promise<number> {
+  const chosen = lawFiles(cwd, flags, files, run.skip);
   if (chosen.length === 0) {
     process.stderr.write('no laws files found (looking for *.laws.ts)\n');
     return 1;
@@ -224,11 +288,12 @@ async function runCheck(cwd: string, flags: Map<string, string | true>, files: s
   const stream = flags.get('reporter') === 'ndjson';
   const onEvent = stream
     ? (event: LawEvent): void => {
-        if (event.type !== 'frame') process.stdout.write(`${JSON.stringify(event)}\n`);
+        if (event.type !== 'frame')
+          run.out(`${JSON.stringify(run.tag === undefined ? event : { project: run.tag, ...event })}\n`);
       }
     : undefined;
   const report = await check({ ...options(cwd, flags, chosen), onEvent }, !flags.has('proposed'));
-  process.stdout.write(render(report, flags));
+  run.out(render(report, flags, run.tag));
   return report.ok ? 0 : 1;
 }
 
@@ -296,6 +361,8 @@ export interface CommandContext {
   now?: Date;
   out?: (text: string) => void;
   err?: (text: string) => void;
+  /** Projects nested below `cwd`, project-relative: their laws are not this project's (set by a root run). */
+  skip?: string[];
 }
 
 const stdoutWrite = (text: string): void => void process.stdout.write(text);
@@ -309,14 +376,16 @@ export async function acceptCommand(
 ): Promise<number> {
   const out = ctx.out ?? stdoutWrite;
   const err = ctx.err ?? stderrWrite;
-  const chosen = lawFiles(cwd, flags, files);
+  const chosen = lawFiles(cwd, flags, files, ctx.skip);
   if (chosen.length === 0) {
     err('no laws files found (looking for *.laws.ts)\n');
     return 1;
   }
-  if (readConfig(cwd).github !== undefined) {
+  // A project that accepts laws on GitHub still lets a person accept by hand, unless it sets "github.local" to false.
+  const github = readConfig(cwd).github;
+  if (github !== undefined && !parseGithubConfig(github).local) {
     err(
-      'this project accepts laws on GitHub: tsc-laws.lock is written only by the tslaws workflow when a pull request merges (see "github" in tslaws.json); propose the laws in a pull request instead\n',
+      'this project accepts laws on GitHub only: tsc-laws.lock is written by the tslaws workflow, on merge or on demand (see "github" in tslaws.json, where "local" is false); propose the laws in a pull request instead\n',
     );
     return 1;
   }
@@ -346,7 +415,11 @@ export async function acceptCommand(
   // tslaws/browser reads as tampered until a person accepts again. By name (the default) the lock is unchanged.
   const mode = readConfig(cwd).levels ?? 'names';
   const levels = lockLevels(cwd, laws, mode);
-  writeLock(opts.lockFile, laws, exempt, levels);
+  // The certificates a `tslaws check --certify` left, and those the old lock had, stay for the laws they still describe.
+  writeLock(opts.lockFile, laws, exempt, levels, {
+    ...readLock(opts.lockFile)?.certificates,
+    ...readRecords(cwd),
+  });
   out('tsc-laws.lock written\n');
   if (gate.delegated) {
     logDelegatedAccept(cwd, gate.grant, before, fileHash(opts.lockFile), ctx.now ?? new Date());
@@ -528,14 +601,245 @@ export async function promoteCommand(
   return 0;
 }
 
+/** The projects a run is about, when the repository (or the flags) make it a question. */
+interface Selection {
+  /** The projects chosen by `--project` and `--filter`, or all of them. */
+  chosen: Project[];
+  /** Every project of the repository, to find those nested inside another. */
+  all: Project[];
+  /** Whether this is a run over several projects (headers, summary), as opposed to one project that was named. */
+  fanOut: boolean;
+  /** What `--changed` decided, one line each (empty without it). */
+  notes: string[];
+}
+
+const list = (projects: Project[]): string => projects.map((p) => (p.path === '' ? '.' : p.path)).join(', ');
+
+/** `undefined` for an ordinary single-project run: no project flags, and the directory is not a monorepo root. */
+function selectProjects(cwd: string, only: string[], filter: string[], changed?: string): Selection | undefined {
+  const asked = only.length > 0 || filter.length > 0;
+  const monorepo = isMonorepoRoot(cwd);
+  if (!asked && !monorepo) {
+    if (changed === undefined) return undefined;
+    const { files } = changedSince(cwd, changed);
+    if (files.length > 0) return undefined;
+    return {
+      chosen: [],
+      all: [],
+      fanOut: false,
+      notes: [`--changed ${changed}: nothing changed in this project, nothing to run`],
+    };
+  }
+  // A standalone project ("standalone": true) is in `all`, but a run covers it only when --project names it.
+  const all = discoverProjects(cwd, { standalone: true });
+  let chosen = asked ? discoverProjects(cwd, { only, filter }) : all.filter((p) => !p.standalone);
+  if (chosen.length === 0) {
+    const named = [...only.map((p) => `--project ${p}`), ...filter.map((g) => `--filter ${g}`)].join(' ');
+    throw new Error(
+      all.length === 0
+        ? 'no tslaws project found here (a project is a directory with a tslaws.json; see "projects" in tslaws.json)'
+        : asked
+          ? `no project matches ${named}; projects: ${list(all)}`
+          : `every project here is standalone ("standalone": true), so a root run covers none of them: pick one with --project <dir> (${list(all)})`,
+    );
+  }
+  const notes: string[] = [];
+  if (changed !== undefined) {
+    const { base, files } = changedSince(cwd, changed);
+    const reasons = new Map(affectedProjects(cwd, files).map((a) => [a.project.path, a.reason]));
+    chosen = chosen.filter((p) => reasons.has(p.path));
+    notes.push(
+      `--changed ${changed} (merge-base ${base.slice(0, 8)}, ${files.length} changed file${files.length === 1 ? '' : 's'}): ${chosen.length} of ${all.length} project${all.length === 1 ? '' : 's'} selected`,
+      ...chosen.map((p) => `  ${p.path === '' ? '.' : p.path}: ${reasons.get(p.path)}`),
+    );
+  }
+  return { chosen, all, fanOut: monorepo || chosen.some((p) => p.path !== ''), notes };
+}
+
+/** The projects nested below `project`, relative to it. */
+function nestedIn(project: Project, all: Project[]): string[] {
+  const prefix = project.path === '' ? '' : `${project.path}/`;
+  return all
+    .filter((other) => other.path !== project.path && other.path.startsWith(prefix))
+    .map((other) => other.path.slice(prefix.length));
+}
+
+/** Commands that run once for every project of a monorepo; the rest run in one project. */
+const fansOut = new Set(['check', 'accept', 'list', 'mutate', 'regressions']);
+
+type Machine = 'text' | 'json' | 'ndjson';
+
+/** How a root run lays out machine output: one JSON object keyed by project, or ndjson lines tagged with `project`. */
+function machineOf(command: string, flags: Map<string, string | true>): Machine {
+  if (command === 'check') {
+    const reporter = String(flags.get('reporter') ?? (flags.has('json') ? 'json' : 'text'));
+    if (reporter === 'junit')
+      throw new Error('--reporter junit writes one XML document per project: pick one project with --project <dir>');
+    return reporter === 'json' || reporter === 'ndjson' ? reporter : 'text';
+  }
+  return (command === 'list' || command === 'mutate') && flags.has('json') ? 'json' : 'text';
+}
+
+/** One project at a time, each under a `── path ──` header, then one summary line. Nonzero if any project failed. */
+async function runProjects(
+  selection: Selection,
+  machine: Machine,
+  run: (project: Project, io: Run) => Promise<number>,
+): Promise<number> {
+  const failed: string[] = [];
+  const keyed: Record<string, unknown> = {};
+  for (const [index, project] of selection.chosen.entries()) {
+    const label = project.path === '' ? '.' : project.path;
+    let buffer = '';
+    const io: Run = {
+      out: machine === 'json' ? (text) => void (buffer += text) : stdoutWrite,
+      skip: nestedIn(project, selection.all),
+      tag: machine === 'ndjson' ? label : undefined,
+    };
+    if (machine === 'text') stdoutWrite(`${index === 0 ? '' : '\n'}── ${label} ──\n`);
+    let status: number;
+    let problem: string | undefined;
+    try {
+      status = await run(project, io);
+    } catch (error) {
+      problem = error instanceof Error ? error.message : String(error);
+      stderrWrite(`${label}: ${problem}\n`);
+      status = 1;
+    }
+    if (status !== 0) failed.push(label);
+    if (machine === 'json') {
+      try {
+        keyed[label] = buffer === '' ? { error: problem ?? 'no output (see stderr)' } : (JSON.parse(buffer) as unknown);
+      } catch {
+        keyed[label] = { error: problem ?? 'output was not JSON' };
+      }
+    }
+  }
+  if (machine === 'json') stdoutWrite(`${JSON.stringify(keyed, null, 2)}\n`);
+  const count = selection.chosen.length;
+  const summary = `${count} project${count === 1 ? '' : 's'}, ${failed.length} failed${failed.length === 0 ? '' : ` (${failed.join(', ')})`}\n`;
+  if (machine === 'text') stdoutWrite(`\n${summary}`);
+  else stderrWrite(summary);
+  return failed.length === 0 ? 0 : 1;
+}
+
 export async function main(args: string[]): Promise<number> {
   if (args.includes('--help') || args.includes('-h')) {
     process.stdout.write(`${usage}\n`);
     return 0;
   }
-  const { command, flags, files } = parse(args);
+  const { command, flags, files, projects, filters } = parse(args);
   const cwd = process.cwd();
+  const changed = flags.has('changed') ? String(flags.get('changed')) : undefined;
+  // `init --project .` scaffolds right here, in a root that has projects or not.
+  const here = command === 'init' && projects.some((p) => p === '.' || p === './');
+  let selection: Selection | undefined;
+  try {
+    selection = here ? undefined : selectProjects(cwd, projects, filters, changed);
+  } catch (error) {
+    stderrWrite(`${error instanceof Error ? error.message : String(error)}\n`);
+    return 1;
+  }
+  if (selection === undefined) return runOne(command, flags, files, cwd, direct);
+  // The decision goes to stderr so that machine output on stdout stays whole.
+  for (const note of selection.notes) stderrWrite(`${note}\n`);
+  if (selection.chosen.length === 0) {
+    if (flags.has('json') || flags.get('reporter') === 'json') stdoutWrite('{}\n');
+    return 0;
+  }
 
+  // From the root with no --project: every project in one process (one comment, one commit for all the locks).
+  if (command === 'github' && projects.length === 0 && isMonorepoRoot(cwd))
+    return githubRoot(flags, files, cwd, selection);
+
+  // One project and a reporter that writes one document (junit) runs plainly: there is nothing to join.
+  const oneDocument =
+    command === 'check' && flags.get('reporter') === 'junit' && selection.chosen.length === 1 && !flags.has('watch');
+  if (selection.fanOut && fansOut.has(command) && !flags.has('watch') && !oneDocument) {
+    if (files.length > 0 && command !== 'regressions') {
+      stderrWrite(
+        `name files only inside one project: run \`tslaws ${command} ${files[0]}\` there, or pick it with --project <dir>\n`,
+      );
+      return 1;
+    }
+    let machine: Machine;
+    try {
+      machine = machineOf(command, flags);
+    } catch (error) {
+      stderrWrite(`${error instanceof Error ? error.message : String(error)}\n`);
+      return 1;
+    }
+    return runProjects(selection, machine, (project, io) => runOne(command, flags, files, project.dir, io));
+  }
+
+  if (selection.chosen.length > 1) {
+    stderrWrite(
+      `tslaws ${flags.has('watch') ? 'check --watch' : command} runs in one project and this repository has ${selection.chosen.length}: pick one with --project <dir> (${list(selection.chosen)})${command === 'init' ? ', or --project . to scaffold here' : ''}\n`,
+    );
+    return 1;
+  }
+  const [only] = selection.chosen;
+  return runOne(command, flags, files, only!.dir, { ...direct, skip: nestedIn(only!, selection.all) });
+}
+
+/**
+ * `tslaws github <mode>` from a monorepo root: every selected project in one run. Each project keeps its own options
+ * and its own `github` settings (read in githubCli.ts); the projects nested in another are left out of that one's laws.
+ */
+async function githubRoot(
+  flags: Map<string, string | true>,
+  files: string[],
+  cwd: string,
+  selection: Selection,
+): Promise<number> {
+  const { githubCommand, projectPathOf, joinRepo } = await import('./githubCli.ts');
+  // The token stays with tslaws, as in a single project (see runOne).
+  const env = { ...process.env };
+  delete process.env.GITHUB_TOKEN;
+  delete process.env.GH_TOKEN;
+  const trusted = flags.get('config-from');
+  const prefix = projectPathOf(cwd, flags.get('project-path'));
+  const optionsOf = (project: Project): CheckOptions => {
+    const skip = nestedIn(project, selection.all);
+    const chosen = options(project.dir, flags, outside(discover(project.dir, false), skip));
+    // With --config-from the projects are a pull request's files, read as data: never run a compiler from among them.
+    if (typeof trusted === 'string' && chosen.compiler === checkoutCompiler(project.dir))
+      chosen.compiler = checkoutCompiler(resolve(cwd, trusted, project.path)) ?? 'tsc-laws';
+    return chosen;
+  };
+  return githubCommand(files[0], {
+    cwd,
+    projectPath: prefix,
+    options: optionsOf(selection.chosen[0]!),
+    projects: selection.chosen.map((project) => ({
+      cwd: project.dir,
+      rel: project.path,
+      path: joinRepo(prefix, project.path),
+      options: optionsOf(project),
+    })),
+    discovered: selection.all.map((project) => project.path),
+    optionsFor: (rel) => {
+      // A directory the files here no longer discover still has the laws it had: merge checks it if the base had it.
+      const project =
+        selection.all.find((candidate) => candidate.path === rel) ??
+        (existsSync(join(cwd, rel, 'tslaws.json')) ? { dir: join(cwd, rel), path: rel, standalone: false } : undefined);
+      return project === undefined ? undefined : optionsOf(project);
+    },
+    env,
+    flags,
+    out: (text) => void process.stdout.write(text),
+    err: (text) => void process.stderr.write(text),
+  });
+}
+
+/** One command in one project directory. */
+async function runOne(
+  command: string,
+  flags: Map<string, string | true>,
+  files: string[],
+  cwd: string,
+  run: Run,
+): Promise<number> {
   if (command === 'init') {
     process.stdout.write(`${init({ cwd, force: flags.has('force') }).join('\n')}\n\n${nextStep}\n`);
     return 0;
@@ -565,7 +869,7 @@ export async function main(args: string[]): Promise<number> {
   }
 
   if (command === 'accept')
-    return acceptCommand(cwd, flags, files, { isTTY: process.stdin.isTTY === true, env: process.env });
+    return acceptCommand(cwd, flags, files, { isTTY: process.stdin.isTTY === true, env: process.env, skip: run.skip });
   if (command === 'delegate')
     return delegateCommand(cwd, files[0], flags, { isTTY: process.stdin.isTTY === true, env: process.env });
 
@@ -577,8 +881,8 @@ export async function main(args: string[]): Promise<number> {
   if (command === 'promote')
     return promoteCommand(cwd, flags, files, { isTTY: process.stdin.isTTY === true, env: process.env });
   if (command === 'list') {
-    const listed = listLawFiles(cwd);
-    process.stdout.write(flags.has('json') ? `${JSON.stringify({ files: listed }, null, 2)}\n` : renderList(listed));
+    const listed = listLawFiles(cwd).filter((f) => outside([f.file], run.skip).length > 0);
+    run.out(flags.has('json') ? `${JSON.stringify({ files: listed }, null, 2)}\n` : renderList(listed));
     return 0;
   }
   if (command === 'propose')
@@ -590,6 +894,7 @@ export async function main(args: string[]): Promise<number> {
       cwd,
       flags,
       files.filter((f) => f.endsWith('.laws.ts')),
+      run.skip,
     );
     if (chosen.length === 0) {
       process.stderr.write('no laws files found (looking for *.laws.ts)\n');
@@ -611,14 +916,14 @@ export async function main(args: string[]): Promise<number> {
       seed: flags.has('seed') ? Number(flags.get('seed')) : undefined,
       onProgress: flags.has('json') ? undefined : (line) => process.stderr.write(`${line}\n`),
     });
-    process.stdout.write(flags.has('json') ? `${JSON.stringify(report, null, 2)}\n` : renderMutation(report));
+    run.out(flags.has('json') ? `${JSON.stringify(report, null, 2)}\n` : renderMutation(report));
     return report.ok ? 0 : 1;
   }
 
   if (command === 'regressions') {
     const action = files[0] ?? 'list';
     if (action === 'clear') {
-      process.stdout.write(clearCorpus(cwd) ? 'cleared .tslaws/regressions\n' : 'no regression corpus to clear\n');
+      run.out(clearCorpus(cwd) ? 'cleared .tslaws/regressions\n' : 'no regression corpus to clear\n');
       return 0;
     }
     if (action !== 'list') {
@@ -626,7 +931,7 @@ export async function main(args: string[]): Promise<number> {
       return 1;
     }
     const corpus = listCorpus(cwd);
-    process.stdout.write(
+    run.out(
       corpus.length === 0
         ? 'no stored counterexamples\n'
         : `${corpus.map((e) => `${e.file} ${e.law}: ${e.count} example${e.count === 1 ? '' : 's'}`).join('\n')}\n`,
@@ -635,7 +940,7 @@ export async function main(args: string[]): Promise<number> {
   }
 
   if (command === 'ui') {
-    const chosen = lawFiles(cwd, flags, files);
+    const chosen = lawFiles(cwd, flags, files, run.skip);
     if (chosen.length === 0) {
       process.stderr.write('no laws files found (looking for *.laws.ts)\n');
       return 1;
@@ -655,5 +960,5 @@ export async function main(args: string[]): Promise<number> {
     });
   }
 
-  return flags.has('watch') ? watchChecks(cwd, flags, files) : runCheck(cwd, flags, files);
+  return flags.has('watch') ? watchChecks(cwd, flags, files) : runCheck(cwd, flags, files, run);
 }

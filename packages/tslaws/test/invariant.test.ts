@@ -251,6 +251,6 @@ describe('loop invariants', { skip: compiler === undefined ? 'set TSC_LAWS_BIN' 
       ].join('\n'),
     });
     const { results } = await check(opts, true);
-    assert.equal(byName(results, 'keepsLength').status, 'bounded', JSON.stringify(byName(results, 'keepsLength')));
+    assert.equal(byName(results, 'keepsLength').status, 'proved', JSON.stringify(byName(results, 'keepsLength')));
   });
 });

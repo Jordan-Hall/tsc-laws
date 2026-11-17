@@ -1,7 +1,8 @@
 import { createRequire } from 'node:module';
-import { resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 import ts from 'typescript';
 import { build, readManifest } from './compile.ts';
+import { withResolution } from './lawRuntime.ts';
 import {
   compilerOptions,
   declarationFiles,
@@ -13,11 +14,14 @@ import {
   type LawTypes,
   type PropertyOutcome,
 } from './property.ts';
-import { analyzeCoverage, coverFiles, readConfig } from './coverage.ts';
+import { analyzeCoverage, coverFiles, lawEnv, readConfig } from './coverage.ts';
+import { parseGithubConfig } from './github.ts';
 import { derivedStore } from './derived.ts';
 import { jobs } from './pool.ts';
-import { compareLock, lawKey, readLock, type Lock } from './lock.ts';
+import { certificateFailure, recordOf, writeRecords, type CertificateRecord } from './certificates.ts';
+import { compareLock, lawHash, lawKey, readLock, type Lock } from './lock.ts';
 import { crossCheck, disagreement } from './propertyRun.ts';
+import { prepareRuntime } from './runtimeEnv.ts';
 import { proveLaw } from './smt.ts';
 import { decodeExample, loadExamples, regressionMessage, saveExample } from './regressions.ts';
 import { closeBrowser, runBrowserLaw } from './browser.ts';
@@ -68,7 +72,7 @@ export function exemptionsOf(options: CheckOptions): string[] {
   const covered = coverFiles(options.cwd, readConfig(options.cwd).cover ?? []);
   const compiled = [...new Set([...options.files, ...covered])];
   const built = build(options.compiler, compiled, options.cwd);
-  const program = ts.createProgram(declarationFiles(built.outDir), compilerOptions);
+  const program = ts.createProgram(declarationFiles(built.outDir), withResolution(built.outDir, compilerOptions));
   return analyzeCoverage({
     cwd: options.cwd,
     outDir: built.outDir,
@@ -88,11 +92,18 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
   // The level of a laws file comes from its name (the default) or its imports (`levels: "imports"`); looked at once per file.
   const config = readConfig(options.cwd);
   const levelsMode = config.levels ?? 'names';
-  // Who records a law in the lock: a person locally, or the tslaws workflow on merge when "github" is configured.
+  const certifyMode = options.certify ?? config.certify ?? false;
+  // The certificate of each law proved this run, or undefined when its proof was not certified.
+  const records = new Map<string, CertificateRecord | undefined>();
+  // Who records a law in the lock: a person locally, or the tslaws workflow on merge when "github" is configured. A
+  // project that leaves "github.local" on lets a person accept by hand as well.
+  const github = readConfig(options.cwd).github;
   const acceptor =
-    readConfig(options.cwd).github !== undefined
-      ? 'it is accepted by the tslaws workflow when the pull request merges'
-      : 'a person must run `tslaws accept`';
+    github === undefined
+      ? 'a person must run `tslaws accept`'
+      : parseGithubConfig(github).local
+        ? 'a person can run `tslaws accept`, or the tslaws workflow accepts it when the pull request merges'
+        : 'it is accepted by the tslaws workflow when the pull request merges';
   const verdicts = new Map<string, KindVerdict>();
   const verdictOf = (file: string): KindVerdict => {
     let verdict = verdicts.get(file);
@@ -211,9 +222,12 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
   const derived = derivedStore(options.cwd, built.key);
   let programOf: ts.Program | undefined;
   const program = (): ts.Program =>
-    (programOf ??= built.program ?? ts.createProgram(declarationFiles(built.outDir), compilerOptions));
+    (programOf ??=
+      built.program ?? ts.createProgram(declarationFiles(built.outDir), withResolution(built.outDir, compilerOptions)));
   const sourceCwd = built.program === undefined ? undefined : options.cwd;
   const require = createRequire(import.meta.url);
+  // Laws that run here (end to end) and the code they load read `import.meta.env` and extensionless imports as bundled.
+  prepareRuntime(lawEnv(options.cwd, 'node'));
 
   const runOne = async (law: ManifestLaw, index: number): Promise<void> => {
     const buffered: (() => void)[] = [];
@@ -358,8 +372,23 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
       timeoutMs: options.proofTimeoutMs,
       holds,
       solvers: config.solvers,
+      certify:
+        certifyMode === false
+          ? undefined
+          : { mode: certifyMode, dir: join(options.cwd, '.tslaws', 'certificates'), root: options.cwd },
     });
+    const certified = (certificate: LawResult['certificate']): Pick<LawResult, 'certificate'> =>
+      certificate === undefined ? {} : { certificate };
     const assumed = (list: string[]): Pick<LawResult, 'assumptions'> => (list.length > 0 ? { assumptions: list } : {});
+    if ((proof.kind === 'proved' || proof.kind === 'bounded') && proof.certificate !== undefined) {
+      // The lock gets a record only for a law whose proof a checker accepted.
+      records.set(lawKey(law.file, law.name), recordOf(lawHash(law), proof.certificate));
+      const required = certificateFailure(certifyMode, proof.certificate);
+      if (required !== undefined) {
+        add(law, 'error', 'smt', { certificate: proof.certificate, message: required });
+        return;
+      }
+    }
     if (proof.kind === 'proved') {
       // The property run above used generators inside the proved domain; a short one is topped up before the proof stands.
       const passed = details;
@@ -386,7 +415,13 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
           counterexample: disagrees.counterexample,
           message: disagreement(disagrees),
         });
-      } else add(law, 'proved', 'smt', { runs: details.numRuns, seed: details.seed, ...assumed(proof.assumptions) });
+      } else
+        add(law, 'proved', 'smt', {
+          runs: details.numRuns,
+          seed: details.seed,
+          ...assumed(proof.assumptions),
+          ...certified(proof.certificate),
+        });
     } else if (proof.kind === 'bounded') {
       // `law proved` promises every input; a bounded proof is the most Z3 could show.
       const message = `holds within bounds: ${proof.limits.join('; ')}`;
@@ -402,6 +437,7 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
           seed: details.seed,
           message,
           ...assumed(proof.assumptions),
+          ...certified(proof.certificate),
         });
     } else if (proof.kind === 'error') add(law, 'error', 'smt', { message: proof.message });
     else if (proof.kind === 'refuted')
@@ -477,6 +513,15 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
 
   await closeBrowser();
   await stopServer();
+
+  // Records for `tslaws accept` to copy into the lock; a law that did not end proved or bounded keeps no certificate.
+  if (certifyMode !== false && enforceLock && records.size > 0) {
+    const held = new Set(
+      results.filter((r) => r.status === 'proved' || r.status === 'bounded').map((r) => lawKey(r.file, r.name)),
+    );
+    for (const key of records.keys()) if (!held.has(key)) records.set(key, undefined);
+    writeRecords(options.cwd, records);
+  }
 
   const ok =
     built.ok &&
