@@ -2,6 +2,25 @@
 
 The upstream tsc-ts changelog is CHANGELOG.md. Releases of tsc-laws are tagged `laws-v<version>` (see RELEASING-LAWS.md).
 
+## [0.11.0](https://github.com/Jordan-Hall/tsc-laws/compare/laws-v0.10.0...laws-v0.11.0) (2026-11-18)
+
+
+### Features
+
+* **tslaws:** accept laws across a monorepo in one GitHub flow ([#47](https://github.com/Jordan-Hall/tsc-laws/issues/47)) ([b6d2b47](https://github.com/Jordan-Hall/tsc-laws/commit/b6d2b479e4800c2c7eb29c299c03522e4297856a))
+* **tslaws:** check code against CWE security laws and dependencies against OSV ([#52](https://github.com/Jordan-Hall/tsc-laws/issues/52)) ([86c90b3](https://github.com/Jordan-Hall/tsc-laws/commit/86c90b3ab564cc1addec863920bf1454982581d3))
+* **tslaws:** check proofs with cvc5 and Carcara certificates ([#43](https://github.com/Jordan-Hall/tsc-laws/issues/43)) ([4177c30](https://github.com/Jordan-Hall/tsc-laws/commit/4177c302a8ad0d0ff609f9782112b05b5234249a))
+* **tslaws:** prove loops with inferred invariants and arrays of any length ([#51](https://github.com/Jordan-Hall/tsc-laws/issues/51)) ([6728ceb](https://github.com/Jordan-Hall/tsc-laws/commit/6728ceb73e6e522b29092a373456376bed4caca3))
+* **tslaws:** resolve law imports with the package's tsconfig ([#38](https://github.com/Jordan-Hall/tsc-laws/issues/38)) ([63e7373](https://github.com/Jordan-Hall/tsc-laws/commit/63e7373fe349d63e5e0b08969a8f41184eba8c41))
+* **tslaws:** run only the changed projects, and follow the project in VS Code ([#41](https://github.com/Jordan-Hall/tsc-laws/issues/41)) ([ed006f6](https://github.com/Jordan-Hall/tsc-laws/commit/ed006f6a17a298049905a8126531c6748fd9d78e))
+
+
+### Fixes
+
+* **tslaws:** bind certificates to their problem and re-check them at accept ([#50](https://github.com/Jordan-Hall/tsc-laws/issues/50)) ([e490374](https://github.com/Jordan-Hall/tsc-laws/commit/e490374757b6962b49ccbaf294ed35cd7dd009a0))
+* **tslaws:** check loop-body obligations in CHC proofs, and stop a planted OSV cache hiding vulnerabilities ([#53](https://github.com/Jordan-Hall/tsc-laws/issues/53)) ([53bf2d6](https://github.com/Jordan-Hall/tsc-laws/commit/53bf2d687bca45b3673d9362365e4e0dc3713c80))
+* **tslaws:** keep credentials out of browser laws and rewrite import.meta as syntax ([#45](https://github.com/Jordan-Hall/tsc-laws/issues/45)) ([43a481c](https://github.com/Jordan-Hall/tsc-laws/commit/43a481c2365b874cd8b7513bf4676b5189c58284))
+
 ## [0.10.0](https://github.com/Jordan-Hall/tsc-laws/compare/laws-v0.9.0...laws-v0.10.0) (2026-11-16)
 
 
