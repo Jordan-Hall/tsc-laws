@@ -1,0 +1,8 @@
+FAILED   stripping ../ keeps uploads inside the folder (CWE-22) (src/files.laws.ts:9) [property]
+         threw: [CWE-22] sanitise("..\\windows\\win.ini") returned "..\\windows\\win.ini", outside "/srv/uploads" under posix rules
+         counterexample: ["etc"]
+         reproduce with --seed 1691263632
+TESTED   resolving and checking keeps uploads inside the folder (CWE-22) (src/files.laws.ts:10) [property]
+         a parameter type is not modelled
+
+2 laws: 0 proved, 0 bounded, 1 tested, 0 open, 1 failed, 0 tampered, 0 errors

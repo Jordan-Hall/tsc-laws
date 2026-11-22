@@ -1,13 +1,13 @@
 {
   "version": 2,
   "laws": {
-    "laws/core.laws.ts::a law keeps its name and its line when lowered": "022fba27f3231d59c7ac8a45c1f227cf27150fef20efa35e728d20893d770dbc",
-    "laws/core.laws.ts::a repeated law name is flagged": "60572de27dc0c1f32882abddb783f42d26dbf7137b782e24f420ca099628fe9a",
-    "laws/core.laws.ts::call syntax is not mistaken for the keyword syntax": "5a7efa49f45972ef9c568cd0c238320ba719fbb2a9a0562a83fbcade20604c71",
-    "laws/core.laws.ts::stored counterexamples decode to themselves": "b973f57964f0d62f66d25f14720659d7964f905a3387a9eb7243a4990885363d",
-    "laws/core.laws.ts::stored objects keep keys that look like tags": "7c57ecb583dc23f13bac67b7787462f9d96fc3f1f4ac2116627d874076f46a41",
-    "laws/core.laws.ts::the lock hash ignores whitespace": "56dd79b39b30151a3b0e7f95b8c21542197ba3747d1b92335d7862cb78bf782d",
-    "laws/core.laws.ts::the lock hash sees a law become proved": "987c420e5c0bb0732174cd4a89b6fda497d152bae8585268b43779dc4092cb9a"
+    "laws/core.laws.ts::a law keeps its name and its line when lowered": "7a0b40b9af60a99c550260285c651324cc37767714e3057044735a0c8852ca19",
+    "laws/core.laws.ts::a repeated law name is flagged": "11c126cf00e11825402ee0ad1d5c57867ae398d05e671b2b665a040ae6c3805f",
+    "laws/core.laws.ts::call syntax is not mistaken for the keyword syntax": "22b9f2c0ae00bfe36a978b4b517b5bed6eb6a9bd7d976c0bd27670a2f71e7afa",
+    "laws/core.laws.ts::stored counterexamples decode to themselves": "e07f773d3ce79af7c9dd4c7d2abcc42791a5810cec51d9f7390c255bba5d2772",
+    "laws/core.laws.ts::stored objects keep keys that look like tags": "6f6814dff6e2cf367772cc0b25cba46c3f79b93f8b6bb0ade3ed945fd6a5980b",
+    "laws/core.laws.ts::the lock hash ignores whitespace": "940e329b5018ebb7e1b31064e3baf09411ef50a76059c18f32d9f6750ff5c6e2",
+    "laws/core.laws.ts::the lock hash sees a law become proved": "84635b8ab2b5ddb88b3061a5503c81cc79fe1edbe683a438fedcb58fb6f6b8f3"
   },
   "exempt": []
 }

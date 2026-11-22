@@ -173,9 +173,9 @@ See [docs/laws.md](../../docs/laws.md#the-dashboard).
 ## Agents cannot move the goalposts
 
 `tsc-laws.lock` holds a hash of every law and the list of coverage exemptions. A law's hash covers its declaration, the helpers,
-generators and top-level code of its file that it reaches, the project modules those import, and the run settings of
-`tslaws.json` (`runs`, `bound`, the timeouts, `solvers`, `certify`, `compilerOptions`), so weakening a helper or setting `runs: 1`
-reads as tampering too; comments, layout and edits no law reaches do not. A change, an added law, a removed
+generators and top-level code of its file that it reaches, every module the file imports (a registry package by name and
+version), and the whole effective `tslaws.json` apart from `github`, `security` and `levels`, so weakening a helper or setting
+`runs: 1` reads as tampering too; comments, layout and edits no law reaches do not. A change, an added law, a removed
 law or a new `@tslaws-exempt` fails the check until a person runs `tslaws accept`, which refuses to run without a terminal,
 under `CI`, or with `TSLAWS_AGENT` set, unless a person has lent it for a limited time with `tslaws delegate grant`. Agents propose laws in `*.proposed.laws.ts` files (or optionally in `.tslaws/proposals/`, outside the tree and git-ignored; `tslaws propose` or the MCP tool) and try them with `tslaws check
 --proposed` (no lock, no coverage gate); a person moves one into the tree with `tslaws promote` and accepts. Every laws file in the tree must be in the lock. A project that accepts laws on GitHub (a `github` section in `tslaws.json`) still lets a person run `tslaws accept` by hand, and a maintainer can run the workflow on demand; set `github.local` to false to leave the lock to the workflow alone. See [docs/github.md](../../docs/github.md).
@@ -195,6 +195,8 @@ tslaws check [files...] [--json] [--summary] [--watch] [--runs N] [--seed N] [--
              [--proof-timeout MS] [--property-timeout MS] [--proposed] [--compiler PATH]
 ```
 
+- `check <files>` and `accept <files>` work on the named laws files only: the lock is compared only for their laws, so a locked law in
+  another file is not reported as removed, and `accept` keeps the lock entries of the other files. A law removed from a named file is still reported.
 - `init` scaffolds `tslaws.json`, the `.tslaws` ignore entry, the agent rules in `AGENTS.md`, the Claude Code hook in
   `.claude/settings.json`, and a starter law if none exists. It never writes the lock; a person then runs `accept`.
 - `accept` records the laws and the `@tslaws-exempt` functions in `tsc-laws.lock`. It refuses to run without a terminal,

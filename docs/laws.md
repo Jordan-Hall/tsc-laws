@@ -863,8 +863,8 @@ under `.tslaws/out/smt`.
 ## Keeping agents honest
 
 1. **Laws are the person's.** `tsc-laws.lock` holds a hash of every law and every coverage exemption. A law's hash covers
-   its declaration, the helpers, generators and top-level code of its file that it reaches, the project modules those
-   import (see [The lock covers what a law depends on](#the-lock-covers-what-a-law-depends-on)), and the run settings.
+   its declaration, the helpers, generators and top-level code of its file that it reaches, the modules the file
+   imports (see [The lock covers what a law depends on](#the-lock-covers-what-a-law-depends-on)), and the settings.
    Any difference fails the check as `tampered`. `tslaws accept` refuses to run without a terminal, under `CI`, or with
    `TSLAWS_AGENT` set, unless a person has lent it to agents for a limited time with `tslaws delegate grant`
    ([below](#lending-accept-to-an-agent)). Under `CI` it never runs.
@@ -898,6 +898,11 @@ tslaws mutate [files...] [--max N] [--seed N] [--runs N] [--bound N] [--proof-ti
 tslaws check [files...] [--json] [--summary] [--watch] [--runs N] [--seed N] [--no-prove] [--no-regressions] [--bound N]
              [--proof-timeout MS] [--proposed] [--compiler PATH] [--reporter text|json|junit|github|ndjson] [--law NAME[,NAME]]
 ```
+
+Naming files (`tslaws check src/a.laws.ts`, `tslaws accept src/a.laws.ts`) limits the run to them. The lock is compared only for
+the laws of those files: a locked law in any other file is neither checked nor reported as removed, and a law removed from a
+named file still is. `accept <files>` records only those files and keeps every other entry of the lock. Without files the
+whole project is compared, so a deleted laws file is reported.
 
 In a monorepo, run these at the root and they run in every project; `--project <dir>` and `--filter <glob>` narrow it. See
 [monorepo.md](monorepo.md).
@@ -1011,17 +1016,25 @@ none (levels went back to names) reports every law as `tampered` until a person 
 
 A law is only as strong as the code it calls and the settings it runs under, so each law's hash covers more than its text:
 
-- the top-level declarations of its file that the law references, transitively (helpers, generators, types);
-- the top-level code of its file that declares nothing (an `arbitrary(...)` call, a side effect), which can change every law;
-- the project modules the law's file imports that the law reaches, whole and transitively (`paths` from the tsconfig are
-  followed; modules under `node_modules` are not, the lockfile pins those);
-- the settings of `tslaws.json` that decide how hard a law is checked: `runs`, `bound`, `proofTimeoutMs`,
-  `propertyTimeoutMs`, `solvers`, `certify` and `compilerOptions`. A flag such as `--runs` is one run's choice and is not part
-  of it.
+- the top-level declarations of its file that the law references, transitively (helpers, generators, types), and the ones the
+  code that runs when the file loads references;
+- the code of its file that runs when it loads: statements that declare nothing (an `arbitrary(...)` call, a side effect) and
+  declarations whose initializer may run code (`const x = setUp()`). These can change every law of the file;
+- every module its file imports, whole and transitively, whether or not a law names anything from it, because an import
+  runs when the file loads. Files in the project, files outside it (a workspace package, a shared directory) and symlink
+  targets are digested; a declaration file is digested together with the `.js` next to it; `paths` from the tsconfig are
+  followed. A package installed from a registry is recorded by name and version (the lockfile pins what that version holds),
+  and a specifier that resolves to nothing is recorded as written, so it cannot go missing unseen;
+- the whole effective `tslaws.json` (every `extends` followed) except `github`, `security` and `levels`, which run no law
+  or have their own lock section: `runs`, `bound`, the timeouts, `solvers`, `certify`, `compilerOptions`, `cover`, `laws`,
+  `env`, `e2e`, and any key added later. It also covers the files `bundlerPlugins` names and the tsconfig the project
+  resolves with. A flag such as `--runs` is one run's choice and is not part of it.
 
 Code is compared as tokens, so comments and layout change nothing. The other laws of the file and helpers no law reaches are
 not in a law's hash, so an edit that reaches no law, such as a comment, a helper nobody calls or a different law, does not
-report the rest as `tampered`. Changing a run setting in either direction asks for `tslaws accept`.
+report the rest as `tampered`. Changing a setting in either direction asks for `tslaws accept`. What the seal cannot see: a
+`require(name)` or `import(name)` whose argument is not a string literal, files read at run time, the contents of an
+installed registry package beyond its version, and command line flags.
 
 A lock written by an older tslaws hashed only each law's own text (`version` below 2 in `tsc-laws.lock`, or none). Its laws
 are reported `tampered` with `lock format upgraded`, so the check fails until a person runs `tslaws accept` once; nothing

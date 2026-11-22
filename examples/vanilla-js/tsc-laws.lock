@@ -1,22 +1,22 @@
 {
   "version": 2,
   "laws": {
-    "src/convert.laws.ts::centimetresAreHundredPerMetre": "90a334f3f2af00e412aafb799c1bdcdf0ba3e57510bbe56c74cb16639c8fc674",
-    "src/convert.laws.ts::conversionKeepsSign": "c4546c4473b03f6027e88e7a4b921891db7f0b03eefefd5cae92d49b942a7a4f",
-    "src/convert.laws.ts::digitsStayInRange": "2673930442be50ca242c811faeb6a98242ce019de81504b435eb0c4f41c21f7f",
-    "src/convert.laws.ts::everyUnitHasPositiveSize": "6a299e9cb04a168c20f4b7667a8e358401e0e6a311708fcb37a7c8b61c84bd87",
-    "src/convert.laws.ts::formattedNumberParsesBack": "60f738195d36993c9e1070ae83f9412f77db16126badc1ab8b92b73cfa789f30",
-    "src/convert.laws.ts::roundTrip": "f554d29bb224ca332a5be2b6664c2802b1da4833aff3dfc5810d20755d9b5f1e",
-    "src/convert.laws.ts::sameUnitIsIdentity": "adb721f75ca5fc474e9a83977ce566c4242124b019d96543a00aefdfae4d691b",
-    "src/history.laws.ts::historyAgreesWithModel": "0a372936a5f240bb2ed47370b0c4ad077bfab22932d5dbabe04c6cdda34f64e8",
-    "src/history.laws.ts::historyNeverExceedsLimit": "e1fa0dd83cad539c5ed8363bbb74caffc072ab6f4cc9c6b499e7f9b3e74a1663",
-    "src/history.laws.ts::keptCountIsTheSmaller": "5cb0a97a647e9315fb440a6ed97f869f7345c879564a5f1e521241a79fd7cc20",
-    "src/history.laws.ts::pushKeepsNewestFirstAndRespectsLimit": "ed87b5ea55df49aa9b42196be367e23a712fac37126a59b954ae143a06bacba8",
-    "src/history.laws.ts::removeDropsOnlyThatId": "56b7cb8c1f7fa8af9dd1eb68d16afc365b3faf609b169d454de1d6fe5f879cbe",
-    "src/widget.browser.laws.ts::appStartsFocusedAndAccessible": "fcf980be0e56aec0db05e641d32fd8080a2f4ac4e020759f7a705edececb452e",
-    "src/widget.browser.laws.ts::emptyValueClearsResult": "12c45ff0483607cea6377ab8c683602146b89e0278d1d262a41077b17f407d9a",
-    "src/widget.browser.laws.ts::historyListAgreesWithModel": "2f2f4acaaac868435f39e3a8a4a323162d5d3950602f9c56d716d565996d685e",
-    "src/widget.browser.laws.ts::resultMatchesConvert": "a0ea3f087a75d3ac6b56a8b6a55a92cdd822740535ff9def0a77e6b2f43196b5"
+    "src/convert.laws.ts::centimetresAreHundredPerMetre": "1d98b4a3e0409eebf645ce018a4f45c81d4b61030f23bd06cbf6394d86076067",
+    "src/convert.laws.ts::conversionKeepsSign": "38f162939c91f914f6e6fbb83924a747305164132b51b0647839e15224bdd205",
+    "src/convert.laws.ts::digitsStayInRange": "a9a24e8aa8e950a7bb2e068f8a430745cfc0a4cffff6c70eec67a921633384db",
+    "src/convert.laws.ts::everyUnitHasPositiveSize": "a63bdfa925fd55a7596c0f35b0ba0d13456d3187a1df244c3f7518a663d55ddf",
+    "src/convert.laws.ts::formattedNumberParsesBack": "5b8c4c154ff4664a6f558a0e160a6ea24033b9fb2c4805853b63af294cb81122",
+    "src/convert.laws.ts::roundTrip": "e28f1831d9fb1a59cafc775ae8c712b901c1eac0900b5f578ed8418014f35649",
+    "src/convert.laws.ts::sameUnitIsIdentity": "69e1573569f504bf93059929a329cebb2b890a606cd41742b2ebe1a6dc1f79ff",
+    "src/history.laws.ts::historyAgreesWithModel": "789d715e38ae232f68c067d35a73e50b3a0bf30922b39f77dc9143b4e773dd7f",
+    "src/history.laws.ts::historyNeverExceedsLimit": "e6effb977be3170aa7983232c9c23fd8be78ceec26bd016c7752fe7a01ff9c78",
+    "src/history.laws.ts::keptCountIsTheSmaller": "674f3ce32ce8f06b1fe30faeaec9a99a32c6114d90f4846a6a96ce5a96ee647f",
+    "src/history.laws.ts::pushKeepsNewestFirstAndRespectsLimit": "9e3402a23b1942bb54762531ca0e72f012ec0a9937f764940ec5f4752abe693a",
+    "src/history.laws.ts::removeDropsOnlyThatId": "52b4f13f3ede41e44ea7e6f279aeca5903f3848b577827f5c9ac276b770dc20d",
+    "src/widget.browser.laws.ts::appStartsFocusedAndAccessible": "8b1e95dcd537675ea7668d39511546c6ecd5439ffd4fa349578ec35a73c95e23",
+    "src/widget.browser.laws.ts::emptyValueClearsResult": "2656ac9566bba8ba60917e62e5b0908eeb8c99a7f69cb414fbaaedbfc41eacde",
+    "src/widget.browser.laws.ts::historyListAgreesWithModel": "48009b4606acdd17ec065b860f63af62871283bfa38c3467205622928d4312ec",
+    "src/widget.browser.laws.ts::resultMatchesConvert": "75ce4b9ed5065ce7b587a0fdf5c4678ae88b4db833cf16871da7b7bdac01ae62"
   },
   "exempt": []
 }

@@ -1,0 +1,16 @@
+security deps: 2 packages (2 versions) imported by covered code, from package-lock.json
+FAIL    critical minimist@1.2.0  GHSA-xvch-5gv4-984h CVE-2021-44906  fixed in 1.2.6
+         Prototype Pollution in minimist
+FAIL    high     lodash@4.17.15  GHSA-35jh-r3h4-6jhm CVE-2021-23337  fixed in 4.17.21
+         Command Injection in lodash
+FAIL    high     lodash@4.17.15  GHSA-p6mc-m468-83gw CVE-2020-8203  fixed in 4.17.19
+         Prototype Pollution in lodash
+FAIL    high     lodash@4.17.15  GHSA-r5fr-rjxr-66jc CVE-2026-4800  fixed in 4.18.0
+         lodash vulnerable to Code Injection via `_.template` imports key names
+warn    moderate lodash@4.17.15  GHSA-29mw-wpgm-hmr9 CVE-2020-28500  fixed in 4.17.21
+         Regular Expression Denial of Service (ReDoS) in lodash
+warn    moderate lodash@4.17.15  GHSA-xxjr-mmjv-4gpg CVE-2025-13465  fixed in 4.17.23
+         Lodash has Prototype Pollution Vulnerability in `_.unset`, `_.omit`, and `_.pullAt` functions
+warn    moderate minimist@1.2.0  GHSA-vh95-rmgr-6w4m CVE-2020-7598  fixed in 1.2.3
+         Prototype Pollution in minimist
+4 advisories at or above high: failed

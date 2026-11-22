@@ -2,7 +2,7 @@
 // those import, and the run settings. Weakening any of them reads as tampered; an edit nothing reaches does not.
 // Needs `npm run build` for dist/; uses the built-in compiler, so no TSC_LAWS_BIN.
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { after, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -119,13 +119,16 @@ describe('the lock covers what a law depends on', () => {
     assert.deepEqual(Object.values(await p.statuses()), ['tampered', 'tampered', 'tampered', 'tampered']);
   });
 
-  it('tampers the laws that reach an imported module that changed', async () => {
+  it('tampers every law of a file whose imported module changed: an import runs when the file loads', async () => {
     const p = project();
     p.edit('src/limits.ts', 'n < 1000', 'true');
-    const status = await p.statuses();
-    assert.equal(status.usesImport, 'tampered');
-    assert.equal(status.usesHelper, tested);
-    assert.equal(status.plain, tested);
+    assert.deepEqual(Object.values(await p.statuses()), ['tampered', 'tampered', 'tampered', 'tampered']);
+  });
+
+  it('tampers every law when a module no law names anything from changed', async () => {
+    const p = project();
+    p.edit('src/unused.ts', 'export const nothing = 1;', 'export const nothing = 2;');
+    assert.deepEqual(Object.values(await p.statuses()), ['tampered', 'tampered', 'tampered', 'tampered']);
   });
 
   it('follows the imports of an imported module', async () => {
@@ -134,10 +137,10 @@ describe('the lock covers what a law depends on', () => {
       'src/floor.ts': 'export const floor = 1000;\n',
     });
     p.edit('src/floor.ts', '1000', '1');
-    assert.equal((await p.statuses()).usesImport, 'tampered');
+    assert.deepEqual(Object.values(await p.statuses()), ['tampered', 'tampered', 'tampered', 'tampered']);
   });
 
-  it('ignores edits that reach no law: comments, layout, a helper nobody calls, an unused import, another law', async () => {
+  it('ignores edits that reach no law: comments, layout, a helper nobody calls, another law', async () => {
     const p = project();
     p.edit('src/f.laws.ts', '// nothing calls this one', '// reworded');
     p.edit(
@@ -146,7 +149,6 @@ describe('the lock covers what a law depends on', () => {
       'const positive = (n: number): boolean =>\n  n * n >= 0;',
     );
     p.edit('src/f.laws.ts', 'n + nothing', 'n + nothing + 1');
-    p.edit('src/unused.ts', 'export const nothing = 1;', 'export const nothing = 2;');
     p.edit('src/f.laws.ts', 'n === n', 'n * 2 === n + n');
     assert.deepEqual(await p.statuses(), {
       usesHelper: tested,
@@ -237,5 +239,191 @@ describe('levels', () => {
     // The settings are the same, so only the levels section is behind the failure.
     const status = await p.statuses();
     assert.deepEqual(Object.values(status), ['tampered', 'tampered', 'tampered', 'tampered']);
+  });
+});
+
+/** The seal of each law of the project as it stands, read without running anything. */
+function seals(p: Project): Record<string, string | undefined> {
+  return Object.fromEntries(readManifest('builtin', p.options.files, p.cwd).map((law) => [law.name, law.seal]));
+}
+
+/** Whether the seals are the same after `edit`. */
+function sameSeals(p: Project, edit: () => void): boolean {
+  const before = seals(p);
+  edit();
+  return JSON.stringify(before) === JSON.stringify(seals(p));
+}
+
+describe('what a law reaches through the code that runs when its file loads', () => {
+  const withRange = files['src/f.laws.ts']!.replace(
+    "arbitrary('Small', fc.integer({ min: 0, max: 100 }));",
+    "const range = { min: 0, max: 100 };\narbitrary('Small', fc.integer(range));",
+  );
+
+  it('seals a declaration only the top-level code references', async () => {
+    const p = project({ 'src/f.laws.ts': withRange });
+    p.edit('src/f.laws.ts', 'max: 100', 'max: 1');
+    assert.deepEqual(Object.values(await p.statuses()), ['tampered', 'tampered', 'tampered', 'tampered']);
+  });
+
+  it('seals a declaration reached only from another declaration the top-level code references', () => {
+    const p = project({
+      'src/f.laws.ts': withRange
+        .replace('const range = ', 'const top = 100;\nconst range = ')
+        .replace('max: 100', 'max: top'),
+    });
+    assert.equal(
+      sameSeals(p, () => p.edit('src/f.laws.ts', 'top = 100', 'top = 1')),
+      false,
+    );
+  });
+
+  it('seals a declaration that runs code when the file loads, though no law names it', () => {
+    const p = project();
+    p.edit('src/f.laws.ts', '// nothing calls this one', 'const setup = fc.constant(1);');
+    assert.equal(
+      sameSeals(p, () => p.edit('src/f.laws.ts', 'fc.constant(1)', 'fc.constant(2)')),
+      false,
+    );
+  });
+});
+
+describe('what a law reaches through its imports', () => {
+  const importing = (specifier: string): string => `import '${specifier}';\n${files['src/f.laws.ts']}`;
+
+  it('digests the code behind a declaration file, and the declaration file', () => {
+    const p = project({
+      'src/lib.d.ts': 'export declare const lib: number;\n',
+      'src/lib.js': 'export const lib = 1;\n',
+      'src/f.laws.ts': importing('./lib'),
+    });
+    assert.equal(
+      sameSeals(p, () => writeFileSync(join(p.cwd, 'src/lib.js'), 'export const lib = 2;\n')),
+      false,
+    );
+    assert.equal(
+      sameSeals(p, () => writeFileSync(join(p.cwd, 'src/lib.d.ts'), 'export declare const lib: string;\n')),
+      false,
+    );
+  });
+
+  it('digests a module outside the project', () => {
+    const p = project({ 'src/f.laws.ts': importing('../../shared/x') });
+    mkdirSync(join(p.cwd, '..', 'shared'), { recursive: true });
+    const shared = join(p.cwd, '..', 'shared', 'x.ts');
+    writeFileSync(shared, 'export const x = 1;\n');
+    assert.equal(
+      sameSeals(p, () => writeFileSync(shared, 'export const x = 2;\n')),
+      false,
+    );
+  });
+
+  it('digests the target of a symlink, not the link', (t) => {
+    const p = project({ 'src/f.laws.ts': importing('./linked') });
+    const target = join(p.cwd, '..', `target${count}.ts`);
+    writeFileSync(target, 'export const y = 1;\n');
+    try {
+      symlinkSync(target, join(p.cwd, 'src', 'linked.ts'));
+    } catch {
+      t.skip('cannot create a symlink here');
+      return;
+    }
+    assert.equal(
+      sameSeals(p, () => writeFileSync(target, 'export const y = 2;\n')),
+      false,
+    );
+  });
+
+  it('records a registry package by name and version', () => {
+    const p = project({
+      'src/f.laws.ts': importing('registry-thing'),
+      'node_modules/registry-thing/package.json': '{"name":"registry-thing","version":"1.0.0","main":"index.js"}',
+      'node_modules/registry-thing/index.js': 'module.exports = 1;\n',
+    });
+    const manifest = join(p.cwd, 'node_modules/registry-thing/package.json');
+    assert.equal(
+      sameSeals(p, () => writeFileSync(manifest, '{"name":"registry-thing","version":"1.0.1","main":"index.js"}')),
+      false,
+    );
+  });
+
+  it('records a specifier that resolves to nothing, as written', () => {
+    const p = project({ 'src/f.laws.ts': importing('ghost-one') });
+    assert.equal(
+      sameSeals(p, () => p.edit('src/f.laws.ts', 'ghost-one', 'ghost-two')),
+      false,
+    );
+  });
+
+  it('digests an asset TypeScript does not resolve', () => {
+    const p = project({ 'src/f.laws.ts': importing('./style.css'), 'src/style.css': 'a {}\n' });
+    assert.equal(
+      sameSeals(p, () => writeFileSync(join(p.cwd, 'src/style.css'), 'b {}\n')),
+      false,
+    );
+  });
+});
+
+describe('what a law reaches through tslaws.json', () => {
+  const edits: [string, string][] = [
+    ['cover', '{"runs": 50, "bound": 4, "cover": ["src/**"]}'],
+    ['env', '{"runs": 50, "bound": 4, "env": {"MODE": "production"}}'],
+    ['e2e', '{"runs": 50, "bound": 4, "e2e": {"runs": 1}}'],
+    ['laws', '{"runs": 50, "bound": 4, "laws": ["src/**/*.spec.ts"]}'],
+    ['tsconfig', '{"runs": 50, "bound": 4, "tsconfig": false}'],
+    ['certify', '{"runs": 50, "bound": 4, "certify": true}'],
+    ['proofTimeoutMs', '{"runs": 50, "bound": 4, "proofTimeoutMs": 1}'],
+  ];
+  for (const [key, text] of edits)
+    it(`seals ${key}`, () => {
+      const p = project();
+      assert.equal(
+        sameSeals(p, () => writeFileSync(join(p.cwd, 'tslaws.json'), text)),
+        false,
+      );
+    });
+
+  it('does not seal the settings that run no law: github, security, levels', () => {
+    const p = project();
+    assert.equal(
+      sameSeals(p, () =>
+        writeFileSync(
+          join(p.cwd, 'tslaws.json'),
+          '{"runs": 50, "bound": 4, "github": {"local": true}, "security": {"offline": true}, "levels": "imports"}',
+        ),
+      ),
+      true,
+    );
+  });
+
+  it('treats a default written down as no change', () => {
+    const p = project();
+    assert.equal(
+      sameSeals(p, () =>
+        writeFileSync(join(p.cwd, 'tslaws.json'), '{"runs": 50, "bound": 4, "solvers": ["z3"], "certify": false}'),
+      ),
+      true,
+    );
+  });
+
+  it('digests the plugin files of bundlerPlugins', () => {
+    const p = project({
+      'tools/plugin.mjs': 'export default { name: "a", setup() {} };\n',
+      'tslaws.json': '{"runs": 50, "bound": 4, "bundlerPlugins": ["./tools/plugin.mjs"]}',
+    });
+    assert.equal(
+      sameSeals(p, () => writeFileSync(join(p.cwd, 'tools/plugin.mjs'), 'export default { name: "b", setup() {} };\n')),
+      false,
+    );
+  });
+
+  it('digests the tsconfig it resolves with', () => {
+    const p = project({ 'tsconfig.json': '{"compilerOptions": {"paths": {"@a/*": ["./src/*"]}}}\n' });
+    assert.equal(
+      sameSeals(p, () =>
+        writeFileSync(join(p.cwd, 'tsconfig.json'), '{"compilerOptions": {"paths": {"@a/*": ["./other/*"]}}}\n'),
+      ),
+      false,
+    );
   });
 });

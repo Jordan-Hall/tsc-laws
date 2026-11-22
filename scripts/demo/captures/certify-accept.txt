@@ -1,0 +1,13 @@
+accept
+8 laws in 1 files:
+  src/math.laws.ts:8 addition commutes
+  src/math.laws.ts:9 doubling is adding twice
+  src/math.laws.ts:10 and commutes
+  src/math.laws.ts:11 counting up reaches n
+  src/math.laws.ts:15 the largest is never negative
+  src/math.laws.ts:16 the average sits between
+  src/math.laws.ts:20 half is at most n
+  src/math.laws.ts:24 clamping never goes below the floor
+Write tsc-laws.lock? Type accept, yes or y to confirm: accept
+
+tsc-laws.lock written

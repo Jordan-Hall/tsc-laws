@@ -64,6 +64,11 @@ export interface ProposalOutcome {
 
 export interface CheckOptions {
   files: string[];
+  /**
+   * `files` is part of the project, named by the person: the lock is compared only for the laws of those files, so a
+   * locked law in any other file is neither removed nor checked. Unset, `files` is every laws file of the project.
+   */
+  partial?: boolean;
   cwd: string;
   runs: number;
   seed?: number;

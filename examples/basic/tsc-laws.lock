@@ -1,11 +1,11 @@
 {
   "version": 2,
   "laws": {
-    "src/math.laws.ts::addCommutes": "a1e707c62decc38f75fc29b9d4ee1513d6c920d046bfcaf7e6c1cb6b542543e5",
-    "src/math.laws.ts::addIdentity": "c70830ab0b0e685a54c48c193f923577440e3e404541fbc0b984e61e9648772e",
-    "src/math.laws.ts::clampWithinBounds": "3062911022a814d9ca6850a1c77182a65ec4d92729dd03fb6d188a61d3c89ee1",
-    "src/math.laws.ts::manhattanSymmetric": "95918f0ba137b8d06afcae888de8a2acf643d567a437eae80d9f3ad851cffa11",
-    "src/math.laws.ts::sortKeepsLength": "ba478a7017b1e748cac04136dffd4e8de6f17a0d9ca6ec6f47735fe3ea561905"
+    "src/math.laws.ts::addCommutes": "6b617606dd9bba118438a0595a37bb13475bb4c8a5e63fdd63d4c878363be252",
+    "src/math.laws.ts::addIdentity": "2a87696937c2c00506472fa70225ab0b399a66a9e2bd8dfcb1501787a328712f",
+    "src/math.laws.ts::clampWithinBounds": "2795a3638a908cbd0962eba097ee6e0e8677b5c0ac4bf51b4691503b5f088090",
+    "src/math.laws.ts::manhattanSymmetric": "4e6d21a9498b1b8d5fbc2dee097cbe743a50247aefb257b1fa2ef5cbdab1101b",
+    "src/math.laws.ts::sortKeepsLength": "1c3a6af71f3b9c17612ce2cbdb88510aa11178a42b16e2d956af5168a66a522f"
   },
   "exempt": []
 }

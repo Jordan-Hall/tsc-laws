@@ -29,7 +29,7 @@ import {
   readRecords,
   type CertificateRecord,
 } from './certificates.ts';
-import { compareLock, lawHash, lawKey, lockFormat, proofStatus, readLock, type Lock } from './lock.ts';
+import { compareLock, lawHash, lawKey, lockFormat, proofStatus, readLock, scopeOf, type Lock } from './lock.ts';
 import { crossCheck, disagreement } from './propertyRun.ts';
 import { prepareRuntime } from './runtimeEnv.ts';
 import { problemTexts, proveLaw } from './smt.ts';
@@ -277,7 +277,12 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
       notices.push(
         `lock format upgraded: the lock was written in format ${lock?.version ?? 0} and tslaws now hashes helpers, imported code and run settings too (format ${lockFormat}); run \`tslaws accept\` to record the laws again`,
       );
-    for (const violation of compareLock(lock?.laws, laws, levels)) {
+    for (const violation of compareLock(
+      lock?.laws,
+      laws,
+      levels,
+      options.partial === true ? scopeOf(options.files) : undefined,
+    )) {
       const law = byKey.get(violation.key);
       if (law === undefined) {
         const [file, name] = violation.key.split('::') as [string, string];

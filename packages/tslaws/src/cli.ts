@@ -36,7 +36,7 @@ import {
   revokeFor,
 } from './delegation.ts';
 import { certificateLabel } from './certificates.ts';
-import { readLock, writeLock } from './lock.ts';
+import { fileOfKey, lockFormat, lockOf, mergeScoped, readLock, scopeOf, writeLockValue } from './lock.ts';
 import { lockLevels } from './lawKinds.ts';
 import type { CheckOptions, LawEvent, LawResult } from './types.ts';
 
@@ -297,7 +297,10 @@ async function runCheck(
           run.out(`${JSON.stringify(run.tag === undefined ? event : { project: run.tag, ...event })}\n`);
       }
     : undefined;
-  const report = await check({ ...options(cwd, flags, chosen), onEvent }, !flags.has('proposed'));
+  const report = await check(
+    { ...options(cwd, flags, chosen), partial: files.length > 0, onEvent },
+    !flags.has('proposed'),
+  );
   run.out(render(report, flags, run.tag));
   return report.ok ? 0 : 1;
 }
@@ -421,8 +424,24 @@ export async function acceptCommand(
   const mode = readConfig(cwd).levels ?? 'names';
   const levels = lockLevels(cwd, laws, mode);
   // Certificates enter the lock only for the proofs and problems of this run; see certificatesToAccept.
-  const certificates = await certificatesToAccept(opts, laws, readLock(opts.lockFile)?.certificates, out);
-  writeLock(opts.lockFile, laws, exempt, levels, certificates);
+  // Naming files accepts only those: the lock keeps every entry it has for the other files.
+  const held = readLock(opts.lockFile);
+  // The entries a partial accept keeps for the other files were hashed in the old format; keeping them under the new
+  // version would make every one of them read as changed. Only a full accept can write the whole lock again.
+  if (files.length > 0 && held !== undefined && (held.version ?? lockFormat) < lockFormat) {
+    out(
+      'Nothing written: lock format upgraded. The lock holds laws hashed in the old format for files you did not name; run `tslaws accept` without files to record them all.\n',
+    );
+    return 1;
+  }
+  const scope = scopeOf(chosen);
+  const heldHere =
+    files.length === 0
+      ? held?.certificates
+      : Object.fromEntries(Object.entries(held?.certificates ?? {}).filter(([key]) => scope.has(fileOfKey(key))));
+  const certificates = await certificatesToAccept(opts, laws, heldHere, out);
+  const next = lockOf(laws, exempt, levels, certificates);
+  writeLockValue(opts.lockFile, files.length === 0 ? next : mergeScoped(held, scope, next));
   out('tsc-laws.lock written\n');
   if (gate.delegated) {
     logDelegatedAccept(cwd, gate.grant, before, fileHash(opts.lockFile), ctx.now ?? new Date());
@@ -962,7 +981,13 @@ async function runOne(
       // A watcher sees a browser page only if it stays as the law left it for a moment.
       run: (only, onEvent, laws) =>
         check(
-          { ...options(cwd, flags, only ?? chosen), only: laws, onEvent, browserPauseMs: 120 },
+          {
+            ...options(cwd, flags, only ?? chosen),
+            partial: only !== undefined || files.length > 0,
+            only: laws,
+            onEvent,
+            browserPauseMs: 120,
+          },
           !flags.has('proposed'),
         ),
       log: (line) => process.stdout.write(`${line}\n`),
