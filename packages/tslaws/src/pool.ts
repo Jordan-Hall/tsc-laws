@@ -11,20 +11,20 @@ export function jobs(): number {
  * A pool of workers where each request holds one exclusively, so a timeout can terminate its worker without
  * disturbing a neighbour. Workers start on demand and are reused.
  */
-export class WorkerPool {
-  private readonly idle: Worker[] = [];
-  private readonly waiting: ((worker: Worker) => void)[] = [];
+export class WorkerPool<T extends { terminate(): unknown } = Worker> {
+  private readonly idle: T[] = [];
+  private readonly waiting: ((worker: T) => void)[] = [];
   private count = 0;
 
-  private readonly start: () => Worker;
+  private readonly start: () => T;
   private readonly size: number;
 
-  constructor(start: () => Worker, size: number = jobs()) {
+  constructor(start: () => T, size: number = jobs()) {
     this.start = start;
     this.size = size;
   }
 
-  acquire(): Promise<Worker> {
+  acquire(): Promise<T> {
     const free = this.idle.pop();
     if (free !== undefined) return Promise.resolve(free);
     if (this.count < this.size) {
@@ -42,14 +42,22 @@ export class WorkerPool {
     }
   }
 
-  release(worker: Worker): void {
+  release(worker: T): void {
     const next = this.waiting.shift();
     if (next !== undefined) next(worker);
     else this.idle.push(worker);
   }
 
+  /** Terminates the idle workers, for a project that is done (a scratch copy that is about to be deleted). */
+  close(): void {
+    for (const worker of this.idle.splice(0)) {
+      void worker.terminate();
+      this.count -= 1;
+    }
+  }
+
   /** Terminates a worker that timed out or crashed; a waiting request gets a fresh one. */
-  discard(worker: Worker): void {
+  discard(worker: T): void {
     void worker.terminate();
     const next = this.waiting.shift();
     if (next === undefined) this.count -= 1;

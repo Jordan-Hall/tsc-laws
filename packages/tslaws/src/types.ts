@@ -85,6 +85,11 @@ export interface CheckOptions {
   browser?: 'chromium' | 'firefox' | 'webkit';
   /** Flags the person gave on the command line, which beat `tslaws.json`: `runs`, `property-timeout`. */
   explicit?: ('runs' | 'property-timeout')[];
+  /**
+   * Run node laws in a child process under Node's permission model (see sandbox.ts). Default true; `false` is
+   * `--no-sandbox`, which lets laws and the helpers they load do anything this process can.
+   */
+  sandbox?: boolean;
   /** Skip the regression corpus: nothing is replayed and nothing is saved. */
   noRegressions?: boolean;
   /** Stored counterexamples to replay before the random search, as JSON text from `encodeExample`. Set by `check`. */

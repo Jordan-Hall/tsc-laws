@@ -32,6 +32,40 @@ interface Internals {
 }
 type Parent = { filename?: string } | null;
 
+/**
+ * How a file Node cannot load as written becomes something it can: TypeScript source (esbuild) and a project format (the
+ * `bundlerPlugins`). Both start a helper (a child process, a thread), which a sandboxed law process may not do, so
+ * there the parent transforms the reviewed files up front and the process looks the result up (see lawHost.ts).
+ */
+export interface Transforms {
+  source(file: string, extension: string): string;
+  plugin(file: string, cwd: string, plugins: readonly string[], format: 'cjs' | 'esm'): string;
+}
+
+/** The TypeScript source of `file` as CommonJS, the way a law loads it. */
+export function transformSource(file: string, extension: string): string {
+  return transformSync(readFileSync(file, 'utf8'), {
+    loader: extension === '.tsx' ? 'tsx' : 'ts',
+    format: 'cjs',
+    target: 'es2022',
+    sourcefile: file,
+    sourcemap: 'inline',
+    define: importMetaDefines(file),
+  }).code;
+}
+
+let transforms: Transforms = { source: transformSource, plugin: transformPluginFile };
+
+/** Replaces how this thread transforms files; used by the sandboxed law process, which cannot run the real ones. */
+export function useTransforms(next: Transforms): void {
+  transforms = next;
+}
+
+/** The runtime a project registered, as the last build left it. */
+export function runtimeOf(cwd: string): LawRuntime | undefined {
+  return projects.get(outDirOf(cwd));
+}
+
 const projects = new Map<string, LawRuntime>();
 const byConfig = new Map<string, ResolutionOptions>();
 // Compiled laws are CommonJS (see `build` in compile.ts), and these hooks are the CommonJS loader's own (`_resolveFilename`,
@@ -63,7 +97,7 @@ export function installLawRuntime(runtime: LawRuntime): void {
   projects.set(outDirOf(runtime.cwd), runtime);
   if (hooked) return;
   hooked = true;
-  installPluginHooks({ ownerOf, beside });
+  installPluginHooks({ ownerOf, beside, transform: (...args) => transforms.plugin(...args) });
   const internals = Module as unknown as Internals;
   const original = internals._resolveFilename;
   internals._resolveFilename = function (request, parent, ...rest) {
@@ -85,19 +119,11 @@ export function installLawRuntime(runtime: LawRuntime): void {
     const extension = extname(file).toLowerCase();
     if (!pluginExtensionNeeded(extension)) return plain.call(this, module, file);
     const owner = ownerOf(file);
-    module._compile(transformPluginFile(file, owner?.cwd ?? process.cwd(), owner?.bundlerPlugins ?? []), file);
+    module._compile(transforms.plugin(file, owner?.cwd ?? process.cwd(), owner?.bundlerPlugins ?? [], 'cjs'), file);
   };
   for (const extension of ['.ts', '.tsx', '.mts', '.cts'])
     internals._extensions[extension] = (module, file) => {
-      const { code } = transformSync(readFileSync(file, 'utf8'), {
-        loader: extension === '.tsx' ? 'tsx' : 'ts',
-        format: 'cjs',
-        target: 'es2022',
-        sourcefile: file,
-        sourcemap: 'inline',
-        define: importMetaDefines(file),
-      });
-      module._compile(code, file);
+      module._compile(transforms.source(file, extension), file);
     };
 }
 

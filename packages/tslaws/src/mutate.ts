@@ -5,6 +5,7 @@ import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statS
 import { dirname, join, relative } from 'node:path';
 import ts from 'typescript';
 import { check } from './check.ts';
+import { releaseSandbox } from './sandbox.ts';
 import { coverFiles, readConfig } from './coverage.ts';
 import { mutateDefaults } from './settings.ts';
 import type { CheckOptions } from './types.ts';
@@ -37,6 +38,8 @@ export interface MutateOptions {
   /** True when the person named law files: only the sources those laws reach are mutated. */
   lawsNamed?: boolean;
   seed?: number;
+  /** False runs laws without the sandbox (`--no-sandbox`). */
+  sandbox?: boolean;
   /** Run settings as `check` takes them; unset ones come from tslaws.json, then the mutate defaults (30 runs). */
   runs?: number;
   bound?: number;
@@ -234,6 +237,7 @@ export async function mutate(options: MutateOptions): Promise<MutateReport> {
     proofTimeoutMs: options.proofTimeoutMs ?? config.proofTimeoutMs ?? mutateDefaults.proofTimeoutMs,
     propertyTimeoutMs: options.propertyTimeoutMs ?? config.propertyTimeoutMs ?? mutateDefaults.propertyTimeoutMs,
     browser: options.browser,
+    sandbox: options.sandbox,
     // The lock is not enforced on mutants; it is copied so the scratch project is complete.
     explicit: options.runs === undefined ? [] : ['runs'],
   });
@@ -307,6 +311,7 @@ export async function mutate(options: MutateOptions): Promise<MutateReport> {
           reason: `check errored: ${error instanceof Error ? error.message : String(error)}`,
         };
       } finally {
+        releaseSandbox(dir);
         rmSync(dir, { recursive: true, force: true });
       }
       results.push(result);
@@ -326,6 +331,7 @@ export async function mutate(options: MutateOptions): Promise<MutateReport> {
       ok: survived === 0,
     };
   } finally {
+    releaseSandbox(scratchRoot);
     rmSync(scratchRoot, { recursive: true, force: true });
   }
 }

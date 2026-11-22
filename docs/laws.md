@@ -879,6 +879,54 @@ under `.tslaws/out/smt`.
 4. **The gate runs by itself.** `tslaws init` installs a Claude Code hook (`hooks/claude-hook.mjs`) that blocks
    `git commit` and sends the agent back to work when the check fails, plus rules for `AGENTS.md`
    (`hooks/AGENTS.snippet.md`).
+5. **Laws run in a sandbox.** A law, and the helpers a proposal brings, may be written by an agent. Node laws run in a
+   child process that cannot write files, start processes or load code nobody reviewed ([below](#the-law-sandbox)).
+
+## The law sandbox
+
+The lock and the coverage gate decide which laws count. They do not decide what a law may do while it runs: a law is
+code, and code can read secrets, write files, start processes or open a connection. `tslaws check` therefore runs every
+node law, and every property run the prover replays, in a child process under Node's permission model:
+
+- **Files.** The process may read the project, the `node_modules` above it, the trees that workspace links in
+  `node_modules` point to, and the tslaws package. It may write nothing.
+- **Processes.** It may not start a child process, a worker thread, an addon or a WASI instance.
+- **Code from strings.** `eval`, `new Function` and the constructor chains that reach them (`(() => 0).constructor('...')`)
+  throw, because the process starts with `--disallow-code-generation-from-strings`.
+- **Modules.** A module guard sits in front of every `require` and `import()`. Only the reviewed set loads: the build's
+  output, the project files the laws import (found by following their imports), installed packages, and a short list of
+  Node modules: `assert`, `buffer`, `crypto`, `events`, `path`, `querystring`, `string_decoder`, `timers`, `url`, `util`
+  (a package may use a few more, such as `fs` and `os`). A file nobody reviewed, a `data:` or network URL, and any other
+  Node module (`fs`, `child_process`, `net`, `vm`, `module`, `worker_threads`) are refused with a plain error. A path a law
+  computes at run time to reach an unreviewed file is refused the same way.
+- **Network.** The permission model does not cover sockets, so `fetch`, `WebSocket` and `EventSource` are removed, and the
+  modules that open sockets are not on the list.
+- **Internals.** `process.binding`, `process.getBuiltinModule` (for a module that is not on the list), `process.dlopen`,
+  `process.kill` and the IPC channel are closed to the law.
+
+The process answers with plain data. The parent rebuilds each field of the answer (the counts, the seed, the
+counterexample text) and drops the rest, so a law cannot make the check report more than a property run says.
+
+What the process cannot do for itself, the parent does first: files Node cannot load as written (TypeScript that the build
+did not compile, and files in a project format through `bundlerPlugins`) are transformed by tslaws and handed over.
+
+```
+tslaws check --no-sandbox
+```
+
+`--no-sandbox` (also `sandbox: false` in the API) runs laws in this process's own permissions and prints a warning.
+Use it for laws you wrote, when a law needs `fs` or a process for a reason of its own.
+
+Node versions. The sandbox needs the permission model: `--permission` on Node 22.13, 23.5 and later, and
+`--experimental-permission` on Node 20 up to those. On a Node without it (before 20) the check stops with an error that
+names `--no-sandbox`; it never runs the laws unsandboxed by itself. The guard also hooks `import()` of an ES module
+(`module.registerHooks`) from Node 22.15 and 23.5; on an older Node an `import()` of an unreviewed ES module is held back
+by the read permission alone, which still keeps it inside the project.
+
+What is not sandboxed. End-to-end laws drive a browser, which needs processes, so they run outside it and a person
+reads them as they would any script. Browser laws run in the page, behind the browser's own boundary. Project code that
+uses `fs`, `os` or `child_process` for real work is refused under the sandbox; a law over it needs `--no-sandbox`, or the
+code behind an interface that the law replaces.
 
 ## Commands
 
@@ -892,8 +940,8 @@ tslaws list [--json]
 tslaws propose <file.ts> [--from PATH]
 tslaws promote <proposal> [--to PATH] [--yes]
 tslaws regressions [list|clear]
-tslaws mutate [files...] [--max N] [--seed N] [--runs N] [--bound N] [--proof-timeout MS] [--property-timeout MS] [--json]
-tslaws check [files...] [--json] [--summary] [--watch] [--runs N] [--seed N] [--no-prove] [--no-regressions] [--bound N]
+tslaws mutate [files...] [--max N] [--seed N] [--runs N] [--bound N] [--proof-timeout MS] [--property-timeout MS] [--no-sandbox] [--json]
+tslaws check [files...] [--json] [--summary] [--watch] [--runs N] [--seed N] [--no-prove] [--no-regressions] [--no-sandbox] [--bound N]
              [--proof-timeout MS] [--proposed] [--compiler PATH] [--reporter text|json|junit|github|ndjson] [--law NAME[,NAME]]
 ```
 
@@ -1281,6 +1329,7 @@ On Windows the native build is `dist/tsc`; copy it to `tsc.exe` to run it.
 - Loop invariants, written or inferred, prove partial correctness (a loop that never ends is not flagged). With a written
   invariant, an array that grows past its room is outside the claim.
 - Browser and async laws are tested, not proved.
+- Node laws run in a [sandbox](#the-law-sandbox): project code that needs `fs`, `child_process` or the network needs `--no-sandbox`. End-to-end laws run outside it.
 - Browser laws need an installed browser: Chrome, Edge or Chromium by default, or Playwright's Firefox or WebKit with `--browser`.
 - The compiler needs a native toolchain to build; the `laws-v*` release workflow publishes builds for macOS, Linux and Windows.
 
