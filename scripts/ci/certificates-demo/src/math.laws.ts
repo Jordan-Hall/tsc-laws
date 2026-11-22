@@ -4,7 +4,7 @@ import { countUp, largest, average, half, clampAbove } from './math';
 
 const small = (n: int) => n > -1_000_000 && n < 1_000_000;
 
-// Straight-line arithmetic: the shape cvc5 and Carcara certify today.
+// Straight-line arithmetic, with integer ranges and a conditional: cvc5 and Carcara certify these.
 law.proved('addition commutes', (a: bigint, b: bigint) => a + b === b + a);
 law.proved('doubling is adding twice', (a: bigint) => a * 2n === a + a);
 law.proved('and commutes', (a: boolean, b: boolean) => (a && b) === (b && a));
