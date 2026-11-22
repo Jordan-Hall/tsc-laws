@@ -199,6 +199,24 @@ describe('writing proposals', () => {
       );
     });
 
+    it('refuses to replace one name of a declaration that binds several, and writes nothing', () => {
+      const cwd = project();
+      const law = 'export law pair(n: number) { return a + b === 3; }\n';
+      addProposal(cwd, 'pair.ts', `const a = 1, b = 2;\n${law}`);
+      const file = join(cwd, '.tslaws/proposals/pair.ts');
+      const before = readFileSync(file, 'utf8');
+      assert.throws(
+        () => addProposal(cwd, 'pair.ts', 'const a = 5;\nexport law other(n: number) { return a === 5; }\n'),
+        /'b' is declared together with 'a'/,
+      );
+      assert.equal(readFileSync(file, 'utf8'), before);
+      // Sending every name of the statement again is a replacement.
+      addProposal(cwd, 'pair.ts', 'const a = 1, b = 3;\nexport law other(n: number) { return a + b === 4; }\n');
+      const text = readFileSync(file, 'utf8');
+      assert.equal(text.split('const a').length, 2);
+      assert.ok(text.includes('b = 3'));
+    });
+
     it('refuses every top-level statement that is not a helper, and writes nothing', () => {
       const cwd = project();
       for (const stray of [

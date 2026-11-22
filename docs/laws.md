@@ -1000,7 +1000,8 @@ any file of the tree. `check --proposed` prints every law of every proposal with
 A proposal may hold the helpers its laws need beside the laws: top-level `const`, function, type and interface
 declarations, each with the comment directly above it. They are stored before the laws, after the imports and any helpers
 already there. A helper of the same name with other code replaces the old one (so the other laws of that proposal see the
-new one); an identical one is kept as it is. `promote` carries the helpers a promoted law uses across. Any other top-level
+new one); an identical one is kept as it is. A statement that binds several names (`const a = 1, b = 2`) is replaced only when
+the new text declares all of them; otherwise it is refused and nothing is written. `promote` carries the helpers a promoted law uses across. Any other top-level
 statement (a bare call, `let` or `var`, a loop or block, `export default`, `export { x }`, a class, enum or namespace) is
 refused and nothing is written. The initialiser of a helper `const` runs when the file is checked, as the law bodies do.
 

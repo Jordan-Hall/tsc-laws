@@ -159,8 +159,8 @@ interface Helper {
 
 /**
  * The proposed file with the proposal's laws appended (same-named laws replaced), its imports added once and its
- * helpers placed after the declarations already there (a helper of the same name with other code replaces the old one;
- * an identical one is kept as it is).
+ * helpers placed after the declarations already there (a helper of the same name with other code replaces the old one,
+ * and throws when that would drop a name its statement bound together with it; an identical one is kept as it is).
  */
 export function mergeProposal(
   current: string,
@@ -173,10 +173,21 @@ export function mergeProposal(
     (helper) =>
       !parsed.declarations.some((d) => d.names.some((n) => helper.names.includes(n)) && sameCode(d.text, helper.text)),
   );
-  const drops = [
-    ...parsed.laws.filter((law) => laws.some((l) => l.name === law.name)),
-    ...parsed.declarations.filter((d) => added.some((h) => h.names.some((n) => d.names.includes(n)))),
-  ].sort((a, b) => b.start - a.start);
+  const replaced = parsed.declarations.filter((d) => added.some((h) => h.names.some((n) => d.names.includes(n))));
+  for (const declaration of replaced) {
+    // One statement may bind several names (`const a = 1, b = 2`); dropping it must not take a name nobody redeclares.
+    const lost = declaration.names.find((n) => !added.some((h) => h.names.includes(n)));
+    if (lost !== undefined)
+      throw new ProposalError(
+        `'${lost}' is declared together with ${declaration.names
+          .filter((n) => n !== lost)
+          .map((n) => `'${n}'`)
+          .join(', ')} in the proposal; send the whole declaration again, or rename the helper`,
+      );
+  }
+  const drops = [...parsed.laws.filter((law) => laws.some((l) => l.name === law.name)), ...replaced].sort(
+    (a, b) => b.start - a.start,
+  );
   let text = current;
   for (const { start, end } of drops) {
     let to = end;
