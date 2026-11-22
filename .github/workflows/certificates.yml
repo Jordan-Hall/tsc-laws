@@ -73,3 +73,24 @@ jobs:
         env:
           TSLAWS_REQUIRE_CERT_TOOLS: '1'
         run: node --test test/certificates.test.ts
+      # A certified check, end to end, with the real tools: accept (the lock keeps the certificates), check, and check with
+      # certificates required. It prints what the report and the lock look like. `accept` needs a terminal and refuses CI,
+      # so it runs under `script` (a pseudo-terminal) with the CI variable removed; nothing else changes.
+      - name: Show a certified check and accept
+        if: always()
+        working-directory: scripts/ci/certificates-demo
+        run: |
+          tslaws() { node "$GITHUB_WORKSPACE/packages/tslaws/bin/tslaws.js" "$@"; }
+          export -f tslaws
+          export GITHUB_WORKSPACE
+          rm -f tsc-laws.lock
+          echo '--- tslaws accept'
+          printf 'accept\n' | env -u CI script -qec 'bash -c "tslaws accept"' /dev/null
+          echo '--- tslaws check'
+          tslaws check
+          echo '--- tslaws check --require-certify'
+          status=0
+          tslaws check --require-certify || status=$?
+          echo "exit status $status"
+          echo '--- tsc-laws.lock'
+          cat tsc-laws.lock
