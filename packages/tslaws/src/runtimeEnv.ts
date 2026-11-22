@@ -2,10 +2,26 @@
 // an extension in TypeScript files that Node loads itself. Nothing here loads the TypeScript compiler, so a property worker
 // can import it.
 import nodeModule from 'node:module';
-import { fileURLToPath } from 'node:url';
+import { dirname } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 /** The global that `import.meta.env` is rewritten to, in compiled laws, bundles and natively loaded TypeScript. */
 export const importMetaEnvGlobal = '__tslawsImportMetaEnv';
+
+/**
+ * What esbuild's `define` should make of `import.meta` in a module of `file` that loads as CommonJS, where `import.meta`
+ * does not exist: `env` is the runner's global, `url`, `filename` and `dirname` name the file, as they do in an ES module.
+ */
+export function importMetaDefines(file: string): Record<string, string> {
+  const meta = { url: pathToFileURL(file).href, filename: file, dirname: dirname(file) };
+  return {
+    'import.meta': JSON.stringify(meta),
+    'import.meta.url': JSON.stringify(meta.url),
+    'import.meta.filename': JSON.stringify(meta.filename),
+    'import.meta.dirname': JSON.stringify(meta.dirname),
+    'import.meta.env': `globalThis.${importMetaEnvGlobal}`,
+  };
+}
 
 /** The value of `import.meta.env` in every place a law runs. */
 export type ImportMetaEnv = Record<string, string | boolean>;

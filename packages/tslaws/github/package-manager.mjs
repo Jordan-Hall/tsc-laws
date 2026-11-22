@@ -7,6 +7,8 @@
 //   node package-manager.mjs bin <dir>                  prints the path of tslaws' bin, resolved from <dir>
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
+// createRequire is only a resolver here: Node has no other synchronous way to find a package from the project's
+// directory (`import.meta.resolve` starts from this file). No CommonJS code is loaded.
 import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';

@@ -99,6 +99,10 @@ function packPlatform() {
     os: [platform.os],
     cpu: [platform.cpu],
     ...(platform.libc && { libc: [platform.libc] }),
+    // No JavaScript here, but the package is ES-module first like the rest; `exports` lets the wrapper resolve its
+    // `package.json` with `import.meta.resolve` and nothing else.
+    type: 'module',
+    exports: { './package.json': './package.json' },
     files: ['lib', 'THIRD_PARTY_NOTICES.md'],
   });
   return pack(dir);

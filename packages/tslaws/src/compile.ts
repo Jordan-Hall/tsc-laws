@@ -2,7 +2,7 @@ import { spawnSync, type SpawnSyncOptionsWithStringEncoding, type SpawnSyncRetur
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { transformSync } from 'esbuild';
 import ts from 'typescript';
 import { lowerLawFile, usesLegacySyntax, type Lowered } from './lower.ts';
@@ -187,45 +187,83 @@ export function compilerFlags(options: Record<string, unknown> | undefined): str
   return flags;
 }
 
-/**
- * Turns emitted ES modules into CommonJS, and `import.meta.env` into the global the runner sets before any law loads
- * (see runtimeEnv.ts). Everything else in `import.meta` is left to esbuild, which makes it an empty object.
- */
+/** Turns emitted ES modules (with `import.meta` already rewritten) into CommonJS. */
 function lowerModule(text: string, sourcefile: string): string {
-  return transformSync(text, {
-    format: 'cjs',
-    target: 'es2022',
-    sourcefile,
-    define: { 'import.meta.env': `globalThis.${importMetaEnvGlobal}` },
-    logLevel: 'silent',
-  }).code;
+  return transformSync(text, { format: 'cjs', target: 'es2022', sourcefile, logLevel: 'silent' }).code;
 }
 
-/**
- * `import.meta.env` becomes the runner's global and any other `import.meta` an empty object, found as syntax so that a
- * string or comment that says the same words is left alone.
- */
-function rewriteImportMeta(text: string, file: string): string {
-  const source = ts.createSourceFile(file, text, ts.ScriptTarget.ES2022, false, ts.ScriptKind.JS);
-  const edits: { start: number; end: number; text: string }[] = [];
-  const isMeta = (node: ts.Node): boolean =>
-    ts.isMetaProperty(node) && node.keywordToken === ts.SyntaxKind.ImportKeyword && node.name.text === 'meta';
+/** Where a compiled file came from: the source it mirrors under `root`, which is what `import.meta` should name. */
+function sourceOfOutput(file: string, outDir: string, root: string): string {
+  const mirrored = join(root, relative(outDir, file));
+  const endings = file.endsWith('.mjs')
+    ? ['.mts', '.mjs']
+    : file.endsWith('.cjs')
+      ? ['.cts', '.cjs']
+      : ['.ts', '.tsx', '.js', '.jsx'];
+  const stem = mirrored.replace(/\.[cm]?js$/, '');
+  return endings.map((ending) => `${stem}${ending}`).find((candidate) => existsSync(candidate)) ?? mirrored;
+}
+
+/** The first top-level `await` of a module (an `await` expression or `for await` outside every function), if any. */
+function topLevelAwait(source: ts.SourceFile): ts.Node | undefined {
+  let found: ts.Node | undefined;
   const visit = (node: ts.Node): void => {
-    if (ts.isPropertyAccessExpression(node) && isMeta(node.expression) && node.name.text === 'env')
-      edits.push({ start: node.getStart(source), end: node.end, text: `globalThis.${importMetaEnvGlobal}` });
-    else if (isMeta(node)) edits.push({ start: node.getStart(source), end: node.end, text: '({})' });
+    if (found !== undefined || ts.isFunctionLike(node) || ts.isClassLike(node)) return;
+    if (ts.isAwaitExpression(node) || (ts.isForOfStatement(node) && node.awaitModifier !== undefined)) found = node;
     else ts.forEachChild(node, visit);
   };
   visit(source);
-  return edits.reduceRight((out, e) => out.slice(0, e.start) + e.text + out.slice(e.end), text);
+  return found;
 }
 
 /**
- * CommonJS for ES module text the native compiler emitted, with `import.meta.env` read from the runner's global. TypeScript
- * does the lowering, not esbuild, so the comments stay: the coverage analysis reads `@tslaws-exempt` from this output.
+ * Laws and the modules they load run as CommonJS (see `build`), where a module cannot wait at its top level. Said once,
+ * in terms of the way out, instead of as the loader's syntax error.
  */
-function lowerEmitted(text: string, file: string): string {
-  return ts.transpileModule(rewriteImportMeta(text, file), {
+const awaitAdvice =
+  'top-level await is not supported in a law or in a module a law imports, because laws load as CommonJS; move the ' +
+  'await into an async function (or into the law body, which may be async)';
+const awaitProblem = (file: string): string => `${file}: error: ${awaitAdvice}`;
+/** What replaces such a module in the output, so the law that loads it fails with the reason and not a syntax error. */
+const awaitStub = (file: string): string => `throw new Error(${JSON.stringify(`${file}: ${awaitAdvice}`)});\n`;
+
+/**
+ * `import.meta` for a module that is not run as written: `env` is the global the runner sets before any law loads (see
+ * runtimeEnv.ts), `url`, `filename` and `dirname` name the source file (not the copy in `.tslaws/out`), and any other
+ * use of `import.meta` is an object holding those four. Found as syntax so that a string or comment that says the same
+ * words is left alone. Returns the new text and whether the module waits at its top level.
+ */
+function rewriteImportMeta(text: string, file: string, source: string): { text: string; awaits: boolean } {
+  const parsed = ts.createSourceFile(file, text, ts.ScriptTarget.ES2022, false, ts.ScriptKind.JS);
+  const edits: { start: number; end: number; text: string }[] = [];
+  const env = `globalThis.${importMetaEnvGlobal}`;
+  const known: Record<string, string> = {
+    url: JSON.stringify(pathToFileURL(source).href),
+    filename: JSON.stringify(source),
+    dirname: JSON.stringify(dirname(source)),
+    env,
+  };
+  const isMeta = (node: ts.Node): boolean =>
+    ts.isMetaProperty(node) && node.keywordToken === ts.SyntaxKind.ImportKeyword && node.name.text === 'meta';
+  const visit = (node: ts.Node): void => {
+    if (ts.isPropertyAccessExpression(node) && isMeta(node.expression) && node.name.text in known)
+      edits.push({ start: node.getStart(parsed), end: node.end, text: known[node.name.text]! });
+    else if (isMeta(node)) {
+      const members = Object.entries(known).map(([key, value]) => `${key}: ${value}`);
+      edits.push({ start: node.getStart(parsed), end: node.end, text: `({ ${members.join(', ')} })` });
+    } else ts.forEachChild(node, visit);
+  };
+  visit(parsed);
+  const rewritten = edits.reduceRight((out, e) => out.slice(0, e.start) + e.text + out.slice(e.end), text);
+  return { text: rewritten, awaits: topLevelAwait(parsed) !== undefined };
+}
+
+/**
+ * CommonJS for ES module text, with `import.meta` rewritten as above. TypeScript does the lowering, not esbuild, so the
+ * comments stay: the coverage analysis reads `@tslaws-exempt` from this output.
+ */
+function lowerToCommonJs(text: string, file: string): string {
+  return ts.transpileModule(text, {
     fileName: file,
     compilerOptions: {
       module: ts.ModuleKind.CommonJS,
@@ -236,20 +274,40 @@ function lowerEmitted(text: string, file: string): string {
   }).outputText;
 }
 
-/** Lowers every `.js` file the native compiler emitted into `dir` as ES modules, which is how `import.meta` is allowed. */
-export function lowerEmittedModules(dir: string): void {
-  if (!existsSync(dir)) return;
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    const path = join(dir, entry.name);
-    if (entry.isDirectory()) lowerEmittedModules(path);
-    else if (entry.name.endsWith('.js')) {
-      try {
-        writeFileSync(path, lowerEmitted(readFileSync(path, 'utf8'), path));
-      } catch {
-        // Output that does not parse (JSX kept because the project sets no `jsx`): the compiler's diagnostics say why.
+/**
+ * Lowers what the native compiler emitted into `dir` as ES modules, which is how `import.meta` is allowed: `.js` becomes
+ * CommonJS and the `import.meta` of a `.mjs` (from a `.mts`, kept as an ES module Node can load) is rewritten in place.
+ * `outDir` and `root` say where `dir` sits and what it mirrors, so `import.meta` can name the source. Returns one line
+ * per module that cannot be lowered.
+ */
+export function lowerEmittedModules(dir: string, where: { outDir?: string; root?: string } = {}): string[] {
+  const problems: string[] = [];
+  const outDir = where.outDir ?? dir;
+  const root = where.root ?? dir;
+  const lowerIn = (current: string): void => {
+    if (!existsSync(current)) return;
+    for (const entry of readdirSync(current, { withFileTypes: true })) {
+      const path = join(current, entry.name);
+      if (entry.isDirectory()) lowerIn(path);
+      else if (/\.m?js$/.test(entry.name)) {
+        try {
+          const { text, awaits } = rewriteImportMeta(
+            readFileSync(path, 'utf8'),
+            path,
+            sourceOfOutput(path, outDir, root),
+          );
+          if (awaits) {
+            problems.push(awaitProblem(slash(relative(outDir, path))));
+            writeFileSync(path, awaitStub(slash(relative(outDir, path))));
+          } else writeFileSync(path, entry.name.endsWith('.mjs') ? text : lowerToCommonJs(text, path));
+        } catch {
+          // Output that does not parse (JSX kept because the project sets no `jsx`): the compiler's diagnostics say why.
+        }
       }
     }
-  }
+  };
+  lowerIn(dir);
+  return problems;
 }
 
 /** The ambient `ImportMeta.env` declaration that ships with tslaws; also importable as `tslaws/env`. */
@@ -257,6 +315,9 @@ const envTypes = fileURLToPath(new URL('../env.d.ts', import.meta.url));
 
 /** Whether `text` (compiler output) says `import.meta.env` has no declaration. */
 const lacksEnvTypes = (text: string): boolean => /TS2339.*'ImportMeta'/.test(text);
+
+/** Whether `text` (compiler output) says a module waits at its top level while the output is CommonJS (TS1378). */
+const hasTopLevelAwaitError = (text: string): boolean => /TS1378/.test(text);
 
 /** Whether `text` (compiler output) says the project uses `import.meta`, which CommonJS output does not allow. */
 const usesImportMeta = (text: string): boolean => /TS1343/.test(text);
@@ -365,12 +426,14 @@ function compile(compiler: string, files: string[], cwd: string, resolution: Res
   }
   // A project without an `ImportMeta.env` declaration gets the one that ships with tslaws, and the build runs again.
   if (lacksEnvTypes(output())) again(argsFor(used, [envTypes]));
-  if (lowering) lowerEmittedModules(outDir);
+  const problems = lowering ? lowerEmittedModules(outDir, { outDir, root }) : [];
+  // The compiler's message for a top-level await names the `module` option, which a law project cannot change here.
+  if (hasTopLevelAwaitError(output())) problems.push(`error: ${awaitAdvice}`);
   // The project's own files sit where they do under the root, so its output is that deep in `outDir`.
   return {
     outDir: join(outDir, relative(root, cwd)),
-    diagnostics: output().trim(),
-    ok: run.status === 0,
+    diagnostics: [output().trim(), ...problems].filter((part) => part !== '').join('\n'),
+    ok: run.status === 0 && problems.length === 0,
   };
 }
 
@@ -449,13 +512,18 @@ function buildBuiltin(
     program = ts.createProgram([...roots, envTypes], used, host);
     diagnostics = ts.getPreEmitDiagnostics(program);
   }
+  const problems: string[] = [];
   program.emit(undefined, (name, text) => {
     // A source file outside the project (reached through `paths`) is checked and loaded in place, never written here.
     const under = relative(outDir, name);
     if (under.startsWith('..') || isAbsolute(under)) return;
     mkdirSync(dirname(name), { recursive: true });
-    const code = name.endsWith('.js') ? lowerModule(text, name) : text;
-    writeFileSync(name, code);
+    if (!/\.m?js$/.test(name)) return void writeFileSync(name, text);
+    const rewritten = rewriteImportMeta(text, name, sourceOfOutput(name, outDir, cwd));
+    if (rewritten.awaits) {
+      problems.push(awaitProblem(slash(under)));
+      writeFileSync(name, awaitStub(slash(under)));
+    } else writeFileSync(name, name.endsWith('.mjs') ? rewritten.text : lowerModule(rewritten.text, name));
   });
   // Such a file is outside the root directory by design (TS6059).
   diagnostics = diagnostics.filter((d) => d.code !== 6059);
@@ -466,8 +534,8 @@ function buildBuiltin(
   });
   const result: BuildResult = {
     outDir,
-    diagnostics: text.trim(),
-    ok: diagnostics.every((d) => d.category !== ts.DiagnosticCategory.Error),
+    diagnostics: [text.trim(), ...problems].filter((part) => part !== '').join('\n'),
+    ok: problems.length === 0 && diagnostics.every((d) => d.category !== ts.DiagnosticCategory.Error),
   };
   Object.defineProperty(result, 'program', { value: program, enumerable: false });
   saveBuildCache(

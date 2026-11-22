@@ -3,13 +3,11 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { makeFake, makeSpawn } from './fake-vscode.mjs';
 
-const require = createRequire(import.meta.url);
-const { ensurePlugin, PLUGIN_NAME } = require('../src/plugin.js');
-const { activateExtension } = require('../src/host.js');
+import { ensurePlugin, PLUGIN_NAME } from '../src/plugin.js';
+import { activateExtension } from '../src/host.js';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(fs.readFileSync(path.join(here, '..', 'package.json'), 'utf8'));
 

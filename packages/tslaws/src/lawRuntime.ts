@@ -7,7 +7,7 @@ import Module, { createRequire } from 'node:module';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { transformSync } from 'esbuild';
 import type ts from 'typescript';
-import { importMetaEnvGlobal } from './runtimeEnv.ts';
+import { importMetaDefines } from './runtimeEnv.ts';
 import { nearestTsconfig, readResolutionOf, resolutionCompilerOptions } from './tsconfigResolve.ts';
 import type { ResolutionOptions } from './tsconfigResolve.ts';
 
@@ -30,6 +30,8 @@ type Parent = { filename?: string } | null;
 
 const projects = new Map<string, LawRuntime>();
 const byConfig = new Map<string, ResolutionOptions>();
+// Compiled laws are CommonJS (see `build` in compile.ts), and these hooks are the CommonJS loader's own (`_resolveFilename`,
+// `_extensions`), so `createRequire` is unavoidable: it loads TypeScript lazily, inside the synchronous resolver hook.
 const load = createRequire(import.meta.url);
 let hooked = false;
 
@@ -80,7 +82,7 @@ export function installLawRuntime(runtime: LawRuntime): void {
         target: 'es2022',
         sourcefile: file,
         sourcemap: 'inline',
-        define: { 'import.meta.env': `globalThis.${importMetaEnvGlobal}` },
+        define: importMetaDefines(file),
       });
       module._compile(code, file);
     };

@@ -1,8 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createRequire } from 'node:module';
 
-const { resolveCommand, acceptCommandText } = createRequire(import.meta.url)('../src/command.js');
+import { resolveCommand, acceptCommandText } from '../src/command.js';
 
 test('runs the workspace tslaws entry with node, never through a shell', () => {
   const c = resolveCommand({ root: '/w', exists: () => true }, ['check', '--json']);

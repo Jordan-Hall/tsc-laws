@@ -1,8 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createRequire } from 'node:module';
 
-const f = createRequire(import.meta.url)('../src/format.js');
+import * as f from '../src/format.js';
 
 test('splits the arguments of a counterexample at the top level only', () => {
   assert.deepEqual(f.splitArguments('[0,1]'), ['0', '1']);

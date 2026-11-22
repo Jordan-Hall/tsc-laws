@@ -1,13 +1,11 @@
-'use strict';
-
 // Builds the diagnostics for a set of records: on the law's name, and for a failing law on the functions it exercises,
 // each pointing at the other. Pure: `readText(file)` supplies the current text of a project file (the open buffer, else
 // the file on disk), so ranges are those of the code as it is now.
 
-const { findLaws } = require('./find-laws.js');
-const { lawRange, declarationRange, callRange } = require('./ranges.js');
-const { lawMessage, sourceMessage, inlineText, reproduceCommand } = require('./format.js');
-const { blamedFunctions } = require('./model.js');
+import { findLaws } from './find-laws.js';
+import { lawRange, declarationRange, callRange } from './ranges.js';
+import { lawMessage, sourceMessage, inlineText, reproduceCommand } from './format.js';
+import { blamedFunctions } from './model.js';
 
 const SHOWN = new Set(['failed', 'open', 'tampered', 'error', 'uncovered']);
 const WARNING = new Set(['open']);
@@ -137,4 +135,4 @@ function buildDiagnostics(records, readText) {
   return out;
 }
 
-module.exports = { buildDiagnostics, codeOf, SHOWN };
+export { buildDiagnostics, codeOf, SHOWN };

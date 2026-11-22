@@ -1,5 +1,3 @@
-'use strict';
-
 // "Write a law for this function": the text of a first, proposed law for an exported function. It goes in a
 // `*.proposed.laws.ts` file beside the source, never in an accepted laws file and never in the lock; a person reads it,
 // runs `tslaws check --proposed` and promotes it. Pure.
@@ -97,4 +95,4 @@ function addToProposed(existing, name, skeleton) {
   return { text: `${existing.replace(/\s*$/, '')}\n\n${body}`, added: true };
 }
 
-module.exports = { proposedPath, parametersOf, lawSkeleton, addToProposed };
+export { proposedPath, parametersOf, lawSkeleton, addToProposed };

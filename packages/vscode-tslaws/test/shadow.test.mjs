@@ -1,12 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import * as fs from 'node:fs';
 import { mkdirSync, mkdtempSync, readFileSync, existsSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createRequire } from 'node:module';
-
-const require = createRequire(import.meta.url);
-const { createShadow } = require('../src/shadow.js');
+import { createShadow } from '../src/shadow.js';
 
 function project() {
   const root = mkdtempSync(join(tmpdir(), 'tslaws-shadow-'));
@@ -83,7 +81,7 @@ test('a project too big to copy cheaply is refused, so the run falls back to the
   const p = project();
   try {
     const fake = {
-      ...require('node:fs'),
+      ...fs,
       readdirSync: (dir, o) => {
         if (String(dir).endsWith('src'))
           return Array.from({ length: 7000 }, (_, i) => ({
@@ -91,7 +89,7 @@ test('a project too big to copy cheaply is refused, so the run falls back to the
             isDirectory: () => false,
             isFile: () => true,
           }));
-        return require('node:fs').readdirSync(dir, o);
+        return fs.readdirSync(dir, o);
       },
     };
     const synced = createShadow({ root: p.root, fs: fake }).sync(new Map());

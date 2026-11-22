@@ -1,10 +1,8 @@
-'use strict';
-
 // The Laws view in the Explorer: every law and every uncovered function, grouped by status with the failing ones on top,
 // each with its file and the time of its last run. A click reveals the law (or the function). `vscode` is passed in.
 
-const { ageText } = require('./live-status.js');
-const { inputsText, oneLine } = require('./format.js');
+import { ageText } from './live-status.js';
+import { inputsText, oneLine } from './format.js';
 
 /** Groups, in the order shown: the ones that need a person first. */
 const GROUPS = [
@@ -124,4 +122,4 @@ function createLawsTree(vscode, host) {
   };
 }
 
-module.exports = { createLawsTree, buildTree, GROUPS };
+export { createLawsTree, buildTree, GROUPS };

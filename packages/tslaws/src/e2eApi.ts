@@ -19,7 +19,8 @@ export interface E2eState {
   onPage?: (page: Page) => void;
 }
 
-// The runner and the law may load this module through different paths (an ESM import and a CommonJS `require`), so
+// The runner and the law may load this module through different paths (an ESM import and the CommonJS `require` of a
+// compiled law), so
 // the storage lives on the global object and both see the same one.
 const key = Symbol.for('tslaws.e2e.state');
 function storage(): AsyncLocalStorage<E2eState> {
@@ -112,6 +113,7 @@ export async function a11y(
   const used = target ?? state.page;
   let axePath: string;
   try {
+    // Resolution only, from the project's directory (`import.meta.resolve` starts from this file); no CommonJS is loaded.
     axePath = createRequire(join(state.cwd, 'package.json')).resolve('axe-core/axe.min.js');
   } catch {
     throw new Error('accessible() needs axe-core: npm i -D axe-core');

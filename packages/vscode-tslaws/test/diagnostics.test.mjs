@@ -1,9 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createRequire } from 'node:module';
 
-const { buildDiagnostics } = createRequire(import.meta.url)('../src/diagnostics.js');
-const { textOf } = createRequire(import.meta.url)('../src/ranges.js');
+import { buildDiagnostics } from '../src/diagnostics.js';
+import { textOf } from '../src/ranges.js';
 
 const files = {
   'src/cart.laws.ts': [
