@@ -6,11 +6,12 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import nodeModule from 'node:module';
-import { dirname, join } from 'node:path';
+import { homedir } from 'node:os';
+import { dirname, join, parse } from 'node:path';
 import { after, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { check } from '../dist/check.js';
-import { permissionFlag, readOutcome, sandboxFlags, useSandbox } from '../dist/sandbox.js';
+import { grantOutside, permissionFlag, readOutcome, sandboxFlags, useSandbox } from '../dist/sandbox.js';
 import type { CheckOptions, LawResult } from '../dist/types.js';
 
 const compiler = process.env.TSC_LAWS_BIN;
@@ -565,4 +566,83 @@ describe('what a hostile law cannot do', { skip: compiler === undefined ? 'set T
       );
     },
   );
+});
+
+describe('reads outside the project', () => {
+  const double = 'export const double = (n: number): number => n * 2;\n';
+  const law = "import { double } from '@lib/x';\nexport law doubles(n: number) { return double(n) === n + n; }\n";
+  const config = (name: string) => JSON.stringify({ compilerOptions: { paths: { '@lib/*': [`../${name}-lib/*`] } } });
+
+  /** What the run printed to stderr, with its result. */
+  async function told(name: string, files: Record<string, string>): Promise<{ result: LawResult; said: string }> {
+    const write = process.stderr.write.bind(process.stderr);
+    let said = '';
+    process.stderr.write = ((text: string) => ((said += text), true)) as typeof process.stderr.write;
+    try {
+      return { result: only(await run(name, files)), said };
+    } finally {
+      process.stderr.write = write;
+    }
+  }
+
+  /** A law over `@lib/x`, which `paths` names, and `x` re-exports `double` from a directory nothing else names. */
+  const files = (name: string, extra: Record<string, string>, other = `${name}-other/y.ts`) => ({
+    'package.json': '{"name":"app"}',
+    'tsconfig.json': config(name),
+    [`../${name}-lib/x.ts`]: `export { double } from '../${other.split('/')[0]}/y';\n`,
+    [`../${other}`]: double,
+    'src/a.laws.ts': law,
+    ...extra,
+  });
+
+  it('does not grant a directory that nothing names, and says how to allow it', async () => {
+    const { result, said } = await told('reads-unnamed', files('reads-unnamed', {}));
+    // The compiled output is what loads, so the law still runs; the source is not readable.
+    assert.equal(result.status, 'tested', JSON.stringify(result));
+    assert.match(said, /the law sandbox may not read .*reads-unnamed-other.*"sandboxReads" in tslaws\.json/s);
+  });
+
+  it('grants the directory the person names under sandboxReads, and prints it', async () => {
+    const { result, said } = await told(
+      'reads-named',
+      files('reads-named', { 'tslaws.json': JSON.stringify({ sandboxReads: ['../reads-named-other'] }) }),
+    );
+    assert.equal(result.status, 'tested', JSON.stringify(result));
+    assert.match(said, /the law sandbox may read .*reads-named-other.*"sandboxReads" in tslaws\.json/s);
+    assert.match(said, /the law sandbox may read .*reads-named-lib.*a target of the tsconfig/s);
+  });
+
+  it('refuses a dotfile even under a directory that is named', () => {
+    const cwd = project('reads-dot/app', { 'tslaws.json': JSON.stringify({ sandboxReads: ['../shared'] }) });
+    const fine = join(root, 'reads-dot', 'shared', 'src', 'y.ts');
+    const hidden = join(root, 'reads-dot', 'shared', 'src', '.secret', 'y.ts');
+    const write = process.stderr.write.bind(process.stderr);
+    let said = '';
+    process.stderr.write = ((text: string) => ((said += text), true)) as typeof process.stderr.write;
+    try {
+      const { granted, refused } = grantOutside(cwd, [fine, hidden]);
+      assert.deepEqual([granted, refused], [[fine], [hidden]]);
+    } finally {
+      process.stderr.write = write;
+    }
+    assert.match(said, /may read .*src.*"sandboxReads"/s);
+    assert.match(said, /may not read .*\.secret.*holds \.secret, a dotfile/s);
+  });
+
+  it('refuses the home directory, what is above it and a file system root, even when named', () => {
+    const cwd = project('reads-home', {
+      'tslaws.json': JSON.stringify({ sandboxReads: [homedir(), dirname(homedir()), parse(homedir()).root] }),
+    });
+    const inside = join(homedir(), 'project', 'x.ts');
+    const write = process.stderr.write.bind(process.stderr);
+    let said = '';
+    process.stderr.write = ((text: string) => ((said += text), true)) as typeof process.stderr.write;
+    try {
+      const { granted, refused } = grantOutside(cwd, [inside]);
+      assert.deepEqual([granted, refused], [[], [inside]]);
+    } finally {
+      process.stderr.write = write;
+    }
+    assert.match(said, /may not read .*(home directory|root of a file system)/);
+  });
 });

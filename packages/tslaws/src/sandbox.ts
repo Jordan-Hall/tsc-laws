@@ -13,9 +13,11 @@
 import { fork, type ChildProcess } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync, realpathSync } from 'node:fs';
-import { dirname, extname, join, relative, resolve, sep } from 'node:path';
+import { homedir } from 'node:os';
+import { dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { lawEnv } from './coverage.ts';
+import ts from 'typescript';
+import { lawEnv, readConfig } from './coverage.ts';
 import { scrubbedEnv } from './isolate.ts';
 import type { HostReply, HostRequest, Prepared } from './lawHost.ts';
 import { runtimeOf, transformSource } from './lawRuntime.ts';
@@ -26,6 +28,7 @@ import type { PropertyOutcome } from './propertyRun.ts';
 import { decodeExample } from './regressions.ts';
 import { normal, type GuardConfig } from './sandboxGuard.ts';
 import { sealedFiles } from './seal.ts';
+import { nearestTsconfig } from './tsconfigResolve.ts';
 import type { Plan } from './plan.ts';
 import type { CheckOptions, ManifestLaw } from './types.ts';
 
@@ -174,6 +177,116 @@ export function reviewedFiles(cwd: string, entries: string[], laws: ManifestLaw[
   return [...new Set([...entries.map((file) => resolve(cwd, file)), ...covered])].filter((file) => existsSync(file));
 }
 
+/** The directories a manifest's `workspaces` name (`packages/*`, `apps/web`), as absolute paths. */
+function workspaceDirs(dir: string): string[] {
+  const field = readManifest(join(dir, 'package.json'))?.workspaces;
+  const list = Array.isArray(field) ? field : (field as { packages?: unknown } | undefined)?.packages;
+  if (!Array.isArray(list)) return [];
+  const found: string[] = [];
+  for (const entry of list) {
+    if (typeof entry !== 'string' || entry.startsWith('!')) continue;
+    const star = entry.search(/[*?{[]/);
+    if (star < 0) {
+      found.push(resolve(dir, entry));
+      continue;
+    }
+    // `packages/*` and `packages/**`: the directories directly under the fixed part.
+    const base = resolve(dir, entry.slice(0, star).replace(/[\\/][^\\/]*$/, '') || '.');
+    try {
+      for (const child of readdirSync(base, { withFileTypes: true }))
+        if (child.isDirectory() && !child.name.startsWith('.')) found.push(join(base, child.name));
+    } catch {
+      // A pattern that matches nothing names nothing.
+    }
+  }
+  return found;
+}
+
+/** The directories the project's tsconfig sends module resolution to: its `paths` targets, `baseUrl` and `references`. */
+function tsconfigDirs(cwd: string): string[] {
+  const config = nearestTsconfig(cwd);
+  const dirs: string[] = [];
+  const options = runtimeOf(cwd)?.options as { paths?: Record<string, unknown>; baseUrl?: unknown } | undefined;
+  for (const targets of Object.values(options?.paths ?? {}))
+    for (const target of Array.isArray(targets) ? targets : [])
+      if (typeof target === 'string') dirs.push(resolve(cwd, target.replace(/[\\/]?\*.*$/, '') || '.'));
+  if (typeof options?.baseUrl === 'string') dirs.push(resolve(cwd, options.baseUrl));
+  if (config !== undefined) {
+    const references = ts.readConfigFile(config, ts.sys.readFile).config?.references;
+    for (const reference of Array.isArray(references) ? references : []) {
+      const path = (reference as { path?: unknown } | null)?.path;
+      if (typeof path === 'string') dirs.push(resolve(dirname(config), path.replace(/tsconfig[^\\/]*\.json$/, '')));
+    }
+  }
+  return dirs;
+}
+
+const isInside = (dir: string, file: string): boolean => {
+  const rel = relative(dir, file);
+  return rel !== '' && !rel.startsWith('..') && !isAbsolute(rel);
+};
+
+/** Why the sandbox may not read below `root`, or undefined when it may: a dotfile, the home directory, a file system root. */
+function unreadableRoot(root: string): string | undefined {
+  const home = resolve(homedir());
+  if (dirname(root) === root) return 'is the root of a file system';
+  if (root === home || home.startsWith(root + sep)) return 'is the home directory or a directory above it';
+  if (root.split(/[\\/]/).pop()!.startsWith('.')) return 'is a dotfile';
+  return undefined;
+}
+
+/** What `grantOutside` told the person already, so a project that is checked again is not told again. */
+const told = new Set<string>();
+const tell = (line: string): void => {
+  if (told.has(line)) return;
+  told.add(line);
+  process.stderr.write(`tslaws: ${line}\n`);
+};
+
+/**
+ * The files of the reviewed set outside the project that the law process may read, by name. Only these are granted: the
+ * packages of the workspace (a `workspaces` field of the root `package.json`), the `paths`, `baseUrl` and `references`
+ * targets of the tsconfig, and the directories the person lists under `sandboxReads` in tslaws.json (the declared
+ * dependencies already sit in the `node_modules` trees). A dotfile, the home directory and a file system root are refused,
+ * as is any other file; each grant and each refusal is printed once.
+ */
+export function grantOutside(cwd: string, outside: string[]): { granted: string[]; refused: string[] } {
+  const roots: [string, string][] = [];
+  for (let dir = resolve(cwd); ; dir = dirname(dir)) {
+    for (const workspace of workspaceDirs(dir)) roots.push([workspace, 'a workspace package']);
+    if (dirname(dir) === dir) break;
+  }
+  for (const dir of tsconfigDirs(cwd)) roots.push([dir, 'a target of the tsconfig']);
+  for (const path of readConfig(cwd).sandboxReads ?? [])
+    roots.push([resolve(cwd, path), '"sandboxReads" in tslaws.json']);
+  const granted: string[] = [];
+  const refused: string[] = [];
+  for (const file of outside) {
+    const named = roots.filter(([root]) => isInside(root, file));
+    const dottedIn = (root: string): string | undefined =>
+      relative(root, file)
+        .split(/[\\/]/)
+        .find((part) => part.startsWith('.'));
+    const hit = named.find(([root]) => unreadableRoot(root) === undefined && dottedIn(root) === undefined);
+    if (hit !== undefined) {
+      granted.push(file);
+      tell(`the law sandbox may read ${file} (${hit[1]})`);
+      continue;
+    }
+    refused.push(file);
+    const [first] = [...named].sort((a, b) => b[0].length - a[0].length);
+    const why =
+      first === undefined
+        ? undefined
+        : `${first[0]} ${unreadableRoot(first[0]) ?? `holds ${dottedIn(first[0])}, a dotfile`}`;
+    tell(
+      `the law sandbox may not read ${file}${why === undefined ? '' : ` (${why})`}; ` +
+        'to allow it, name its directory under "sandboxReads" in tslaws.json',
+    );
+  }
+  return { granted, refused };
+}
+
 /** The dependency fields of a manifest that name packages the code may load. */
 const dependencyFields = ['dependencies', 'optionalDependencies', 'peerDependencies'] as const;
 
@@ -244,6 +357,12 @@ export interface HostConfig {
  */
 export function hostConfig(cwd: string, entries: string[], outDir: string, laws: ManifestLaw[]): HostConfig {
   const files = reviewedFiles(cwd, entries, laws);
+  // What the process cannot read already (outside the project and outside the trees it is given) needs a grant, by name.
+  const trees = readableBy(cwd);
+  const { granted } = grantOutside(
+    cwd,
+    files.filter((file) => !trees.some((tree) => file === tree || isInside(tree, file))),
+  );
   const base = join(cwd, '.tslaws', 'out');
   const trusted = trustedPackages(cwd);
   const guard: GuardConfig = {
@@ -274,8 +393,7 @@ export function hostConfig(cwd: string, entries: string[], outDir: string, laws:
       if (!existsSync(compiled)) attempt(`ts:${at}`, () => transformSource(file, extension));
     }
   }
-  const outside = files.filter((file) => relative(resolve(cwd), file).startsWith('..'));
-  return { guard, transforms, outside, key: JSON.stringify([guard, Object.keys(transforms)]) };
+  return { guard, transforms, outside: granted, key: JSON.stringify([guard, Object.keys(transforms)]) };
 }
 
 // ---- the process -----------------------------------------------------------------------------------------------------

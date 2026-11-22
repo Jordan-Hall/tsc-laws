@@ -892,7 +892,12 @@ node law, and every property run the prover replays, in a child process under No
 by default; the only way to turn it off is `--no-sandbox`.
 
 - **Files.** The process may read the project, the `node_modules` above it, the trees that workspace links in
-  `node_modules` point to, and the tslaws package. It may write nothing.
+  `node_modules` point to, and the tslaws package. It may write nothing. Files outside the project that a law needs are
+  readable only when something names them: a workspace package (the `workspaces` of a root `package.json`), a `paths`,
+  `baseUrl` or `references` target of the tsconfig, or a directory you list under `sandboxReads` in `tslaws.json`
+  (relative to that file). Each file granted is printed (`tslaws: the law sandbox may read ...`). A dotfile, the home
+  directory, a directory above it and a file system root are never granted, even when named; any other file outside is
+  refused, and the message says to name its directory under `sandboxReads`.
 - **Processes and threads.** It has no `--allow-child-process`, `--allow-worker`, `--allow-addons` or `--allow-wasi`, so it
   may not start a child process, a worker thread, an addon or a WASI instance. It has no `--allow-net` either, where
   Node enforces that (Node 26 denies `net.connect`); `fetch`, `WebSocket` and `EventSource` are removed as well.

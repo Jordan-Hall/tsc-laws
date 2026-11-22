@@ -50,6 +50,12 @@ export interface CoverageConfig {
   /** esbuild plugin modules (paths relative to tslaws.json) that teach the browser bundler new source formats. */
   bundlerPlugins?: string[];
   /**
+   * Directories outside the project (paths relative to tslaws.json) whose reviewed files the law sandbox may read, besides
+   * the workspace packages and the `paths` and `references` targets of the tsconfig. Dotfiles and the home directory are
+   * refused whatever is named. See sandbox.ts.
+   */
+  sandboxReads?: string[];
+  /**
    * `import.meta.env` for code laws reach, on top of `process.env` and the defaults (`MODE` `test`, `DEV`, `PROD`, `SSR`,
    * `BASE_URL`); its entries override both. See runtimeEnv.ts.
    */
@@ -76,6 +82,7 @@ const configKeys = [
   'tsconfig',
   'e2e',
   'bundlerPlugins',
+  'sandboxReads',
   'env',
   'github',
   'security',
@@ -149,6 +156,12 @@ function checkFile(raw: unknown, source: string): Record<string, unknown> {
     (!Array.isArray(plugins) || plugins.some((entry) => typeof entry !== 'string' || entry === ''))
   )
     fail(`"bundlerPlugins" must be an array of module paths, got ${JSON.stringify(plugins)}`);
+  const reads = object.sandboxReads;
+  if (
+    reads !== undefined &&
+    (!Array.isArray(reads) || reads.some((entry) => typeof entry !== 'string' || entry === ''))
+  )
+    fail(`"sandboxReads" must be an array of directory paths, got ${JSON.stringify(reads)}`);
   if (object.env !== undefined) parseEnvConfig(object.env);
   const levels = object.levels;
   if (levels !== undefined && levels !== 'names' && levels !== 'imports')
@@ -189,7 +202,7 @@ export function parseConfig(raw: unknown, source = 'tslaws.json'): CoverageConfi
  * shared base saying `"cover": ["src/**"]` means each package's own src/. `compilerOptions`, `github` and `security` hold no
  * paths. Add a new file-reference option here when it is added to `configKeys`.
  */
-const pathFields: readonly string[] = ['bundlerPlugins[]', 'e2e.server.cwd', 'tsconfig'];
+const pathFields: readonly string[] = ['bundlerPlugins[]', 'sandboxReads[]', 'e2e.server.cwd', 'tsconfig'];
 
 /** `entry`, written relative to the directory `from`, as a path relative to `to`. A leading `!` and absolute paths stay. */
 function rebase(entry: string, from: string, to: string): string {
