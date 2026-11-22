@@ -127,7 +127,10 @@ const seen = (probe: string) =>
 
 function assertTokenFree(probe: string): void {
   const found = seen(probe);
-  assert.ok(found.names.includes('PATH'), 'the law ran with a working environment');
+  assert.ok(
+    found.names.some((name) => name.toUpperCase() === 'PATH'),
+    'the law ran with a working environment',
+  );
   assert.ok(!found.env.includes(secret), 'process.env holds the token');
   for (const name of Object.keys(credentials)) assert.ok(!found.names.includes(name), `process.env has ${name}`);
   if (process.platform === 'linux') {

@@ -204,7 +204,7 @@ describe('action.yml', () => {
 });
 
 describe('the workflows in docs/github.md', () => {
-  const docs = readFileSync(join(here, '..', '..', '..', 'docs', 'github.md'), 'utf8');
+  const docs = readFileSync(join(here, '..', '..', '..', 'docs', 'github.md'), 'utf8').replace(/\r\n/g, '\n');
   const blocks = [...docs.matchAll(/```yaml\n([\s\S]*?)```/g)].map((m) => m[1]!);
   it('leave no credential in a checkout, where a law could read it from .git/config', () => {
     let seen = 0;
