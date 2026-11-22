@@ -430,7 +430,9 @@ function sorted(value: unknown): unknown {
 /** `value` with every absolute path in it written relative to `base`, so a seal does not depend on where a project is checked out. */
 function portable(value: unknown, base: string): unknown {
   if (typeof value === 'string')
-    return isAbsolute(value) ? `${slash(relative(base, value))}${value.endsWith('/') || value.endsWith('\\') ? '/' : ''}` : value;
+    return isAbsolute(value)
+      ? `${slash(relative(base, value))}${value.endsWith('/') || value.endsWith('\\') ? '/' : ''}`
+      : value;
   if (Array.isArray(value)) return value.map((entry) => portable(entry, base));
   if (typeof value !== 'object' || value === null) return value;
   return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, portable(entry, base)]));

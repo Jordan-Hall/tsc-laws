@@ -227,6 +227,26 @@ describe('the lock format', () => {
       assert.equal((await check(p.options, true)).ok, true);
     }
   });
+
+  it('in a partial run, fails the named file only: a law outside it is neither removed nor tampered', async () => {
+    const p = project({
+      'src/g.laws.ts': "import { law } from 'tslaws';\nlaw('other', (n: number) => n === n);\n",
+    });
+    const both = ['src/f.laws.ts', 'src/g.laws.ts'];
+    writeLock(p.options.lockFile, readManifest('builtin', both, p.cwd));
+    const lock = JSON.parse(readFileSync(p.options.lockFile, 'utf8'));
+    for (const key of Object.keys(lock.laws)) lock.laws[key] = '0'.repeat(64);
+    delete lock.version;
+    writeFileSync(p.options.lockFile, JSON.stringify(lock, null, 2));
+
+    const { results } = await check({ ...p.options, partial: true }, true);
+    assert.deepEqual([...new Set(results.map((r) => r.file))], ['src/f.laws.ts']);
+    for (const result of results) {
+      assert.equal(result.status, 'tampered');
+      assert.match(result.message ?? '', /lock format upgraded/);
+    }
+    assert.ok(!results.some((r) => /removed/.test(r.message ?? '')));
+  });
 });
 
 describe('levels', () => {
