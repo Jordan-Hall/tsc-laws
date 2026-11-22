@@ -416,10 +416,11 @@ function compile(compiler: string, files: string[], cwd: string, resolution: Res
     });
     if (rerun.error === undefined) run = rerun;
   };
-  // CommonJS output does not allow `import.meta`: read the project as ES modules instead, and lower the output below.
+  // CommonJS output does not allow `import.meta` or a top-level await: read the project as ES modules instead, and lower
+  // the output below, where a module that waits at its top level is replaced by a stub that says so.
   let lowering = false;
   let used = flags;
-  if (usesImportMeta(output())) {
+  if (usesImportMeta(output()) || hasTopLevelAwaitError(output())) {
     used = flags.map((flag, i) => (flags[i - 1] === '--module' ? 'preserve' : flag));
     lowering = true;
     again(argsFor(used));
@@ -427,8 +428,6 @@ function compile(compiler: string, files: string[], cwd: string, resolution: Res
   // A project without an `ImportMeta.env` declaration gets the one that ships with tslaws, and the build runs again.
   if (lacksEnvTypes(output())) again(argsFor(used, [envTypes]));
   const problems = lowering ? lowerEmittedModules(outDir, { outDir, root }) : [];
-  // The compiler's message for a top-level await names the `module` option, which a law project cannot change here.
-  if (hasTopLevelAwaitError(output())) problems.push(`error: ${awaitAdvice}`);
   // The project's own files sit where they do under the root, so its output is that deep in `outDir`.
   return {
     outDir: join(outDir, relative(root, cwd)),
