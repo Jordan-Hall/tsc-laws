@@ -2,7 +2,7 @@
 // checker found: tsconfig `paths`, and packages whose `exports` or `types` point at TypeScript source. Two hooks, put in
 // once per process (and once per property worker): a resolver that asks TypeScript when Node cannot resolve a name, and
 // a loader for `.ts` files that no compiler wrote out (a workspace package's source).
-import { existsSync, readFileSync, statSync } from 'node:fs';
+import { existsSync as fsExists, readFileSync, statSync } from 'node:fs';
 import Module, { createRequire } from 'node:module';
 import { dirname, extname, join, relative, resolve, sep } from 'node:path';
 import { installPluginHooks, pluginExtensionNeeded } from './pluginHooks.ts';
@@ -26,11 +26,54 @@ export interface LawRuntime {
   bundlerPlugins?: string[];
 }
 
+/** Whether `path` exists. A path the sandbox may not read is answered with no, as a missing one is. */
+function existsSync(path: string): boolean {
+  try {
+    return fsExists(path);
+  } catch {
+    return false;
+  }
+}
+
 interface Internals {
   _resolveFilename: (request: string, parent: Parent | undefined, ...rest: unknown[]) => string;
   _extensions: Record<string, (module: { _compile(code: string, file: string): void }, file: string) => void>;
 }
 type Parent = { filename?: string } | null;
+
+/**
+ * How a file Node cannot load as written becomes something it can: TypeScript source (esbuild) and a project format (the
+ * `bundlerPlugins`). Both start a helper (a child process, a thread), which a sandboxed law process may not do, so
+ * there the parent transforms the reviewed files up front and the process looks the result up (see lawHost.ts).
+ */
+export interface Transforms {
+  source(file: string, extension: string): string;
+  plugin(file: string, cwd: string, plugins: readonly string[], format: 'cjs' | 'esm'): string;
+}
+
+/** The TypeScript source of `file` as CommonJS, the way a law loads it. */
+export function transformSource(file: string, extension: string): string {
+  return transformSync(readFileSync(file, 'utf8'), {
+    loader: extension === '.tsx' ? 'tsx' : 'ts',
+    format: 'cjs',
+    target: 'es2022',
+    sourcefile: file,
+    sourcemap: 'inline',
+    define: importMetaDefines(file),
+  }).code;
+}
+
+let transforms: Transforms = { source: transformSource, plugin: transformPluginFile };
+
+/** Replaces how this thread transforms files; used by the sandboxed law process, which cannot run the real ones. */
+export function useTransforms(next: Transforms): void {
+  transforms = next;
+}
+
+/** The runtime a project registered, as the last build left it. */
+export function runtimeOf(cwd: string): LawRuntime | undefined {
+  return projects.get(outDirOf(cwd));
+}
 
 const projects = new Map<string, LawRuntime>();
 const byConfig = new Map<string, ResolutionOptions>();
@@ -38,6 +81,18 @@ const byConfig = new Map<string, ResolutionOptions>();
 // `_extensions`), so `createRequire` is unavoidable: it loads TypeScript lazily, inside the synchronous resolver hook.
 const load = createRequire(import.meta.url);
 let hooked = false;
+
+/**
+ * TypeScript, which the resolver asks when Node cannot find a module. It needs Node modules a law may not load, and the
+ * guard refuses a module that a law's code is waiting on, so a law process loads it before the first law runs (`loadResolver`).
+ */
+let typescriptModule: typeof ts | undefined;
+const typescriptOf = (): typeof ts => (typescriptModule ??= load('typescript') as typeof ts);
+
+/** Loads what the resolver needs, while no law is running. A law process calls it once its project is installed. */
+export function loadResolver(): void {
+  typescriptOf();
+}
 
 const outDirOf = (cwd: string): string => join(cwd, '.tslaws', 'out');
 
@@ -63,7 +118,7 @@ export function installLawRuntime(runtime: LawRuntime): void {
   projects.set(outDirOf(runtime.cwd), runtime);
   if (hooked) return;
   hooked = true;
-  installPluginHooks({ ownerOf, beside });
+  installPluginHooks({ ownerOf, beside, transform: (...args) => transforms.plugin(...args) });
   const internals = Module as unknown as Internals;
   const original = internals._resolveFilename;
   internals._resolveFilename = function (request, parent, ...rest) {
@@ -85,19 +140,11 @@ export function installLawRuntime(runtime: LawRuntime): void {
     const extension = extname(file).toLowerCase();
     if (!pluginExtensionNeeded(extension)) return plain.call(this, module, file);
     const owner = ownerOf(file);
-    module._compile(transformPluginFile(file, owner?.cwd ?? process.cwd(), owner?.bundlerPlugins ?? []), file);
+    module._compile(transforms.plugin(file, owner?.cwd ?? process.cwd(), owner?.bundlerPlugins ?? [], 'cjs'), file);
   };
   for (const extension of ['.ts', '.tsx', '.mts', '.cts'])
     internals._extensions[extension] = (module, file) => {
-      const { code } = transformSync(readFileSync(file, 'utf8'), {
-        loader: extension === '.tsx' ? 'tsx' : 'ts',
-        format: 'cjs',
-        target: 'es2022',
-        sourcefile: file,
-        sourcemap: 'inline',
-        define: importMetaDefines(file),
-      });
-      module._compile(code, file);
+      module._compile(transforms.source(file, extension), file);
     };
 }
 
@@ -148,6 +195,45 @@ function namedInPaths(request: string, parent: Parent | undefined): boolean {
   });
 }
 
+/**
+ * `sys` for a sandboxed process: the permission model answers a probe outside the readable trees (the directories above the
+ * project, which module resolution looks through) with an error, where it needs "no such file".
+ */
+function readableSys(sys: ts.System): ts.ModuleResolutionHost {
+  const safe =
+    <A extends unknown[], R>(call: (...args: A) => R, otherwise: R) =>
+    (...args: A): R => {
+      try {
+        return call(...args);
+      } catch {
+        return otherwise;
+      }
+    };
+  return {
+    fileExists: safe(sys.fileExists, false),
+    // `sys` answers "no" for a directory the process may not read. TypeScript then skips the files under it, and a file the
+    // process may read (one granted by name, outside the project) sits in one: such a directory is taken to exist.
+    directoryExists: (path) => {
+      try {
+        return statSync(path).isDirectory();
+      } catch (error) {
+        return (error as { code?: string }).code === 'ERR_ACCESS_DENIED';
+      }
+    },
+    readFile: safe(sys.readFile, undefined),
+    // A path it may not resolve is taken as it is: resolving walks the directories above, which the process may not read.
+    realpath: (path) => {
+      try {
+        return sys.realpath?.(path) ?? path;
+      } catch {
+        return path;
+      }
+    },
+    getCurrentDirectory: () => sys.getCurrentDirectory(),
+    getDirectories: safe(sys.getDirectories, []),
+  };
+}
+
 function resolveThroughTypeScript(request: string, parent: Parent | undefined): string | undefined {
   const from = parent?.filename;
   if (from === undefined) return undefined;
@@ -157,7 +243,7 @@ function resolveThroughTypeScript(request: string, parent: Parent | undefined): 
     owner === undefined ? from : join(owner.cwd, relative(compiledRoot(owner), from)).replace(/\.js$/, '.ts');
   const options = owner === undefined ? optionsAround(from) : owner.options;
   if (options === undefined) return undefined;
-  const typescript = load('typescript') as typeof ts;
+  const typescript = typescriptOf();
   const compilerOptions: ts.CompilerOptions = {
     ...resolutionCompilerOptions(options),
     module: typescript.ModuleKind.ESNext,
@@ -170,7 +256,7 @@ function resolveThroughTypeScript(request: string, parent: Parent | undefined): 
       request,
       containing,
       compilerOptions,
-      typescript.sys,
+      readableSys(typescript.sys),
       undefined,
       undefined,
       mode,

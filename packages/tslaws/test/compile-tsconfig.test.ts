@@ -193,7 +193,8 @@ describe('tsconfig resolution', () => {
         },
         nativeCompiler,
       );
-      const { statuses, text, compiled } = await run(options);
+      // This is about the build. The project sits in a dot directory (`.tmp-`), where the sandbox would not read the sibling.
+      const { statuses, text, compiled } = await run({ ...options, sandbox: false });
       assert.equal(compiled, true, text);
       assert.doesNotMatch(text, /TS6059/);
       assert.ok(statuses.length === 1 && statuses[0] !== 'error', text);

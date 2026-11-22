@@ -6,12 +6,13 @@
 import { extname } from 'node:path';
 import nodeModule from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { transformPluginFile } from './pluginHost.ts';
 
 /** What the hooks ask of the runtime: the project owning a file, and a relative import found beside the source. */
 export interface PluginHookHost {
   ownerOf(file: string): { cwd: string; bundlerPlugins?: string[] } | undefined;
   beside(request: string, parent: { filename: string }): string | undefined;
+  /** The source Node can run for a file in a project format (see `transformPluginFile` in pluginHost.ts). */
+  transform(file: string, cwd: string, plugins: readonly string[], format: 'cjs' | 'esm'): string;
 }
 
 const nodeExtensions = new Set(['', '.js', '.cjs', '.mjs', '.json', '.node', '.ts', '.tsx', '.mts', '.cts']);
@@ -44,7 +45,7 @@ export function installPluginHooks(host: PluginHookHost): boolean {
       if (!pluginExtensionNeeded(extname(file))) return nextLoad(url, context);
       const owner = host.ownerOf(file);
       const commonjs = context.conditions.includes('require');
-      const source = transformPluginFile(
+      const source = host.transform(
         file,
         owner?.cwd ?? process.cwd(),
         owner?.bundlerPlugins ?? [],

@@ -53,7 +53,7 @@ export interface ProveInput {
   /** Longest array, most loop iterations and deepest recursion a proof considers. */
   bound: number;
   /** Runs the compiled law on concrete inputs; true when it holds. */
-  holds: (inputs: unknown[]) => boolean;
+  holds: (inputs: unknown[]) => boolean | Promise<boolean>;
   /** The solvers that must agree on a proof (see solvers.ts); default Z3 alone. */
   solvers?: readonly SolverName[];
   /**
@@ -640,7 +640,7 @@ async function attemptWith(
     throw new Unsupported(`the counterexample has more than ${shownElements} elements`);
   const inputs = names.map((name, i) => jsValue(input.shapes[i], name, model));
   // A model may break only an obligation, or rest on float effects the replay does not share.
-  if (input.holds(inputs)) {
+  if (await input.holds(inputs)) {
     const why = `Z3 model ${show(inputs)} passes in JavaScript (an integer may leave the safe range, an index may leave its array, or the bound cut the code)`;
     const advice = executor.hints.length === 0 ? '' : `; ${executor.hints.join('; ')}`;
     throw intLimit === undefined ? new SpuriousModel(why + advice) : new Unsupported(why + advice);

@@ -2,13 +2,14 @@
 // each input is sent to a page where the compiled law and the code it checks run against a live DOM.
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { delimiter, join, relative as pathRelative, resolve, sep } from 'node:path';
 import { build as bundleWith, type Plugin } from 'esbuild';
 import { explainBundleError, loadBundlerPlugins } from './bundlerPlugins.ts';
 import { lawEnv, readConfig } from './coverage.ts';
 import { compiledDirOf } from './lawRuntime.ts';
 import { importMetaEnvGlobal } from './runtimeEnv.ts';
-import { chromium, firefox, webkit, type Browser, type BrowserType, type Page } from 'playwright-core';
+import type { Browser, BrowserType, Page } from 'playwright-core';
 import type * as fc from 'fast-check';
 import { toWire } from './generators.ts';
 import { runProperty, summarise, type PropertyOutcome } from './property.ts';
@@ -39,12 +40,20 @@ function findBrowser(): string | undefined {
     }
   }
   try {
-    candidates.push(chromium.executablePath());
+    candidates.push(engineType('chromium').executablePath());
   } catch {
     // Playwright has no browser of its own installed.
   }
   return candidates.find((c) => existsSync(c));
 }
+
+/**
+ * Playwright, loaded when a browser law needs it. It probes the machine when it loads (for WSL, by reading `/proc` and
+ * `/run`), which a law process in the sandbox may not do, and a node law has no use for it.
+ */
+let playwright: typeof import('playwright-core') | undefined;
+const engineType = (engine: BrowserEngine): BrowserType =>
+  (playwright ??= createRequire(import.meta.url)('playwright-core') as typeof import('playwright-core'))[engine];
 
 export type BrowserEngine = 'chromium' | 'firefox' | 'webkit';
 const engines: BrowserEngine[] = ['chromium', 'firefox', 'webkit'];
@@ -72,7 +81,7 @@ export function engineExecutable(engine: BrowserEngine, env: NodeJS.ProcessEnv =
   let path = fromEnv !== undefined && fromEnv !== '' ? fromEnv : undefined;
   if (path === undefined) {
     try {
-      path = (engine === 'firefox' ? firefox : webkit).executablePath();
+      path = engineType(engine).executablePath();
     } catch {
       // Playwright has no such browser installed.
     }
@@ -89,7 +98,7 @@ const browsers = new Map<BrowserEngine, Promise<Browser>>();
 export function launch(engine: BrowserEngine): Promise<Browser> {
   let open = browsers.get(engine);
   if (open === undefined) {
-    const type: BrowserType = { chromium, firefox, webkit }[engine];
+    const type = engineType(engine);
     open = (async () => type.launch({ executablePath: engineExecutable(engine), headless: true }))();
     open.catch(() => browsers.delete(engine));
     browsers.set(engine, open);

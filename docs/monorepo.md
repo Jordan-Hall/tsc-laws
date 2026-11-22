@@ -58,8 +58,8 @@ Paths in an inherited file follow one rule:
 
 - Globs are relative to the project that uses the config. `cover` and `laws` are globs. A root that says
   `"cover": ["src/**/*.ts"]` means each package's own `src/`, so one setting covers every package.
-- References to a file are relative to the file that declares them, as in `tsconfig.json`. `bundlerPlugins` module paths
-  and `e2e.server.cwd` are rebased to each package, so `"bundlerPlugins": ["./tools/plugin.mjs"]` in the root file still
+- References to a file are relative to the file that declares them, as in `tsconfig.json`. `bundlerPlugins` module paths, `sandboxReads`
+  directories and `e2e.server.cwd` are rebased to each package, so `"bundlerPlugins": ["./tools/plugin.mjs"]` in the root file still
   finds the root's `tools/plugin.mjs` from `packages/ui`.
 
 ## The root as a project

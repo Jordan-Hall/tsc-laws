@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "start": "node server.mjs 4410",
-    "check": "tslaws check",
+    "check": "tslaws check --allow-e2e",
     "ui": "tslaws ui"
   },
   "devDependencies": {
