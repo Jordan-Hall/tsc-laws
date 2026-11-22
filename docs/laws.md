@@ -1011,8 +1011,8 @@ one a `laws` glob matches). If the file exists the laws are merged into it (impo
 refused). The helpers the laws use come along: a top-level `const`, `function`, `type`, `interface`, `class`, `enum` or
 `namespace` that a promoted law mentions, and any helper that one uses in turn, is copied with its comments, in source order,
 after the imports and before the laws (or after the declarations already in the target). A helper the target already has
-with the same text is not copied twice; one of the same name with different text is refused, and so is a promotion that
-would leave a law using a name the proposal declared but the target does not. Helpers no promoted law uses stay behind.
+with the same code (layout and comments aside, string contents compared as written) is not copied twice; one of the same name with different code,
+or one named like a binding the target imports, is refused, and so is a promotion that would leave a law using a name the proposal declared but the target does not. Helpers no promoted law uses stay behind.
 The proposal is removed. `promote` never writes the lock: until a person runs `tslaws accept`, `check` fails the
 new laws as not in the lock.
 

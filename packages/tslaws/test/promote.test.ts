@@ -440,6 +440,35 @@ describe('helpers a promoted law uses', () => {
     assert.match(output, /declared differently/);
   });
 
+  it('treats helpers that differ inside a string or template literal as different', () => {
+    const existing = "const sep = 'a b';\nexport law old(a: string) => a !== sep;\n";
+    assert.throws(
+      () => promoteAll("const sep = 'a  b';\nexport law fresh(a: string) => a !== sep;\n", existing),
+      /'sep' is declared differently/,
+    );
+    assert.throws(
+      () => promoteAll('const sep = `a  b`;\nexport law fresh(a: string) => a !== sep;\n', 'const sep = `a b`;\n'),
+      /'sep' is declared differently/,
+    );
+  });
+
+  it('still treats helpers that differ only in layout or comments as the same', () => {
+    const existing = 'const sep = (n: number) =>\n  n + 1;\nexport law old(a: number) => sep(a) > a;\n';
+    const text = 'const sep = (n: number) => n + 1; // note\nexport law fresh(a: number) => sep(a) > a;\n';
+    assert.equal(declared(promoteAll(text, existing)).filter((n) => n === 'sep').length, 1);
+  });
+
+  it('refuses a helper whose name the accepted file imports', () => {
+    const text = 'const helper = (n: number) => n;\nexport law fresh(a: number) => helper(a) === a;\n';
+    for (const line of [
+      "import { helper } from './helper';",
+      "import * as helper from './helper';",
+      "import tool, { other as helper } from './helper';",
+      "import helper from './helper';",
+    ])
+      assert.throws(() => promoteAll(text, `${line}\n`), /'helper' is imported in the accepted file/);
+  });
+
   it('refuses when a helper a law uses is missing from what would be written', () => {
     const parsed = parseLawFile('export law a(n: number) => n === ghost;\n');
     // A declaration whose copied text no longer declares its name: the safety net catches it.

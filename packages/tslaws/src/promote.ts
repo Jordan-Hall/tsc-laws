@@ -290,6 +290,34 @@ function callLaws(text: string): ParsedLaw[] {
 
 const squash = (s: string): string => s.replace(/\s+/g, ' ').trim();
 
+/** The code of `text` printed from its syntax tree without comments: layout is normalised, string and template contents are not. */
+function sameCode(a: string, b: string): boolean {
+  const printer = ts.createPrinter({ removeComments: true });
+  const print = (text: string): string => {
+    const source = ts.createSourceFile('helper.ts', text, ts.ScriptTarget.Latest, false, ts.ScriptKind.TS);
+    return source.statements
+      .map((statement) => printer.printNode(ts.EmitHint.Unspecified, statement, source))
+      .join('\n');
+  };
+  return print(a) === print(b);
+}
+
+/** The local names the import statements bind (`import a, { b as c, type d } from 'x'` binds a, c and d). */
+function importedNames(imports: string[]): Set<string> {
+  const names = new Set<string>();
+  const source = ts.createSourceFile('imports.ts', imports.join('\n'), ts.ScriptTarget.Latest, false, ts.ScriptKind.TS);
+  for (const statement of source.statements) {
+    if (ts.isImportEqualsDeclaration(statement)) names.add(statement.name.text);
+    if (!ts.isImportDeclaration(statement) || statement.importClause === undefined) continue;
+    const { name, namedBindings } = statement.importClause;
+    if (name !== undefined) names.add(name.text);
+    if (namedBindings === undefined) continue;
+    if (ts.isNamespaceImport(namedBindings)) names.add(namedBindings.name.text);
+    else for (const element of namedBindings.elements) names.add(element.name.text);
+  }
+  return names;
+}
+
 /** Joins the import statements, dropping repeats by whitespace-insensitive text. */
 export function dedupeImports(existing: string[], added: string[]): string[] {
   const seen = new Set(existing.map(squash));
@@ -326,7 +354,7 @@ function neededDeclarations(laws: ParsedLaw[], declarations: ParsedDeclaration[]
  * The accepted file after promoting `laws` (with the proposed file's imports) into it. `existing` is the current text
  * of the accepted file, or undefined when it does not exist yet. `declarations` are all the helper declarations of the
  * proposed file: the ones the laws use, directly or through each other, are copied too. A declaration already in the
- * accepted file with the same text (whitespace aside) is not copied again; one of the same name with different text is
+ * accepted file with the same code (layout and comments aside) is not copied again; one of the same name with different text is
  * an error. Throws when a law name is already taken there, and, as a safety net, when the result would use a name the
  * proposed file declares but the accepted file does not.
  */
@@ -370,11 +398,17 @@ function copiedDeclarations(
   laws: ParsedLaw[],
   declarations: ParsedDeclaration[],
 ): ParsedDeclaration[] {
-  const have = parseLawFile(accepted).declarations;
+  const { declarations: have, imports } = parseLawFile(accepted);
+  const imported = importedNames(imports);
   return neededDeclarations(laws, declarations).filter((declaration) => {
+    const bound = declaration.names.find((n) => imported.has(n));
+    if (bound !== undefined)
+      throw new Error(
+        `'${bound}' is imported in the accepted file but declared as a helper in the proposed file; rename one`,
+      );
     const same = have.filter((h) => h.names.some((n) => declaration.names.includes(n)));
     if (same.length === 0) return true;
-    if (same.some((h) => squash(h.text) === squash(declaration.text))) return false;
+    if (same.some((h) => sameCode(h.text, declaration.text))) return false;
     throw new Error(
       `'${declaration.names.find((n) => same.some((h) => h.names.includes(n)))}' is declared differently in the accepted file; make the two the same or rename one`,
     );
