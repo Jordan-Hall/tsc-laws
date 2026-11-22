@@ -15,7 +15,7 @@ import { hintFor } from './hints.ts';
 import { discoverLaws, discoverProposals, ignoredDirs } from './lawFiles.ts';
 import { listLawFiles } from './list.ts';
 import { parseLawFile } from './promote.ts';
-import { addProposal, mergeProposal, ProposalError } from './proposals.ts';
+import { addProposal, mergeProposal, previewProposal, ProposalError } from './proposals.ts';
 import { resolveSettings } from './settings.ts';
 import type { CheckOptions, LawResult } from './types.ts';
 
@@ -67,7 +67,7 @@ export const tools: Tool[] = [
   {
     name: 'tslaws_propose',
     description:
-      'Write a law into a proposal file in .tslaws/proposals/ (appended; a law of the same name is replaced) and check it. The source may also hold the top-level const, function, type and interface declarations the law needs (a helper of the same name is replaced); any other top-level statement is refused. Only that directory can be written. Write imports of project files relative to the project root with a leading ./ (for example ./src/cart); the level (Node, browser, end to end) comes from what the file imports. A person promotes proposals with `tslaws promote`.',
+      'Write a law into a proposal file in .tslaws/proposals/ (appended; a law of the same name is replaced) and check it. The source may also hold the top-level const, function, type and interface declarations the law needs (a helper of the same name is replaced); any other top-level statement is refused, and so is a const whose initialiser can run code (a call, new, await, tagged template, assignment and so on). Helpers become part of the trusted tree when a person promotes them, so a source with helpers is not written until you call again with confirmHelpers: true, after the person has seen the helper text this tool returns. Only that directory can be written. Write imports of project files relative to the project root with a leading ./ (for example ./src/cart); the level (Node, browser, end to end) comes from what the file imports. A person promotes proposals with `tslaws promote`.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -76,6 +76,11 @@ export const tools: Tool[] = [
           type: 'string',
           description:
             "the full law, as `law('name', ...)` or `export law name ...` (the project's syntax), with any imports and helper declarations it needs",
+        },
+        confirmHelpers: {
+          type: 'boolean',
+          description:
+            'required (true) when source declares helpers: the first call returns their text and writes nothing; set this once the person has seen it',
         },
         file: {
           type: 'string',
@@ -216,6 +221,16 @@ export class Session {
         if (typeof args.source !== 'string') throw new ToolError('source must be a string');
         let written;
         try {
+          const preview = previewProposal(args.source);
+          if (preview.helpers.length > 0 && args.confirmHelpers !== true)
+            return {
+              written: false,
+              needsConfirmation: true,
+              message:
+                'Nothing was written. This source declares helpers; they become part of the trusted tree when a person promotes the proposal. Show the helper text below to the person, then call tslaws_propose again with confirmHelpers: true.',
+              imports: preview.imports,
+              helpers: preview.helpers,
+            };
           written = addProposal(
             cwd,
             typeof args.file === 'string' ? args.file : defaultProposalFile,

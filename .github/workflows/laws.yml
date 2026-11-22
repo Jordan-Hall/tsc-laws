@@ -28,12 +28,12 @@ jobs:
       matrix:
         os: [ubuntu-24.04, windows-2025]
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: 24
           cache: npm
-      - uses: vercel-labs/setup-zig@v1
+      - uses: vercel-labs/setup-zig@83c1594f26b86da8a9a8ddd9b5ee5f3af0f96943 # v1.0.2
         if: runner.os == 'Windows'
         with:
           version: 0.16.0
@@ -61,7 +61,7 @@ jobs:
         run: |
           cp ../../LICENSE LICENSE
           npx --yes @vscode/vsce package --no-dependencies --out tslaws-vscode.vsix
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         if: runner.os == 'Linux'
         with:
           name: vscode-tslaws
@@ -107,11 +107,11 @@ jobs:
           - { platform: linux-x64-gnu, runner: ubuntu-24.04, target: x86_64-linux-gnu.2.34 }
           - { platform: win32-x64-msvc, runner: windows-2025 }
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: 24
-      - uses: vercel-labs/setup-zig@v1
+      - uses: vercel-labs/setup-zig@83c1594f26b86da8a9a8ddd9b5ee5f3af0f96943 # v1.0.2
         if: matrix.platform == 'win32-x64-msvc' || matrix.target
         with:
           version: 0.16.0
@@ -123,7 +123,7 @@ jobs:
           npm run fetch:upstream
           npm run pack:npm -w tsc-ts -- platform
         shell: bash
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: tsc-laws-${{ matrix.platform }}
           path: packages/tsc-ts/dist/npm/tsc-ts-${{ matrix.platform }}-*.tgz
@@ -137,19 +137,29 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      # A laws-v* tag on a commit outside main must not publish a GitHub release either.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+      - name: Require the tagged commit to be on main
+        run: |
+          git fetch --no-tags origin main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::$GITHUB_REF_NAME points at $GITHUB_SHA, which is not an ancestor of origin/main. Tag a commit on main."
+            exit 1
+          fi
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: 24
       - run: npm ci --ignore-scripts
       - run: npm run build -w tslaws
       - run: mkdir -p release && npm pack -w tslaws --pack-destination release
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           pattern: tsc-laws-*
           path: release
           merge-multiple: true
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: vscode-tslaws
           path: release
@@ -191,17 +201,29 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/laws-v')
     needs: release
     runs-on: ubuntu-24.04
+    environment: release
     permissions:
       contents: read
       id-token: write
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      # Publish only commits that are on main: a laws-v* tag on any other commit stops here.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Require the tagged commit to be on main
+        run: |
+          git fetch --no-tags origin main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::$GITHUB_REF_NAME points at $GITHUB_SHA, which is not an ancestor of origin/main. Tag a commit on main."
+            exit 1
+          fi
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: 24
       - run: npm ci --ignore-scripts
       - run: npm run build -w tslaws
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           pattern: tsc-laws-*
           path: platform
@@ -227,14 +249,27 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/laws-v') && vars.VSCODE_PUBLISH == 'true'
     needs: release
     runs-on: ubuntu-24.04
+    environment: release
     permissions:
       contents: read
       id-token: write
     steps:
-      - uses: actions/setup-node@v7
+      # Publish only commits that are on main: a laws-v* tag on any other commit stops here.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Require the tagged commit to be on main
+        run: |
+          git fetch --no-tags origin main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::$GITHUB_REF_NAME points at $GITHUB_SHA, which is not an ancestor of origin/main. Tag a commit on main."
+            exit 1
+          fi
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: 24
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: vscode-tslaws
           path: vsix
@@ -298,7 +333,7 @@ jobs:
             if grep -qiE "not verified|unverified|not (the )?owner|not a member|namespace.*(owner|verif)|owner.*namespace" store.log; then
               echo "::error::Open VSX refused the publish because the ts-laws namespace (the casing must match exactly) is not verified for this account. Sign in at https://open-vsx.org, open the namespace page and click Claim Ownership, then wait for the Open VSX team to approve it. See docs/publishing-the-extension.md."
             elif grep -qiE "trusted publisher|trusted publishing|oidc|id token" store.log; then
-              echo "::error::Open VSX answered that no trusted publisher matches. The registry gives this one message for every mismatch, so check in order. (1) First publish: a trusted publisher can only be registered once the extension has an active version, so publish the first version with an access token (set the OVSX_PAT secret for one release, or run ovsx publish by hand), then register the trusted publisher. (2) The Open VSX namespace must be exactly ts-laws, the publisher in packages/vscode-tslaws/package.json; the check is case-sensitive. (3) The trusted publisher fields: provider GitHub Actions, repository owner Jordan-Hall, repository tsc-laws, workflow laws.yml, environment empty. See the Open VSX section of docs/publishing-the-extension.md."
+              echo "::error::Open VSX answered that no trusted publisher matches. The registry gives this one message for every mismatch, so check in order. (1) First publish: a trusted publisher can only be registered once the extension has an active version, so publish the first version with an access token (set the OVSX_PAT secret for one release, or run ovsx publish by hand), then register the trusted publisher. (2) The Open VSX namespace must be exactly ts-laws, the publisher in packages/vscode-tslaws/package.json; the check is case-sensitive. (3) The trusted publisher fields: provider GitHub Actions, repository owner Jordan-Hall, repository tsc-laws, workflow laws.yml, environment release. See the Open VSX section of docs/publishing-the-extension.md."
             fi
             echo "- Open VSX: FAILED" >> "$GITHUB_STEP_SUMMARY"
             exit 1
