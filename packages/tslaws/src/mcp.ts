@@ -68,7 +68,7 @@ export const tools: Tool[] = [
   {
     name: 'tslaws_propose',
     description:
-      'Write a law into a proposal file in .tslaws/proposals/ (appended; a law of the same name is replaced) and check it. The source may also hold the top-level const, function, type and interface declarations the law needs (a helper of the same name is replaced); any other top-level statement is refused, and so is a const whose initialiser can run code (a call, new, await, tagged template, assignment and so on). Helpers become part of the trusted tree when a person promotes them, so a source with helpers is not written until you call again with confirmHelpers: true, after the person has seen the helper text this tool returns. Only that directory can be written. Write imports of project files relative to the project root with a leading ./ (for example ./src/cart); the level (Node, browser, end to end) comes from what the file imports. A person promotes proposals with `tslaws promote`.',
+      'Write a law into a proposal file in .tslaws/proposals/ (appended; a law of the same name is replaced) and check it. The source may also hold the top-level const, function, type and interface declarations the law needs (a helper of the same name is replaced); any other top-level statement is refused, and so is a const whose initialiser can run code (a call, new, await, tagged template, assignment and so on). Helpers and package imports become part of the trusted tree when a person promotes them, so a source with either is not written until you call again with confirmCode: true, after the person has seen the text this tool returns. An import of a file must name reviewed code: inside the project, outside .tslaws/, node_modules and .git, and not git-ignored; any other is refused. Only that directory can be written. Write imports of project files relative to the project root with a leading ./ (for example ./src/cart); the level (Node, browser, end to end) comes from what the file imports. A person promotes proposals with `tslaws promote`.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -78,10 +78,14 @@ export const tools: Tool[] = [
           description:
             "the full law, as `law('name', ...)` or `export law name ...` (the project's syntax), with any imports and helper declarations it needs",
         },
-        confirmHelpers: {
+        confirmCode: {
           type: 'boolean',
           description:
-            'required (true) when source declares helpers: the first call returns their text and writes nothing; set this once the person has seen it',
+            'required (true) when source declares helpers or imports a package: the first call returns that code and writes nothing; set this once the person has seen it',
+        },
+        confirmHelpers: {
+          type: 'boolean',
+          description: 'deprecated alias of confirmCode; use confirmCode',
         },
         file: {
           type: 'string',
@@ -222,14 +226,19 @@ export class Session {
         if (typeof args.source !== 'string') throw new ToolError('source must be a string');
         let written;
         try {
-          const preview = previewProposal(args.source);
-          if (preview.helpers.length > 0 && args.confirmHelpers !== true)
+          const preview = previewProposal(args.source, cwd);
+          if (
+            (preview.helpers.length > 0 || preview.packages.length > 0) &&
+            args.confirmCode !== true &&
+            args.confirmHelpers !== true
+          )
             return {
               written: false,
               needsConfirmation: true,
               message:
-                'Nothing was written. This source declares helpers; they become part of the trusted tree when a person promotes the proposal. Show the helper text below to the person, then call tslaws_propose again with confirmHelpers: true.',
+                'Nothing was written. This source declares helpers or imports packages; that code becomes part of the trusted tree when a person promotes the proposal. Show the import and helper text below to the person, then call tslaws_propose again with confirmCode: true.',
               imports: preview.imports,
+              packages: preview.packages,
               helpers: preview.helpers,
             };
           written = addProposal(

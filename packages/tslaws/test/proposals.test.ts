@@ -13,6 +13,7 @@ import {
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, describe, it } from 'node:test';
@@ -22,6 +23,8 @@ import { discoverProposals } from '../dist/lawFiles.js';
 import { defaultTarget, parseLawFile, promoteProposal, promotionTarget } from '../dist/promote.js';
 import {
   addProposal,
+  assertImportsAllowed,
+  assertStaticLoading,
   importsForTarget,
   normaliseProposal,
   ProposalError,
@@ -34,9 +37,11 @@ const root = realpathSync.native(mkdtempSync(join(tmpdir(), 'tslaws-proposals-')
 after(() => rmSync(root, { recursive: true, force: true }));
 
 let n = 0;
-function project(files: Record<string, string> = {}): string {
+// A project is a git repository: an import is allowed only when git can say its file is not ignored.
+function project(files: Record<string, string> = {}, repo = true): string {
   const cwd = join(root, `p${(n += 1)}`);
   mkdirSync(cwd, { recursive: true });
+  if (repo) spawnSync('git', ['init', '-q'], { cwd });
   files = { 'src/cart.ts': 'export const total = (n: number): number => n;\n', ...files };
   for (const [file, text] of Object.entries(files)) {
     mkdirSync(dirname(join(cwd, file)), { recursive: true });
@@ -55,7 +60,7 @@ const source = [
 const tree = (cwd: string): string[] =>
   readdirSync(cwd, { recursive: true, encoding: 'utf8' })
     .map((f) => f.replaceAll('\\', '/'))
-    .filter((f) => !f.startsWith('.tslaws'))
+    .filter((f) => !f.startsWith('.tslaws') && f !== '.git' && !f.startsWith('.git/') && f !== '.gitignore')
     .sort();
 
 describe('import storage', () => {
@@ -286,7 +291,7 @@ describe('writing proposals', () => {
         {
           cwd,
           checkFile: async () => new Map(),
-          ask: async (q) => (q.includes('helper code') ? 'y' : ''),
+          ask: async (q) => (q.includes('code to ') ? 'y' : ''),
           out: (t) => void out.push(t),
         },
         '.tslaws/proposals/cart.ts',
@@ -375,7 +380,8 @@ describe('promoting a proposal', () => {
   const host = (cwd: string, answers: string[], out: string[]) => ({
     cwd,
     checkFile: async () => new Map([['totalKeeps', 'tested']]),
-    ask: async () => answers.shift() ?? 'n',
+    // The path question takes the next answer; the question about added import or helper code is answered y.
+    ask: async (q: string) => (q.includes('code to ') ? 'y' : (answers.shift() ?? 'n')),
     out: (t: string) => void out.push(t),
   });
 
@@ -466,6 +472,26 @@ describe('promoting a proposal', () => {
     assert.match(output.join(''), /nothing moved/);
   });
 
+  it('refuses to promote a hand-written proposal whose import names unreviewed code, even when asked yes', async () => {
+    const cwd = project();
+    mkdirSync(join(cwd, '.tslaws/proposals'), { recursive: true });
+    for (const [name, spec] of [
+      ['nm', '../../node_modules/pkg/index.js'],
+      ['up', '../../../outside'],
+      ['own', './sibling'],
+    ] as const) {
+      writeFileSync(
+        join(cwd, `.tslaws/proposals/${name}.ts`),
+        `import { x } from '${spec}';\nexport law l${name}(n: number) { return x === n; }\n`,
+      );
+      const output: string[] = [];
+      const yes = { ...host(cwd, ['src/hand.laws.ts'], output), yes: true };
+      assert.deepEqual(await promoteProposal(yes, `${name}.ts`), {}, name);
+      assert.match(output.join(''), /an import must name code that is inside the project.*nothing moved/s, name);
+      assert.ok(!existsSync(join(cwd, 'src/hand.laws.ts')), name);
+    }
+  });
+
   it('accepts a path the laws setting names', () => {
     const cwd = project({ 'tslaws.json': JSON.stringify({ laws: ['specs/**/*.ts'] }) });
     assert.equal(promotionTarget(cwd, 'specs/cart.ts'), 'specs/cart.ts');
@@ -478,6 +504,491 @@ describe('promoting a proposal', () => {
     mkdirSync(outside, { recursive: true });
     symlinkSync(outside, join(cwd, 'linked'), 'junction');
     assert.throws(() => promotionTarget(cwd, 'linked/a.laws.ts'), /outside the project/);
+  });
+});
+
+describe('an import must name reviewed code, however the specifier is spelled', () => {
+  const imp = (specifier: string): string =>
+    `import { x } from '${specifier.replaceAll('\\', '\\\\').replaceAll('\t', '\\t')}';\n`;
+  const refused = /an import must name code that is inside the project/;
+  const check = (cwd: string, specifier: string, fromDir = '.tslaws/proposals'): void =>
+    assertImportsAllowed(cwd, imp(specifier), fromDir);
+
+  it('allows a file inside the project, one that does not exist yet and a package', () => {
+    const cwd = project();
+    check(cwd, '../../src/cart');
+    check(cwd, '../../src/not/yet/written');
+    check(cwd, 'some-package');
+    check(cwd, './sibling', 'src');
+  });
+
+  it('refuses any specifier with %, ? or # (percent escapes, queries, fragments, # aliases)', () => {
+    const cwd = project();
+    for (const bad of [
+      '../../%2e%74slaws/proposals/evil',
+      '../../.tslaws%2Fproposals/evil',
+      '../../node%5Fmodules/pkg/index.js',
+      '../../src/cart?x=1',
+      '../../src/cart#frag',
+      '#internal',
+      'pkg?query',
+      '../../src/car%74',
+    ])
+      assert.throws(() => check(cwd, bad), refused, bad);
+  });
+
+  it('refuses a control character in a specifier', () => {
+    assert.throws(() => check(project(), '../../src/ca\trt'), refused);
+  });
+
+  it('compares the reserved directory names without regard to case', () => {
+    const cwd = project();
+    for (const bad of [
+      '../../.TSLAWS/proposals/evil',
+      '../../Node_Modules/pkg/index.js',
+      '../../src/../.Git/config',
+      '../proposals/../../.TsLaws/x',
+    ])
+      assert.throws(() => check(cwd, bad), /resolves into/, bad);
+  });
+
+  it('reads a path as a URL does: backslashes, dot segments and extra slashes cannot hide a reserved directory', () => {
+    const cwd = project();
+    for (const bad of ['..\\..\\node_modules\\pkg\\index.js', '.././../src/./../node_modules/pkg', '..//..//.tslaws/x'])
+      assert.throws(() => check(cwd, bad), /resolves into/, bad);
+    assert.throws(() => check(cwd, '//host/share/x'), refused);
+    assert.throws(() => check(cwd, 'C:\\Windows\\x'), refused);
+  });
+
+  it('refuses a path that reaches a reserved directory through a link, and a file that does not exist yet there', () => {
+    const cwd = project();
+    mkdirSync(join(cwd, 'node_modules', 'pkg'), { recursive: true });
+    symlinkSync(join(cwd, 'node_modules', 'pkg'), join(cwd, 'src', 'alias'), 'junction');
+    assert.throws(() => check(cwd, '../../src/alias/index.js'), /resolves into node_modules/);
+    assert.throws(() => check(cwd, '../../src/alias/not/yet/there.js'), /resolves into node_modules/);
+    assert.throws(() => check(cwd, '../../node_modules/new/pkg'), /resolves into node_modules/);
+    const outside = join(root, `outside-import${n}`);
+    mkdirSync(outside, { recursive: true });
+    symlinkSync(outside, join(cwd, 'src', 'out'), 'junction');
+    assert.throws(() => check(cwd, '../../src/out/file.js'), /resolves outside the project/);
+    assert.throws(() => check(cwd, '../../src/out/not/yet.js'), /resolves outside the project/);
+  });
+
+  it('refuses a git-ignored file, including one that does not exist yet', () => {
+    const cwd = project({ '.gitignore': 'gen/\n', 'gen/rates.ts': 'export const rate = 1;\n' });
+    assert.throws(() => check(cwd, '../../gen/rates'), /git ignores/);
+    assert.throws(() => check(cwd, '../../gen/new'), /git ignores/);
+    check(cwd, '../../src/cart');
+  });
+
+  it('refuses when the project is not in a git repository, because git cannot say what is ignored', () => {
+    const cwd = project({}, false);
+    assert.throws(() => check(cwd, '../../src/cart'), /could not be checked against git/);
+    check(cwd, 'some-package');
+  });
+
+  it('refuses when git is not installed', () => {
+    const cwd = project();
+    const saved = process.env.PATH;
+    process.env.PATH = join(root, 'no-such-bin');
+    try {
+      assert.throws(() => check(cwd, '../../src/cart'), /could not be checked against git/);
+    } finally {
+      process.env.PATH = saved;
+    }
+  });
+});
+
+describe('code may be loaded only in ways the import check can read', () => {
+  const refused = /code may be loaded only by a static import or an import\(\) or require\(\) of a string literal/;
+
+  it('allows static imports and string-literal import() and require(), in helpers and laws', () => {
+    const cwd = project();
+    for (const text of [
+      "import { total } from '../../src/cart';\nexport law l(n: number) { return total(n) === n; }\n",
+      "export law l() { return import('../../src/cart') !== undefined; }\n",
+      "export law l() { const c = require('../../src/cart'); return c !== undefined; }\n",
+      "export { total } from '../../src/cart';\n",
+      'const point = { module: 1, require: 2 };\nexport law l() { return point.module === 1; }\n',
+      'export law l() { return import(`../../src/cart`) !== undefined; }\n',
+    ])
+      assertImportsAllowed(cwd, text, '.tslaws/proposals');
+  });
+
+  it('refuses a computed import() or require() argument', () => {
+    for (const call of [
+      'import(name)',
+      "import('../../src/' + name)",
+      'import(`../../src/${name}`)',
+      "import('../../src/cart', { with: {} })",
+      'require(name)',
+      "require('../../src/' + name)",
+      'require()',
+      "require('a', 'b')",
+      'import x = require(name)',
+    ])
+      assert.throws(
+        () =>
+          assertStaticLoading(
+            `const name = 'cart';\nexport law l() { return ${call.startsWith('import x') ? 'true' : call} !== 0; }\n${call.startsWith('import x') ? call + ';\n' : ''}`,
+          ),
+        refused,
+        call,
+      );
+  });
+
+  it('refuses any other reference to the module loader', () => {
+    for (const use of [
+      "const r = require; r('../../src/cart');",
+      "module.require('../../src/cart');",
+      'const m = module;',
+      'typeof module;',
+      "createRequire(import.meta.url)('../../src/cart');",
+      'import.meta.url;',
+      "process.mainModule!.require('../../src/cart');",
+      "process['mainModule'];",
+      "globalThis['require']('../../src/cart');",
+      'const { createRequire } = nodeModule;',
+      'nodeModule.createRequire(x);',
+      'const o = { require };',
+    ])
+      assert.throws(() => assertStaticLoading(`export law l() { ${use} return true; }\n`), refused, use);
+    assert.throws(() => assertStaticLoading("import { createRequire } from 'node:module';\n"), refused);
+    assert.throws(
+      () => assertStaticLoading('const f = () => require;\nexport law l() { return f() === 1; }\n'),
+      refused,
+    );
+  });
+
+  const typedLaw = (use: string, extra = ''): string =>
+    `${extra}export law l(i: number, n: int, s: string, a: any, u: unknown, xs: number[], o: Record<string, number>) { return ${use} === 1; }\n`;
+
+  it('refuses an index whose type is not a number, because it can name the loader at run time', () => {
+    for (const use of [
+      'xs[f()]',
+      "xs['a' + n]",
+      'xs[`k${i}`]',
+      'o[f(i)]',
+      'xs[s]',
+      'xs[a]',
+      'xs[u]',
+      'xs[i + s]',
+      'xs["a" + i]',
+      'xs[a + a]',
+      'xs[undefinedName]',
+      'xs[i as any]',
+    ])
+      assert.throws(() => assertStaticLoading(typedLaw(use)), refused, use);
+    assertStaticLoading(typedLaw('xs[0] + o["key"]'));
+  });
+
+  it('allows an index whose type is a number or a union of numeric literals', () => {
+    for (const use of [
+      'xs[i]',
+      'xs[n]',
+      'xs[-1]',
+      'xs[i + 1]',
+      'xs[1 + i]',
+      'xs[i | 0]',
+      'xs[(i * 2)]',
+      'xs[Math.abs(i) % xs.length]',
+      'xs[xs.length - 1]',
+      'xs[k]',
+    ])
+      assertStaticLoading(typedLaw(use, 'const k = 0 as 0 | 1 | 2;\n'));
+    assertStaticLoading('export law g(i: int) => [1, 2][i] === 1;\n');
+  });
+
+  it('refuses a string that spells a name of the loader or the prototype chain, wherever it stands', () => {
+    for (const use of [
+      "const k = 'constructor';",
+      "const k = 'process';",
+      "const k = '__proto__';",
+      'const k = `prototype`;',
+      "const k = 'globalThis';",
+      "const k = 'getOwnPropertyNames';",
+      "const o = { 'require': 1 };",
+      "f('Function');",
+      "x === 'module';",
+    ])
+      assert.throws(() => assertStaticLoading(`export law l() { ${use} return true; }\n`), refused, use);
+    assert.throws(() => assertStaticLoading("const key = 'eval';\nexport law l() { return key !== ''; }\n"), refused);
+    assertStaticLoading("export law l() { const k = 'processor'; return k !== 'constructors'; }\n");
+  });
+
+  it('refuses the reflection helpers and Proxy', () => {
+    for (const use of [
+      'Object.getOwnPropertyDescriptor(o, k);',
+      'Object.getOwnPropertyDescriptors(o);',
+      'Object.getOwnPropertyNames(o);',
+      'Object.defineProperty(o, k, d);',
+      'Object.setPrototypeOf(o, p);',
+      'Object.getPrototypeOf(o);',
+      'const { getOwnPropertyNames: g } = Object;',
+      'new Proxy(o, h);',
+      'Reflect.ownKeys(o);',
+    ])
+      assert.throws(() => assertStaticLoading(`export law l() { ${use} return true; }\n`), refused, use);
+  });
+
+  it('refuses a computed name in destructuring, in a declaration or an assignment', () => {
+    for (const use of [
+      'const { [k]: v } = o;',
+      'const { [k]: v, ...rest } = o;',
+      'const [{ [k]: v }] = list;',
+      'function f({ [k]: v }: any) { return v; }',
+      'let v; ({ [k]: v } = o);',
+      'let v; [{ [k]: v }] = list;',
+      'let v; for ({ [k]: v } of list) {}',
+    ])
+      assert.throws(() => assertStaticLoading(`export law l() { ${use} return true; }\n`), refused, use);
+    assertStaticLoading(
+      'export law l() { const { a, b: c } = o; const p = { [k]: 1 }; let v; ({ a: v } = o); return p !== undefined && c === a; }\n',
+    );
+  });
+
+  it('refuses exports, __filename, __dirname and the module-level arguments object', () => {
+    for (const use of [
+      'exports.x = 1;',
+      'const e = exports;',
+      'const f = __filename;',
+      'const d = __dirname;',
+      'const a = arguments;',
+      'const a = arguments[0];',
+      'const f = () => arguments[1];',
+      'class C { x = arguments; }',
+    ])
+      assert.throws(() => assertStaticLoading(`export law l() { ${use} return true; }\n`), refused, use);
+    assert.throws(
+      () => assertStaticLoading('const a = arguments;\nexport law l() { return a !== undefined; }\n'),
+      refused,
+    );
+    assertStaticLoading(
+      'function f() { return arguments.length; }\nconst g = { h() { return arguments[0]; } };\nconst o = { exports: 1, arguments: 2 };\nexport law l() { return f() === o.exports && g.h() === o.arguments; }\n',
+    );
+  });
+
+  it('refuses eval, Function, globalThis, global, process and getBuiltinModule', () => {
+    for (const use of [
+      "eval('1')",
+      "new Function('return 1')",
+      "Function('return this')()",
+      'globalThis.x',
+      'const g = global;',
+      'process.env.X',
+      'const p = process;',
+      "process.getBuiltinModule('fs')",
+      "o.getBuiltinModule('fs')",
+      "o['getBuiltinModule']",
+      "o['eval']",
+    ])
+      assert.throws(() => assertStaticLoading(`export law l() { ${use}; return true; }\n`), refused, use);
+    assertStaticLoading(
+      'const point = { process: 1, global: 2, eval: 3 };\nexport law l() { return point.process === 1; }\n',
+    );
+  });
+
+  it('allows only the built-in modules path, url, util and assert, with or without node:, and refuses every other', () => {
+    const cwd = project();
+    for (const name of ['path', 'url', 'util', 'assert'])
+      for (const specifier of [name, `node:${name}`])
+        assertImportsAllowed(
+          cwd,
+          `import * as m from '${specifier}';\nexport law l() { return m !== undefined; }\n`,
+          '.tslaws/proposals',
+        );
+    for (const name of [
+      'module',
+      'vm',
+      'worker_threads',
+      'child_process',
+      'fs',
+      'fs/promises',
+      'os',
+      'net',
+      'http',
+      'crypto',
+      'test',
+      'path/posix',
+      'assert/strict',
+      'unknown-builtin',
+    ])
+      for (const specifier of [`node:${name}`, ...(name === 'test' || name === 'unknown-builtin' ? [] : [name])])
+        assert.throws(
+          () => assertImportsAllowed(cwd, `import * as m from '${specifier}';\n`, '.tslaws/proposals'),
+          /Node built-in module other than path, url, util and assert/,
+          specifier,
+        );
+    // A package that is not a built-in is a package import, listed for the person.
+    assertImportsAllowed(cwd, "import * as m from 'test-utils';\n", '.tslaws/proposals');
+  });
+
+  it('refuses constructor, __proto__, prototype, getPrototypeOf and Reflect', () => {
+    for (const use of [
+      'x.constructor',
+      "x['constructor']",
+      'x?.constructor',
+      'x.__proto__',
+      "x['__proto__']",
+      'Foo.prototype',
+      "Foo['prototype']",
+      'Object.getPrototypeOf(x)',
+      "o['getPrototypeOf']",
+      'Reflect.getPrototypeOf(x)',
+      'const r = Reflect;',
+      'const { constructor } = x;',
+      'const { constructor: c } = x;',
+      "const { 'prototype': p } = x;",
+      'const { __proto__ } = x;',
+      'const { a: { constructor } } = x;',
+    ])
+      assert.throws(() => assertStaticLoading(`export law l() { ${use}; return true; }\n`), refused, use);
+    // Declaring such a key in an object literal reads nothing.
+    assertStaticLoading('const o = { constructor: 1, prototype: 2 };\nexport law l() { return o.length === 1; }\n');
+  });
+
+  it('refuses an import of module, vm, worker_threads or child_process, with or without node:', () => {
+    const cwd = project();
+    for (const name of ['module', 'vm', 'worker_threads', 'child_process'])
+      for (const specifier of [name, `node:${name}`])
+        for (const text of [
+          `import x from '${specifier}';\nexport law l() { return true; }\n`,
+          `export * from '${specifier}';\n`,
+          `export law l() { return import('${specifier}') !== undefined; }\n`,
+          `export law l() { return require('${specifier}') !== undefined; }\n`,
+          `import x = require('${specifier}');\nexport law l() { return true; }\n`,
+        ])
+          assert.throws(
+            () => assertImportsAllowed(cwd, text, '.tslaws/proposals'),
+            /Node built-in module other than path, url, util and assert/,
+            text,
+          );
+    assertImportsAllowed(
+      cwd,
+      "import { join } from 'node:path';\nexport law l() { return true; }\n",
+      '.tslaws/proposals',
+    );
+  });
+
+  it('runs in propose, in the check for a promoted proposal, and for the law syntax law(...)', async () => {
+    const cwd = project();
+    for (const text of [
+      'export law l(n: number) { return require(`../../src/${n}`) === 1; }\n',
+      "const r = require;\nexport law l() { return r('x') === 1; }\n",
+      'export law l() { return import(name) !== 1; }\n',
+    ]) {
+      assert.throws(() => addProposal(cwd, 'dyn.ts', text), refused, text);
+      assert.deepEqual(discoverProposals(cwd), []);
+    }
+    mkdirSync(join(cwd, '.tslaws', 'proposals'), { recursive: true });
+    writeFileSync(
+      join(cwd, '.tslaws', 'proposals', 'hand.ts'),
+      'export law l(n: number) { return require(`../../src/${n}`) === 1; }\n',
+    );
+    const output: string[] = [];
+    const yes = {
+      cwd,
+      checkFile: async () => new Map([['l', 'tested']]),
+      ask: async () => 'src/hand.laws.ts',
+      out: (t: string) => void output.push(t),
+      yes: true,
+    };
+    await promoteProposal(yes, 'hand.ts');
+    assert.match(output.join(''), /code may be loaded only by a static import/);
+    assert.ok(!existsSync(join(cwd, 'src/hand.laws.ts')));
+  });
+});
+
+describe('an import is checked by the file the project resolution gives', () => {
+  const check = (cwd: string, specifier: string, fromDir = '.tslaws/proposals'): void =>
+    assertImportsAllowed(cwd, `import { x } from '${specifier}';\n`, fromDir);
+
+  it('follows a directory through package.json main, and refuses a main that leads somewhere unreviewed', () => {
+    const cwd = project({
+      'gen/made.js': 'exports.x = 1;\n',
+      '.gitignore': 'gen/\n',
+      'node_modules/pkg/index.js': 'exports.x = 1;\n',
+      'src/lib/package.json': JSON.stringify({ main: '../../.tslaws/proposals/evil.js' }),
+      'src/viaModules/package.json': JSON.stringify({ main: '../../node_modules/pkg/index.js' }),
+      'src/viaIgnored/package.json': JSON.stringify({ main: '../../gen/made.js' }),
+      'src/viaOutside/package.json': JSON.stringify({ main: '../../../outside-main/x.js' }),
+      'src/fine/package.json': JSON.stringify({ main: './entry.js' }),
+      'src/fine/entry.js': 'exports.x = 1;\n',
+      'src/indexed/index.ts': 'export const x = 1;\n',
+    });
+    mkdirSync(join(cwd, '.tslaws', 'proposals'), { recursive: true });
+    writeFileSync(join(cwd, '.tslaws', 'proposals', 'evil.js'), 'exports.x = 1;\n');
+    mkdirSync(join(dirname(cwd), 'outside-main'), { recursive: true });
+    writeFileSync(join(dirname(cwd), 'outside-main', 'x.js'), 'exports.x = 1;\n');
+    assert.throws(() => check(cwd, '../../src/lib'), /resolves into \.tslaws/);
+    assert.throws(() => check(cwd, '../../src/viaModules'), /resolves into node_modules/);
+    assert.throws(() => check(cwd, '../../src/viaIgnored'), /git ignores/);
+    assert.throws(() => check(cwd, '../../src/viaOutside'), /resolves outside the project/);
+    check(cwd, '../../src/fine');
+    check(cwd, '../../src/indexed');
+  });
+
+  it('also checks the file Node resolves, which can differ from the one TypeScript resolves', () => {
+    const cwd = project({
+      'node_modules/pkg/index.js': 'exports.x = 1;\n',
+      'src/split/package.json': JSON.stringify({ types: './safe.d.ts', main: '../../node_modules/pkg/index.js' }),
+      'src/split/safe.d.ts': 'export const x: number;\n',
+    });
+    assert.throws(() => check(cwd, '../../src/split'), /resolves into node_modules/);
+    // A specifier Node cannot resolve is skipped, not refused.
+    check(cwd, '../../src/not/yet/written');
+  });
+
+  it('refuses a directory that resolves to no file', () => {
+    const cwd = project({
+      'src/empty/readme.md': 'nothing here\n',
+      'src/broken/package.json': '{ "main": "./missing.js" }',
+    });
+    assert.throws(() => check(cwd, '../../src/empty'), /resolves to no file/);
+    assert.throws(() => check(cwd, '../../src/broken'), /resolves to no file/);
+  });
+
+  it('checks a bare name that tsconfig paths or baseUrl maps to a file of the project', () => {
+    const cwd = project({
+      'tsconfig.json': JSON.stringify({
+        compilerOptions: {
+          moduleResolution: 'bundler',
+          module: 'esnext',
+          baseUrl: '.',
+          paths: {
+            '@app/*': ['src/*'],
+            '@evil/*': ['.tslaws/proposals/*'],
+            '@gen/*': ['gen/*'],
+            '@out/*': ['../outside/*'],
+          },
+        },
+      }),
+      '.gitignore': 'gen/\n',
+      'gen/made.ts': 'export const x = 1;\n',
+      '.tslaws/proposals/evil.ts': 'export const x = 1;\n',
+      'node_modules/pkg/index.js': 'exports.x = 1;\n',
+    });
+    mkdirSync(join(dirname(cwd), 'outside'), { recursive: true });
+    writeFileSync(join(dirname(cwd), 'outside', 'x.ts'), 'export const x = 1;\n');
+    assert.throws(() => check(cwd, '@evil/evil', '.tslaws/proposals'), /resolves into \.tslaws/);
+    assert.throws(() => check(cwd, '@gen/made', '.tslaws/proposals'), /git ignores/);
+    assert.throws(() => check(cwd, '@out/x', '.tslaws/proposals'), /resolves outside the project/);
+    check(cwd, '@app/cart', '.tslaws/proposals');
+    // A package, and a bare name that resolves to nothing, are left alone.
+    check(cwd, 'pkg', '.tslaws/proposals');
+    check(cwd, 'not-a-package-anywhere', '.tslaws/proposals');
+  });
+
+  it('uses the compiler options of the project, such as rootDirs', () => {
+    const cwd = project({
+      'tsconfig.json': JSON.stringify({
+        compilerOptions: { rootDirs: ['src', 'gen'], moduleResolution: 'bundler', module: 'esnext' },
+      }),
+      '.gitignore': 'gen/\n',
+      'gen/made.ts': 'export const x = 1;\n',
+    });
+    assert.throws(() => check(cwd, './made', 'src'), /git ignores/);
+    check(cwd, './cart', 'src');
   });
 });
 
@@ -531,7 +1042,10 @@ describe('the promote and propose commands', () => {
   it('promote moves the proposal for a person at a terminal', async () => {
     const cwd = project();
     addProposal(cwd, 'cart.ts', source);
-    const { out, ctx } = ctxFor({ ask: async () => '', checkFile: async () => new Map([['totalKeeps', 'tested']]) });
+    const { out, ctx } = ctxFor({
+      ask: async (q: string) => (q.includes('code to ') ? 'y' : ''),
+      checkFile: async () => new Map([['totalKeeps', 'tested']]),
+    });
     assert.equal(await promoteCommand(cwd, new Map(), ['cart.ts'], ctx), 0);
     assert.ok(existsSync(join(cwd, 'src/cart.laws.ts')));
     assert.match(out.join(''), /moved to src\/cart\.laws\.ts/);
@@ -543,7 +1057,7 @@ describe('the promote and propose commands', () => {
     addProposal(cwd, 'cart.ts', `const size = 3;\n${source}\nexport law again(n: number) { return size > 0; }\n`);
     const stored = readFileSync(join(cwd, '.tslaws/proposals/cart.ts'), 'utf8');
     const refused = ctxFor({
-      ask: async (q: string) => (q.includes('helper code') ? 'n' : ''),
+      ask: async (q: string) => (q.includes('code to ') ? 'n' : ''),
       checkFile: async () => new Map(),
     });
     assert.equal(await promoteCommand(cwd, new Map(), ['cart.ts'], refused.ctx), 0);
@@ -561,7 +1075,7 @@ describe('the promote and propose commands', () => {
     assert.equal(await promoteCommand(cwd, new Map([['yes', true]]), ['cart.ts'], yes.ctx), 0);
     assert.match(yes.out.join(''), /helpers \(1\):\nconst size = 3;/);
     assert.ok(
-      asked.every((q) => !q.includes('helper code')),
+      asked.every((q) => !q.includes('code to ')),
       asked.join('|'),
     );
     assert.match(readFileSync(join(cwd, 'src/cart.laws.ts'), 'utf8'), /const size = 3;/);

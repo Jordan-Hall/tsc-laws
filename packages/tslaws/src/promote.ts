@@ -5,7 +5,7 @@ import ts from 'typescript';
 import { ignoredDirs, namesLawsFile } from './lawFiles.ts';
 import { directProjectImports } from './lawKinds.ts';
 import { acceptedLawName, isProposedLawFile } from './lawNames.ts';
-import { existingProposal, importsForTarget, ProposalError } from './proposals.ts';
+import { assertImportsAllowed, existingProposal, importsForTarget, ProposalError } from './proposals.ts';
 
 export interface ParsedLaw {
   name: string;
@@ -674,9 +674,20 @@ export interface PromoteHost {
 }
 
 /**
- * Prints the imports and helper declarations a promote adds, in full, before anything is written. When helpers are
- * copied it asks the person to confirm (the imports are shown too; like a law's imports they are only listed); `yes`
- * skips the question. Returns whether to go on; true when no helper is copied.
+ * Throws unless every file the code a promote adds names by a relative or absolute path is reviewed code: inside the
+ * project, outside `.tslaws/`, `node_modules` and `.git`, and not git-ignored. `dir` is the project-relative directory of
+ * the file the code lands in, which is where its specifiers are read from. Checks the new imports, the copied helpers and
+ * the promoted laws, so a `require` or `import()` in either is covered.
+ */
+function assertPlanImportsAllowed(cwd: string, dir: string, plan: AcceptedPlan, laws: ParsedLaw[]): void {
+  const pieces = [plan.imports.join('\n'), ...plan.declarations.map((d) => d.text), ...laws.map((l) => l.text)];
+  for (const piece of pieces) assertImportsAllowed(cwd, piece, dir === '.' ? '' : dir);
+}
+
+/**
+ * Prints the imports and helper declarations a promote adds, in full, before anything is written, and asks the person
+ * to confirm: both are code that becomes part of the trusted tree. `yes` skips the question. Returns whether to go on;
+ * true when nothing is added.
  */
 async function confirmAdditions(
   host: { ask: (question: string) => Promise<string>; out: (text: string) => void; yes?: boolean },
@@ -690,12 +701,17 @@ async function confirmAdditions(
   if (plan.declarations.length > 0)
     shown += `\nhelpers (${plan.declarations.length}):\n${plan.declarations.map((d) => d.text.trim()).join('\n\n')}\n`;
   host.out(shown);
-  if (plan.declarations.length === 0) return true;
   if (host.yes === true) {
     host.out('adding it (--yes)\n');
     return true;
   }
-  return (await host.ask(`add this helper code to ${target}? [y/N] `)).trim().toLowerCase() === 'y';
+  const what =
+    plan.imports.length > 0 && plan.declarations.length > 0
+      ? 'import and helper'
+      : plan.imports.length > 0
+        ? 'import'
+        : 'helper';
+  return (await host.ask(`add this ${what} code to ${target}? [y/N] `)).trim().toLowerCase() === 'y';
 }
 
 /** Walks the proposed files, asks per law, and rewrites the accepted and proposed files. Returns the number promoted. */
@@ -726,6 +742,7 @@ export async function promoteFiles(host: PromoteHost, proposedFiles: string[]): 
     let plan: AcceptedPlan;
     try {
       plan = planAccepted(existing, parsed.imports, chosen, parsed.declarations);
+      assertPlanImportsAllowed(host.cwd, posix.dirname(accepted), plan, chosen);
     } catch (error) {
       host.out(
         `${accepted}: ${error instanceof Error ? error.message : String(error)}; nothing promoted from ${file}\n`,
@@ -854,6 +871,7 @@ export async function promoteProposal(
   let plan: AcceptedPlan;
   try {
     plan = planAccepted(existing, moved.imports, moved.laws, moved.declarations);
+    assertPlanImportsAllowed(host.cwd, toDir, plan, moved.laws);
   } catch (error) {
     host.out(`${target}: ${error instanceof Error ? error.message : String(error)}; nothing moved\n`);
     return {};

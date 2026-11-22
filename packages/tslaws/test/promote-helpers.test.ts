@@ -2,6 +2,7 @@
 // Pure file work: no compiler needed. Needs `npm run build`.
 import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { after, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -55,7 +56,7 @@ describe('helper code is shown and confirmed before promote copies it', () => {
     assert.match(output, /imports \(1\):\nimport \{ rate \} from '\.\/rates';/);
     assert.match(output, /helpers \(1\):\n\/\*\* The step\. \*\/\nconst step = \(n: number\): number => n \+ 1;/);
     assert.ok(output.indexOf('const step') < output.indexOf('1 law moved'));
-    assert.match(asked[asked.length - 1]!, /add this helper code to p\.laws\.ts\? \[y\/N\]/);
+    assert.match(asked[asked.length - 1]!, /add this import and helper code to p\.laws\.ts\? \[y\/N\]/);
     assert.match(readFileSync(join(dir, 'p.laws.ts'), 'utf8'), /const step =/);
   });
 
@@ -79,14 +80,54 @@ describe('helper code is shown and confirmed before promote copies it', () => {
     assert.match(readFileSync(join(dir, 'p.laws.ts'), 'utf8'), /const step =/);
   });
 
-  it('lists the imports of a law that needs no helper, without a second question', async () => {
-    const { output, asked } = await run(
-      'imports-only',
-      "import { rate } from './rates';\nexport law positive() => rate > 0;\n",
-      { answers: ['y'] },
-    );
-    assert.match(output, /imports \(1\):/);
-    assert.equal(asked.length, 1);
+  it('confirms the imports of a law that needs no helper, and writes nothing on n', async () => {
+    const text = "import { rate } from './rates';\nexport law positive() => rate > 0;\n";
+    const yes = await run('imports-only', text, { answers: ['y', 'y'] });
+    assert.match(yes.output, /imports \(1\):/);
+    assert.match(yes.asked[1]!, /add this import code to p\.laws\.ts\? \[y\/N\]/);
+    assert.ok(existsSync(join(yes.dir, 'p.laws.ts')));
+    const no = await run('imports-declined', text, { answers: ['y', 'n'] });
+    assert.match(no.output, /nothing promoted from p\.proposed\.laws\.ts/);
+    assert.ok(!existsSync(join(no.dir, 'p.laws.ts')));
+  });
+
+  it('refuses an import of code a person has not reviewed, even with yes', async () => {
+    const outside = [
+      ['into-tslaws', "import { x } from './.tslaws/proposals/evil';"],
+      ['into-node-modules', "import { x } from './node_modules/pkg/index.js';"],
+      ['outside', "import { x } from '../../elsewhere';"],
+      ['absolute', "import { x } from '/etc/passwd';"],
+      ['file-url', "import { x } from 'file:///tmp/x.js';"],
+      ['require', "const y = require('./.tslaws/proposals/evil');"],
+    ] as const;
+    for (const [name, line] of outside) {
+      const text = line.startsWith('import')
+        ? `${line}\nexport law l() => x === 1;\n`
+        : `export law l() => { ${line} return true; };\n`;
+      const { output, dir } = await run(name, text, { answers: ['y', 'y'], yes: true });
+      assert.match(output, /an import must name code that is inside the project/, `${name}: ${output}`);
+      assert.match(output, /nothing promoted/, name);
+      assert.ok(!existsSync(join(dir, 'p.laws.ts')), name);
+    }
+  });
+
+  it('refuses an import of a git-ignored file when the project is in a repository', async () => {
+    const dir = join(root, 'ignored-repo');
+    mkdirSync(join(dir, 'gen'), { recursive: true });
+    spawnSync('git', ['init', '-q'], { cwd: dir });
+    writeFileSync(join(dir, '.gitignore'), 'gen/\n');
+    writeFileSync(join(dir, 'gen', 'rates.ts'), 'export const rate = 1;\n');
+    writeFileSync(join(dir, 'ok.ts'), 'export const ok = 1;\n');
+    const refused = await run('ignored-repo', "import { rate } from './gen/rates';\nexport law l() => rate === 1;\n", {
+      yes: true,
+    });
+    assert.match(refused.output, /git ignores/);
+    assert.ok(!existsSync(join(dir, 'p.laws.ts')));
+    const allowed = await run('ignored-repo', "import { ok } from './ok';\nexport law l() => ok === 1;\n", {
+      yes: true,
+    });
+    assert.doesNotMatch(allowed.output, /an import must name code/);
+    assert.match(allowed.output, /1 law moved/);
   });
 
   it('planAccepted returns the new imports and the copied helpers, and leaves out what the accepted file has', () => {
