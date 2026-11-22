@@ -15,8 +15,6 @@ const root = mkdtempSync(join(here, '..', '.tmp-mutate-'));
 
 after(() => {
   rmSync(root, { recursive: true, force: true });
-  // Z3's worker threads keep the test process alive.
-  setTimeout(() => process.exit(process.exitCode ?? 0), 100).unref();
 });
 
 function project(name: string, files: Record<string, string>): string {

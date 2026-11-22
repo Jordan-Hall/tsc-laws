@@ -17,8 +17,6 @@ const root = mkdtempSync(join(here, '..', '.tmp-'));
 
 after(async () => {
   rmSync(root, { recursive: true, force: true });
-  // Z3's worker threads keep the test process alive.
-  setTimeout(() => process.exit(process.exitCode ?? 0), 100).unref();
 });
 
 function project(name: string, files: Record<string, string>): string {
@@ -80,7 +78,9 @@ describe('tslaws check', { skip: compiler === undefined ? 'set TSC_LAWS_BIN' : f
       'src/f.laws.ts':
         "import { dedupe } from './f';\nexport law keepsLength(xs: number[]) => dedupe(xs).length === xs.length;\n",
     });
-    const opts = options(cwd, ['src/f.laws.ts']);
+    // A fixed seed: the shrunk pair is two equal numbers, and which numbers they are depends on the random search. A
+    // random seed sometimes ended on a fraction such as 5e-324, which the pattern below does not accept.
+    const opts = options(cwd, ['src/f.laws.ts'], { seed: 42 });
     lockNow(opts);
     const report = await check(opts, true);
     const result = byName(report.results, 'keepsLength');

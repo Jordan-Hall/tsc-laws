@@ -22,7 +22,6 @@ const saved = process.env.TSLAWS_CVC5;
 after(() => {
   rmSync(root, { recursive: true, force: true });
   rmSync(projects, { recursive: true, force: true });
-  setTimeout(() => process.exit(process.exitCode ?? 0), 100).unref();
 });
 
 afterEach(() => {

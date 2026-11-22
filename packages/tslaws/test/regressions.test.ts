@@ -25,7 +25,6 @@ const root = mkdtempSync(join(here, '..', '.tmp-regress-'));
 
 after(() => {
   rmSync(root, { recursive: true, force: true });
-  setTimeout(() => process.exit(process.exitCode ?? 0), 100).unref();
 });
 
 function write(dir: string, files: Record<string, string>): void {

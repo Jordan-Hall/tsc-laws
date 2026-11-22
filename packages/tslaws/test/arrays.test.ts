@@ -4,6 +4,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { after, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import './serial-solver.ts';
 import { check } from '../dist/check.js';
 import { readManifest } from '../dist/compile.js';
 import { writeLock } from '../dist/lock.js';
@@ -15,7 +16,6 @@ const root = mkdtempSync(join(here, '..', '.tmp-arrays-'));
 
 after(() => {
   rmSync(root, { recursive: true, force: true });
-  setTimeout(() => process.exit(process.exitCode ?? 0), 100).unref();
 });
 
 function project(name: string, files: Record<string, string>): CheckOptions {

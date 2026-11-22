@@ -18,8 +18,6 @@ const root = mkdtempSync(join(here, '..', '.tmp-bundler-node-'));
 
 after(() => {
   rmSync(root, { recursive: true, force: true, maxRetries: 5 });
-  // Z3's worker threads keep the test process alive.
-  setTimeout(() => process.exit(process.exitCode ?? 0), 100).unref();
 });
 
 /** A fake component format: `<p class="{{kind}}">{{text}}</p>` becomes a function from props to an HTML string. */
