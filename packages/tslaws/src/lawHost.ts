@@ -187,7 +187,13 @@ function load(outDir: string, law: ManifestLaw, env: ImportMetaEnv, fresh: boole
 const message = (error: unknown): string => (error instanceof Error ? error.message : String(error));
 
 // The parent is the only reason to run: when its channel closes, so does this process.
-process.on('disconnect', () => process.exit(0));
+// It ends by draining, not by `process.exit` (which joins V8's background threads and can hang, see #78); a law that keeps
+// the loop busy is cut off after a moment by the kill captured before the laws could take it away.
+const killSelf = process.kill.bind(process);
+process.on('disconnect', () => {
+  process.exitCode = 0;
+  setTimeout(() => killSelf(process.pid, 'SIGKILL'), 3000).unref();
+});
 
 process.on('message', async (request: HostRequest) => {
   if (typeof request !== 'object' || request === null) return;

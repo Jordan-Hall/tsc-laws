@@ -87,10 +87,9 @@ export function packageDirOf(path: string): string | undefined {
 // or the `Error` global cannot change what the guard sees.
 const ErrorClass = Error;
 const captureStackTrace = Error.captureStackTrace.bind(Error);
-const selfPath = normal(
-  fileURLToPath(import.meta.url),
-); /** The directory of tslaws's own files: they alone may read the list of Node's modules (`module.builtinModules`). */
-const selfRoot = selfPath.slice(0, selfPath.lastIndexOf('/')).replace(/\/(dist|src)$/, '');
+const selfPath = normal(fileURLToPath(import.meta.url));
+/** tslaws's own code (`dist` or `src`, not the rest of the package directory): it alone may read `module.builtinModules`. */
+const selfRoot = selfPath.slice(0, selfPath.lastIndexOf('/'));
 
 /**
  * The file that is really asking: the closest frame of the call stack that is neither Node's own nor this file. A

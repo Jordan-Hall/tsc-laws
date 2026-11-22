@@ -449,7 +449,8 @@ export class Sandbox {
   constructor(cwd: string, config: HostConfig) {
     this.cwd = cwd;
     this.config = config;
-    this.pool = poolFor(cwd, []);
+    // The files of the reviewed set that sit outside the project (reached through `paths`) are readable by name, and no more.
+    this.pool = poolFor(cwd, config.outside);
   }
 
   /** Sends one request to a process of its own, and gives up on it after `timeoutMs`. */

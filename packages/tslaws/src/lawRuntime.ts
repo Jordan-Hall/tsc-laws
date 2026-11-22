@@ -199,9 +199,24 @@ function readableSys(sys: ts.System): ts.ModuleResolutionHost {
     };
   return {
     fileExists: safe(sys.fileExists, false),
-    directoryExists: safe(sys.directoryExists, false),
+    // `sys` answers "no" for a directory the process may not read. TypeScript then skips the files under it, and a file the
+    // process may read (one granted by name, outside the project) sits in one: such a directory is taken to exist.
+    directoryExists: (path) => {
+      try {
+        return statSync(path).isDirectory();
+      } catch (error) {
+        return (error as { code?: string }).code === 'ERR_ACCESS_DENIED';
+      }
+    },
     readFile: safe(sys.readFile, undefined),
-    realpath: sys.realpath === undefined ? undefined : safe(sys.realpath, undefined as unknown as string),
+    // A path it may not resolve is taken as it is: resolving walks the directories above, which the process may not read.
+    realpath: (path) => {
+      try {
+        return sys.realpath?.(path) ?? path;
+      } catch {
+        return path;
+      }
+    },
     getCurrentDirectory: () => sys.getCurrentDirectory(),
     getDirectories: safe(sys.getDirectories, []),
   };

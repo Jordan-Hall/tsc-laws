@@ -151,7 +151,11 @@ for (const [label, compiler] of compilers) {
 
     it('loads a package whose exports offer only an import condition, by its main entry and by a subpath', async () => {
       const cwd = project({
-        'package.json': JSON.stringify({ name: 'import-only-project', type: 'module' }),
+        'package.json': JSON.stringify({
+          name: 'import-only-project',
+          type: 'module',
+          dependencies: { 'import-only': '1.0.0' },
+        }),
         'tsconfig.json': nodenext,
         'node_modules/import-only/package.json': JSON.stringify({
           name: 'import-only',
