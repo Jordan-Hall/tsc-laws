@@ -12,12 +12,12 @@ ERROR    the largest is never negative (src/math.laws.ts:15) [smt]
          certificate: uncertified (proved with loop invariants found by a Horn solver; cvc5 and Carcara have no proof of that to check)
 TESTED   the average sits between (src/math.laws.ts:16) [property]
          solver gave up within 5000 ms
-ERROR    half is at most n (src/math.laws.ts:20) [smt]
-         "certify": "require" is set but the proof is uncertified (Carcara did not accept the proof (invalid))
-         certificate: uncertified (Carcara did not accept the proof (invalid))
-ERROR    clamping never goes below the floor (src/math.laws.ts:24) [smt]
-         "certify": "require" is set but the proof is uncertified (cvc5 does not define the rewrite rules the proof uses: ite-eq)
-         certificate: uncertified (cvc5 does not define the rewrite rules the proof uses: ite-eq)
+PROVED   half is at most n (src/math.laws.ts:20) [smt]
+         assuming: int parameters stay within ±(2^53 - 1)
+         certificate: certified
+PROVED   clamping never goes below the floor (src/math.laws.ts:24) [smt]
+         assuming: int parameters stay within ±(2^53 - 1)
+         certificate: certified
 
-8 laws: 3 proved, 0 bounded, 1 tested, 0 open, 0 failed, 0 tampered, 4 errors
+8 laws: 5 proved, 0 bounded, 1 tested, 0 open, 0 failed, 0 tampered, 2 errors
 exit status 1

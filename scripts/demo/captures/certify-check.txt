@@ -14,9 +14,9 @@ TESTED   the average sits between (src/math.laws.ts:16) [property]
          solver gave up within 5000 ms
 PROVED   half is at most n (src/math.laws.ts:20) [smt]
          assuming: int parameters stay within ±(2^53 - 1)
-         certificate: uncertified (Carcara did not accept the proof (invalid))
+         certificate: certified
 PROVED   clamping never goes below the floor (src/math.laws.ts:24) [smt]
          assuming: int parameters stay within ±(2^53 - 1)
-         certificate: uncertified (cvc5 does not define the rewrite rules the proof uses: ite-eq)
+         certificate: certified
 
 8 laws: 7 proved, 0 bounded, 1 tested, 0 open, 0 failed, 0 tampered, 0 errors

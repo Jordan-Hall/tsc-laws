@@ -1,7 +1,7 @@
 # Publishing the VS Code extension
 
 The `marketplace` job in `.github/workflows/laws.yml` publishes the extension to the Visual Studio Marketplace and to Open VSX
-when a `laws-v*` tag is pushed. It stays off until you set the `VSCODE_PUBLISH` variable. Each store is its own step. Open VSX publishes with trusted publishing, or with an `OVSX_PAT` token when that secret exists, and a failure at one store does not stop the other from being tried. Running
+when a `laws-v*` tag is pushed. It stays off until you set the `VSCODE_PUBLISH` variable. Each store is its own step. Open VSX publishes with trusted publishing (no token secret), and a failure at one store does not stop the other from being tried. Running
 the job again for a version that is already live is not a failure.
 
 Do these steps once, in this order. Never paste a token into chat or a commit.
@@ -20,7 +20,7 @@ exchanges it for a short-lived Marketplace token. The `marketplace` job has `id-
    - Repository owner: `Jordan-Hall`.
    - Repository: `tsc-laws` (the name only, not the URL).
    - Workflow: `laws.yml`.
-   - Environment: leave empty (the job uses no environment).
+   - Environment: leave empty (any environment is trusted), or set `release`, which the job uses.
 4. Do not create `VSCE_PAT`. With no `VSCE_PAT` secret the job uses OIDC.
 
 The workflow pins `@vscode/vsce` at 4.1.0. Version 4.0.0 is reported to have a token-exchange bug fixed in 4.1.0, and 4.x
@@ -50,7 +50,7 @@ Use this only if trusted publishing does not work. When the `VSCE_PAT` secret ex
 
 ## Open VSX: trusted publishing (recommended)
 
-Per the [Open VSX Trusted Publishing guide](https://github.com/eclipse-openvsx/openvsx/wiki/Trusted-Publishing), the registry issues a short-lived publishing token (about five minutes) to a workflow that matches a trusted publisher you have registered, so there is no long-lived secret to store. The workflow runs `ovsx@1.3.0 publish --trusted-publishing`, and the `marketplace` job already has `id-token: write`.
+Per the [Open VSX Trusted Publishing guide](https://github.com/eclipse-openvsx/openvsx/wiki/Trusted-Publishing), the registry issues a short-lived publishing token (about five minutes) to a workflow that matches a trusted publisher you have registered, so there is no long-lived secret to store. The workflow runs `ovsx@1.3.0 publish --trusted-publishing` (audience defaults to the registry URL), and the `marketplace` job already has `id-token: write`.
 
 This has not been exercised by a real tag run yet. Check the first publish.
 
@@ -60,37 +60,19 @@ The namespace must be exactly `ts-laws`, the `publisher` in `packages/vscode-tsl
 2. Accept the Eclipse publisher agreement from your profile page. Publishing is refused until you have.
 3. Create the namespace as `ts-laws` (user settings, Namespaces).
 4. Open the `ts-laws` namespace page and click Claim Ownership. This opens a request that the Open VSX team approves. Until it is approved, extensions published there can stay inactive, and you cannot register a trusted publisher.
-5. One-time bootstrap: publish the first version with an access token. The guide says a trusted publisher can only be registered for an extension that already has an active version. Create a token at <https://open-vsx.org/user-settings/tokens>, then do either of these:
-   - Set the secret for exactly one release: `gh secret set OVSX_PAT -R Jordan-Hall/tsc-laws`. The `marketplace` job runs only when the repository variable is `true`, so set it before you push the tag: `gh variable set VSCODE_PUBLISH --body true -R Jordan-Hall/tsc-laws` (see [Switch it on](#switch-it-on)). Then push the tag and delete the secret afterwards.
-   - Or publish the `.vsix` from the GitHub release by hand, typing the token in your own terminal, never in chat: `npx ovsx@1.3.0 publish tslaws-vscode-<version>.vsix -p <token>`
+5. One-time bootstrap: publish the first version with an access token. The guide says a trusted publisher can only be registered for an extension that already has an active version. Create a token at <https://open-vsx.org/user-settings/tokens>, then publish it by hand:
+   - Publish the `.vsix` from the GitHub release by hand, typing the token in your own terminal, never in chat: `npx ovsx@1.3.0 publish tslaws-vscode-<version>.vsix -p <token>`
 6. Open Trusted Publishers in the sidebar and add one with these fields:
    - Provider: GitHub Actions
    - Repository owner: `Jordan-Hall`
    - Repository: `tsc-laws`
    - Workflow: `laws.yml`
-   - Environment: leave empty (the job uses no environment)
-7. Delete the `OVSX_PAT` secret if you set one. From the next release the workflow uses trusted publishing.
+   - Environment: leave empty (any environment is trusted), or set `release`, which the job uses
+7. From the next release the workflow uses trusted publishing. No token secret is needed.
 
 Keep at least one version of the extension active. If every version is deleted, the registration stops matching until a version is active again.
 
 If the publish fails with "no trusted publisher matches", the registry gives that one message for every mismatch: a missing first version, a namespace with the wrong casing, or wrong registration fields. The workflow prints an error listing each. If the namespace is not verified, it says to claim it. Only the Open VSX step fails; the Marketplace step is unaffected.
-
-### Fallback: an access token
-
-If a repository secret `OVSX_PAT` exists, the step uses it instead of trusted publishing.
-
-1. Create a token at <https://open-vsx.org/user-settings/tokens>.
-2. Create the namespace once as `ts-laws`, if you have not. This puts the token on the command line for a moment, so run it from a private terminal:
-
-   ```sh
-   npx ovsx create-namespace ts-laws -p <token>
-   ```
-
-3. Add the token to the repository:
-
-   ```sh
-   gh secret set OVSX_PAT -R Jordan-Hall/tsc-laws
-   ```
 
 You can do just one store.
 
@@ -126,7 +108,7 @@ Re-running a failed job is safe. A version that a store already has is reported 
 Trusted publishing has no token to rotate. To stop it, delete the policy on the publisher. For the tokens:
 
 1. Create the replacement token with the same scope, as above.
-2. Run `gh secret set VSCE_PAT -R Jordan-Hall/tsc-laws` (or `OVSX_PAT`) and enter the new value.
+2. Run `gh secret set VSCE_PAT -R Jordan-Hall/tsc-laws` and enter the new value.
 3. Revoke the old token: in Azure DevOps under "Personal access tokens", or at open-vsx.org/user-settings/tokens.
 4. If a token may have leaked, revoke it first, then replace it.
 

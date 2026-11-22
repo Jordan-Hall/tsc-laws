@@ -1,0 +1,6 @@
+permissions:
+  actions: read
+  contents: read
+  id-token: write
+# ...
+npm publish "$package" --provenance --access public
