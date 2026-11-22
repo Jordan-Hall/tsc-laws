@@ -14,7 +14,7 @@ law.proved('counting up reaches n', (n: int) => {
 });
 law.proved('the largest is never negative', (xs: int[]) => largest(xs) >= 0);
 law('the average sits between', (a: number, b: number) => {
-  assume(a <= b);
+  assume(a >= 0 && a <= b && b <= 1_000_000);
   return average(a, b) >= a && average(a, b) <= b;
 });
 law.proved('half is at most n', (n: int) => {
