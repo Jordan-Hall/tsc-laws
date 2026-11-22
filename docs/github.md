@@ -115,8 +115,32 @@ With `local` true, a person can accept without the workflow:
 
 ## Workflows
 
-The report job runs the pull request's code, so it only advises. The decision is made on the trusted branch. tslaws
-removes `GITHUB_TOKEN` from its environment before it runs any law, so a law under test cannot use the token.
+The report job runs the pull request's code, so it only advises. The decision is made on the trusted branch.
+
+### What keeps a token from the laws
+
+A law, and any module a law imports, is code a pull request wrote. `report` and `merge` guarantee this about it:
+
+- **Its own process has no credentials.** Every law runs in a child process that starts with an allowlisted
+  environment: `PATH`, `HOME`, `USERPROFILE`, the temporary-directory and locale variables, `CI`, `NODE_ENV`,
+  `TSC_LAWS_*`, `TSLAWS_*` and `TSC_TS_*`. `GITHUB_*`, `GH_*`, `ACTIONS_*`, `RUNNER_*`, and any name that looks like a
+  credential (`*TOKEN*`, `*SECRET*`, `*PASSWORD*`, `*_KEY`) are dropped, and `NODE_OPTIONS` keeps only memory limits. So
+  `process.env` and `/proc/self/environ` in a law hold no token. The process that talks to GitHub receives the laws'
+  reports as plain data, checks their shape, and only then comments or writes the lock. A law that reads another
+  variable needs it named with a `TSLAWS_` prefix.
+- **With the workflows below, it never runs beside the token.** The laws run in a job that holds no token, and its
+  checkout has `persist-credentials: false`, so `.git/config` holds none either. A second job, which runs none of the
+  pull request's code, downloads the reports as an artifact and does the GitHub work. The app's token is minted in that
+  job after every step that installs anything.
+
+What this does not do. A process that runs as the same user can read the environment of the other processes and the
+files of the checkout, so a single job that holds the token while the laws run is protected from `process.env` reads
+but not from a determined law: run the two jobs. The reports are data that the laws' job produced, so a law can lie
+about its own result; the token stays safe, and the lock still records only what a person, or the `merge` flow,
+accepts for that exact version of the law. Files in the workspace and the home directory (an `.npmrc` with a registry
+token, for example) are readable by laws, so keep credentials out of the laws job. The job that holds the token still
+compiles the pull request's files, reads their config and lock, and installs dependencies from the lockfile before the
+token exists.
 
 The action always runs the `tslaws` installed in `tslaws-root` (default: the workspace root) by path. It never looks
 `tslaws` up from `working-directory`, so in the command job, where `working-directory` is the pull request's files,
@@ -127,18 +151,47 @@ also refuses a compiler found among the pull request's files.
 # .github/workflows/tslaws-pr.yml
 name: tslaws
 on: pull_request
-permissions: { contents: read, pull-requests: write }
+permissions: { contents: read }
 jobs:
-  report:
+  laws: # runs the pull request's code, so it holds no token
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with: { ref: '${{ github.event.pull_request.head.sha }}', persist-credentials: false }
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
       - run: npm ci
       - uses: Jordan-Hall/tsc-laws/packages/tslaws/github@main
-        with: { mode: report, token: '${{ github.token }}', args: --comment }
+        with: { mode: report, args: '--results-out ${{ runner.temp }}/tslaws-results.json' }
+      - uses: actions/upload-artifact@v4
+        with: { name: tslaws-results, path: '${{ runner.temp }}/tslaws-results.json' }
+  report: # holds the token, and runs none of the pull request's code
+    needs: laws
+    runs-on: ubuntu-latest
+    permissions: { contents: read, pull-requests: write }
+    steps:
+      - uses: actions/checkout@v4 # the base branch: trusted tools
+        with: { ref: '${{ github.event.pull_request.base.sha }}', persist-credentials: false }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: npm ci
+      - uses: actions/checkout@v4 # the pull request's files, read as data only (no npm ci, no scripts)
+        with: { ref: '${{ github.event.pull_request.head.sha }}', path: pr, persist-credentials: false }
+      - uses: actions/download-artifact@v4
+        with: { name: tslaws-results, path: '${{ runner.temp }}' }
+      - uses: Jordan-Hall/tsc-laws/packages/tslaws/github@main
+        with:
+          mode: report
+          working-directory: pr
+          install: 'false'
+          token: '${{ github.token }}'
+          args: --comment --config-from .. --results ${{ runner.temp }}/tslaws-results.json
 ```
+
+`--results-out <file>` runs the laws and writes each project's report to the file; it needs no token. `--results <file>`
+acts on such a file and runs no law; it refuses a file made for another commit or another mode, and a project whose lock
+is not the one its laws ran against. In a single job, `report` and `merge` without these flags still run the laws in
+the token-free child, with the limits above.
 
 ```yaml
 # .github/workflows/tslaws-verify.yml — runs the base branch's code; the pull request's files are never executed
@@ -150,6 +203,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4 # the base branch
+        with: { persist-credentials: false }
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
       - run: npm ci
@@ -177,6 +231,7 @@ jobs:
         id: app
         with: { app-id: '${{ vars.TSLAWS_APP_ID }}', private-key: '${{ secrets.TSLAWS_APP_KEY }}' }
       - uses: actions/checkout@v4 # the default branch: trusted tools and config
+        with: { persist-credentials: false }
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
       - run: npm ci
@@ -201,19 +256,43 @@ on:
 concurrency: { group: tslaws-lock, cancel-in-progress: false }
 permissions: { contents: read }
 jobs:
-  merge:
+  laws: # runs the branch's code, so it holds no token and no app key
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/create-github-app-token@v1
-        id: app
-        with: { app-id: '${{ vars.TSLAWS_APP_ID }}', private-key: '${{ secrets.TSLAWS_APP_KEY }}' }
       - uses: actions/checkout@v4
+        with: { persist-credentials: false }
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
       - run: npm ci
       - uses: Jordan-Hall/tsc-laws/packages/tslaws/github@main
-        with: { mode: merge, token: '${{ steps.app.outputs.token }}' }
+        with: { mode: merge, args: '--results-out ${{ runner.temp }}/tslaws-results.json' }
+      - uses: actions/upload-artifact@v4
+        with: { name: tslaws-results, path: '${{ runner.temp }}/tslaws-results.json' }
+  merge: # holds the app's token, and runs none of the branch's code
+    needs: laws
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 } # no cache: see "Monorepos"
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with: { name: tslaws-results, path: '${{ runner.temp }}' }
+      - uses: actions/create-github-app-token@v1 # after every step that installs anything
+        id: app
+        with: { app-id: '${{ vars.TSLAWS_APP_ID }}', private-key: '${{ secrets.TSLAWS_APP_KEY }}' }
+      - uses: Jordan-Hall/tsc-laws/packages/tslaws/github@main
+        with:
+          mode: merge
+          install: 'false'
+          token: '${{ steps.app.outputs.token }}'
+          args: --results ${{ runner.temp }}/tslaws-results.json
 ```
+
+If the lock on the branch moved on after the laws job checked it out (an earlier run's commit), the `merge` job accepts
+nothing and says so: run the workflow again. Without `--results`, `merge` builds on the newer lock instead and runs
+the laws again.
 
 With an app, set `bot` to its login (`<app-slug>[bot]`). The app needs these permissions: **Contents: write**, **Pull
 requests: write**, **Issues: write** and **Actions: write** (Actions is for `--rerun-workflow`).
@@ -268,14 +347,34 @@ may use a cache.
 # .github/workflows/tslaws-pr.yml
 name: tslaws
 on: pull_request
-permissions: { contents: read, pull-requests: write }
+permissions: { contents: read }
 jobs:
-  report:
+  laws:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with: { ref: '${{ github.event.pull_request.head.sha }}', persist-credentials: false }
       - uses: Jordan-Hall/tsc-laws/packages/tslaws/github@main
-        with: { mode: report, token: '${{ github.token }}', args: --comment }
+        with: { mode: report, args: '--results-out ${{ runner.temp }}/tslaws-results.json' }
+      - uses: actions/upload-artifact@v4
+        with: { name: tslaws-results, path: '${{ runner.temp }}/tslaws-results.json' }
+  report:
+    needs: laws
+    runs-on: ubuntu-latest
+    permissions: { contents: read, pull-requests: write }
+    steps:
+      - uses: actions/checkout@v4 # the base branch: trusted tools
+        with: { ref: '${{ github.event.pull_request.base.sha }}', persist-credentials: false }
+      - uses: actions/checkout@v4 # the pull request's files, read as data only
+        with: { ref: '${{ github.event.pull_request.head.sha }}', path: pr, persist-credentials: false }
+      - uses: actions/download-artifact@v4
+        with: { name: tslaws-results, path: '${{ runner.temp }}' }
+      - uses: Jordan-Hall/tsc-laws/packages/tslaws/github@main
+        with:
+          mode: report
+          working-directory: pr
+          token: '${{ github.token }}'
+          args: --comment --config-from .. --results ${{ runner.temp }}/tslaws-results.json
 ```
 
 ```yaml
@@ -286,16 +385,35 @@ on:
 concurrency: { group: tslaws-lock, cancel-in-progress: false }
 permissions: { contents: read }
 jobs:
-  merge:
+  laws:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/create-github-app-token@v1
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: Jordan-Hall/tsc-laws/packages/tslaws/github@main
+        with: { mode: merge, args: '--results-out ${{ runner.temp }}/tslaws-results.json' }
+      - uses: actions/upload-artifact@v4
+        with: { name: tslaws-results, path: '${{ runner.temp }}/tslaws-results.json' }
+  merge:
+    needs: laws
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: actions/download-artifact@v4
+        with: { name: tslaws-results, path: '${{ runner.temp }}' }
+      - uses: actions/create-github-app-token@v1 # the install the action runs is in this job too: see the note below
         id: app
         with: { app-id: '${{ vars.TSLAWS_APP_ID }}', private-key: '${{ secrets.TSLAWS_APP_KEY }}' }
-      - uses: actions/checkout@v4
       - uses: Jordan-Hall/tsc-laws/packages/tslaws/github@main
-        with: { mode: merge, token: '${{ steps.app.outputs.token }}' }
+        with:
+          mode: merge
+          token: '${{ steps.app.outputs.token }}'
+          args: --results ${{ runner.temp }}/tslaws-results.json
 ```
+
+The action installs in a step of its own, where the token is not in the environment. To mint the token only after every
+install, install in an earlier step and pass `install: 'false'`, as in the single-project example.
 
 The `verify` and `command` workflows above work as they are, run from the root. The concurrency group keeps one pending
 run when pushes arrive quickly. That loses nothing: `merge` compares the laws at the branch head with each lock, so the
@@ -306,7 +424,7 @@ run that goes ahead accepts every proposal still outstanding.
 | Input               | Default       | Meaning                                                                                                                                                                                                                                         |
 | ------------------- | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `mode`              | (required)    | `report`, `command`, `merge` or `verify`.                                                                                                                                                                                                       |
-| `token`             | (required)    | The token for the GitHub API; the app's token for `merge` and `command`.                                                                                                                                                                        |
+| `token`             | empty         | The token for the GitHub API; the app's token for `merge` and `command`. Empty in the job that runs the laws (`--results-out`).                                                                                                                 |
 | `working-directory` | `.`           | A project's directory, or a monorepo root.                                                                                                                                                                                                      |
 | `args`              | empty         | Extra arguments for `tslaws github <mode>`.                                                                                                                                                                                                     |
 | `tslaws-root`       | the workspace | The trusted checkout that holds `tslaws`.                                                                                                                                                                                                       |
