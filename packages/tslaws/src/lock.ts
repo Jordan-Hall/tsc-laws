@@ -73,6 +73,26 @@ function certificatesBody(
   return Object.keys(current).length === 0 ? {} : { certificates: current };
 }
 
+/** The lock that records exactly these laws: one entry each, the levels of their files, the certificates still current. */
+export function lockOf(
+  laws: ManifestLaw[],
+  exempt: string[] = [],
+  levels?: Record<string, string>,
+  certificates?: Record<string, CertificateRecord>,
+): Lock {
+  const entries: LockEntries = {};
+  for (const law of [...laws].sort((a, b) => lawKey(a.file, a.name).localeCompare(lawKey(b.file, b.name))))
+    entries[lawKey(law.file, law.name)] = lawHash(law);
+  const recorded: Record<string, string> = {};
+  for (const file of Object.keys(levels ?? {}).sort()) recorded[file.replaceAll('\\', '/')] = levels![file]!;
+  return {
+    laws: entries,
+    exempt: [...exempt],
+    ...(levels === undefined ? {} : { levels: recorded }),
+    ...certificatesBody(entries, certificates),
+  };
+}
+
 export function writeLock(
   path: string,
   laws: ManifestLaw[],
@@ -80,19 +100,41 @@ export function writeLock(
   levels?: Record<string, string>,
   certificates?: Record<string, CertificateRecord>,
 ): void {
-  const entries: LockEntries = {};
-  for (const law of [...laws].sort((a, b) => lawKey(a.file, a.name).localeCompare(lawKey(b.file, b.name))))
-    entries[lawKey(law.file, law.name)] = lawHash(law);
-  const recorded: Record<string, string> = {};
-  for (const file of Object.keys(levels ?? {}).sort()) recorded[file.replaceAll('\\', '/')] = levels![file]!;
-  const body = {
-    version: 1,
-    laws: entries,
-    exempt: [...exempt].sort(),
-    ...(levels === undefined ? {} : { levels: recorded }),
-    ...certificatesBody(entries, certificates),
+  writeLockValue(path, lockOf(laws, exempt, levels, certificates));
+}
+
+export const fileOfKey = (key: string): string => key.slice(0, key.lastIndexOf('::'));
+
+/** The laws files, as the lock names them, of a run that named files. */
+export function scopeOf(files: readonly string[]): ReadonlySet<string> {
+  return new Set(files.map((f) => f.replaceAll('\\', '/')));
+}
+
+/**
+ * The lock after a run that covered only the files in `scope` was accepted: `next` replaces what the lock holds for
+ * those files, and every entry of a file outside the scope (law, level, certificate) stays as it was. Exemptions are
+ * only added: a run of some files cannot tell whether an exemption in the rest still stands.
+ */
+export function mergeScoped(lock: Lock | undefined, scope: ReadonlySet<string>, next: Lock): Lock {
+  if (lock === undefined) return next;
+  const outside = (key: string): boolean => !scope.has(fileOfKey(key));
+  const laws: LockEntries = { ...next.laws };
+  for (const [key, hash] of Object.entries(lock.laws)) if (outside(key)) laws[key] = hash;
+  const certificates = { ...next.certificates };
+  for (const [key, record] of Object.entries(lock.certificates ?? {})) if (outside(key)) certificates[key] = record;
+  const levels =
+    next.levels === undefined && lock.levels === undefined
+      ? undefined
+      : {
+          ...Object.fromEntries(Object.entries(lock.levels ?? {}).filter(([file]) => !scope.has(file))),
+          ...next.levels,
+        };
+  return {
+    laws,
+    exempt: [...new Set([...lock.exempt, ...next.exempt])],
+    ...(levels === undefined ? {} : { levels }),
+    ...(Object.keys(certificates).length === 0 ? {} : { certificates }),
   };
-  writeFileSync(path, JSON.stringify(body, null, 2) + '\n');
 }
 
 export interface LockViolation {
@@ -103,12 +145,14 @@ export interface LockViolation {
 /**
  * `levels` is the level each laws file resolves to now, or undefined when levels come from names and the lock has no
  * levels section (then nothing about levels is compared). A law whose file's level is not the locked one, or is not
- * locked at all, is a violation until a person accepts again.
+ * locked at all, is a violation until a person accepts again. `scope` is the laws files of a run that named files:
+ * only a law locked in one of them can be removed; the locked laws of other files are not part of the run.
  */
 export function compareLock(
   lock: LockEntries | undefined,
   laws: ManifestLaw[],
   levels?: { locked: Record<string, string> | undefined; now: Record<string, string> },
+  scope?: ReadonlySet<string>,
 ): LockViolation[] {
   const violations: LockViolation[] = [];
   const seen = new Set<string>();
@@ -123,7 +167,9 @@ export function compareLock(
       if (levels.locked?.[file] !== levels.now[file]) violations.push({ key, reason: 'level' });
     }
   }
-  for (const key of Object.keys(lock ?? {})) if (!seen.has(key)) violations.push({ key, reason: 'removed' });
+  for (const key of Object.keys(lock ?? {}))
+    if (!seen.has(key) && (scope === undefined || scope.has(fileOfKey(key))))
+      violations.push({ key, reason: 'removed' });
   return violations;
 }
 

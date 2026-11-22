@@ -159,14 +159,14 @@ export class Session {
     for (const r of report.results) this.last.set(r.name, r);
   }
 
-  private async run(files: string[], enforceLock: boolean): Promise<CheckReport> {
+  private async run(files: string[], enforceLock: boolean, partial = false): Promise<CheckReport> {
     if (files.length === 0)
       throw new ToolError(
         enforceLock
           ? 'no laws files found (looking for *.laws.ts)'
           : 'no proposals found (looking in .tslaws/proposals/, and for in-tree *.proposed.laws.ts files)',
       );
-    const report = await check(options(this.opts, files), enforceLock);
+    const report = await check({ ...options(this.opts, files), partial }, enforceLock);
     this.remember(report);
     return report;
   }
@@ -182,7 +182,7 @@ export class Session {
           given === undefined || given.length === 0
             ? discover(cwd, false)
             : (given as string[]).map((f) => slash(relative(cwd, insideRoot(cwd, f))));
-        const report = await this.run(files, true);
+        const report = await this.run(files, true, given !== undefined && given.length > 0);
         return args.summary === true ? summarised(report) : withHints(report);
       }
       case 'tslaws_list':
