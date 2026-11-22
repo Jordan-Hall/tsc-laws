@@ -1,10 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createRequire } from 'node:module';
 
-const { parseReport, recordsForFile, createStreamParser, parseUiUrl, filesOf } = createRequire(import.meta.url)(
-  '../src/parse-report.js',
-);
+import { parseReport, recordsForFile, createStreamParser, parseUiUrl, filesOf } from '../src/parse-report.js';
 
 const exercised = {
   name: 'sortNumbers',

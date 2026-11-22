@@ -10,6 +10,8 @@ import type { CheckOptions, ManifestLaw } from './types.ts';
 
 // Property tests run here so that a law over code that never terminates costs a timeout, not the whole check.
 // The main process read the types and sends the generators as plans, so a worker never loads the TypeScript compiler.
+// Compiled laws are CommonJS (see `build` in compile.ts), loaded with `require` so that a recompiled law can be dropped
+// from `require.cache` and loaded again; an `import()` of it could not be forgotten.
 const require = createRequire(import.meta.url);
 installLoaderHooks();
 

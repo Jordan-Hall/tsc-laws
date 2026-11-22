@@ -6,11 +6,9 @@ import fs from 'node:fs';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { createRequire } from 'node:module';
 import { makeFake, makeSpawn, until } from './fake-vscode.mjs';
 
-const require = createRequire(import.meta.url);
-const { activateExtension } = require('../src/host.js');
+import { activateExtension } from '../src/host.js';
 
 const HELP = 'tslaws check [files...] [--reporter text|json|junit|github|ndjson] [--law NAME[,NAME]] [--json]';
 const OLD_HELP = 'tslaws check [files...] [--reporter text|json|junit|github] [--json]';

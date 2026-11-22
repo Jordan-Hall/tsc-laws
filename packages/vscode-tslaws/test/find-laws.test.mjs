@@ -1,8 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createRequire } from 'node:module';
 
-const { findLaws } = createRequire(import.meta.url)('../src/find-laws.js');
+import { findLaws } from '../src/find-laws.js';
 
 test('finds plain, proved, exported and async declarations', () => {
   const text = [

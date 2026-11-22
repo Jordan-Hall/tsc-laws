@@ -41,7 +41,34 @@ describe('init', () => {
     assert.equal(settings.hooks.PreToolUse[0].matcher, 'Bash');
     assert.match(read(d, 'src/example.laws.ts'), /law\('addition commutes'/);
     assert.equal(existsSync(join(d, 'tsc-laws.lock')), false);
-    assert.equal(lines.length, 5);
+    assert.equal(lines.length, 7);
+  });
+
+  it('makes a fresh project an ES module with NodeNext resolution', () => {
+    const d = dir();
+    init({ cwd: d });
+    assert.deepEqual(JSON.parse(read(d, 'package.json')), { private: true, type: 'module' });
+    const { compilerOptions } = JSON.parse(read(d, 'tsconfig.json'));
+    assert.equal(compilerOptions.module, 'nodenext');
+    assert.equal(compilerOptions.strict, true);
+  });
+
+  it('keeps the package.json and tsconfig.json a project has, or inherits from above', () => {
+    const d = dir({
+      'package.json': '{"name":"mine"}\n',
+      'tsconfig.json': '{"compilerOptions":{"module":"commonjs"}}\n',
+    });
+    const lines = init({ cwd: d });
+    assert.equal(read(d, 'package.json'), '{"name":"mine"}\n');
+    assert.equal(read(d, 'tsconfig.json'), '{"compilerOptions":{"module":"commonjs"}}\n');
+    assert.ok(lines.some((l) => l.startsWith('kept     package.json') && l.includes('add it')));
+    const inner = join(d, 'packages', 'inner');
+    mkdirSync(inner, { recursive: true });
+    init({ cwd: inner });
+    assert.equal(existsSync(join(inner, 'package.json')), false);
+    assert.equal(existsSync(join(inner, 'tsconfig.json')), false);
+    const esm = dir({ 'package.json': '{"type":"module"}\n' });
+    assert.ok(init({ cwd: esm }).some((l) => l.includes('already "type": "module"')));
   });
 
   it('is idempotent and never overwrites without --force', () => {

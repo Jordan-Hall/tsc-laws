@@ -1,15 +1,13 @@
-'use strict';
-
 // Getting between a function and its laws, from either end: Go to Laws, Peek Laws, Go to the function a law exercises,
 // Go to law (all laws), Go to Implementation and Find All References on a function (they list its laws), and the laws as
 // document and workspace symbols. The laws a function has come from the last report, and from the laws files' imports
 // where no run has covered them yet (`law-index.js`). `vscode` is passed in.
 
-const path = require('node:path');
-const { buildNavigation, functionIdsFor, isLawsFile, wordAt, key } = require('./law-index.js');
-const { findLaws } = require('./find-laws.js');
-const { statusIcon, inputsText, oneLine } = require('./format.js');
-const { relativeTo } = require('./parse-report.js');
+import path from 'node:path';
+import { buildNavigation, functionIdsFor, isLawsFile, wordAt, key } from './law-index.js';
+import { findLaws } from './find-laws.js';
+import { statusIcon, inputsText, oneLine } from './format.js';
+import { relativeTo } from './parse-report.js';
 
 const SELECTOR = [{ scheme: 'file', pattern: '**/*.{ts,tsx,mts,cts}' }];
 const ORDER = ['failed', 'open', 'tampered', 'error', 'not run', 'tested', 'bounded', 'proved'];
@@ -283,4 +281,4 @@ function createNavigation(vscode, host) {
   };
 }
 
-module.exports = { createNavigation, fuzzy, SELECTOR };
+export { createNavigation, fuzzy, SELECTOR };

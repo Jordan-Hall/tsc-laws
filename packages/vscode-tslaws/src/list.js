@@ -1,5 +1,3 @@
-'use strict';
-
 // What `tslaws list --json` says about the project's laws files, and the Explorer badge each one gets. Pure; no vscode
 // import. The tool decides which files are laws files and at what level they run (from their names by default, from
 // their imports with `levels: "imports"` in tslaws.json); the extension asks instead of matching file names.
@@ -68,4 +66,4 @@ function badgeFor(entry) {
   return { badge: letter, tooltip: `${level}${note}${entry.error === undefined ? '' : `: ${entry.error}`}`, color };
 }
 
-module.exports = { parseList, fromName, badgeFor };
+export { parseList, fromName, badgeFor };

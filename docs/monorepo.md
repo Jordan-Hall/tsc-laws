@@ -181,7 +181,7 @@ resolves through `node_modules`), and workspace packages that point `exports` or
   `resolvePackageJsonImports`, with every path made absolute and `baseUrl` folded into `paths`.
   `allowImportingTsExtensions` becomes `rewriteRelativeImportExtensions`, because tslaws emits JavaScript. `include`,
   `files`, `outDir`, `noEmit`, `module`, `moduleResolution`, `types` and `typeRoots` are ignored: tslaws chooses the law
-  files, compiles to CommonJS and resolves the way a bundler does. `compilerOptions` in `tslaws.json` still win.
+  files, compiles to CommonJS internally (laws still read your ES-module project as such) and resolves the way a bundler does. `compilerOptions` in `tslaws.json` still win.
 - The compiler gets these options in-process (the built-in path) or in a generated `.tslaws/resolution.tsconfig.json`
   (the tsc-laws compiler, where `paths` is not a command line option). The compiler's flags stay on the command line and
   win over that file.

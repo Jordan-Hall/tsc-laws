@@ -1,12 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { createRequire } from 'node:module';
 
-const require = createRequire(import.meta.url);
-const { locate, locateIn, labelOf, describeProject, owningFolder } = require('../src/projects.js');
-const { resolveCommand } = require('../src/command.js');
-const { createStreamParser } = require('../src/parse-report.js');
+import { locate, locateIn, labelOf, describeProject, owningFolder } from '../src/projects.js';
+import { resolveCommand } from '../src/command.js';
+import { createStreamParser } from '../src/parse-report.js';
 
 const at = (...parts) => path.resolve('/w', ...parts);
 

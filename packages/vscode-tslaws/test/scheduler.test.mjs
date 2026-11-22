@@ -1,8 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createRequire } from 'node:module';
 
-const { createScheduler, mergeRequests } = createRequire(import.meta.url)('../src/scheduler.js');
+import { createScheduler, mergeRequests } from '../src/scheduler.js';
 
 /** A clock that only moves when told to. */
 function fakeClock() {

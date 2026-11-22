@@ -1,5 +1,3 @@
-'use strict';
-
 const ORDER = ['proved', 'bounded', 'tested', 'open', 'failed', 'uncovered', 'tampered', 'error'];
 const PASSING = new Set(['proved', 'bounded', 'tested']);
 
@@ -39,4 +37,4 @@ function allPass(records) {
   return records !== null && records.every((r) => PASSING.has(r.status));
 }
 
-module.exports = { summaryText, countStatuses, allPass, PASSING, ORDER };
+export { summaryText, countStatuses, allPass, PASSING, ORDER };

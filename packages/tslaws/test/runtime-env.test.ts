@@ -214,6 +214,27 @@ describe('TypeScript dependencies loaded by Node', () => {
   it('install their hooks once, where Node has module.registerHooks', () => {
     assert.equal(installLoaderHooks(), installLoaderHooks());
   });
+
+  it('require a package that exports only an import condition, and keep the original error for a missing subpath', (t) => {
+    if (!installLoaderHooks()) return t.skip('needs module.registerHooks');
+    const cwd = project('esm-only', {
+      'node_modules/esm-only/package.json': JSON.stringify({
+        name: 'esm-only',
+        type: 'module',
+        exports: {
+          '.': { types: './index.d.ts', import: './index.js' },
+          './server': { import: './server.js' },
+        },
+      }),
+      'node_modules/esm-only/index.js': 'export const main = 1;',
+      'node_modules/esm-only/server.js': 'export const server = 2;',
+      'entry.cjs': '',
+    });
+    const load = createRequire(join(cwd, 'entry.cjs'));
+    assert.equal(load('esm-only').main, 1);
+    assert.equal(load('esm-only/server').server, 2);
+    assert.throws(() => load('esm-only/missing'), { code: 'ERR_PACKAGE_PATH_NOT_EXPORTED' });
+  });
 });
 
 const hasBrowser =
