@@ -23,7 +23,14 @@ import { join, posix } from 'node:path';
 import { moduleSpecifiers } from './lawKinds.ts';
 import { proposalsDir } from './lawFiles.ts';
 import ts from 'typescript';
-import { parseLawFile, sameCode, withDeclarations } from './promote.ts';
+import {
+  assertHelpersSafe,
+  assertImportStatements,
+  isPlainConst,
+  parseLawFile,
+  sameCode,
+  withDeclarations,
+} from './promote.ts';
 
 /** A refusal with a message for the person or agent that asked. */
 export class ProposalError extends Error {}
@@ -128,7 +135,7 @@ export function importsForTarget(text: string, toDir: string): string {
 
 /** Whether a top-level statement may stand in a proposal beside the laws: a `const`, function, type or interface. */
 function isHelper(statement: ts.Statement): boolean {
-  if (ts.isVariableStatement(statement)) return (statement.declarationList.flags & ts.NodeFlags.Const) !== 0;
+  if (ts.isVariableStatement(statement)) return isPlainConst(statement);
   return (
     ts.isFunctionDeclaration(statement) || ts.isTypeAliasDeclaration(statement) || ts.isInterfaceDeclaration(statement)
   );
@@ -149,7 +156,22 @@ function parts(source: string): ReturnType<typeof parseLawFile> {
         `a proposal may contain only imports, law declarations and top-level const, function, type and interface declarations; found \`${shown.length > 40 ? `${shown.slice(0, 40)}…` : shown}\``,
       );
     }
+  try {
+    assertImportStatements(parsed.imports);
+    assertHelpersSafe(parsed.declarations);
+  } catch (error) {
+    throw new ProposalError(error instanceof Error ? error.message : String(error));
+  }
   return parsed;
+}
+
+/** The imports and helper declarations of `source` as they would be stored, after the same checks `addProposal` makes. */
+export function previewProposal(source: string): { imports: string[]; helpers: { names: string[]; text: string }[] } {
+  const parsed = parts(toStoredImports(source));
+  return {
+    imports: parsed.imports.map((i) => i.trim()),
+    helpers: parsed.declarations.map((d) => ({ names: d.names, text: d.text.trim() })),
+  };
 }
 
 interface Helper {

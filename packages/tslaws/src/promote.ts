@@ -81,7 +81,20 @@ export function parseLawFile(text: string): ParsedLawFile {
       templates.push(depth);
     } else if (depth === 0 && statement === undefined) {
       if (kind === ts.SyntaxKind.ImportKeyword) {
-        statement = { kind: 'import', start: tokenStart, name: '', sawString: false };
+        // `import(...)` and `import.meta` are expressions inside some other statement, not an import statement.
+        const after = scanner.getTokenEnd();
+        const peek = ts.createScanner(
+          ts.ScriptTarget.Latest,
+          true,
+          ts.LanguageVariant.Standard,
+          text,
+          undefined,
+          after,
+          text.length - after,
+        );
+        const next = peek.scan();
+        if (next !== ts.SyntaxKind.OpenParenToken && next !== ts.SyntaxKind.DotToken)
+          statement = { kind: 'import', start: tokenStart, name: '', sawString: false };
       } else if (kind === ts.SyntaxKind.ExportKeyword) {
         const rest = scanner.getTokenEnd();
         const next = ts.createScanner(
@@ -321,6 +334,177 @@ function importedNames(imports: string[]): Set<string> {
   return names;
 }
 
+const isAssignmentOperator = (kind: ts.SyntaxKind): boolean =>
+  kind >= ts.SyntaxKind.FirstAssignment && kind <= ts.SyntaxKind.LastAssignment;
+
+/** Whether `node` is a BigInt: mixing one with a number, dividing by zero or a unary plus throws, so a BigInt is only allowed bare or negated. */
+function isBigInt(node: ts.Expression): boolean {
+  if (ts.isParenthesizedExpression(node) || ts.isAsExpression(node) || ts.isSatisfiesExpression(node))
+    return isBigInt(node.expression);
+  if (ts.isPrefixUnaryExpression(node)) return isBigInt(node.operand);
+  return ts.isBigIntLiteral(node);
+}
+
+/** Whether `node` is a constant that cannot throw: literals joined by operators that read no property, call nothing and cannot fail on their operands. */
+function isLiteralValue(node: ts.Expression): boolean {
+  if (ts.isParenthesizedExpression(node) || ts.isAsExpression(node) || ts.isSatisfiesExpression(node))
+    return isLiteralValue(node.expression);
+  if (ts.isPrefixUnaryExpression(node))
+    return (
+      node.operator !== ts.SyntaxKind.PlusPlusToken &&
+      node.operator !== ts.SyntaxKind.MinusMinusToken &&
+      !(node.operator === ts.SyntaxKind.PlusToken && isBigInt(node.operand)) &&
+      isLiteralValue(node.operand)
+    );
+  if (ts.isBinaryExpression(node))
+    return (
+      !isAssignmentOperator(node.operatorToken.kind) &&
+      node.operatorToken.kind !== ts.SyntaxKind.CommaToken &&
+      // `in` and `instanceof` throw on a primitive right-hand side.
+      node.operatorToken.kind !== ts.SyntaxKind.InKeyword &&
+      node.operatorToken.kind !== ts.SyntaxKind.InstanceOfKeyword &&
+      !isBigInt(node.left) &&
+      !isBigInt(node.right) &&
+      isLiteralValue(node.left) &&
+      isLiteralValue(node.right)
+    );
+  return (
+    ts.isStringLiteral(node) ||
+    ts.isNumericLiteral(node) ||
+    ts.isBigIntLiteral(node) ||
+    ts.isNoSubstitutionTemplateLiteral(node) ||
+    ts.isRegularExpressionLiteral(node) ||
+    node.kind === ts.SyntaxKind.TrueKeyword ||
+    node.kind === ts.SyntaxKind.FalseKeyword ||
+    node.kind === ts.SyntaxKind.NullKeyword
+  );
+}
+
+/** A `const` statement: not `let`, `var`, `using` or `await using` (the last two carry the Const flag too and call a dispose method). */
+export function isPlainConst(statement: ts.VariableStatement): boolean {
+  return (statement.declarationList.flags & ts.NodeFlags.BlockScoped) === ts.NodeFlags.Const;
+}
+
+/** Why `expression` may not run when a file loads (it can have a side effect), or undefined when it may. */
+function initialiserProblem(expression: ts.Expression, source: ts.SourceFile): string | undefined {
+  const bad = (what: string, node: ts.Node): string =>
+    `${what} \`${node.getText(source).replace(/\s+/g, ' ').slice(0, 40)}\``;
+  const visit = (node: ts.Expression): string | undefined => {
+    if (
+      ts.isParenthesizedExpression(node) ||
+      ts.isAsExpression(node) ||
+      ts.isSatisfiesExpression(node) ||
+      ts.isNonNullExpression(node) ||
+      ts.isTypeAssertionExpression(node)
+    )
+      return visit(node.expression);
+    if (ts.isArrowFunction(node) || ts.isFunctionExpression(node) || ts.isIdentifier(node) || isLiteralValue(node))
+      return undefined;
+    if (ts.isTemplateExpression(node)) {
+      const span = node.templateSpans.find((s) => !isLiteralValue(s.expression));
+      return span === undefined ? undefined : bad('a substitution', span.expression);
+    }
+    if (ts.isArrayLiteralExpression(node)) {
+      for (const element of node.elements) {
+        if (ts.isSpreadElement(element)) return bad('a spread', element);
+        const problem = visit(element);
+        if (problem !== undefined) return problem;
+      }
+      return undefined;
+    }
+    if (ts.isObjectLiteralExpression(node)) {
+      for (const property of node.properties) {
+        if (ts.isShorthandPropertyAssignment(property)) continue;
+        if (!ts.isPropertyAssignment(property) && !ts.isMethodDeclaration(property))
+          return bad(ts.isSpreadAssignment(property) ? 'a spread' : 'an accessor', property);
+        // A computed key is evaluated when the object is built, methods included; `[Symbol.dispose]` is the hook `using` calls.
+        if (ts.isComputedPropertyName(property.name) && !isLiteralValue(property.name.expression))
+          return bad(
+            /^Symbol\s*\.\s*(?:async)?dispose$/i.test(property.name.expression.getText(source))
+              ? 'a dispose method'
+              : 'a computed key',
+            property.name,
+          );
+        if (ts.isMethodDeclaration(property)) continue;
+        const problem = visit(property.initializer);
+        if (problem !== undefined) return problem;
+      }
+      return undefined;
+    }
+    if (ts.isCallExpression(node))
+      return bad(node.expression.kind === ts.SyntaxKind.ImportKeyword ? 'an import()' : 'a call', node);
+    if (ts.isNewExpression(node)) return bad('a new expression', node);
+    if (ts.isTaggedTemplateExpression(node)) return bad('a tagged template', node);
+    if (ts.isAwaitExpression(node)) return bad('an await', node);
+    if (ts.isDeleteExpression(node)) return bad('a delete', node);
+    if (
+      ts.isPostfixUnaryExpression(node) ||
+      (ts.isPrefixUnaryExpression(node) &&
+        (node.operator === ts.SyntaxKind.PlusPlusToken || node.operator === ts.SyntaxKind.MinusMinusToken))
+    )
+      return bad('an update', node);
+    if (ts.isBinaryExpression(node) && isAssignmentOperator(node.operatorToken.kind)) return bad('an assignment', node);
+    return bad('an expression that may run code', node);
+  };
+  return visit(expression);
+}
+
+/**
+ * Why a helper may not be proposed or copied, or undefined when it may. A helper is a function, type or interface
+ * declaration, or a `const` whose initialiser has no side effects (a literal, a function, an object or array of those,
+ * `as const`): a helper becomes part of the accepted tree, and a `const` initialiser runs when the file loads.
+ */
+export function helperProblem(text: string): string | undefined {
+  const source = ts.createSourceFile('helper.ts', text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  for (const statement of source.statements) {
+    if (ts.isEmptyStatement(statement)) continue;
+    if (
+      ts.isFunctionDeclaration(statement) ||
+      ts.isTypeAliasDeclaration(statement) ||
+      ts.isInterfaceDeclaration(statement)
+    )
+      continue;
+    if (ts.isVariableStatement(statement) && isPlainConst(statement)) {
+      for (const declaration of statement.declarationList.declarations) {
+        if (!ts.isIdentifier(declaration.name))
+          return `a destructuring \`${declaration.name.getText(source).slice(0, 40)}\` reads properties, which can run code`;
+        if (declaration.initializer === undefined) continue;
+        const problem = initialiserProblem(declaration.initializer, source);
+        if (problem !== undefined)
+          return `const '${declaration.name.text}' is initialised with ${problem}, which would run when the file loads`;
+      }
+      continue;
+    }
+    if (ts.isClassDeclaration(statement)) return 'a class is not an allowed helper';
+    if (ts.isEnumDeclaration(statement)) return 'an enum is not an allowed helper';
+    if (ts.isModuleDeclaration(statement)) return 'a namespace is not an allowed helper';
+    return 'only function, type, interface and const declarations are allowed helpers';
+  }
+  return undefined;
+}
+
+const helperRule =
+  'Helpers may only be function, type and interface declarations, and const with a side-effect-free initialiser (a literal, a function, an object or array literal of those, as const)';
+
+/** Throws unless every one of `declarations` passes `helperProblem`. */
+export function assertHelpersSafe(declarations: ParsedDeclaration[]): void {
+  for (const declaration of declarations) {
+    const problem = helperProblem(declaration.text);
+    if (problem !== undefined)
+      throw new Error(`helper '${declaration.names.join(', ')}' is refused: ${problem}. ${helperRule}`);
+  }
+}
+
+/** Throws unless each of `imports` is exactly one import statement, so a scanning slip cannot pass other code off as an import. */
+export function assertImportStatements(imports: string[]): void {
+  for (const text of imports) {
+    const source = ts.createSourceFile('import.ts', text, ts.ScriptTarget.Latest, false, ts.ScriptKind.TS);
+    const [only, ...more] = source.statements;
+    if (only === undefined || more.length > 0 || !(ts.isImportDeclaration(only) || ts.isImportEqualsDeclaration(only)))
+      throw new Error(`\`${text.replace(/\s+/g, ' ').slice(0, 40)}\` is not an import statement`);
+  }
+}
+
 /** Joins the import statements, dropping repeats by whitespace-insensitive text. */
 export function dedupeImports(existing: string[], added: string[]): string[] {
   const seen = new Set(existing.map(squash));
@@ -367,12 +551,32 @@ export function buildAccepted(
   laws: ParsedLaw[],
   declarations: ParsedDeclaration[] = [],
 ): string {
+  return planAccepted(existing, imports, laws, declarations).text;
+}
+
+/** What a promote would write, with the code it adds beside the laws. */
+export interface AcceptedPlan {
+  text: string;
+  /** The import statements the accepted file does not have yet. */
+  imports: string[];
+  /** The helper declarations copied into the accepted file. */
+  declarations: ParsedDeclaration[];
+}
+
+/** `buildAccepted`, with the imports and helpers it adds, so a person can read them before anything is written. */
+export function planAccepted(
+  existing: string | undefined,
+  imports: string[],
+  laws: ParsedLaw[],
+  declarations: ParsedDeclaration[] = [],
+): AcceptedPlan {
   const base = existing ?? '';
   const parsed = parseLawFile(base);
   const taken = new Set(parsed.laws.map((l) => l.name));
   for (const law of laws)
     if (taken.has(law.name)) throw new Error(`law '${law.name}' already exists in the accepted file`);
   const missing = dedupeImports(parsed.imports, imports).slice(parsed.imports.length);
+  assertImportStatements(missing);
   let text = base;
   if (missing.length > 0) {
     // New imports go after the last existing import, or at the top.
@@ -387,12 +591,13 @@ export function buildAccepted(
         : `${base.slice(0, lastEnd)}\n${block}${base.slice(lastEnd)}`;
   }
   const copied = copiedDeclarations(text, laws, declarations);
+  assertHelpersSafe(copied);
   if (copied.length > 0) text = withDeclarations(text, copied.map((d) => d.text.trim()).join('\n\n'));
   const body = laws.map((l) => l.text.trimEnd()).join('\n\n');
   const trimmed = text.trimEnd();
   const result = `${trimmed === '' ? '' : `${trimmed}\n\n`}${body}\n`;
   assertNothingLost(result, laws, copied, declarations);
-  return result;
+  return { text: result, imports: missing, declarations: copied };
 }
 
 /** The needed declarations that `accepted` does not have yet; throws when it has a different one under the same name. */
@@ -464,6 +669,33 @@ export interface PromoteHost {
   checkFile: (file: string) => Promise<Map<string, string>>;
   ask: (question: string) => Promise<string>;
   out: (text: string) => void;
+  /** Add the imports and helpers without asking (`--yes`); they are still printed. */
+  yes?: boolean;
+}
+
+/**
+ * Prints the imports and helper declarations a promote adds, in full, before anything is written. When helpers are
+ * copied it asks the person to confirm (the imports are shown too; like a law's imports they are only listed); `yes`
+ * skips the question. Returns whether to go on; true when no helper is copied.
+ */
+async function confirmAdditions(
+  host: { ask: (question: string) => Promise<string>; out: (text: string) => void; yes?: boolean },
+  target: string,
+  plan: AcceptedPlan,
+): Promise<boolean> {
+  if (plan.imports.length === 0 && plan.declarations.length === 0) return true;
+  let shown = `\nThis also adds code to ${target}, which becomes part of the trusted tree:\n`;
+  if (plan.imports.length > 0)
+    shown += `\nimports (${plan.imports.length}):\n${plan.imports.map((i) => i.trim()).join('\n')}\n`;
+  if (plan.declarations.length > 0)
+    shown += `\nhelpers (${plan.declarations.length}):\n${plan.declarations.map((d) => d.text.trim()).join('\n\n')}\n`;
+  host.out(shown);
+  if (plan.declarations.length === 0) return true;
+  if (host.yes === true) {
+    host.out('adding it (--yes)\n');
+    return true;
+  }
+  return (await host.ask(`add this helper code to ${target}? [y/N] `)).trim().toLowerCase() === 'y';
 }
 
 /** Walks the proposed files, asks per law, and rewrites the accepted and proposed files. Returns the number promoted. */
@@ -491,16 +723,20 @@ export async function promoteFiles(host: PromoteHost, proposedFiles: string[]): 
     }
     if (chosen.length === 0) continue;
     const existing = existsSync(acceptedPath) ? readFileSync(acceptedPath, 'utf8') : undefined;
-    let built: string;
+    let plan: AcceptedPlan;
     try {
-      built = buildAccepted(existing, parsed.imports, chosen, parsed.declarations);
+      plan = planAccepted(existing, parsed.imports, chosen, parsed.declarations);
     } catch (error) {
       host.out(
         `${accepted}: ${error instanceof Error ? error.message : String(error)}; nothing promoted from ${file}\n`,
       );
       continue;
     }
-    writeFileSync(acceptedPath, built);
+    if (!(await confirmAdditions(host, accepted, plan))) {
+      host.out(`nothing promoted from ${file}\n`);
+      continue;
+    }
+    writeFileSync(acceptedPath, plan.text);
     const remaining = buildRemaining(
       text,
       chosen.map((l) => l.name),
@@ -562,6 +798,8 @@ export interface PromoteProposalHost {
   checkFile: (file: string) => Promise<Map<string, string>>;
   ask: (question: string) => Promise<string>;
   out: (text: string) => void;
+  /** Add the imports and helpers without asking (`--yes`); they are still printed. */
+  yes?: boolean;
 }
 
 export interface PromoteProposalResult {
@@ -613,15 +851,19 @@ export async function promoteProposal(
   const existing = existsSync(targetPath) ? readFileSync(targetPath, 'utf8') : undefined;
   const toDir = posix.dirname(target);
   const moved = parseLawFile(importsForTarget(text, toDir === '.' ? '' : toDir));
-  let built: string;
+  let plan: AcceptedPlan;
   try {
-    built = buildAccepted(existing, moved.imports, moved.laws, moved.declarations);
+    plan = planAccepted(existing, moved.imports, moved.laws, moved.declarations);
   } catch (error) {
     host.out(`${target}: ${error instanceof Error ? error.message : String(error)}; nothing moved\n`);
     return {};
   }
+  if (!(await confirmAdditions(host, target, plan))) {
+    host.out('nothing moved\n');
+    return {};
+  }
   mkdirSync(dirname(targetPath), { recursive: true });
-  writeFileSync(targetPath, built);
+  writeFileSync(targetPath, plan.text);
   rmSync(abs);
   host.out(
     `${plural(parsed.laws.length)} moved to ${target}; ${rel} removed\n` +
