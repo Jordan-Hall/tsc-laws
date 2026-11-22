@@ -60,7 +60,7 @@ every `laws-v*` tag after the GitHub release succeeds.
 To set it up, or to add a package, log in to npm and run, for each package:
 
 ```sh
-npm trust github <package> --repo Jordan-Hall/tsc-laws --file laws.yml --allow-publish --registry https://registry.npmjs.org
+npm trust github <package> --repo Jordan-Hall/tsc-laws --file laws.yml --environment release --allow-publish --registry https://registry.npmjs.org
 ```
 
 `npm trust list <package>` shows what is trusted. A package that does not exist yet must be published once by hand before it
@@ -69,6 +69,21 @@ can be trusted.
 Packages are published with provenance and `--access public`. The compilers go first, so `tslaws` never points at a package
 that is not there yet. `scripts/ci/laws-npm.mjs` does the repacking (the tsc-ts platform tarballs are renamed and given
 tslaws's version) and adds the optional dependencies.
+
+## Repository settings to apply by hand
+
+The `npm` and `marketplace` jobs in `laws.yml` run in the `release` environment and refuse a tag whose commit is not an
+ancestor of `main`. The workflow cannot create the rules that make this binding, so apply these in the repository settings:
+
+1. **Environment `release`** (Settings, Environments): add required reviewers, and under deployment branches and tags allow
+   only the tag pattern `laws-v*`.
+2. **Tag ruleset** (Settings, Rules, Rulesets): target the tag pattern `laws-v*` and restrict creation, update and deletion
+   to the people who may release.
+3. **npm trust**: the policy now names the environment, so run `npm trust github` again for each package with
+   `--environment release` (see the npm section above) and remove the old policy that had none.
+4. **Marketplace and Open VSX**: add `release` as the environment on the trusted publisher or policy, or the OIDC match fails.
+
+Until step 3 is done, npm publishing fails.
 
 ## VS Code extension
 
