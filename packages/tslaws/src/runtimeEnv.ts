@@ -75,7 +75,9 @@ let installed: boolean | undefined;
 /**
  * Teaches Node's own loading of TypeScript two things a bundler does: a relative import without an extension
  * (`export * from './database'`) finds the `.ts` file, and `import.meta.env` reads the environment of the laws. Both
- * apply to project TypeScript only, never to anything under `node_modules`. Needs `module.registerHooks`
+ * apply to project TypeScript only, never to anything under `node_modules`. A third hook resolves a package whose
+ * `exports` offer only an `import` condition when a law (compiled to CommonJS) requires it, as an ES import would; the
+ * original error stands when that fails too. Needs `module.registerHooks`
  * (Node 22.15, 23.5 or later); on an older Node the hooks are skipped and such imports fail as they did before.
  * Returns whether the hooks are in place. Registers once per thread.
  */
@@ -89,6 +91,21 @@ export function installLoaderHooks(): boolean {
       try {
         return nextResolve(specifier, context);
       } catch (error) {
+        const { conditions } = context;
+        if (
+          (error as { code?: string }).code === 'ERR_PACKAGE_PATH_NOT_EXPORTED' &&
+          conditions.includes('require') &&
+          !conditions.includes('import')
+        ) {
+          try {
+            return nextResolve(specifier, {
+              ...context,
+              conditions: conditions.map((condition) => (condition === 'require' ? 'import' : condition)),
+            });
+          } catch {
+            throw error;
+          }
+        }
         if (!specifier.startsWith('.') || !isProjectSource(context.parentURL)) throw error;
         const stem = specifier.replace(javascriptEnding, '');
         const candidates = unresolved.map((ending) => `${specifier}${ending}`);
