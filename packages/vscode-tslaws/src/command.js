@@ -1,13 +1,11 @@
-'use strict';
-
 // Builds the process command line for tslaws. No vscode import; `exists` is injectable for tests.
 //
 // Nothing here ever goes through a shell: a workspace controls file names, settings and node_modules, and a shell would
 // let a crafted name or setting run other commands. tslaws is started with `node <entry.js>` (or a native executable
 // named in the settings), with every argument passed as its own argv entry.
 
-const fs = require('node:fs');
-const path = require('node:path');
+import fs from 'node:fs';
+import path from 'node:path';
 
 /**
  * @param {{root: string, ceiling?: string, executable?: string, args?: string[], exists?: (p: string) => boolean}} o
@@ -43,4 +41,4 @@ function acceptCommandText(files = []) {
   return ['npx', 'tslaws', 'accept', ...files].join(' ');
 }
 
-module.exports = { resolveCommand, acceptCommandText };
+export { resolveCommand, acceptCommandText };

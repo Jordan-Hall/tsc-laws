@@ -2,10 +2,26 @@
 // an extension in TypeScript files that Node loads itself. Nothing here loads the TypeScript compiler, so a property worker
 // can import it.
 import nodeModule from 'node:module';
-import { fileURLToPath } from 'node:url';
+import { dirname } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 /** The global that `import.meta.env` is rewritten to, in compiled laws, bundles and natively loaded TypeScript. */
 export const importMetaEnvGlobal = '__tslawsImportMetaEnv';
+
+/**
+ * What esbuild's `define` should make of `import.meta` in a module of `file` that loads as CommonJS, where `import.meta`
+ * does not exist: `env` is the runner's global, `url`, `filename` and `dirname` name the file, as they do in an ES module.
+ */
+export function importMetaDefines(file: string): Record<string, string> {
+  const meta = { url: pathToFileURL(file).href, filename: file, dirname: dirname(file) };
+  return {
+    'import.meta': JSON.stringify(meta),
+    'import.meta.url': JSON.stringify(meta.url),
+    'import.meta.filename': JSON.stringify(meta.filename),
+    'import.meta.dirname': JSON.stringify(meta.dirname),
+    'import.meta.env': `globalThis.${importMetaEnvGlobal}`,
+  };
+}
 
 /** The value of `import.meta.env` in every place a law runs. */
 export type ImportMetaEnv = Record<string, string | boolean>;
@@ -75,7 +91,9 @@ let installed: boolean | undefined;
 /**
  * Teaches Node's own loading of TypeScript two things a bundler does: a relative import without an extension
  * (`export * from './database'`) finds the `.ts` file, and `import.meta.env` reads the environment of the laws. Both
- * apply to project TypeScript only, never to anything under `node_modules`. Needs `module.registerHooks`
+ * apply to project TypeScript only, never to anything under `node_modules`. A third hook resolves a package whose
+ * `exports` offer only an `import` condition when a law (compiled to CommonJS) requires it, as an ES import would; the
+ * original error stands when that fails too. Needs `module.registerHooks`
  * (Node 22.15, 23.5 or later); on an older Node the hooks are skipped and such imports fail as they did before.
  * Returns whether the hooks are in place. Registers once per thread.
  */
@@ -89,6 +107,21 @@ export function installLoaderHooks(): boolean {
       try {
         return nextResolve(specifier, context);
       } catch (error) {
+        const { conditions } = context;
+        if (
+          (error as { code?: string }).code === 'ERR_PACKAGE_PATH_NOT_EXPORTED' &&
+          conditions.includes('require') &&
+          !conditions.includes('import')
+        ) {
+          try {
+            return nextResolve(specifier, {
+              ...context,
+              conditions: conditions.map((condition) => (condition === 'require' ? 'import' : condition)),
+            });
+          } catch {
+            throw error;
+          }
+        }
         if (!specifier.startsWith('.') || !isProjectSource(context.parentURL)) throw error;
         const stem = specifier.replace(javascriptEnding, '');
         const candidates = unresolved.map((ending) => `${specifier}${ending}`);

@@ -4,5 +4,6 @@
   "private": true,
   "description": "tsserver plugin: lets the TypeScript language service understand law declarations",
   "license": "Apache-2.0",
+  "type": "commonjs",
   "main": "index.js"
 }

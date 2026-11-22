@@ -1,5 +1,3 @@
-'use strict';
-
 // Keeps the background run from hurting the machine: it waits while the processors are busy, stops by itself when the
 // last run took longer than the person allows, and never lets two checks run at once. Pure: the clock and the processor
 // counters are passed in.
@@ -76,4 +74,4 @@ function createLiveGuard(o) {
   return guard;
 }
 
-module.exports = { createCpuSampler, createLiveGuard };
+export { createCpuSampler, createLiveGuard };

@@ -1,5 +1,3 @@
-'use strict';
-
 // The tsserver plugin lives in `ts-plugin/` in the extension. tsserver looks for a plugin that an extension contributes
 // (`typescriptServerPlugins`) in `<extension>/node_modules/<name>`, and `vsce package --no-dependencies` leaves the root
 // node_modules out of the .vsix. So the extension puts the plugin where tsserver looks, once, and says when it did so
@@ -38,4 +36,4 @@ function ensurePlugin({ fs, path, extensionPath }) {
   }
 }
 
-module.exports = { ensurePlugin, PLUGIN_NAME };
+export { ensurePlugin, PLUGIN_NAME };

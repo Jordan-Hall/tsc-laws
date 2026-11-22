@@ -1,11 +1,9 @@
-'use strict';
-
 // A copy of the project that holds the text of unsaved buffers, so laws can run against what is on screen without
 // anything being written to the person's files. It lives in `.tslaws/shadow` (ignored by tslaws and git), shares
 // `node_modules` with the project through a link, and is brought up to date by copying only what changed.
 
-const nodeFs = require('node:fs');
-const path = require('node:path');
+import nodeFs from 'node:fs';
+import path from 'node:path';
 
 const SKIP = new Set(['node_modules', '.git', '.tslaws']);
 const MAX_FILES = 6000;
@@ -105,4 +103,4 @@ function createShadow(o) {
   };
 }
 
-module.exports = { createShadow };
+export { createShadow };

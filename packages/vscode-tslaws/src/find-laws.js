@@ -1,5 +1,3 @@
-'use strict';
-
 // Finds laws in two syntaxes. Pure; no vscode import.
 //  - call style (ordinary TypeScript): `law('name', ...)` and `law.proved('name', ...)`, the name a string or
 //    no-substitution template literal, the call possibly spanning lines;
@@ -185,4 +183,4 @@ function paramNames(lines, start, column) {
   return names;
 }
 
-module.exports = { findLaws };
+export { findLaws };

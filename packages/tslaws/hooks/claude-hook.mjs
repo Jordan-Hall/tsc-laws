@@ -5,6 +5,8 @@
 // Exit status 2 with a message on stderr is how Claude Code feeds the reason back to the agent.
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
+// createRequire is only a resolver here: Node has no other synchronous way to find a package from the project's
+// directory (`import.meta.resolve` starts from this file). No CommonJS code is loaded.
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 

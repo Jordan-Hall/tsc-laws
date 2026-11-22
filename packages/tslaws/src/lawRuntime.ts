@@ -2,12 +2,14 @@
 // checker found: tsconfig `paths`, and packages whose `exports` or `types` point at TypeScript source. Two hooks, put in
 // once per process (and once per property worker): a resolver that asks TypeScript when Node cannot resolve a name, and
 // a loader for `.ts` files that no compiler wrote out (a workspace package's source).
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import Module, { createRequire } from 'node:module';
-import { dirname, join, relative, resolve, sep } from 'node:path';
+import { dirname, extname, join, relative, resolve, sep } from 'node:path';
+import { installPluginHooks, pluginExtensionNeeded } from './pluginHooks.ts';
+import { transformPluginFile } from './pluginHost.ts';
 import { transformSync } from 'esbuild';
 import type ts from 'typescript';
-import { importMetaEnvGlobal } from './runtimeEnv.ts';
+import { importMetaDefines } from './runtimeEnv.ts';
 import { nearestTsconfig, readResolutionOf, resolutionCompilerOptions } from './tsconfigResolve.ts';
 import type { ResolutionOptions } from './tsconfigResolve.ts';
 
@@ -20,6 +22,8 @@ export interface LawRuntime {
    * project (sources outside it were compiled too): files then sit at the same depth as in the source tree.
    */
   outDir?: string;
+  /** The project's `bundlerPlugins` (absolute module paths): they load the source formats Node cannot (see pluginHost.ts). */
+  bundlerPlugins?: string[];
 }
 
 interface Internals {
@@ -30,6 +34,8 @@ type Parent = { filename?: string } | null;
 
 const projects = new Map<string, LawRuntime>();
 const byConfig = new Map<string, ResolutionOptions>();
+// Compiled laws are CommonJS (see `build` in compile.ts), and these hooks are the CommonJS loader's own (`_resolveFilename`,
+// `_extensions`), so `createRequire` is unavoidable: it loads TypeScript lazily, inside the synchronous resolver hook.
 const load = createRequire(import.meta.url);
 let hooked = false;
 
@@ -57,6 +63,7 @@ export function installLawRuntime(runtime: LawRuntime): void {
   projects.set(outDirOf(runtime.cwd), runtime);
   if (hooked) return;
   hooked = true;
+  installPluginHooks({ ownerOf, beside });
   const internals = Module as unknown as Internals;
   const original = internals._resolveFilename;
   internals._resolveFilename = function (request, parent, ...rest) {
@@ -67,10 +74,18 @@ export function installLawRuntime(runtime: LawRuntime): void {
     try {
       return original.call(this, request, parent, ...rest);
     } catch (error) {
-      const found = bare ? resolveThroughTypeScript(request, parent) : undefined;
+      const found = bare ? resolveThroughTypeScript(request, parent) : beside(request, parent);
       if (found === undefined) throw error;
       return found;
     }
+  };
+  // Node loads an unknown extension as JavaScript. A project format (`.tsrx`) goes through its `bundlerPlugins` instead.
+  const plain = internals._extensions['.js']!;
+  internals._extensions['.js'] = function (module, file) {
+    const extension = extname(file).toLowerCase();
+    if (!pluginExtensionNeeded(extension)) return plain.call(this, module, file);
+    const owner = ownerOf(file);
+    module._compile(transformPluginFile(file, owner?.cwd ?? process.cwd(), owner?.bundlerPlugins ?? []), file);
   };
   for (const extension of ['.ts', '.tsx', '.mts', '.cts'])
     internals._extensions[extension] = (module, file) => {
@@ -80,10 +95,30 @@ export function installLawRuntime(runtime: LawRuntime): void {
         target: 'es2022',
         sourcefile: file,
         sourcemap: 'inline',
-        define: { 'import.meta.env': `globalThis.${importMetaEnvGlobal}` },
+        define: importMetaDefines(file),
       });
       module._compile(code, file);
     };
+}
+
+/** The project a file belongs to: the one with the deepest directory holding it, else the most recently registered. */
+function ownerOf(file: string): LawRuntime | undefined {
+  const all = [...projects.values()];
+  const holding = all.filter((p) => file.startsWith(p.cwd + sep)).sort((a, b) => b.cwd.length - a.cwd.length);
+  return holding[0] ?? all.at(-1);
+}
+
+/**
+ * A relative import of a file the compiler does not write out (a template, a stylesheet) names the file beside the
+ * source, not beside the compiled output.
+ */
+function beside(request: string, parent: Parent | undefined): string | undefined {
+  const from = parent?.filename;
+  if (from === undefined || !request.startsWith('.')) return undefined;
+  const owner = [...projects].find(([top]) => from.startsWith(top + sep))?.[1];
+  if (owner === undefined) return undefined;
+  const file = resolve(owner.cwd, relative(compiledRoot(owner), dirname(from)), request);
+  return existsSync(file) && statSync(file).isFile() ? file : undefined;
 }
 
 /** The options for a file that is not a compiled law: those of the nearest tsconfig, as the package would resolve. */

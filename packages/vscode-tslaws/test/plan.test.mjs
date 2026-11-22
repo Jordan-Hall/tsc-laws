@@ -1,8 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createRequire } from 'node:module';
 
-const { planRun, isRunnable } = createRequire(import.meta.url)('../src/plan.js');
+import { planRun, isRunnable } from '../src/plan.js';
 
 const lawFiles = [
   'src/cart.laws.ts',

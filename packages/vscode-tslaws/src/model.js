@@ -1,9 +1,7 @@
-'use strict';
-
 // What the editor knows about the laws: the latest record of each law, when it ran, and the maps built from them (which
 // laws reach which function, which law files cover which source file). Pure; `merge` is how a run's results join it.
 
-const { PASSING } = require('./summary.js');
+import { PASSING } from './summary.js';
 
 const key = (file, name) => `${file}::${name}`;
 
@@ -93,4 +91,4 @@ function blamedFunctions(record) {
   return pool.map((exercise) => ({ exercise, certain: pool.length === 1 }));
 }
 
-module.exports = { merge, functionIndex, coverageMap, failing, blamedFunctions, key };
+export { merge, functionIndex, coverageMap, failing, blamedFunctions, key };

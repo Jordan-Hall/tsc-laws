@@ -36,6 +36,7 @@
   },
   "qna": "marketplace",
   "publisher": "ts-laws",
+  "type": "module",
   "main": "./src/extension.js",
   "scripts": {
     "test": "node --test test/grammar.test.mjs test/transform.test.mjs test/tsserver-plugin.test.mjs test/plugin.test.mjs test/compile-diagnostics.test.mjs test/live-units.test.mjs test/find-laws.test.mjs test/list.test.mjs test/parse-report.test.mjs test/projects.test.mjs test/host-projects.test.mjs test/summary.test.mjs test/command.test.mjs test/model.test.mjs test/ranges.test.mjs test/format.test.mjs test/diagnostics.test.mjs test/plan.test.mjs test/settings.test.mjs test/scheduler.test.mjs test/runner.test.mjs test/shadow.test.mjs test/host.test.mjs test/extension.test.mjs test/real-cli.test.mjs"
@@ -301,7 +302,7 @@
   },
   "markdown": "github",
   "engines": {
-    "vscode": "^1.80.0"
+    "vscode": "^1.100.0"
   },
   "capabilities": {
     "untrustedWorkspaces": {
