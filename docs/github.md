@@ -317,7 +317,7 @@ run that goes ahead accepts every proposal still outstanding.
 
 The action sets up Bun or pnpm only when that is the detected manager and `install` is `true`, with
 `oven-sh/setup-bun` and `pnpm/action-setup` pinned to commits. It finds `tslaws` with Node's own resolution from
-`tslaws-root` (`require.resolve('tslaws/package.json', { paths: [root] })`), so hoisted, nested and pnpm layouts all
+`tslaws-root` (the `tslaws/package.json` that package resolution reaches from there), so hoisted, nested and pnpm layouts all
 work, and it never looks in `working-directory`. The old inputs behave as before; a workflow that already ran `npm ci`
 runs one more frozen install, or sets `install: false`.
 

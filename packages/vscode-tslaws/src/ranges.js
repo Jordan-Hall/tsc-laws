@@ -1,10 +1,8 @@
-'use strict';
-
 // Where a diagnostic goes in a file as it is now. The report's positions are those of the last run; the buffer may have
 // moved on since, so each reported position is checked against the text and, when it no longer holds, the declaration is
 // searched for nearby. Ranges are 0-based `{line, start, end}` on one line and cover a name, never the whole line.
 
-const { findLaws } = require('./find-laws.js');
+import { findLaws } from './find-laws.js';
 
 const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -73,4 +71,4 @@ function textOf(text, range) {
   return String(text).split(/\r?\n/)[range.line]?.slice(range.start, range.end);
 }
 
-module.exports = { lawRange, declarationRange, callRange, textOf, declarations };
+export { lawRange, declarationRange, callRange, textOf, declarations };

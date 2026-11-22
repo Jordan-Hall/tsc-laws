@@ -1,15 +1,13 @@
-'use strict';
-
 // The always-visible status after each function the laws reach (and each exported function none reaches): `proved`,
 // `tested 24 runs`, `failing: counterexample (price=0, coupon=1)`, `running…`, `stale · ran 3m ago`, `uncovered`. It is a
 // text decoration in a theme colour with a gutter icon, so it shows without hovering. `vscode` is passed in.
 
-const path = require('node:path');
-const { declarationRange } = require('./ranges.js');
-const { relativeTo } = require('./parse-report.js');
-const { functionStatus, uncoveredStatus } = require('./live-status.js');
+import path from 'node:path';
+import { declarationRange } from './ranges.js';
+import { relativeTo } from './parse-report.js';
+import { functionStatus, uncoveredStatus } from './live-status.js';
 
-const MEDIA = path.join(__dirname, '..', 'media');
+const MEDIA = path.join(import.meta.dirname, '..', 'media');
 
 const TONES = {
   ok: { colour: 'testing.iconPassed', icon: 'passed', ruler: 'editorOverviewRuler.infoForeground' },
@@ -116,4 +114,4 @@ function createStatusDecorations(vscode, host) {
   };
 }
 
-module.exports = { createStatusDecorations, statusesIn, TONES };
+export { createStatusDecorations, statusesIn, TONES };

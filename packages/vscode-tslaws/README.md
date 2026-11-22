@@ -184,8 +184,9 @@ The tsserver plugin is in `ts-plugin/` (`transform.js` rewrites the laws and kee
 language service); `src/plugin.js` puts it where tsserver looks. The logic is in plain modules that do not load `vscode`
 (`parse-report`, `find-laws`, `model`, `ranges`, `diagnostics`, `compile-diagnostics`,
 `format`, `plan`, `scheduler`, `runner`, `shadow`, `settings`, `summary`, `command`). `src/host.js`, `src/editor.js` and
-`src/testing.js` take the `vscode` API as an argument; `src/extension.js` is the only file that requires it. There is no
-bundler and there are no runtime dependencies.
+`src/testing.js` take the `vscode` API as an argument; `src/extension.js` is the only file that imports it. The extension is an ES module
+(`"type": "module"`), which VS Code supports from 1.100, so `engines.vscode` is `^1.100.0`; the one CommonJS part is `ts-plugin/`
+(`"type": "commonjs"`), because tsserver loads a plugin with `require`. There is no bundler and there are no runtime dependencies.
 
 `tslaws check --reporter ndjson --law NAME[,NAME]` and the `exercises` field of each result (the functions a law reaches, with the
 declaration and the call as ranges, and `failing` when a stack names the function) are what this extension reads. They are in
@@ -212,6 +213,8 @@ Elsewhere `law` is an ordinary identifier (`law(1)`, `obj.law x`, `const law = 1
 (both also `keyword.declaration.law.tslaws`), and the name `entity.name.function.law.tslaws`.
 
 ## Install
+
+Needs VS Code 1.100 or later (the extension is an ES module).
 
 Download `tslaws-vscode-<version>.vsix` from the [releases](https://github.com/Jordan-Hall/tsc-laws/releases) and run `code --install-extension tslaws-vscode-<version>.vsix`.
 To build a package: `npx @vscode/vsce package --no-dependencies`.

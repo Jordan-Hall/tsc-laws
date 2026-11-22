@@ -1,35 +1,33 @@
-'use strict';
-
 // The extension's behaviour: when to run laws, what a run updates, and the commands. `vscode` and the process and file
 // APIs are passed in (extension.js is the only file that requires `vscode`), so the whole of it runs under a fake host in
 // tests. The pure modules decide; this file only wires them to the editor.
 
-const nodePath = require('node:path');
-const { parseUiUrl, relativeTo } = require('./parse-report.js');
-const { summaryText, allPass } = require('./summary.js');
-const { resolveCommand, acceptCommandText } = require('./command.js');
-const { merge, functionIndex, coverageMap, blamedFunctions } = require('./model.js');
-const { buildDiagnostics } = require('./diagnostics.js');
-const { lawRange, declarationRange } = require('./ranges.js');
-const { reproduceCommand } = require('./format.js');
-const { planRun, isRunnable } = require('./plan.js');
-const { createScheduler } = require('./scheduler.js');
-const { startCheck, liveSupport, checkArguments } = require('./runner.js');
-const { createShadow } = require('./shadow.js');
-const { resolveRunMode, explicitValue, clampInt, liveEnabled } = require('./settings.js');
-const { createEditor } = require('./editor.js');
-const { createTesting } = require('./testing.js');
-const { createStatusDecorations } = require('./status-decor.js');
-const { createLawsTree } = require('./laws-tree.js');
-const { createLiveGuard, createCpuSampler } = require('./live-guard.js');
-const { saveCache, loadCache } = require('./live-cache.js');
-const { proposedPath, lawSkeleton, addToProposed } = require('./law-skeleton.js');
-const { createNavigation } = require('./navigation.js');
-const { ensurePlugin } = require('./plugin.js');
-const { compileDiagnostics } = require('./compile-diagnostics.js');
-const { parseList, fromName, badgeFor } = require('./list.js');
-const { findLaws } = require('./find-laws.js');
-const { locate, locateIn, labelOf, describeProject } = require('./projects.js');
+import nodePath from 'node:path';
+import { parseUiUrl, relativeTo } from './parse-report.js';
+import { summaryText, allPass } from './summary.js';
+import { resolveCommand, acceptCommandText } from './command.js';
+import { merge, functionIndex, coverageMap, blamedFunctions } from './model.js';
+import { buildDiagnostics } from './diagnostics.js';
+import { lawRange, declarationRange } from './ranges.js';
+import { reproduceCommand } from './format.js';
+import { planRun, isRunnable } from './plan.js';
+import { createScheduler } from './scheduler.js';
+import { startCheck, liveSupport, checkArguments } from './runner.js';
+import { createShadow } from './shadow.js';
+import { resolveRunMode, explicitValue, clampInt, liveEnabled } from './settings.js';
+import { createEditor } from './editor.js';
+import { createTesting } from './testing.js';
+import { createStatusDecorations } from './status-decor.js';
+import { createLawsTree } from './laws-tree.js';
+import { createLiveGuard, createCpuSampler } from './live-guard.js';
+import { saveCache, loadCache } from './live-cache.js';
+import { proposedPath, lawSkeleton, addToProposed } from './law-skeleton.js';
+import { createNavigation } from './navigation.js';
+import { ensurePlugin } from './plugin.js';
+import { compileDiagnostics } from './compile-diagnostics.js';
+import { parseList, fromName, badgeFor } from './list.js';
+import { findLaws } from './find-laws.js';
+import { locate, locateIn, labelOf, describeProject } from './projects.js';
 
 const key = (file, name) => `${file}::${name}`;
 
@@ -938,4 +936,4 @@ function activateExtension(vscode, context, io) {
   };
 }
 
-module.exports = { activateExtension };
+export { activateExtension };

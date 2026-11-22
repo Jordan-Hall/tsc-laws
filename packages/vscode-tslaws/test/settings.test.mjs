@@ -1,8 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createRequire } from 'node:module';
 
-const { resolveRunMode, explicitValue, clampInt } = createRequire(import.meta.url)('../src/settings.js');
+import { resolveRunMode, explicitValue, clampInt } from '../src/settings.js';
 
 test('tslaws.run wins when set; otherwise the old runOnSave decides', () => {
   assert.equal(resolveRunMode({ explicitRun: 'onType', runOnSave: false }), 'onType');

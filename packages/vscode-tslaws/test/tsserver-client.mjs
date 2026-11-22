@@ -4,12 +4,10 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import { ensurePlugin } from '../src/plugin.js';
 
-const require = createRequire(import.meta.url);
-const { ensurePlugin } = require('../src/plugin.js');
-export const tsserverPath = require.resolve('typescript/lib/tsserver.js');
+export const tsserverPath = fileURLToPath(import.meta.resolve('typescript/lib/tsserver.js'));
 const here = path.dirname(fileURLToPath(import.meta.url));
 export const tslawsPackage = path.resolve(here, '../../tslaws');
 export const tslawsBuilt = fs.existsSync(path.join(tslawsPackage, 'dist', 'api.d.ts'));
