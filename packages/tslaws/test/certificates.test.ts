@@ -790,7 +790,7 @@ describe(
     });
 
     // The problems are shaped like the prover's queries: int and bigint (Int) and boolean laws, among them the integer
-    // range obligations (`ite`, `div` and `mod` included) that a law over `int` carries.
+    // range obligations (`ite` and `div` included) that a law over `int` carries.
     for (const name of Object.keys(problems)) {
       it(`certifies ${name}`, async () => {
         const certificate = await certify(problems[name]!, { timeoutMs: 20000 });
@@ -798,6 +798,16 @@ describe(
         assert.match(certificate.proofHash ?? '', /^[0-9a-f]{64}$/);
       });
     }
+
+    // cvc5 1.4.2 declares no `mod-elim` rule, so a law with `mod` is not certified yet; it must say why, not fail.
+    it('declines a law with mod, naming the rule cvc5 leaves undeclared', async () => {
+      const certificate = await certify(
+        '(set-option :timeout 5000)\n(declare-const a Int)\n(assert (not (= (mod (* 2 a) 2) 0)))\n(check-sat)',
+        { timeoutMs: 20000 },
+      );
+      assert.ok(['certified', 'uncertified'].includes(certificate.status), certificate.reason);
+      if (certificate.status === 'uncertified') assert.match(certificate.reason ?? '', /mod-elim/);
+    });
 
     it('does not certify a proof that Carcara rejects, and says so', async () => {
       process.env.TSLAWS_CVC5 = fake(`console.log('unsat'); console.log(${JSON.stringify(proof)});`).path;

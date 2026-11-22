@@ -43,16 +43,18 @@ instead, which Carcara checks against the rule's declaration. `tslaws` gets thos
 cvc5 binary for its rewrite-rule database (`-o rare-db`) and keeping the rules the proof names, so they never come from a
 file beside the proof.
 
-Two details matter for laws over `int`, whose range obligations repeat bounds and use `ite`, `div` and `mod`:
+Two details matter for laws over `int`, whose range obligations repeat bounds and use `ite` and `div`:
 
 - `--no-proof-alethe-res-pivots`. With pivots on, cvc5 names the pivot literal of each `resolution` step, and for a clause
   that repeats a literal Carcara does not find the named pivot ("pivot was not found") and refuses a sound proof. With the
   option off Carcara finds the pivots itself, as it does in cvc5's own regressions.
-- Three rules are declared by `tslaws` and not taken from cvc5 1.4.2's database: `ite-eq` (cvc5 cites it but leaves it out
-  of `-o rare-db`, cvc5 issue 12801) and `arith-int-div-total` and `arith-int-mod-total` (cvc5 writes `div_total` and
-  `mod_total`, which Carcara does not read; the vendored rules state the same equality with `div` and `mod`). These rules
-  are part of what you trust, together with cvc5 and Carcara; Carcara still checks each step that uses them against the
-  declaration. Remove them when a cvc5 release declares them in a form Carcara reads.
+- Two rules are declared by `tslaws` and not taken from cvc5 1.4.2's database: `ite-eq` (cvc5 cites it but leaves it out
+  of `-o rare-db`, cvc5 issue 12801) and `arith-int-div-total` (cvc5 writes `div_total`, which Carcara does not read; the
+  vendored rule states the same equality with `div`). These rules are part of what you trust, together with cvc5 and
+  Carcara; Carcara still checks each step that uses them against the declaration. Remove them when a cvc5 release declares
+  them in a form Carcara reads.
+- `mod` is not covered. A proof about `mod` also needs `mod-elim`, which cvc5 1.4.2 does not declare, and `tslaws` adds
+  no rule it cannot show to be sound, so a law that uses `mod` is `uncertified` and the reason names `mod-elim`.
 
 If cvc5 uses a rule that neither cvc5 nor `tslaws` declares, the law is `uncertified` and the reason names the rule. If
 Carcara cannot read a rule file, the reason says so; that is not a rejected proof. Laws in these gaps still prove with Z3;

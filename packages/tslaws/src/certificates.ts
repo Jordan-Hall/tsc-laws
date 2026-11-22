@@ -162,11 +162,13 @@ export function rareRulesOf(proof: string): string[] {
 
 /**
  * Rewrite rules that cvc5 1.4.2 cites in Alethe proofs but whose declarations Carcara cannot use from `-o rare-db`: it
- * omits `ite-eq` (cvc5 issue 12801) and declares the integer `div` and `mod` rules with `div_total` and `mod_total`, which
- * Carcara does not know. cvc5 keeps the Alethe form of these in proofs/alethe/rewrites.eo, and these are copied from
- * there. Each states an identity that holds for every argument: `ite-eq` is the case split on `C`, and the `div` and
- * `mod` rules only restate a term under the premise that the divisor is not 0. (`ite-eq` has one sort variable for both
- * branches: upstream writes `@T1` for the second and Carcara 1.1.0 does not accept that.)
+ * omits `ite-eq` (cvc5 issue 12801) and declares the integer `div` rule with `div_total`, which Carcara does not know.
+ * cvc5 keeps the Alethe form of these in proofs/alethe/rewrites.eo, and these are copied from there. Each states an
+ * identity that holds for every argument: `ite-eq` is the case split on `C`, and the `div` rule only restates a term
+ * under the premise that the divisor is not 0. (`ite-eq` has one sort variable for both branches: upstream writes `@T1`
+ * for the second and Carcara 1.1.0 does not accept that.) The integer `mod` rules are not here: a `mod` proof also needs
+ * `mod-elim`, which cvc5 1.4.2 does not declare either, and `tslaws` does not add a rule it cannot show to be sound, so
+ * a law with `mod` stays `uncertified` and the reason names the rule.
  */
 const aletheRareRules: Readonly<Record<string, string>> = {
   'ite-eq': [
@@ -180,13 +182,6 @@ const aletheRareRules: Readonly<Record<string, string>> = {
     '  :premises ((= (= s1 0) false))',
     '  :args (t1 s1)',
     '  :conclusion (= (div t1 s1) (div t1 s1))',
-    ')',
-  ].join('\n'),
-  'arith-int-mod-total': [
-    '(declare-rare-rule arith-int-mod-total ((t1 Int) (s1 Int))',
-    '  :premises ((= (= s1 0) false))',
-    '  :args (t1 s1)',
-    '  :conclusion (= (mod t1 s1) (mod t1 s1))',
     ')',
   ].join('\n'),
 };
