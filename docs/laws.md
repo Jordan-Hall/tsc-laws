@@ -1058,7 +1058,16 @@ directory) and made canonical on the real file system, so links, short Windows n
 cannot hide a reserved directory; the names `.tslaws`, `node_modules` and `.git` are compared without regard to case.
 A specifier with `%`, `?`, `#` or a control character (a percent escape, a query, a fragment or a `#` alias) is refused.
 Git must answer the ignore question: when git is not installed, the project is not in a repository or the check fails,
-a file import is refused rather than allowed (package imports are not paths and are unaffected). Anything that is not one plain import
+a file import is refused rather than allowed (package imports are not paths and are unaffected). Each path is also
+resolved with the TypeScript module resolution of the project's compiler options (`package.json` `main`, index files,
+`rootDirs`), the file that gives is checked as well, and a directory that resolves to no file is refused. Code may load
+other code only through a static import or an `import()` or `require()` of one string literal: a computed argument, a
+computed index (`x[name]`, unless it is a plain identifier or always a number, such as `x[i]`, `x[i % n]` or `x[i + 1]`), and any reference to `require`, `module`, `createRequire`, `eval`, `Function`, `globalThis`,
+`global`, `process`, `Reflect`, `import.meta`, or a `getBuiltinModule`, `getPrototypeOf`, `constructor`, `__proto__` or
+`prototype` property (by `.name`, `['name']` or destructuring) are refused. Of the Node built-in modules only `path`,
+`url`, `util` and `assert` may be imported (with or without `node:`); every other built-in is refused. This static check
+is best-effort and is not a sandbox: the real boundary is reviewing the code `promote` shows before you confirm it, and a
+full sandbox is out of scope for v1. Anything that is not one plain import
 statement is refused. In GitHub mode
 (`accept: "merge"` or `"comment"`) nothing is promoted by hand, and the reviewed pull request diff, which holds the
 proposal with its helpers, is the confirmation before a merge accepts it.

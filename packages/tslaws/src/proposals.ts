@@ -14,12 +14,14 @@ import {
   openSync,
   readFileSync,
   realpathSync,
+  statSync,
   writeSync,
   closeSync,
   appendFileSync,
   writeFileSync,
 } from 'node:fs';
 import { spawnSync } from 'node:child_process';
+import { builtinModules } from 'node:module';
 import { basename, dirname, isAbsolute, join, posix, relative, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { moduleSpecifiers } from './lawKinds.ts';
@@ -188,6 +190,149 @@ function realish(path: string): string {
   return join(realpathSync.native(probe), ...rest);
 }
 
+/** Names that reach the module loader or a way to run or load code the check cannot read. */
+const loaderNames = new Set([
+  'require',
+  'module',
+  'createRequire',
+  'eval',
+  'Function',
+  'globalThis',
+  'global',
+  'process',
+  'Reflect',
+]);
+/** Properties that reach the loader or the prototype chain (and so `Function`), by `.name`, `['name']` or destructuring. */
+const loaderProperties = new Set([
+  'mainModule',
+  'createRequire',
+  'getBuiltinModule',
+  'constructor',
+  '__proto__',
+  'prototype',
+  'getPrototypeOf',
+]);
+/** The only Node built-in modules a proposal may import, by bare name or with the `node:` prefix. */
+const allowedBuiltins = new Set(['path', 'url', 'util', 'assert']);
+/** Binary operators whose result is a number (or bigint) whatever the operands are. */
+const numericOperators = new Set([
+  ts.SyntaxKind.MinusToken,
+  ts.SyntaxKind.AsteriskToken,
+  ts.SyntaxKind.SlashToken,
+  ts.SyntaxKind.PercentToken,
+  ts.SyntaxKind.AsteriskAsteriskToken,
+  ts.SyntaxKind.AmpersandToken,
+  ts.SyntaxKind.BarToken,
+  ts.SyntaxKind.CaretToken,
+  ts.SyntaxKind.LessThanLessThanToken,
+  ts.SyntaxKind.GreaterThanGreaterThanToken,
+  ts.SyntaxKind.GreaterThanGreaterThanGreaterThanToken,
+]);
+const isBuiltin = (specifier: string): boolean => specifier.startsWith('node:') || builtinModules.includes(specifier);
+
+/**
+ * Throws unless `text` loads code only through a static import or re-export, or an `import()` or `require()` whose one
+ * argument is a plain string literal: those are the loads `assertImportsAllowed` can read. A call with another argument,
+ * and any other reference to `require`, `module`, `createRequire`, `process.mainModule` or `import.meta`, could load a
+ * file the check never saw, so it is refused.
+ */
+export function assertStaticLoading(text: string): void {
+  const file = ts.createSourceFile('proposal.ts', text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  const refuse = (node: ts.Node, why: string): never => {
+    const shown = node.getText(file).replace(/\s+/g, ' ');
+    throw new ProposalError(
+      `\`${shown.length > 40 ? `${shown.slice(0, 40)}…` : shown}\` ${why}; code may be loaded only by a static import or an import() or require() of a string literal, so that the files it names can be reviewed`,
+    );
+  };
+  const isLiteral = (node: ts.Node | undefined): boolean => node !== undefined && ts.isStringLiteralLike(node);
+  // An index that is always a number, whatever its operands hold, so it cannot spell a property such as `constructor`.
+  // (A plain identifier is allowed as a whole index, but not inside `+`, where it could join a string.)
+  const alwaysNumber = (node: ts.Expression): boolean => {
+    if (ts.isNumericLiteral(node)) return true;
+    if (ts.isParenthesizedExpression(node)) return alwaysNumber(node.expression);
+    if (ts.isBinaryExpression(node)) {
+      const op = node.operatorToken.kind;
+      if (op === ts.SyntaxKind.PlusToken) return alwaysNumber(node.left) || alwaysNumber(node.right);
+      return numericOperators.has(op);
+    }
+    return (
+      ts.isCallExpression(node) &&
+      ts.isPropertyAccessExpression(node.expression) &&
+      ts.isIdentifier(node.expression.expression) &&
+      node.expression.expression.text === 'Math'
+    );
+  };
+  const namedBy = (parent: ts.Node, node: ts.Node): boolean =>
+    (ts.isPropertyAccessExpression(parent) ||
+      ts.isPropertyAssignment(parent) ||
+      ts.isPropertyDeclaration(parent) ||
+      ts.isPropertySignature(parent) ||
+      ts.isMethodDeclaration(parent) ||
+      ts.isMethodSignature(parent) ||
+      ts.isGetAccessorDeclaration(parent) ||
+      ts.isSetAccessorDeclaration(parent) ||
+      ts.isEnumMember(parent)) &&
+    parent.name === node;
+  const visit = (node: ts.Node): void => {
+    if (
+      ts.isCallExpression(node) &&
+      (node.expression.kind === ts.SyntaxKind.ImportKeyword ||
+        (ts.isIdentifier(node.expression) && node.expression.text === 'require'))
+    ) {
+      if (node.arguments.length !== 1 || !isLiteral(node.arguments[0]))
+        refuse(node, 'loads code by a name that is not a single string literal');
+      return;
+    }
+    if (ts.isMetaProperty(node) && node.keywordToken === ts.SyntaxKind.ImportKeyword)
+      refuse(node, 'reads import.meta, which can build a loader');
+    else if (ts.isImportEqualsDeclaration(node) && ts.isExternalModuleReference(node.moduleReference)) {
+      if (!isLiteral(node.moduleReference.expression))
+        refuse(node, 'loads code by a name that is not a string literal');
+    } else if (ts.isPropertyAccessExpression(node) && loaderProperties.has(node.name.text))
+      refuse(node, 'reaches the module loader');
+    else if (ts.isElementAccessExpression(node)) {
+      const index = node.argumentExpression;
+      if (!ts.isStringLiteralLike(index) && !ts.isIdentifier(index) && !alwaysNumber(index))
+        refuse(node, 'indexes by a computed name, which can reach the module loader');
+      if (ts.isStringLiteralLike(index) && (loaderNames.has(index.text) || loaderProperties.has(index.text)))
+        refuse(node, 'reaches the module loader');
+    } else if (ts.isBindingElement(node)) {
+      const key = node.propertyName ?? node.name;
+      if ((ts.isIdentifier(key) || ts.isStringLiteralLike(key)) && loaderProperties.has(key.text))
+        refuse(node, 'reaches the module loader');
+    } else if (ts.isIdentifier(node) && loaderNames.has(node.text) && !namedBy(node.parent, node))
+      refuse(node, 'refers to the module loader or a way to run code the check cannot read');
+    ts.forEachChild(node, visit);
+  };
+  visit(file);
+}
+
+/** The compiler options the project's `tsconfig.json` gives (or bundler-style defaults), widened to find .js and .json files. */
+function resolutionOptions(root: string): ts.CompilerOptions {
+  const widened = { allowJs: true, resolveJsonModule: true };
+  try {
+    const configPath = ts.findConfigFile(root, ts.sys.fileExists);
+    if (configPath !== undefined) {
+      const read = ts.readConfigFile(configPath, ts.sys.readFile);
+      if (read.error === undefined) {
+        const parsed = ts.parseJsonConfigFileContent(read.config, ts.sys, dirname(configPath));
+        return { ...parsed.options, ...widened };
+      }
+    }
+  } catch {
+    // An unreadable tsconfig falls back to the defaults below.
+  }
+  return { moduleResolution: ts.ModuleResolutionKind.Bundler, module: ts.ModuleKind.ESNext, ...widened };
+}
+
+const isDirectory = (path: string): boolean => {
+  try {
+    return statSync(path).isDirectory();
+  } catch {
+    return false;
+  }
+};
+
 /**
  * Throws unless every file the module specifiers of `text` name (an import, a re-export, `require` or `import()`)
  * is code a person has reviewed: inside the project, not under `.tslaws/` (the proposals area), `node_modules` or
@@ -197,15 +342,25 @@ function realish(path: string): string {
  * from the text). A path specifier is resolved as the runtime does, as a URL against the importing directory, then
  * made canonical on the real file system; the reserved names are compared without regard to case. Git must answer: when
  * git is missing, the project is not in a repository or the check fails, the import is refused. A project that sits
- * inside an ignored directory of a larger repository has no usable ignore rules, so each file is not asked.
+ * inside an ignored directory of a larger repository has no usable ignore rules, so each file is not asked. Each path
+ * is also resolved with the TypeScript module resolution of the project's compiler options, and the file that gives
+ * (through `package.json` `main`, an index file, `rootDirs` and so on) is checked as well; a directory that resolves to
+ * no file is refused. Loading by any means but a static import or a string-literal `import()` or `require()` is refused.
  */
 export function assertImportsAllowed(cwd: string, text: string, fromDir: string): void {
+  assertStaticLoading(text);
   const all = [...new Set(moduleSpecifiers(text, 'proposal.ts').map((s) => s.value))];
   const refuse = (specifier: string, why: string): never => {
     throw new ProposalError(
       `import '${specifier}' ${why}; an import must name code that is inside the project, outside .tslaws/, node_modules and .git, and not git-ignored, so that a person has reviewed it`,
     );
   };
+  for (const specifier of all)
+    if (isBuiltin(specifier) && !allowedBuiltins.has(specifier.replace(/^node:/, '')))
+      refuse(
+        specifier,
+        'is a Node built-in module other than path, url, util and assert, which are the only ones allowed',
+      );
   for (const specifier of all)
     if (/[%?#]/.test(specifier) || [...specifier].some((c) => c.charCodeAt(0) < 0x20 || c === '\u007f'))
       refuse(specifier, 'has a %, ?, # or control character, which can make the loaded file differ from its text');
@@ -221,6 +376,7 @@ export function assertImportsAllowed(cwd: string, text: string, fromDir: string)
   const root = realpathSync.native(cwd);
   const reserved = new Set([...ignoredDirs].map((name) => name.toLowerCase()));
   let rootIgnored: boolean | undefined;
+  let options: ts.CompilerOptions | undefined;
   const ignored = (specifier: string, path: string): boolean => {
     const state = gitIgnoreState(root, path);
     if (state === 'unknown')
@@ -241,7 +397,17 @@ export function assertImportsAllowed(cwd: string, text: string, fromDir: string)
     }
     if (url.protocol !== 'file:' || url.host !== '') refuse(specifier, 'is not a path inside the project');
     const target = fileURLToPath(url);
-    for (const candidate of specifierCandidates(target)) {
+    // The file TypeScript's resolution gives (package.json main, index files, rootDirs, .js read as .ts), by the
+    // specifier as written and by the path it names, so that a redirect the textual candidates miss is checked too.
+    const compilerOptions = (options ??= resolutionOptions(root));
+    const containing = join(root, fromDir, 'proposal.ts');
+    const resolved = [specifier, target].flatMap((name) => {
+      const found = ts.resolveModuleName(name, containing, compilerOptions, ts.sys).resolvedModule;
+      return found === undefined ? [] : [found.resolvedFileName];
+    });
+    if (resolved.length === 0 && isDirectory(target))
+      refuse(specifier, 'names a directory that resolves to no file (no package.json main and no index file)');
+    for (const candidate of new Set([...specifierCandidates(target), ...resolved])) {
       const rel = relative(root, realish(candidate)).replaceAll('\\', '/');
       if (rel === '..' || rel.startsWith('../') || isAbsolute(rel)) refuse(specifier, 'resolves outside the project');
       const name = rel.split('/').find((part) => reserved.has(part.toLowerCase()));
