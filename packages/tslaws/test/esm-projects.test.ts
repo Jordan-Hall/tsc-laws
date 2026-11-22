@@ -149,6 +149,37 @@ for (const [label, compiler] of compilers) {
       assert.equal(byName(results, 'add commutes').status, 'tested');
     });
 
+    it('loads a package whose exports offer only an import condition, by its main entry and by a subpath', async () => {
+      const cwd = project({
+        'package.json': JSON.stringify({ name: 'import-only-project', type: 'module' }),
+        'tsconfig.json': nodenext,
+        'node_modules/import-only/package.json': JSON.stringify({
+          name: 'import-only',
+          version: '1.0.0',
+          type: 'module',
+          exports: {
+            '.': { types: './index.d.ts', import: './index.js' },
+            './server': { types: './server.d.ts', import: './server.js' },
+          },
+        }),
+        'node_modules/import-only/index.js': 'export const main = (n) => n + 1;\n',
+        'node_modules/import-only/index.d.ts': 'export declare const main: (n: number) => number;\n',
+        'node_modules/import-only/server.js': 'export const server = (n) => n * 2;\n',
+        'node_modules/import-only/server.d.ts': 'export declare const server: (n: number) => number;\n',
+        'src/a.laws.ts': [
+          "import { law } from 'tslaws';",
+          "import { main } from 'import-only';",
+          "import { server } from 'import-only/server';",
+          "law('the main entry loads', (n: number) => main(n) === n + 1);",
+          "law('the subpath loads', (n: number) => server(n) === n * 2);",
+          '',
+        ].join('\n'),
+      });
+      const results = await run(cwd, ['src/a.laws.ts'], compiler);
+      for (const name of ['the main entry loads', 'the subpath loads'])
+        assert.equal(byName(results, name).status, 'tested', JSON.stringify(byName(results, name)));
+    });
+
     it('says what is unsupported, rather than crashing, for top-level await in a module a law imports', async () => {
       const cwd = project({
         'package.json': JSON.stringify({ name: 'tla-project', type: 'module' }),
