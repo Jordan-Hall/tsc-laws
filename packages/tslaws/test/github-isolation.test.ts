@@ -373,6 +373,20 @@ describe('the laws in one job and the token in another', () => {
     assert.notEqual(none.code, 0);
     assert.match(none.out, /has no result/);
   });
+  it('refuses results when the branch no longer has the lock the checkout has', async () => {
+    const { dir } = project();
+    writeFileSync(join(dir, 'tsc-laws.lock'), JSON.stringify({ version: 1, laws: {}, exempt: [] }));
+    const results = join(dir, 'results.json');
+    assert.equal((await run('merge', dir, { 'results-out': results })).code, 0);
+    // The mock API reports no lock on the branch: it was deleted since the laws ran.
+    const applied = await run('merge', dir, { results });
+    assert.notEqual(applied.code, 0);
+    assert.match(applied.out, /has moved on since the laws ran/);
+    assert.ok(
+      applied.calls.every((c) => c.method === 'GET'),
+      'nothing was written',
+    );
+  });
   it('refuses results for another commit or another mode, and a changed lock', async () => {
     const { dir } = project();
     const results = join(dir, 'results.json');

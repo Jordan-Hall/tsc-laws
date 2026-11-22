@@ -1252,13 +1252,15 @@ async function merge(ctx: GithubContext): Promise<number> {
       | { sha: string; content: string }
       | undefined;
     const localBlob = existsSync(lockFile) ? gitBlobSha(readFileSync(lockFile)) : undefined;
+    // With results from another job, the lock they were made against must be the branch's lock now: a lock that is gone (or
+    // cannot be read) counts as movement when the checkout has one, so a stale lock is never written back.
+    if (typeof ctx.flags.get('results') === 'string' && headLock?.sha !== localBlob) {
+      stop(
+        `tslaws: ${lockPath} on ${config.branch} has moved on since the laws ran on this checkout; nothing accepted. Run the workflow again.`,
+      );
+      continue;
+    }
     if (headLock !== undefined && headLock.sha !== localBlob) {
-      if (typeof ctx.flags.get('results') === 'string') {
-        stop(
-          `tslaws: ${lockPath} on ${config.branch} has moved on since the laws ran on this checkout; nothing accepted. Run the workflow again.`,
-        );
-        continue;
-      }
       if (!(await lockTrustedBetween(sha, branchRef, lockPath, config))) {
         stop(
           `tslaws: ${lockPath} on ${config.branch} has moved on since this push, and not only through ${config.bot}${config.local ? ' or a maintainer' : ''}; nothing accepted`,
