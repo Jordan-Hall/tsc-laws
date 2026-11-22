@@ -18,7 +18,7 @@ import { analyzeCoverage, coverFiles, lawEnv, readConfig } from './coverage.ts';
 import { parseGithubConfig } from './github.ts';
 import { derivedStore } from './derived.ts';
 import { jobs } from './pool.ts';
-import { hostConfig, LawLoadError, Sandbox, useSandbox, warmSandbox } from './sandbox.ts';
+import { hostConfig, LawLoadError, Sandbox, useSandbox, warnE2e, warmSandbox } from './sandbox.ts';
 import {
   certificateFailure,
   hashOf,
@@ -320,13 +320,26 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
   const covered = coverFiles(options.cwd, readConfig(options.cwd).cover ?? []);
   const compiled = [...new Set([...options.files, ...covered])];
   const nodeLaws = laws.filter((law) => law.problems.length === 0 && verdictOf(law.file).kind === 'node').length;
-  // Node laws run in a sandboxed process unless the person opted out; a Node that cannot sandbox is an error here.
-  const sandboxed = nodeLaws > 0 && useSandbox(options);
+  const runsHere = laws.filter((law) => law.problems.length === 0 && verdictOf(law.file).kind !== 'browser').length;
+  // The sandbox is on unless the person turned it off with `sandbox: false` (`--no-sandbox`), and a Node that cannot
+  // enforce it is an error here, never a quiet fallback. End-to-end laws are no exception: see `allowE2e`.
+  const sandboxed = runsHere > 0 && useSandbox(options);
   if (sandboxed) warmSandbox(options.cwd, nodeLaws);
   else warmWorkers(nodeLaws);
   const built = build(options.compiler, compiled, options.cwd);
-  // What the sandbox may load: the build's output, what the laws import, packages. Reviewed once, after the build.
-  const sandbox = sandboxed ? new Sandbox(options.cwd, hostConfig(options.cwd, compiled, built.outDir)) : undefined;
+  // What the sandbox may load: the build's output, what the seals of the laws cover (the lock digests the same files), and
+  // the packages the manifests declare. Reviewed once, after the build.
+  const sandbox = sandboxed
+    ? new Sandbox(
+        options.cwd,
+        hostConfig(
+          options.cwd,
+          compiled,
+          built.outDir,
+          laws.filter((law) => law.problems.length === 0),
+        ),
+      )
+    : undefined;
   // What the type checker works out is kept with the build it came from, so an unchanged project skips the checker.
   const derived = derivedStore(options.cwd, built.key);
   let programOf: ts.Program | undefined;
@@ -369,12 +382,25 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
     }
     const browser = verdict.kind === 'browser';
     const e2e = verdict.kind === 'e2e';
+    // An end-to-end law needs processes (a browser, the app's server) that the sandbox refuses, so it would run in this
+    // process with every permission it has. A law says for itself that it is end to end, so that is never taken as leave
+    // to do so: the person must ask for it.
+    if (e2e && sandboxed && options.allowE2e !== true) {
+      add(law, 'error', 'e2e', {
+        message:
+          'end-to-end laws run outside the sandbox, with full access to this machine; run them with --allow-e2e (allowE2e) ' +
+          'once you have reviewed them, or with --no-sandbox to turn the sandbox off',
+      });
+      return;
+    }
+    if (e2e && sandboxed) warnE2e();
     const method = browser ? 'browser' : e2e ? 'e2e' : 'property';
     let fn: ((...args: unknown[]) => unknown) | undefined;
     // A browser law touches the DOM when it loads, so only the browser loads it. A node law loads in its sandbox, not here
-    // (an end-to-end law runs in this process: it drives a browser, which needs processes the sandbox refuses).
+    // (an end-to-end law runs in this process once `allowE2e` lets it: it drives a browser, which needs processes the
+    // sandbox refuses).
     let isAsync = false;
-    if (!browser && (sandbox === undefined || e2e)) {
+    if (!browser && (!sandboxed || e2e)) {
       try {
         fn = (require(jsPath(built.outDir, law.file)) as Record<string, (...args: unknown[]) => unknown>)[
           law.symbol ?? law.name
@@ -391,7 +417,8 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
     }
     // One property run of the law: in the sandbox, or in a worker of this process when it is off or the law is end to end.
     const execute = async (runOptions: CheckOptions): Promise<PropertyOutcome | 'timeout'> => {
-      if (sandbox === undefined || e2e) return runLawGuarded(built.outDir, law, runOptions, types.plans);
+      if (!sandboxed || e2e) return runLawGuarded(built.outDir, law, runOptions, types.plans);
+      if (sandbox === undefined) throw new Error('the law sandbox is on but was not set up');
       const ran = await sandbox.run(built.outDir, law, runOptions, types.plans);
       if (ran === 'timeout') return ran;
       isAsync = ran.async;
@@ -481,6 +508,7 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
       return;
     }
     const holds = (inputs: unknown[]): boolean | Promise<boolean> => {
+      if (sandboxed && sandbox === undefined) return false;
       if (sandbox !== undefined) return sandbox.holds(built.outDir, law, inputs, limitMs);
       try {
         return fn!(...inputs) !== false;

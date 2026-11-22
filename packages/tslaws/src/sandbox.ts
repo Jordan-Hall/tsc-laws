@@ -8,15 +8,15 @@
 // What the process cannot do for itself, the parent does first, as trusted code: transform the reviewed files that Node
 // cannot load as written (TypeScript source outside the build, files in a project format through `bundlerPlugins`) and
 // hand over the result. What it cannot hold: laws that drive a browser need processes, so end-to-end laws run outside it
-// (browser laws run in the page, behind the browser's own boundary). `--no-sandbox` turns it all off, with a warning.
+// (browser laws run in the page, behind the browser's own boundary), and so they are refused unless the person allows
+// them (`--allow-e2e`). `--no-sandbox` turns it all off, with a warning.
 import { fork, type ChildProcess } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync, realpathSync } from 'node:fs';
-import nodeModule from 'node:module';
 import { dirname, extname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import ts from 'typescript';
 import { lawEnv } from './coverage.ts';
-import { runtimeSpecifiers } from './lawKinds.ts';
+import { scrubbedEnv } from './isolate.ts';
 import type { HostReply, HostRequest, Prepared } from './lawHost.ts';
 import { runtimeOf, transformSource } from './lawRuntime.ts';
 import { pluginExtensionNeeded } from './pluginHooks.ts';
@@ -25,7 +25,7 @@ import { jobs, WorkerPool } from './pool.ts';
 import type { PropertyOutcome } from './propertyRun.ts';
 import { decodeExample } from './regressions.ts';
 import { normal, type GuardConfig } from './sandboxGuard.ts';
-import { resolutionCompilerOptions } from './tsconfigResolve.ts';
+import { sealedFiles } from './seal.ts';
 import type { Plan } from './plan.ts';
 import type { CheckOptions, ManifestLaw } from './types.ts';
 
@@ -35,6 +35,12 @@ export function permissionFlag(version: string = process.versions.node): string 
   // `--permission` is the stable name from 22.13 and 23.5; earlier versions that have the model call it experimental.
   if (major > 23 || (major === 23 && minor >= 5) || (major === 22 && minor >= 13)) return '--permission';
   return major >= 20 ? '--experimental-permission' : undefined;
+}
+
+/** Whether the module guard can cover `import` as well as `require`: synchronous loader hooks came in 22.15 and 23.5. */
+export function hasLoaderHooks(version: string = process.versions.node): boolean {
+  const [major = 0, minor = 0] = version.split('.').map(Number);
+  return major > 23 || (major === 23 && minor >= 5) || (major === 22 && minor >= 15);
 }
 
 let warned = false;
@@ -54,12 +60,25 @@ export function useSandbox(options: Pick<CheckOptions, 'sandbox'>, version: stri
     }
     return false;
   }
-  if (permissionFlag(version) === undefined)
+  // Both are needed: the permission model is the fence, and the hooks keep an `import()` inside the reviewed set.
+  if (permissionFlag(version) === undefined || !hasLoaderHooks(version))
     throw new Error(
-      `tslaws runs laws in a sandbox built on Node's permission model, which needs Node 20 or later (this is Node ${version}). ` +
+      `tslaws runs laws in a sandbox built on Node's permission model and loader hooks, which need Node 22.15, 23.5 or later (this is Node ${version}). ` +
         'Upgrade Node, or pass --no-sandbox to run the laws with full access to this machine.',
     );
   return true;
+}
+
+let warnedE2e = false;
+
+/** Says once that end-to-end laws are running outside the sandbox because the person allowed it. */
+export function warnE2e(): void {
+  if (warnedE2e) return;
+  warnedE2e = true;
+  process.stderr.write(
+    'tslaws: warning: --allow-e2e: end-to-end laws run outside the sandbox, with full access to this machine ' +
+      '(files, processes and network). Use it only for laws and helpers you wrote or reviewed.\n',
+  );
 }
 
 /** Only these of the parent's own flags reach the process: resource limits and TypeScript support, never code loaders. */
@@ -100,6 +119,14 @@ function modulesAbove(from: string, project: string): { modules: string[]; linke
   }
 }
 
+const realOf = (path: string): string => {
+  try {
+    return realpathSync(path);
+  } catch {
+    return path;
+  }
+};
+
 /** The tslaws package: `src` or `dist` sits directly under it. */
 const tslawsRoot = fileURLToPath(new URL('../', import.meta.url));
 /** What of it the process loads: its code and its `package.json`, not whatever else sits in the package directory. */
@@ -135,45 +162,70 @@ export function sandboxFlags(cwd: string, extra: string[] = []): string[] {
   ];
 }
 
-const sourceFamily = /\.[cm]?[jt]sx?$/;
 const tsFamily = /\.[cm]?tsx?$/;
 
 /**
- * The files a law may load besides the build: the entries, and every project file they reach by an import or `require`
- * that TypeScript can resolve, or that is a relative path to a file (a template, a stylesheet). Packages are not walked:
- * they are reviewed as packages. A path computed at run time is not here, so the guard refuses it.
+ * The files a law may load besides the build: the entries (what was compiled) and everything the seals of the laws cover,
+ * which is what the lock digests (see seal.ts): each laws file, and every module it imports, transitively, including files
+ * outside the project and workspace sources. A path computed at run time is not among them, so the guard refuses it.
  */
-export function reviewedFiles(cwd: string, entries: string[]): string[] {
-  const runtime = runtimeOf(cwd);
-  const options: ts.CompilerOptions = {
-    ...resolutionCompilerOptions(runtime?.options),
-    module: ts.ModuleKind.ESNext,
-    moduleResolution: ts.ModuleResolutionKind.Bundler,
-    allowJs: true,
-  };
-  const seen = new Set<string>();
-  const queue = entries.map((file) => resolve(cwd, file));
-  for (let file = queue.shift(); file !== undefined; file = queue.shift()) {
-    if (seen.has(file) || !existsSync(file)) continue;
-    seen.add(file);
-    if (!sourceFamily.test(file)) continue;
-    let text: string;
-    try {
-      text = readFileSync(file, 'utf8');
-    } catch {
-      continue;
-    }
-    for (const { value } of runtimeSpecifiers(text, file)) {
-      if (nodeModule.isBuiltin(value)) continue;
-      const found = ts.resolveModuleName(value, file, options, ts.sys).resolvedModule;
-      // A workspace package resolves to its real path, so its TypeScript source counts as the project's own.
-      const source = found?.resolvedFileName;
-      if (source !== undefined && !/\.d\.[cm]?ts$/.test(source) && !/[\\/]node_modules[\\/]/.test(source)) {
-        queue.push(resolve(source));
-      } else if (found === undefined && value.startsWith('.')) queue.push(resolve(dirname(file), value));
-    }
+export function reviewedFiles(cwd: string, entries: string[], laws: ManifestLaw[]): string[] {
+  const covered = sealedFiles(cwd, laws);
+  return [...new Set([...entries.map((file) => resolve(cwd, file)), ...covered])].filter((file) => existsSync(file));
+}
+
+/** The dependency fields of a manifest that name packages the code may load. */
+const dependencyFields = ['dependencies', 'optionalDependencies', 'peerDependencies'] as const;
+
+function readManifest(file: string): Record<string, unknown> | undefined {
+  try {
+    return JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>;
+  } catch {
+    return undefined;
   }
-  return [...seen];
+}
+
+const namesOf = (manifest: Record<string, unknown> | undefined, fields: readonly string[]): string[] =>
+  fields.flatMap((field) => {
+    const value = manifest?.[field];
+    return typeof value === 'object' && value !== null ? Object.keys(value) : [];
+  });
+
+/**
+ * The packages the code may load: those the manifests declare (the project's `package.json` with its dev dependencies,
+ * and tslaws's own) and, from each one's manifest, what it declares in turn. Anything else in a `node_modules` was put
+ * there by something else, and is not trusted. A package that is a link to a directory outside `node_modules` (a workspace
+ * package) is source: its tree is trusted as a tree. The project itself is not a package; its files are reviewed one by one.
+ */
+export function trustedPackages(cwd: string): { modules: string[]; linked: string[] } {
+  const project = realOf(resolve(cwd));
+  const modules = new Set<string>();
+  const linked = new Set<string>();
+  const seen = new Set<string>();
+  const find = (name: string, from: string): string | undefined => {
+    for (let dir = from; ; dir = dirname(dir)) {
+      const candidate = join(dir, 'node_modules', name);
+      if (existsSync(join(candidate, 'package.json'))) return realOf(candidate);
+      if (dirname(dir) === dir) return undefined;
+    }
+  };
+  const visit = (name: string, from: string): void => {
+    const dir = find(name, from);
+    if (dir === undefined || seen.has(dir)) return;
+    seen.add(dir);
+    if (/[\\/]node_modules[\\/]/.test(dir)) modules.add(normal(dir));
+    // The project's own files are reviewed one by one (through the seals), not as a tree.
+    else if (dir === project || dir.startsWith(project + sep)) return;
+    else linked.add(dir);
+    for (const next of namesOf(readManifest(join(dir, 'package.json')), dependencyFields)) visit(next, dir);
+  };
+  const manifests: [string, readonly string[]][] = [
+    [project, [...dependencyFields, 'devDependencies']],
+    [tslawsRoot, dependencyFields],
+  ];
+  for (const [dir, fields] of manifests)
+    for (const name of namesOf(readManifest(join(dir, 'package.json')), fields)) visit(name, dir);
+  return { modules: [...modules], linked: [...linked] };
 }
 
 /** Everything the process needs to know about the reviewed set, built once per check after the build. */
@@ -190,15 +242,15 @@ export interface HostConfig {
  * The reviewed set of a project after a build: the build's output, the files its laws reach, the packages, and the
  * transformed text of what needs transforming. `outDir` is where the build wrote the output of `cwd`.
  */
-export function hostConfig(cwd: string, entries: string[], outDir: string): HostConfig {
-  const files = reviewedFiles(cwd, entries);
+export function hostConfig(cwd: string, entries: string[], outDir: string, laws: ManifestLaw[]): HostConfig {
+  const files = reviewedFiles(cwd, entries, laws);
   const base = join(cwd, '.tslaws', 'out');
-  const here = modulesAbove(cwd, resolve(cwd));
-  const there = modulesAbove(tslawsRoot, resolve(cwd));
+  const trusted = trustedPackages(cwd);
   const guard: GuardConfig = {
     trees: [base],
     files,
-    packages: [...tslawsCode, ...here.modules, ...here.linked, ...there.modules, ...there.linked],
+    packages: [...tslawsCode, ...trusted.linked],
+    modules: trusted.modules,
   };
   const plugins = runtimeOf(cwd)?.bundlerPlugins ?? [];
   const transforms: HostConfig['transforms'] = {};
@@ -278,21 +330,24 @@ export function readOutcome(value: unknown): PropertyOutcome {
 
 const hostFile = new URL(`./lawHost${import.meta.url.endsWith('.ts') ? '.ts' : '.js'}`, import.meta.url);
 
+type Run = Extract<HostRequest, { type: 'run' }>;
+type Holds = Extract<HostRequest, { type: 'holds' }>;
+/** A request as the caller makes it; the process adds the token. */
+type Body = Omit<Run, 'token'> | Omit<Holds, 'token'>;
+
 /** A flag-restricted child that serves one request at a time (the pool hands it to one caller at once). */
 class LawProcess {
   private readonly child: ChildProcess;
   private readonly pending = new Map<number, { resolve: (reply: HostReply) => void; reject: (error: Error) => void }>();
   private next = 1;
   configKey: string | undefined;
+  /** Answers only requests that carry it. The process learns it from `configure` and no law can read it. */
+  private readonly token = randomBytes(24).toString('hex');
 
   constructor(cwd: string, extra: string[]) {
-    // The environment may not load code into the process; resource limits stay.
-    const env = { ...process.env };
-    const kept = (env.NODE_OPTIONS ?? '').split(/\s+/).filter((flag) => keptFlag.test(flag));
-    if (kept.length > 0) env.NODE_OPTIONS = kept.join(' ');
-    else delete env.NODE_OPTIONS;
     this.child = fork(hostFile, [], {
-      env,
+      // The allowlisted environment the token-free check process gets (see isolate.ts): no credential, no code loader.
+      env: scrubbedEnv(process.env),
       execArgv: sandboxFlags(cwd, extra),
       serialization: 'advanced',
       stdio: ['ignore', 'inherit', 'inherit', 'ipc'],
@@ -318,17 +373,26 @@ class LawProcess {
     );
   }
 
+  /** Fixes what this process may load, once: it takes no second `configure`, so a changed set needs a new process. */
   configure(config: HostConfig): void {
-    if (this.configKey === config.key) return;
+    if (this.configKey !== undefined) {
+      if (this.configKey !== config.key) throw new Error('a law process is configured once');
+      return;
+    }
     this.configKey = config.key;
-    this.child.send({ type: 'configure', guard: config.guard, transforms: config.transforms } satisfies HostRequest);
+    this.child.send({
+      type: 'configure',
+      token: this.token,
+      guard: config.guard,
+      transforms: config.transforms,
+    } satisfies HostRequest);
   }
 
-  request(make: (id: number) => HostRequest): Promise<HostReply> {
+  request(make: (id: number) => Body): Promise<HostReply> {
     const id = this.next++;
     return new Promise((resolvePromise, reject) => {
       this.pending.set(id, { resolve: resolvePromise, reject });
-      this.child.send(make(id), (error) => {
+      this.child.send({ ...make(id), token: this.token } as HostRequest, (error) => {
         if (error !== null) {
           this.pending.delete(id);
           reject(error);
@@ -389,8 +453,13 @@ export class Sandbox {
   }
 
   /** Sends one request to a process of its own, and gives up on it after `timeoutMs`. */
-  private async ask(timeoutMs: number, make: (id: number) => HostRequest): Promise<HostReply | 'timeout'> {
-    const current = await this.pool.acquire();
+  private async ask(timeoutMs: number, make: (id: number) => Body): Promise<HostReply | 'timeout'> {
+    let current = await this.pool.acquire();
+    // A process that was configured for another reviewed set (an earlier check) is not reused: it takes no second configure.
+    while (current.configKey !== undefined && current.configKey !== this.config.key) {
+      this.pool.discard(current);
+      current = await this.pool.acquire();
+    }
     let timer: NodeJS.Timeout | undefined;
     try {
       current.configure(this.config);

@@ -99,6 +99,9 @@ async function run(
       bound: 8,
       proofTimeoutMs: 1000,
       noRegressions: true,
+      // The probe law reads the environment and writes a file on purpose, which the law sandbox refuses; this is about the
+      // credential-free check process around it.
+      sandbox: false,
     },
     // The parent holds the token, as it does in the action.
     env: {

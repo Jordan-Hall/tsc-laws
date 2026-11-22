@@ -76,7 +76,10 @@ jobs:
           # The examples are workspace members, so `tslaws` there is packages/tslaws, and the compiler is the one built above.
           for example in react angular vanilla-ts vanilla-js e2e checkout; do
             echo "::group::examples/$example"
-            (cd "examples/$example" && node ../../packages/tslaws/bin/tslaws.js check --summary)
+            # End-to-end laws drive a browser and the app's server, which the sandbox does not allow: say so for that one.
+            extra=""
+            if [ "$example" = e2e ]; then extra="--allow-e2e"; fi
+            (cd "examples/$example" && node ../../packages/tslaws/bin/tslaws.js check --summary $extra)
             echo "::endgroup::"
           done
       - name: Example project

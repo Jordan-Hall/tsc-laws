@@ -366,6 +366,11 @@ class Sealer {
   }
 
   seal(law: ManifestLaw): string {
+    return this.sealed(law).seal;
+  }
+
+  /** The seal of a law and the files it covers: the law's own file and every module its seal reaches, as absolute paths. */
+  sealed(law: ManifestLaw): { seal: string; files: string[] } {
     const facts = this.factsOf(law.file);
     const base = resolve(this.cwd, law.file);
     const needed = new Set<ParsedDeclaration>();
@@ -394,7 +399,7 @@ class Sealer {
     const linked = [...specifiers].sort().map((specifier) => this.linker.link(specifier, base));
     const reached = this.reach(linked.flatMap((l) => l.files));
     const externals = [...new Set([...linked.flatMap((l) => l.externals), ...reached.externals])].sort();
-    return digest(
+    const seal = digest(
       JSON.stringify({
         settings: this.settings,
         helpers,
@@ -403,6 +408,7 @@ class Sealer {
         externals,
       }),
     );
+    return { seal, files: [base, ...Object.keys(reached.modules).map((module) => resolve(this.cwd, module))] };
   }
 }
 
@@ -426,6 +432,17 @@ function portable(value: unknown, base: string): unknown {
   if (Array.isArray(value)) return value.map((entry) => portable(entry, base));
   if (typeof value !== 'object' || value === null) return value;
   return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, portable(entry, base)]));
+}
+
+/**
+ * The files the seals of `laws` cover: each law's file and every module it reaches, absolute and real. This is the set a
+ * sandboxed law process may load besides the build's output (see sandboxGuard.ts), so the code that runs is the code the
+ * lock digests, no more.
+ */
+export function sealedFiles(cwd: string, laws: ManifestLaw[]): string[] {
+  if (laws.length === 0) return [];
+  const sealer = new Sealer(cwd);
+  return [...new Set(laws.flatMap((law) => sealer.sealed(law).files))];
 }
 
 /** The laws with their `seal` set. */

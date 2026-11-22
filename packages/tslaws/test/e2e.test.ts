@@ -130,6 +130,8 @@ async function project(name: string, setup: Setup): Promise<{ opts: CheckOptions
     proofTimeoutMs: 5000,
     propertyTimeoutMs: 30000,
     noRegressions: true,
+    // End-to-end laws run outside the sandbox, so the person has to say they may (see check.ts).
+    allowE2e: true,
   };
   writeLock(opts.lockFile, readManifest(compiler!, opts.files, cwd));
   return { opts, port, cwd };

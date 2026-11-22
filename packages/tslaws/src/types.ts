@@ -95,6 +95,12 @@ export interface CheckOptions {
    * `--no-sandbox`, which lets laws and the helpers they load do anything this process can.
    */
   sandbox?: boolean;
+  /**
+   * Let end-to-end laws run. They drive a browser and start the app's server, which needs processes the sandbox refuses,
+   * so they run in this process with its full permissions: with the sandbox on they are refused unless this is set
+   * (`--allow-e2e`). Set it only for laws you wrote or reviewed. Ignored when `sandbox` is false.
+   */
+  allowE2e?: boolean;
   /** Skip the regression corpus: nothing is replayed and nothing is saved. */
   noRegressions?: boolean;
   /** Stored counterexamples to replay before the random search, as JSON text from `encodeExample`. Set by `check`. */

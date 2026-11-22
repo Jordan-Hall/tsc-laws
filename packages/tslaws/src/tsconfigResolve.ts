@@ -1,7 +1,7 @@
 // The module resolution a package's own tsconfig describes (`paths`, `baseUrl`, `rootDirs`, ...), so laws can import
 // the way the package's code does. Only resolution options are taken: tslaws picks the law files and decides what and
 // how to emit, so `include`, `files`, `outDir`, `noEmit`, `module` and `moduleResolution` are never read from it.
-import { existsSync, statSync } from 'node:fs';
+import { existsSync as fsExists, statSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import ts from 'typescript';
 import { readConfig } from './coverage.ts';
@@ -26,6 +26,15 @@ const copied = [
   'resolvePackageJsonExports',
   'resolvePackageJsonImports',
 ] as const;
+
+/** Whether `path` exists. A path the sandbox may not read (the directories above the project) is answered with no. */
+function existsSync(path: string): boolean {
+  try {
+    return fsExists(path);
+  } catch {
+    return false;
+  }
+}
 
 /** `entry` made absolute against `base`, forward slashes, a trailing slash and any `*` kept. */
 function absolute(entry: string, base: string): string {

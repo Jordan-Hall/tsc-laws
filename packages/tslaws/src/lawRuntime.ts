@@ -2,7 +2,7 @@
 // checker found: tsconfig `paths`, and packages whose `exports` or `types` point at TypeScript source. Two hooks, put in
 // once per process (and once per property worker): a resolver that asks TypeScript when Node cannot resolve a name, and
 // a loader for `.ts` files that no compiler wrote out (a workspace package's source).
-import { existsSync, readFileSync, statSync } from 'node:fs';
+import { existsSync as fsExists, readFileSync, statSync } from 'node:fs';
 import Module, { createRequire } from 'node:module';
 import { dirname, extname, join, relative, resolve, sep } from 'node:path';
 import { installPluginHooks, pluginExtensionNeeded } from './pluginHooks.ts';
@@ -24,6 +24,15 @@ export interface LawRuntime {
   outDir?: string;
   /** The project's `bundlerPlugins` (absolute module paths): they load the source formats Node cannot (see pluginHost.ts). */
   bundlerPlugins?: string[];
+}
+
+/** Whether `path` exists. A path the sandbox may not read is answered with no, as a missing one is. */
+function existsSync(path: string): boolean {
+  try {
+    return fsExists(path);
+  } catch {
+    return false;
+  }
 }
 
 interface Internals {
@@ -174,6 +183,30 @@ function namedInPaths(request: string, parent: Parent | undefined): boolean {
   });
 }
 
+/**
+ * `sys` for a sandboxed process: the permission model answers a probe outside the readable trees (the directories above the
+ * project, which module resolution looks through) with an error, where it needs "no such file".
+ */
+function readableSys(sys: ts.System): ts.ModuleResolutionHost {
+  const safe =
+    <A extends unknown[], R>(call: (...args: A) => R, otherwise: R) =>
+    (...args: A): R => {
+      try {
+        return call(...args);
+      } catch {
+        return otherwise;
+      }
+    };
+  return {
+    fileExists: safe(sys.fileExists, false),
+    directoryExists: safe(sys.directoryExists, false),
+    readFile: safe(sys.readFile, undefined),
+    realpath: sys.realpath === undefined ? undefined : safe(sys.realpath, undefined as unknown as string),
+    getCurrentDirectory: () => sys.getCurrentDirectory(),
+    getDirectories: safe(sys.getDirectories, []),
+  };
+}
+
 function resolveThroughTypeScript(request: string, parent: Parent | undefined): string | undefined {
   const from = parent?.filename;
   if (from === undefined) return undefined;
@@ -196,7 +229,7 @@ function resolveThroughTypeScript(request: string, parent: Parent | undefined): 
       request,
       containing,
       compilerOptions,
-      typescript.sys,
+      readableSys(typescript.sys),
       undefined,
       undefined,
       mode,

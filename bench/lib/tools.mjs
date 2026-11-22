@@ -207,7 +207,7 @@ export function toolsFor(workload) {
         id: 'tslaws',
         label: 'tslaws check --no-prove (e2e laws)',
         dir: 'tslaws',
-        argv: tslawsArgs(['--no-prove']),
+        argv: tslawsArgs(['--no-prove', '--allow-e2e']),
         parse: parseTslaws,
         casesPerTest: params.e2eRuns,
         browser: true,

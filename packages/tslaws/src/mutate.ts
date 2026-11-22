@@ -40,6 +40,8 @@ export interface MutateOptions {
   seed?: number;
   /** False runs laws without the sandbox (`--no-sandbox`). */
   sandbox?: boolean;
+  /** Let end-to-end laws run outside the sandbox (`--allow-e2e`). */
+  allowE2e?: boolean;
   /** Run settings as `check` takes them; unset ones come from tslaws.json, then the mutate defaults (30 runs). */
   runs?: number;
   bound?: number;
@@ -238,6 +240,7 @@ export async function mutate(options: MutateOptions): Promise<MutateReport> {
     propertyTimeoutMs: options.propertyTimeoutMs ?? config.propertyTimeoutMs ?? mutateDefaults.propertyTimeoutMs,
     browser: options.browser,
     sandbox: options.sandbox,
+    allowE2e: options.allowE2e,
     // The lock is not enforced on mutants; it is copied so the scratch project is complete.
     explicit: options.runs === undefined ? [] : ['runs'],
   });

@@ -15,11 +15,15 @@ import type { CheckOptions, ManifestLaw } from './types.ts';
 /** A reviewed file as the parent transformed it, or why it could not. */
 export type Prepared = { code: string } | { error: string };
 
-/** What the parent sends. `configure` comes first and again whenever the reviewed set changes. */
+/**
+ * What the parent sends. `configure` comes first and once: it fixes the reviewed set and hands over `token`, a secret that
+ * every later request must carry. The process takes a request from no one else, so code that runs inside it cannot make one.
+ */
 export type HostRequest =
-  | { type: 'configure'; guard: GuardConfig; transforms: Record<string, Prepared> }
+  | { type: 'configure'; token: string; guard: GuardConfig; transforms: Record<string, Prepared> }
   | {
       type: 'run';
+      token: string;
       id: number;
       outDir: string;
       law: ManifestLaw;
@@ -27,7 +31,15 @@ export type HostRequest =
       options: CheckOptions;
       env: ImportMetaEnv;
     }
-  | { type: 'holds'; id: number; outDir: string; law: ManifestLaw; inputs: unknown[]; env: ImportMetaEnv };
+  | {
+      type: 'holds';
+      token: string;
+      id: number;
+      outDir: string;
+      law: ManifestLaw;
+      inputs: unknown[];
+      env: ImportMetaEnv;
+    };
 
 /** What it answers: `phase` says whether the law could not be loaded or failed while it ran. */
 export type HostReply =
@@ -40,32 +52,98 @@ const require = createRequire(import.meta.url);
 type Law = (...args: unknown[]) => unknown;
 
 const guard = new Guard();
+let secret: string | undefined;
 const transformed = new Map<string, Prepared>();
 const loaded = new Map<string, Law>();
 let guarded = false;
 
 // The channel is the only way out. Keep it, and take it from the code that runs here so it cannot answer for the host.
-const send = process.send!.bind(process);
+// `process.send` calls `this._send`, which lockDown hides, so the inner function is kept as well.
+const sendRaw = (process as unknown as { _send: (...args: unknown[]) => boolean })._send.bind(process);
+const send = (message: unknown): boolean => sendRaw(message, undefined, {}, undefined);
 
 const forbidden = (what: string): never => {
   throw Object.assign(new Error(`tslaws sandbox: ${what} is not available to a law`), { code: 'ERR_TSLAWS_SANDBOX' });
 };
 
+const ErrorClass = Error;
+const captureStackTrace = Error.captureStackTrace.bind(Error);
+
+/** Whether the code that called the accessor that called this is Node's own (`node:internal/...`), not a file of a law. */
+function askedByNode(): boolean {
+  const limit = ErrorClass.stackTraceLimit;
+  const prepare = ErrorClass.prepareStackTrace;
+  ErrorClass.stackTraceLimit = 3;
+  ErrorClass.prepareStackTrace = (_error, sites) => sites;
+  try {
+    const holder: { stack?: unknown } = {};
+    captureStackTrace(holder, askedByNode);
+    const sites = (holder.stack as NodeJS.CallSite[] | undefined) ?? [];
+    // Frame 0 is the accessor; frame 1 is whoever read or wrote the property.
+    const name = sites[1]?.getFileName();
+    return typeof name === 'string' && name.startsWith('node:');
+  } finally {
+    ErrorClass.prepareStackTrace = prepare;
+    ErrorClass.stackTraceLimit = limit;
+  }
+}
+
 /** Removes the ways around the guard that need no permission: the internals, signals, the channel and the network. */
 function lockDown(): void {
-  const builtin = process.getBuiltinModule?.bind(process);
   const hide = (target: object, name: string, value: unknown): void => {
     Object.defineProperty(target, name, { value, writable: false, configurable: false });
   };
-  if (builtin !== undefined)
-    hide(process, 'getBuiltinModule', (id: string) => {
-      guard.builtin(id, undefined);
-      return builtin(id);
-    });
   hide(process, 'binding', () => forbidden('process.binding'));
   hide(process, 'dlopen', () => forbidden('process.dlopen'));
   hide(process, 'kill', () => forbidden('process.kill'));
-  hide(process, 'send', undefined);
+  // The channel to the parent is this file's alone: nothing here may use it, listen on it or put a message on it.
+  // (Accessors that answer nothing and take nothing: Node itself assigns to some of these when the channel closes.)
+  // Node's own code still reads and writes them (to close the channel, say), and it is told by the frame that asks: a
+  // read from a file of a law is answered with nothing.
+  const own = process as unknown as Record<string, unknown>;
+  for (const name of ['send', '_send', 'channel', '_channel']) {
+    let value = own[name];
+    Object.defineProperty(process, name, {
+      get: () => (askedByNode() ? value : undefined),
+      set: (next: unknown) => {
+        if (askedByNode()) value = next;
+      },
+      configurable: false,
+    });
+  }
+  // Nor may a listener see the requests (the secret is in them) or be put in place of ours. `emit` stays: Node uses it, and
+  // a message made up with it has no secret.
+  const messages = new Set(['message', 'internalMessage']);
+  const emitter = process as unknown as Record<string, (...args: unknown[]) => unknown>;
+  for (const name of ['on', 'addListener', 'once', 'prependListener', 'prependOnceListener']) {
+    const original = emitter[name]!.bind(process);
+    hide(process, name, (event: unknown, ...rest: unknown[]) =>
+      messages.has(String(event)) ? process : original(event, ...rest),
+    );
+  }
+  for (const name of ['off', 'removeListener']) {
+    const original = emitter[name]!.bind(process);
+    hide(process, name, (event: unknown, ...rest: unknown[]) =>
+      messages.has(String(event)) ? process : original(event, ...rest),
+    );
+  }
+  const removeAll = emitter.removeAllListeners!.bind(process);
+  hide(process, 'removeAllListeners', (event?: unknown) => {
+    if (event === undefined) {
+      for (const name of process.eventNames()) if (!messages.has(String(name))) removeAll(name);
+    } else if (!messages.has(String(event))) removeAll(event);
+    return process;
+  });
+  for (const name of ['listeners', 'rawListeners']) {
+    const original = emitter[name]!.bind(process);
+    hide(process, name, (event: unknown) => (messages.has(String(event)) ? [] : original(event)));
+  }
+  const events = (process as unknown as { _events?: Record<string, unknown> })._events;
+  const names = process.eventNames.bind(process);
+  hide(process, 'eventNames', () => names().filter((name) => !messages.has(String(name))));
+  // Our own listener stays where it is, whatever is done to the table that holds it.
+  if (events !== undefined && 'message' in events)
+    Object.defineProperty(events, 'message', { value: events.message, writable: false, configurable: false });
   // Nothing may open a socket, and the globals that do are the way past the module list.
   for (const name of ['fetch', 'WebSocket', 'EventSource']) hide(globalThis, name, () => forbidden(name));
 }
@@ -112,12 +190,16 @@ const message = (error: unknown): string => (error instanceof Error ? error.mess
 process.on('disconnect', () => process.exit(0));
 
 process.on('message', async (request: HostRequest) => {
+  if (typeof request !== 'object' || request === null) return;
   if (request.type === 'configure') {
+    // Once, and first: before any law code is loaded. A later one is not the parent's.
+    if (secret !== undefined || typeof request.token !== 'string' || request.token.length < 16) return;
+    secret = request.token;
     guard.configure(request.guard);
-    transformed.clear();
     for (const [key, code] of Object.entries(request.transforms)) transformed.set(key, code);
     return;
   }
+  if (secret === undefined || request.token !== secret) return;
   const { id } = request;
   let fn: Law;
   try {

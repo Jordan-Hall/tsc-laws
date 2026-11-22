@@ -888,23 +888,36 @@ under `.tslaws/out/smt`.
 
 The lock and the coverage gate decide which laws count. They do not decide what a law may do while it runs: a law is
 code, and code can read secrets, write files, start processes or open a connection. `tslaws check` therefore runs every
-node law, and every property run the prover replays, in a child process under Node's permission model:
+node law, and every property run the prover replays, in a child process under Node's permission model. The sandbox is on
+by default; the only way to turn it off is `--no-sandbox`.
 
 - **Files.** The process may read the project, the `node_modules` above it, the trees that workspace links in
   `node_modules` point to, and the tslaws package. It may write nothing.
-- **Processes.** It may not start a child process, a worker thread, an addon or a WASI instance.
+- **Processes and threads.** It has no `--allow-child-process`, `--allow-worker`, `--allow-addons` or `--allow-wasi`, so it
+  may not start a child process, a worker thread, an addon or a WASI instance. It has no `--allow-net` either, where
+  Node enforces that (Node 26 denies `net.connect`); `fetch`, `WebSocket` and `EventSource` are removed as well.
 - **Code from strings.** `eval`, `new Function` and the constructor chains that reach them (`(() => 0).constructor('...')`)
   throw, because the process starts with `--disallow-code-generation-from-strings`.
-- **Modules.** A module guard sits in front of every `require` and `import()`. Only the reviewed set loads: the build's
-  output, the project files the laws import (found by following their imports), installed packages, and a short list of
-  Node modules: `assert`, `buffer`, `crypto`, `events`, `path`, `querystring`, `string_decoder`, `timers`, `url`, `util`
-  (a package may use a few more, such as `fs` and `os`). A file nobody reviewed, a `data:` or network URL, and any other
-  Node module (`fs`, `child_process`, `net`, `vm`, `module`, `worker_threads`) are refused with a plain error. A path a law
-  computes at run time to reach an unreviewed file is refused the same way.
-- **Network.** The permission model does not cover sockets, so `fetch`, `WebSocket` and `EventSource` are removed, and the
-  modules that open sockets are not on the list.
-- **Internals.** `process.binding`, `process.getBuiltinModule` (for a module that is not on the list), `process.dlopen`,
-  `process.kill` and the IPC channel are closed to the law.
+- **Environment.** The process gets an allowlist of variables (`PATH`, the locale and temp directory variables, `CI`, and
+  the like), never `GITHUB_TOKEN`, `NPM_TOKEN` or any other credential, and no `NODE_OPTIONS` that loads code.
+- **Modules.** A module guard sits in front of every `require`, `createRequire` and `import()`. Only the reviewed set
+  loads: the build's output, the files the seals of the laws cover (the same files the lock digests: each laws file and
+  every module it imports), and the packages that `package.json` declares (dependencies, optional and peer dependencies,
+  and the project's dev dependencies, with what each of those declares in turn) and tslaws itself. A law and the project
+  code may load these Node modules: `assert`, `buffer`, `crypto`, `events`, `path`, `punycode`, `querystring`,
+  `string_decoder`, `timers`, `url`, `util`. A declared package may also use a few more (`fs`, `os`, `stream`, `zlib`,
+  and similar), never `module` or `process`. A file nobody reviewed, a package nothing declares, a `data:` or network
+  URL, and any other Node module (`child_process`, `net`, `vm`, `module`, `worker_threads`) are refused with a plain
+  error, as is a path a law computes at run time.
+- **Who is asking.** The guard decides from the call stack, the real file that makes the request, never from the
+  `parent` a caller passes to `Module._load` or `require.call`. After it is installed the loader's functions and tables
+  (`_load`, `_resolveFilename`, `_extensions`, `_cache`, `createRequire`, `Module.prototype.require`) are read-only and
+  `module.registerHooks` and `module.register` throw, so a law cannot take the guard out or put a hook in front of it.
+  The permission model is the fence that holds whatever the guard misses.
+- **Internals.** `process.binding`, `process.getBuiltinModule` (for a module a law may not load), `process.dlopen`,
+  `process.kill` and the IPC channel are closed to the law. The process takes one `configure` message, before any law
+  code loads, and answers only requests that carry a random per-run token; code in the process cannot read the channel
+  (`process.send`, `_send`, `channel`, `_channel`), listen for messages or send one in the host's place.
 
 The process answers with plain data. The parent rebuilds each field of the answer (the counts, the seed, the
 counterexample text) and drops the rest, so a law cannot make the check report more than a property run says.
@@ -914,21 +927,24 @@ did not compile, and files in a project format through `bundlerPlugins`) are tra
 
 ```
 tslaws check --no-sandbox
+tslaws check --allow-e2e
 ```
 
 `--no-sandbox` (also `sandbox: false` in the API) runs laws in this process's own permissions and prints a warning.
-Use it for laws you wrote, when a law needs `fs` or a process for a reason of its own.
+Use it for laws you wrote, when a law needs `fs` or a process for a reason of its own. Leaving the option out is the
+sandbox on, never off.
 
-Node versions. The sandbox needs the permission model: `--permission` on Node 22.13, 23.5 and later, and
-`--experimental-permission` on Node 20 up to those. On a Node without it (before 20) the check stops with an error that
-names `--no-sandbox`; it never runs the laws unsandboxed by itself. The guard also hooks `import()` of an ES module
-(`module.registerHooks`) from Node 22.15 and 23.5; on an older Node an `import()` of an unreviewed ES module is held back
-by the read permission alone, which still keeps it inside the project.
+Node versions. The guard needs the permission model (`--permission` on Node 22.13, 23.5 and later) and synchronous
+loader hooks (`module.registerHooks`: Node 22.15, 23.5 and later). On an older Node, and on any Node where either is
+missing, the check stops with an error that names `--no-sandbox`; it never runs the laws unsandboxed by itself.
 
-What is not sandboxed. End-to-end laws drive a browser, which needs processes, so they run outside it and a person
-reads them as they would any script. Browser laws run in the page, behind the browser's own boundary. Project code that
-uses `fs`, `os` or `child_process` for real work is refused under the sandbox; a law over it needs `--no-sandbox`, or the
-code behind an interface that the law replaces.
+What is not sandboxed. End-to-end laws drive a browser and the app's server, which need processes, so they cannot run in
+the sandbox. A laws file says for itself that it is end to end, so that is not taken as leave to run outside it: such a
+law is refused unless you pass `--allow-e2e` (`allowE2e` in the API), which runs it in this process with a warning, or
+`--no-sandbox`. Browser laws run in the page, behind the browser's own boundary. Project code that uses `fs`, `os` or
+`child_process` for real work is refused under the sandbox; a law over it needs `--no-sandbox`, or the code behind an
+interface that the law replaces. Some loader properties are fixed by Node and stay writable (`Module.wrap`); the
+permission model, not the guard, bounds what that gives a law.
 
 ## Commands
 
@@ -942,8 +958,8 @@ tslaws list [--json]
 tslaws propose <file.ts> [--from PATH]
 tslaws promote <proposal> [--to PATH] [--yes]
 tslaws regressions [list|clear]
-tslaws mutate [files...] [--max N] [--seed N] [--runs N] [--bound N] [--proof-timeout MS] [--property-timeout MS] [--no-sandbox] [--json]
-tslaws check [files...] [--json] [--summary] [--watch] [--runs N] [--seed N] [--no-prove] [--no-regressions] [--no-sandbox] [--bound N]
+tslaws mutate [files...] [--max N] [--seed N] [--runs N] [--bound N] [--proof-timeout MS] [--property-timeout MS] [--no-sandbox] [--allow-e2e] [--json]
+tslaws check [files...] [--json] [--summary] [--watch] [--runs N] [--seed N] [--no-prove] [--no-regressions] [--no-sandbox] [--allow-e2e] [--bound N]
              [--proof-timeout MS] [--proposed] [--compiler PATH] [--reporter text|json|junit|github|ndjson] [--law NAME[,NAME]]
 ```
 
@@ -1168,8 +1184,9 @@ separated what is locked from what is not was a name an agent could choose. The 
 - An agent promotes its own proposal. `promote` needs a person at a terminal and is not covered by a delegation; `accept`
   still needs a person (or a live delegation the person gave).
 
-A proposal is code that `check --proposed` runs, as any law file is. It is not sandboxed from your project, so review it
-before you run it.
+A proposal is code that `check --proposed` runs, as any law file is. Node laws run in the [sandbox](#the-law-sandbox),
+which keeps a proposal from writing files, starting processes or loading code nobody reviewed; it can still say
+whatever it likes about your code, so review it before you accept it.
 
 ### In-tree proposed names
 
@@ -1360,7 +1377,7 @@ On Windows the native build is `dist/tsc`; copy it to `tsc.exe` to run it.
 - Loop invariants, written or inferred, prove partial correctness (a loop that never ends is not flagged). With a written
   invariant, an array that grows past its room is outside the claim.
 - Browser and async laws are tested, not proved.
-- Node laws run in a [sandbox](#the-law-sandbox): project code that needs `fs`, `child_process` or the network needs `--no-sandbox`. End-to-end laws run outside it.
+- Node laws run in a [sandbox](#the-law-sandbox): project code that needs `fs`, `child_process` or the network needs `--no-sandbox`. End-to-end laws run outside it, and only with `--allow-e2e`.
 - Browser laws need an installed browser: Chrome, Edge or Chromium by default, or Playwright's Firefox or WebKit with `--browser`.
 - The compiler needs a native toolchain to build; the `laws-v*` release workflow publishes builds for macOS, Linux and Windows.
 

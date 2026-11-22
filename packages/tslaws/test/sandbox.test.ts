@@ -80,7 +80,9 @@ describe('the permission flag', () => {
   });
 
   it('fails closed on a Node without the permission model, and says how to opt out', () => {
-    assert.throws(() => useSandbox({}, '18.19.0'), /Node 20 or later.*--no-sandbox/s);
+    assert.throws(() => useSandbox({}, '18.19.0'), /Node 22.15, 23.5 or later.*--no-sandbox/s);
+    assert.throws(() => useSandbox({}, '22.14.0'), /loader hooks/);
+    assert.equal(useSandbox({}, '22.15.0'), true);
     assert.equal(useSandbox({}, '24.0.0'), true);
   });
 
@@ -390,6 +392,160 @@ describe('what a hostile law cannot do', { skip: compiler === undefined ? 'set T
         }),
       ),
       /(not a function|Cannot read|undefined)/,
+    );
+  });
+
+  it('refuses an end-to-end law unless the person allows it, and never runs it by itself', async () => {
+    const cwd = project('e2e-refused', {
+      'src/a.e2e.laws.ts': 'export law reaches(n: number) { return n === n; }\n',
+    });
+    const asked = (await check(options(cwd, ['src/a.e2e.laws.ts']), false)).results;
+    refused(only(asked), /end-to-end laws run outside the sandbox.*--allow-e2e/s);
+    // Leaving the option out is the sandbox on, not off.
+    const unset = (await check({ ...options(cwd, ['src/a.e2e.laws.ts']), sandbox: undefined }, false)).results;
+    refused(only(unset), /--allow-e2e/);
+  });
+
+  it('decides what a law may load from the file that asks, not from a parent it names', async () => {
+    const trusted = "process.cwd() + '/node_modules/typescript/lib/typescript.js'";
+    refused(
+      only(
+        await run('forged-parent', {
+          'src/a.laws.ts': [
+            'declare const module: any;',
+            `export law forges(n: number) { module.constructor._load('node:fs', { filename: ${trusted} }, false); return true; }`,
+            '',
+          ].join('\n'),
+        }),
+      ),
+      /"node:fs" is not a module a law may load/,
+    );
+    refused(
+      only(
+        await run('forged-require', {
+          'src/a.laws.ts': [
+            'declare const module: any;',
+            `export law forges(n: number) { module.constructor.prototype.require.call({ filename: ${trusted} }, 'fs'); return true; }`,
+            '',
+          ].join('\n'),
+        }),
+      ),
+      /"fs" is not a module a law may load/,
+    );
+  });
+
+  it('cannot take the module loader out or put a hook of its own in front of it', async () => {
+    const attempt = (name: string, body: string) =>
+      run(name, {
+        'src/a.laws.ts': [
+          'declare const module: any;',
+          `export law tampers(n: number) { const Module = module.constructor; ${body}; return true; }`,
+          '',
+        ].join('\n'),
+      });
+    refused(
+      only(
+        await attempt('hooks', 'Module.registerHooks({ resolve: (s: string, c: unknown, next: any) => next(s, c) })'),
+      ),
+      /module\.registerHooks is not available/,
+    );
+    // The loader's functions and tables are read-only: the assignment fails (compiled laws are strict).
+    for (const target of ['_load', '_resolveFilename', '_extensions', '_cache', 'createRequire']) {
+      const result = only(await attempt(`replace-${target}`, `Module.${target} = () => 'x'`));
+      refused(result, /read only|read-only|Cannot assign/);
+    }
+    // With the loader's own functions at hand, what is outside the set stays out.
+    refused(
+      only(await attempt('private-load', "Module._load('node:child_process', null, false)")),
+      /"node:child_process" is not a module a law may load/,
+    );
+  });
+
+  it("cannot forge a message to the host, or listen for the host's", async () => {
+    const attempt = (name: string, body: string) =>
+      run(name, {
+        'src/a.laws.ts': `declare const require: any;\nexport law talks(n: number) { ${body}; return true; }\n`,
+      });
+    // A second `configure` that would widen the reviewed set changes nothing: the process takes the first one only.
+    const forged = only(
+      await attempt(
+        'forge-configure',
+        "(process as any).emit('message', { type: 'configure', token: 'x'.repeat(32), guard: { trees: ['/'], files: [], packages: [], modules: [] }, transforms: {} }); require('fs')",
+      ),
+    );
+    refused(forged, /"fs" is not a module a law may load/);
+    const run1 = only(
+      await attempt('forge-run', "(process as any).emit('message', { type: 'run', id: 1 }); require('fs')"),
+    );
+    refused(run1, /"fs" is not a module a law may load/);
+    for (const name of ['send', '_send', 'channel', '_channel']) {
+      const result = only(
+        await attempt(
+          `hidden-${name}`,
+          `if ((process as any).${name} !== undefined) throw new Error('the ${name} of the process is visible')`,
+        ),
+      );
+      assert.equal(result.status, 'tested', JSON.stringify(result));
+    }
+    const listen = only(
+      await attempt(
+        'listen',
+        "process.on('message', () => undefined); if ((process as any).listeners('message').length !== 0) throw new Error('listening')",
+      ),
+    );
+    assert.equal(listen.status, 'tested', JSON.stringify(listen));
+  });
+
+  it('does not hand the credentials of the environment to a law', async () => {
+    const saved = { GITHUB_TOKEN: process.env.GITHUB_TOKEN, NPM_TOKEN: process.env.NPM_TOKEN };
+    process.env.GITHUB_TOKEN = 'ghp_secret_value';
+    process.env.NPM_TOKEN = 'npm_secret_value';
+    try {
+      const law =
+        "export law leaks(n: number) { const e = process.env; if (e.GITHUB_TOKEN !== undefined || e.NPM_TOKEN !== undefined) throw new Error('leaked'); return true; }\n";
+      const result = only(await run('env', { 'src/a.laws.ts': law }));
+      assert.equal(result.status, 'tested', JSON.stringify(result));
+    } finally {
+      for (const [name, value] of Object.entries(saved))
+        if (value === undefined) delete process.env[name];
+        else process.env[name] = value;
+    }
+  });
+
+  it('trusts only the packages that are declared, and gives none the process or module internals', async () => {
+    const pkg = (name: string, body: string): Record<string, string> => ({
+      [`node_modules/${name}/package.json`]: JSON.stringify({ name, main: 'index.js' }),
+      [`node_modules/${name}/index.js`]: body,
+    });
+    const files = (declared: string[]): Record<string, string> => ({
+      'package.json': JSON.stringify({
+        name: 'p',
+        dependencies: Object.fromEntries(declared.map((d) => [d, '1.0.0'])),
+      }),
+      ...pkg('declared', "exports.read = () => typeof require('node:fs').readFileSync;\n"),
+      ...pkg('stranger', "exports.read = () => typeof require('node:fs').readFileSync;\n"),
+      ...pkg('meddler', "exports.read = () => typeof require('node:module').createRequire;\n"),
+    });
+    const use = (name: string, declared: string[], from: string) =>
+      run(name, {
+        ...files(declared),
+        'src/a.laws.ts': `import * as pkg from '${from}';\nexport law uses(n: number) { return (pkg as any).read() === 'function'; }\n`,
+      });
+    const declared = only(await use('pkg-declared', ['declared'], 'declared'));
+    assert.equal(declared.status, 'tested', JSON.stringify(declared));
+    refused(only(await use('pkg-stranger', ['declared'], 'stranger')), /outside the reviewed set of files/);
+    // A trusted package still gets neither `module` nor `process`.
+    refused(only(await use('pkg-meddler', ['meddler'], 'meddler')), /"node:module" is not a module a law may load/);
+    // And the law itself gets no `fs`, whatever packages are around.
+    refused(
+      only(
+        await run('law-fs', {
+          ...files(['declared']),
+          'src/a.laws.ts':
+            "import { readFileSync } from 'node:fs';\nexport law reads(n: number) { return typeof readFileSync === 'function'; }\n",
+        }),
+      ),
+      /"node:fs" is not a module a law may load/,
     );
   });
 
