@@ -337,7 +337,15 @@ function importedNames(imports: string[]): Set<string> {
 const isAssignmentOperator = (kind: ts.SyntaxKind): boolean =>
   kind >= ts.SyntaxKind.FirstAssignment && kind <= ts.SyntaxKind.LastAssignment;
 
-/** Whether `node` is a constant: literals joined by operators that read no property and call nothing. */
+/** Whether `node` is a BigInt: mixing one with a number, dividing by zero or a unary plus throws, so a BigInt is only allowed bare or negated. */
+function isBigInt(node: ts.Expression): boolean {
+  if (ts.isParenthesizedExpression(node) || ts.isAsExpression(node) || ts.isSatisfiesExpression(node))
+    return isBigInt(node.expression);
+  if (ts.isPrefixUnaryExpression(node)) return isBigInt(node.operand);
+  return ts.isBigIntLiteral(node);
+}
+
+/** Whether `node` is a constant that cannot throw: literals joined by operators that read no property, call nothing and cannot fail on their operands. */
 function isLiteralValue(node: ts.Expression): boolean {
   if (ts.isParenthesizedExpression(node) || ts.isAsExpression(node) || ts.isSatisfiesExpression(node))
     return isLiteralValue(node.expression);
@@ -345,12 +353,18 @@ function isLiteralValue(node: ts.Expression): boolean {
     return (
       node.operator !== ts.SyntaxKind.PlusPlusToken &&
       node.operator !== ts.SyntaxKind.MinusMinusToken &&
+      !(node.operator === ts.SyntaxKind.PlusToken && isBigInt(node.operand)) &&
       isLiteralValue(node.operand)
     );
   if (ts.isBinaryExpression(node))
     return (
       !isAssignmentOperator(node.operatorToken.kind) &&
       node.operatorToken.kind !== ts.SyntaxKind.CommaToken &&
+      // `in` and `instanceof` throw on a primitive right-hand side.
+      node.operatorToken.kind !== ts.SyntaxKind.InKeyword &&
+      node.operatorToken.kind !== ts.SyntaxKind.InstanceOfKeyword &&
+      !isBigInt(node.left) &&
+      !isBigInt(node.right) &&
       isLiteralValue(node.left) &&
       isLiteralValue(node.right)
     );
