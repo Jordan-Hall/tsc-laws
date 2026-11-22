@@ -11,7 +11,7 @@ import { dirname, join, parse } from 'node:path';
 import { after, before, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { check } from '../dist/check.js';
-import { grantOutside, permissionFlag, readOutcome, sandboxFlags, useSandbox } from '../dist/sandbox.js';
+import { grantOutside, hostConfig, permissionFlag, readOutcome, sandboxFlags, useSandbox } from '../dist/sandbox.js';
 import type { CheckOptions, LawResult } from '../dist/types.js';
 
 const compiler = process.env.TSC_LAWS_BIN;
@@ -102,6 +102,21 @@ describe('the permission flag', () => {
       process.stderr.write = write;
     }
     assert.match(seen, /warning: --no-sandbox: laws run with full access/);
+  });
+});
+
+describe('the configuration of a law process', () => {
+  it('differs when the source of a transformed file does, so a process is not reused for an old revision', () => {
+    const cwd = project('config-key', { 'src/x.ts': 'export const x: number = 1;\n' });
+    const outDir = join(cwd, '.tslaws', 'out');
+    const before = hostConfig(cwd, ['src/x.ts'], outDir, []);
+    assert.ok(
+      Object.keys(before.transforms).some((key) => key.startsWith('ts:')),
+      'the file is transformed at load',
+    );
+    assert.equal(hostConfig(cwd, ['src/x.ts'], outDir, []).key, before.key, 'unchanged source, same key');
+    writeFileSync(join(cwd, 'src', 'x.ts'), 'export const x: number = 2;\n');
+    assert.notEqual(hostConfig(cwd, ['src/x.ts'], outDir, []).key, before.key);
   });
 });
 
@@ -247,6 +262,45 @@ describe('laws in the sandbox', { skip: compiler === undefined ? 'set TSC_LAWS_B
     );
     assert.match(results.find((r) => r.name === 'spins')?.message ?? '', /ran longer than/);
     assert.equal(results.find((r) => r.name === 'fine')?.status, 'tested');
+  });
+
+  it('ends the process of a law that ignores SIGTERM and spins, when it times out', async () => {
+    const cwd = project('sigterm', {
+      'src/a.laws.ts': [
+        'export law spins(n: number) {',
+        "  process.on('SIGTERM', () => {});",
+        "  process.stderr.write('law-pid=' + process.pid + '\\n');",
+        '  while (true) {}',
+        '}',
+        '',
+      ].join('\n'),
+    });
+    const script = join(cwd, 'run.mjs');
+    writeFileSync(
+      script,
+      `import { check } from ${JSON.stringify(new URL('../dist/check.js', import.meta.url).href)};\n` +
+        `const report = await check(JSON.parse(process.argv[2]), false);\n` +
+        `process.stdout.write(JSON.stringify(report.results.map((r) => r.message)));\n`,
+    );
+    const ran = spawnSync(
+      process.execPath,
+      [script, JSON.stringify(options(cwd, ['src/a.laws.ts'], { propertyTimeoutMs: 1500 }))],
+      { encoding: 'utf8', timeout: 60000 },
+    );
+    const pid = Number(/law-pid=(\d+)/.exec(ran.stderr)?.[1]);
+    try {
+      assert.ok(pid > 0, `the law did not report its process: ${ran.stderr}`);
+      assert.equal(ran.status, 0, ran.stderr);
+      assert.match(ran.stdout, /ran longer than/);
+      // The signal could not be handled while the loop ran, so only a kill that cannot be caught has ended it.
+      assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' });
+    } finally {
+      try {
+        process.kill(pid, 'SIGKILL');
+      } catch {
+        // gone already
+      }
+    }
   });
 });
 

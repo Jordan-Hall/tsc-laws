@@ -11,7 +11,7 @@
 // (browser laws run in the page, behind the browser's own boundary), and so they are refused unless the person allows
 // them (`--allow-e2e`). `--no-sandbox` turns it all off, with a warning.
 import { fork, type ChildProcess } from 'node:child_process';
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync, realpathSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
@@ -427,7 +427,11 @@ export function hostConfig(cwd: string, entries: string[], outDir: string, laws:
       if (!existsSync(compiled)) attempt(`ts:${at}`, () => transformSource(file, extension));
     }
   }
-  return { guard, transforms, outside: granted, key: JSON.stringify([guard, Object.keys(transforms)]) };
+  // The text of the transforms is part of the key: a process keeps what it was configured with, so edited source needs a new one.
+  const key = createHash('sha256')
+    .update(JSON.stringify([guard, transforms]))
+    .digest('hex');
+  return { guard, transforms, outside: granted, key };
 }
 
 // ---- the process -----------------------------------------------------------------------------------------------------
@@ -555,7 +559,8 @@ class LawProcess {
 
   terminate(): void {
     this.child.channel?.unref();
-    this.child.kill();
+    // Not the default SIGTERM: a law that handles it and then spins would never see it run, and would outlive the check.
+    this.child.kill('SIGKILL');
   }
 }
 
