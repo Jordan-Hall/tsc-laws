@@ -1,4 +1,4 @@
-// TEMPORARY diagnostics: tries cvc5 and Carcara option sets on each problem and prints one line per combination.
+// TEMPORARY diagnostics.
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -7,24 +7,14 @@ import { join } from 'node:path';
 const problems = JSON.parse(readFileSync('packages/tslaws/test/certificates.problems.json', 'utf8'));
 const { problemText, rareRulesOf, rareDeclarations } = await import('../../packages/tslaws/dist/certificates.js');
 const base = ['--lang', 'smt2', '--dump-proofs', '--proof-format-mode=alethe', '--tlimit', '10000'];
-const variants = {
-  current: ['--proof-granularity=dsl-rewrite', '--proof-alethe-res-pivots', '--dag-thresh=0', '--simplification=none', '--enum-inst-interleave', '--cegqi-all'],
-  'no-res-pivots': ['--proof-granularity=dsl-rewrite', '--dag-thresh=0', '--simplification=none', '--enum-inst-interleave', '--cegqi-all'],
-  'theory-rewrite': ['--proof-granularity=theory-rewrite', '--proof-alethe-res-pivots', '--dag-thresh=0', '--simplification=none', '--enum-inst-interleave', '--cegqi-all'],
-  'theory-rewrite-nopivots': ['--proof-granularity=theory-rewrite', '--dag-thresh=0', '--simplification=none', '--enum-inst-interleave', '--cegqi-all'],
-  'dsl+elim-subtypes': ['--proof-granularity=dsl-rewrite', '--proof-elim-subtypes', '--proof-alethe-res-pivots', '--dag-thresh=0', '--simplification=none', '--enum-inst-interleave', '--cegqi-all'],
-  'dsl+pivots-only': ['--proof-granularity=dsl-rewrite', '--proof-alethe-res-pivots'],
-  'default-granularity': ['--proof-alethe-res-pivots', '--dag-thresh=0', '--simplification=none'],
-  'bare': [],
-  'simp-none-only': ['--simplification=none', '--dag-thresh=0'],
-};
-const carcaras = {
-  current: ['--allow-int-real-subtyping', '--expand-let-bindings'],
-  'no-expand': ['--allow-int-real-subtyping'],
-  'ignore-unknown': ['--allow-int-real-subtyping', '--expand-let-bindings', '--ignore-unknown-rules'],
+const common = ['--proof-granularity=dsl-rewrite', '--dag-thresh=0', '--simplification=none', '--enum-inst-interleave', '--cegqi-all'];
+const variants = { 'explicit-no-pivots': [...common, '--no-proof-alethe-res-pivots'] };
+const iteEq = {
+  upstream: '(declare-rare-rule ite-eq ((@T0 Type) (C Bool) (t1 @T0) (t2 @T1))\n  :args (C t1 t2)\n  :conclusion (= (ite C (= (ite C t1 t2) t1) (= (ite C t1 t2) t2)) true))\n',
+  fixed: '(declare-rare-rule ite-eq ((@T0 Type) (C Bool) (t1 @T0) (t2 @T0))\n  :args (C t1 t2)\n  :conclusion (= (ite C (= (ite C t1 t2) t1) (= (ite C t1 t2) t2)) true))\n',
 };
 const dir = mkdtempSync(join(tmpdir(), 'cert-var-'));
-const tag = (n) => n.replace(/\W/g, '_');
+const strip = (s) => s.replace(/\u001b\[[0-9;]*m/g, '');
 for (const [name, query] of Object.entries(problems)) {
   const problem = join(dir, `${name}.smt2`);
   writeFileSync(problem, problemText(query));
@@ -35,24 +25,18 @@ for (const [name, query] of Object.entries(problems)) {
       continue;
     }
     const proofText = cvc5.stdout.slice(cvc5.stdout.indexOf('\n') + 1);
-    const proof = join(dir, `${name}.${tag(vn)}.alethe`);
+    const proof = join(dir, `${name}.alethe`);
     writeFileSync(proof, proofText);
     const rare = rareRulesOf(proofText);
-    const extra = [];
-    let note = '';
-    if (rare.length > 0) {
-      const declared = await rareDeclarations(rare, dir, 30000);
-      if (declared.text === undefined) note = ` [rare unavailable: ${declared.reason}]`;
-      else {
-        const f = join(dir, `${name}.${tag(vn)}.rare`);
-        writeFileSync(f, declared.text);
-        extra.push('--rare-file', f);
-      }
-    }
-    for (const [cn, cargs] of Object.entries(carcaras)) {
-      const c = spawnSync(process.env.TSLAWS_CARCARA, ['check', proof, problem, ...cargs, ...extra], { encoding: 'utf8' });
-      const err = (c.stdout + c.stderr).split('\n').filter((l) => /error|pivot|not found|unknown/i.test(l)).slice(0, 1).join('').replace(/\u001b\[[0-9;]*m/g, '').trim();
-      console.log(`${name} | ${vn} | ${cn} | ${c.stdout.split('\n')[0]} ${err}${note}`);
+    const rest = rare.filter((r) => r !== 'ite-eq');
+    const declared = rest.length > 0 ? await rareDeclarations(rest, dir, 30000) : { text: '' };
+    if (declared.text === undefined) { console.log(`${name} | rare unavailable: ${declared.reason}`); continue; }
+    const forms = rare.includes('ite-eq') ? Object.entries(iteEq) : [['none', '']];
+    for (const [fn, text] of forms) {
+      const f = join(dir, `${name}.${fn}.rare`);
+      writeFileSync(f, declared.text + text);
+      const c = spawnSync(process.env.TSLAWS_CARCARA, ['check', proof, problem, '--allow-int-real-subtyping', '--expand-let-bindings', ...(rare.length ? ['--rare-file', f] : [])], { encoding: 'utf8' });
+      console.log(`${name} | ${vn} | ite-eq=${fn} | ${c.stdout.split('\n')[0]} | ${strip(c.stdout + c.stderr).split('\n').filter((l) => /error|note/.test(l)).slice(0, 2).join(' ; ')}`);
     }
   }
 }
