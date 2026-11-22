@@ -332,12 +332,11 @@ const usesImportMeta = (text: string): boolean => /TS1343/.test(text);
 export function build(compiler: string, files: string[], cwd: string): BuildResult {
   const resolution = readResolution(cwd);
   const result = compile(compiler, files, cwd, resolution);
-  installLawRuntime({ cwd, options: resolution?.options, outDir: result.outDir });
+  const bundlerPlugins = (readConfig(cwd).bundlerPlugins ?? []).map((path) => resolve(cwd, path));
+  const runtime: LawRuntime = { cwd, options: resolution?.options, outDir: result.outDir, bundlerPlugins };
+  installLawRuntime(runtime);
   try {
-    writeFileSync(
-      join(result.outDir, runtimeFile),
-      JSON.stringify({ cwd, options: resolution?.options, outDir: result.outDir } satisfies LawRuntime),
-    );
+    writeFileSync(join(result.outDir, runtimeFile), JSON.stringify(runtime));
   } catch {
     // A worker then loads the output without the aliases; the error it reports names the import.
   }

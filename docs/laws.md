@@ -412,6 +412,17 @@ A plugin that cannot be loaded, or whose factory throws, makes each browser law 
 the module. Without a plugin for the extension, a law that imports such a file reports an `error` that names the extension and
 the `bundlerPlugins` setting. The compiler does not know the format either: it reports the import as TS2307 in `compileDiagnostics`, which does not stop the bundle from running, and the imported value is untyped in the law.
 
+Node laws use the same plugins. Node cannot read a `.tsrx` file with `require` or with `import()`, so a node law (a property
+law, or any law that runs in the main process) that imports project source which imports such a file loads it through the
+plugin: tslaws runs esbuild with your `bundlerPlugins` on that one file and hands Node the result, as CommonJS for `require` and
+as an ES module for `import()`. Both go through `module.registerHooks` (Node 22.15 or later; an older Node still serves `require`). Plugins
+may be asynchronous: a helper thread runs them while the loader waits, so there is no pre-compile step. The file is not bundled, so
+its own imports stay `require` calls and a module shared with the law is the same instance. A plugin that answers with CSS leaves
+an empty module, since a stylesheet means nothing in Node. Only `onLoad` (and `onResolve` for the file itself) applies: a plugin
+that invents virtual module names for imports is not consulted for those imports. An extension that no plugin handles fails the
+law with an `error` naming the file, the extension and the `bundlerPlugins` setting. The compiler needs an ambient declaration for the format
+(`declare module '*.tsrx' { ... }`, as in the browser case above), or it reports TS2307.
+
 ### Source written for a bundler
 
 Projects built with Vite, rsbuild or Bun write things that Node does not accept as it stands. Laws run such code as it is
