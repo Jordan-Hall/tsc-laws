@@ -209,7 +209,7 @@ describe('mcp server', { skip: compiler === undefined ? 'set TSC_LAWS_BIN' : fal
       name: 'smallDoubleIsTwice',
       source: withHelpers,
       file: 'h.ts',
-      confirmHelpers: 'yes',
+      confirmCode: 'yes',
     });
     assert.equal(wrong.data.needsConfirmation, true);
     assert.ok(!existsSync(join(root, '.tslaws', 'proposals', 'h.ts')));
@@ -217,7 +217,7 @@ describe('mcp server', { skip: compiler === undefined ? 'set TSC_LAWS_BIN' : fal
       name: 'smallDoubleIsTwice',
       source: withHelpers,
       file: 'h.ts',
-      confirmHelpers: true,
+      confirmCode: true,
     });
     assert.equal(out.isError, undefined, out.text);
     assert.equal(out.data.file, '.tslaws/proposals/h.ts');
@@ -234,7 +234,7 @@ describe('mcp server', { skip: compiler === undefined ? 'set TSC_LAWS_BIN' : fal
       name: 'smallDoubleIsTwice',
       source: withHelpers,
       file: 'h.ts',
-      confirmHelpers: true,
+      confirmCode: true,
     });
     const again = readFileSync(join(root, '.tslaws', 'proposals', 'h.ts'), 'utf8');
     assert.equal(again.split('const small').length, 2);
@@ -256,14 +256,67 @@ describe('mcp server', { skip: compiler === undefined ? 'set TSC_LAWS_BIN' : fal
     assert.equal(readFileSync(join(root, 'src', 'f.laws.ts'), 'utf8'), lawsText);
   });
 
-  it('writes a proposal with no helpers without confirmHelpers', async () => {
+  it('writes a proposal with no helpers and no package imports without confirmCode', async () => {
     const out = await callTool('tslaws_propose', { name: 'doubleIsTwice', source: proposal, file: 'plain.ts' });
     assert.equal(out.isError, undefined, out.text);
     assert.equal(out.data.needsConfirmation, undefined);
     assert.ok(existsSync(join(root, '.tslaws', 'proposals', 'plain.ts')));
   });
 
-  it('refuses a helper that could run code, even with confirmHelpers, and writes nothing', async () => {
+  it('holds a package import until confirmCode, and refuses an import of unreviewed code outright', async () => {
+    const withPackage = `import { thing } from 'some-package';\n${proposal}`;
+    const held = await callTool('tslaws_propose', { name: 'doubleIsTwice', source: withPackage, file: 'pkg.ts' });
+    assert.equal(held.data.needsConfirmation, true);
+    assert.deepEqual(held.data.packages, ['some-package']);
+    assert.ok(!existsSync(join(root, '.tslaws', 'proposals', 'pkg.ts')));
+    const written = await callTool('tslaws_propose', {
+      name: 'doubleIsTwice',
+      source: withPackage,
+      file: 'pkg.ts',
+      confirmCode: true,
+    });
+    assert.equal(written.data?.needsConfirmation, undefined, written.text);
+    assert.ok(existsSync(join(root, '.tslaws', 'proposals', 'pkg.ts')));
+    for (const bad of [
+      "import { x } from './.tslaws/proposals/pkg';",
+      "import { x } from './node_modules/some-package/index.js';",
+      "import { x } from '../../../outside';",
+      "import { x } from '/etc/passwd';",
+    ]) {
+      const out = await callTool('tslaws_propose', {
+        name: 'doubleIsTwice',
+        source: `${bad}\n${proposal}`,
+        file: 'unreviewed.ts',
+        confirmCode: true,
+      });
+      assert.equal(out.isError, true, bad);
+      assert.match(out.text, /an import must name code that is inside the project/, bad);
+    }
+    assert.ok(!existsSync(join(root, '.tslaws', 'proposals', 'unreviewed.ts')));
+  });
+
+  it('still accepts the deprecated confirmHelpers as confirmCode', async () => {
+    const withHelper = `const bump = (n: number): number => n + 1;\n${proposal}`;
+    const held = await callTool('tslaws_propose', { name: 'doubleIsTwice', source: withHelper, file: 'old.ts' });
+    assert.equal(held.data.needsConfirmation, true);
+    const wrong = await callTool('tslaws_propose', {
+      name: 'doubleIsTwice',
+      source: withHelper,
+      file: 'old.ts',
+      confirmHelpers: 'yes',
+    });
+    assert.equal(wrong.data.needsConfirmation, true);
+    const out = await callTool('tslaws_propose', {
+      name: 'doubleIsTwice',
+      source: withHelper,
+      file: 'old.ts',
+      confirmHelpers: true,
+    });
+    assert.equal(out.isError, undefined, out.text);
+    assert.ok(existsSync(join(root, '.tslaws', 'proposals', 'old.ts')));
+  });
+
+  it('refuses a helper that could run code, even with confirmCode, and writes nothing', async () => {
     for (const helper of [
       'const boot = start();',
       'const when = new Date();',
@@ -276,7 +329,7 @@ describe('mcp server', { skip: compiler === undefined ? 'set TSC_LAWS_BIN' : fal
         source: `${helper}
 ${proposal}`,
         file: 'bad.ts',
-        confirmHelpers: true,
+        confirmCode: true,
       });
       assert.equal(out.isError, true, helper);
       assert.match(out.text, /is refused|only imports, law declarations/, helper);
