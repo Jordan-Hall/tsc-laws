@@ -660,23 +660,112 @@ describe('code may be loaded only in ways the import check can read', () => {
     );
   });
 
-  it('refuses a computed index, because it can name the loader at run time', () => {
-    for (const use of ['xs[f()]', "xs['a' + b]", 'xs[`k${i}`]', 'xs[-1]', 'o[f(i)]', 'xs[a + b]', 'xs["a" + i]'])
-      assert.throws(() => assertStaticLoading(`export law l() { return ${use} === 1; }\n`), refused, use);
-    assertStaticLoading('export law l() { return xs[0] === 1 && o["key"] === 2; }\n');
+  const typedLaw = (use: string, extra = ''): string =>
+    `${extra}export law l(i: number, n: int, s: string, a: any, u: unknown, xs: number[], o: Record<string, number>) { return ${use} === 1; }\n`;
+
+  it('refuses an index whose type is not a number, because it can name the loader at run time', () => {
+    for (const use of [
+      'xs[f()]',
+      "xs['a' + n]",
+      'xs[`k${i}`]',
+      'o[f(i)]',
+      'xs[s]',
+      'xs[a]',
+      'xs[u]',
+      'xs[i + s]',
+      'xs["a" + i]',
+      'xs[a + a]',
+      'xs[undefinedName]',
+      'xs[i as any]',
+    ])
+      assert.throws(() => assertStaticLoading(typedLaw(use)), refused, use);
+    assertStaticLoading(typedLaw('xs[0] + o["key"]'));
   });
 
-  it('allows an index that is always a number', () => {
+  it('allows an index whose type is a number or a union of numeric literals', () => {
     for (const use of [
-      'xs[Math.abs(n) % xs.length]',
-      'xs[xs.length - 1]',
-      'xs[(i * 2)]',
       'xs[i]',
+      'xs[n]',
+      'xs[-1]',
       'xs[i + 1]',
       'xs[1 + i]',
       'xs[i | 0]',
+      'xs[(i * 2)]',
+      'xs[Math.abs(i) % xs.length]',
+      'xs[xs.length - 1]',
+      'xs[k]',
     ])
-      assertStaticLoading(`export law l() { return ${use} === 1; }\n`);
+      assertStaticLoading(typedLaw(use, 'const k = 0 as 0 | 1 | 2;\n'));
+    assertStaticLoading('export law g(i: int) => [1, 2][i] === 1;\n');
+  });
+
+  it('refuses a string that spells a name of the loader or the prototype chain, wherever it stands', () => {
+    for (const use of [
+      "const k = 'constructor';",
+      "const k = 'process';",
+      "const k = '__proto__';",
+      'const k = `prototype`;',
+      "const k = 'globalThis';",
+      "const k = 'getOwnPropertyNames';",
+      "const o = { 'require': 1 };",
+      "f('Function');",
+      "x === 'module';",
+    ])
+      assert.throws(() => assertStaticLoading(`export law l() { ${use} return true; }\n`), refused, use);
+    assert.throws(() => assertStaticLoading("const key = 'eval';\nexport law l() { return key !== ''; }\n"), refused);
+    assertStaticLoading("export law l() { const k = 'processor'; return k !== 'constructors'; }\n");
+  });
+
+  it('refuses the reflection helpers and Proxy', () => {
+    for (const use of [
+      'Object.getOwnPropertyDescriptor(o, k);',
+      'Object.getOwnPropertyDescriptors(o);',
+      'Object.getOwnPropertyNames(o);',
+      'Object.defineProperty(o, k, d);',
+      'Object.setPrototypeOf(o, p);',
+      'Object.getPrototypeOf(o);',
+      'const { getOwnPropertyNames: g } = Object;',
+      'new Proxy(o, h);',
+      'Reflect.ownKeys(o);',
+    ])
+      assert.throws(() => assertStaticLoading(`export law l() { ${use} return true; }\n`), refused, use);
+  });
+
+  it('refuses a computed name in destructuring, in a declaration or an assignment', () => {
+    for (const use of [
+      'const { [k]: v } = o;',
+      'const { [k]: v, ...rest } = o;',
+      'const [{ [k]: v }] = list;',
+      'function f({ [k]: v }: any) { return v; }',
+      'let v; ({ [k]: v } = o);',
+      'let v; [{ [k]: v }] = list;',
+      'let v; for ({ [k]: v } of list) {}',
+    ])
+      assert.throws(() => assertStaticLoading(`export law l() { ${use} return true; }\n`), refused, use);
+    assertStaticLoading(
+      'export law l() { const { a, b: c } = o; const p = { [k]: 1 }; let v; ({ a: v } = o); return p !== undefined && c === a; }\n',
+    );
+  });
+
+  it('refuses exports, __filename, __dirname and the module-level arguments object', () => {
+    for (const use of [
+      'exports.x = 1;',
+      'const e = exports;',
+      'const f = __filename;',
+      'const d = __dirname;',
+      'const a = arguments;',
+      'const a = arguments[0];',
+      'const f = () => arguments[1];',
+      'class C { x = arguments; }',
+    ])
+      assert.throws(() => assertStaticLoading(`export law l() { ${use} return true; }\n`), refused, use);
+    assert.throws(
+      () => assertStaticLoading('const a = arguments;\nexport law l() { return a !== undefined; }\n'),
+      refused,
+    );
+    assertStaticLoading(
+      'function f() { return arguments.length; }\nconst g = { h() { return arguments[0]; } };\nconst o = { exports: 1, arguments: 2 };\nexport law l() { return f() === o.exports && g.h() === o.arguments; }\n',
+    );
   });
 
   it('refuses eval, Function, globalThis, global, process and getBuiltinModule', () => {
@@ -837,6 +926,17 @@ describe('an import is checked by the file the project resolution gives', () => 
     assert.throws(() => check(cwd, '../../src/viaOutside'), /resolves outside the project/);
     check(cwd, '../../src/fine');
     check(cwd, '../../src/indexed');
+  });
+
+  it('also checks the file Node resolves, which can differ from the one TypeScript resolves', () => {
+    const cwd = project({
+      'node_modules/pkg/index.js': 'exports.x = 1;\n',
+      'src/split/package.json': JSON.stringify({ types: './safe.d.ts', main: '../../node_modules/pkg/index.js' }),
+      'src/split/safe.d.ts': 'export const x: number;\n',
+    });
+    assert.throws(() => check(cwd, '../../src/split'), /resolves into node_modules/);
+    // A specifier Node cannot resolve is skipped, not refused.
+    check(cwd, '../../src/not/yet/written');
   });
 
   it('refuses a directory that resolves to no file', () => {

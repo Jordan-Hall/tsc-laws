@@ -21,7 +21,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { spawnSync } from 'node:child_process';
-import { builtinModules } from 'node:module';
+import { builtinModules, createRequire } from 'node:module';
 import { basename, dirname, isAbsolute, join, posix, relative, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { moduleSpecifiers } from './lawKinds.ts';
@@ -201,6 +201,11 @@ const loaderNames = new Set([
   'global',
   'process',
   'Reflect',
+  'Proxy',
+  'exports',
+  // Spelled in parts so that the check for CommonJS globals in the built package does not mistake the names for use.
+  `__${'filename'}`,
+  `__${'dirname'}`,
 ]);
 /** Properties that reach the loader or the prototype chain (and so `Function`), by `.name`, `['name']` or destructuring. */
 const loaderProperties = new Set([
@@ -211,57 +216,110 @@ const loaderProperties = new Set([
   '__proto__',
   'prototype',
   'getPrototypeOf',
+  'setPrototypeOf',
+  'getOwnPropertyDescriptor',
+  'getOwnPropertyDescriptors',
+  'getOwnPropertyNames',
+  'defineProperty',
+  'defineProperties',
 ]);
+/** Strings that may not appear anywhere in a proposal, because they can name the loader or the prototype chain at run time. */
+const reflected = new Set([...loaderNames, ...loaderProperties]);
 /** The only Node built-in modules a proposal may import, by bare name or with the `node:` prefix. */
 const allowedBuiltins = new Set(['path', 'url', 'util', 'assert']);
-/** Binary operators whose result is a number (or bigint) whatever the operands are. */
-const numericOperators = new Set([
-  ts.SyntaxKind.MinusToken,
-  ts.SyntaxKind.AsteriskToken,
-  ts.SyntaxKind.SlashToken,
-  ts.SyntaxKind.PercentToken,
-  ts.SyntaxKind.AsteriskAsteriskToken,
-  ts.SyntaxKind.AmpersandToken,
-  ts.SyntaxKind.BarToken,
-  ts.SyntaxKind.CaretToken,
-  ts.SyntaxKind.LessThanLessThanToken,
-  ts.SyntaxKind.GreaterThanGreaterThanToken,
-  ts.SyntaxKind.GreaterThanGreaterThanGreaterThanToken,
-]);
 const isBuiltin = (specifier: string): boolean => specifier.startsWith('node:') || builtinModules.includes(specifier);
+
+/**
+ * The proposal as plain TypeScript, so that a type checker can read it: each `law` header becomes a function (the
+ * `proved` marker dropped) and an arrow law `law f(x) => e;` becomes `function f(x) { return (e); }`. A header it cannot
+ * read is left as written, which makes the types in that law unknown and so refused where a type is needed.
+ */
+function lowerLaws(text: string): string {
+  let lowered = text;
+  const header = /^(export\s+(?:default\s+)?(?:async\s+)?)law\s+(?:proved\s+)?([A-Za-z_$][\w$]*)\s*\(/;
+  for (const law of [...parseLawFile(text).laws].sort((a, b) => b.start - a.start)) {
+    const match = header.exec(law.text);
+    if (match === null) continue;
+    const params = match[0].length;
+    let rewritten = `${match[1]}function ${match[2]}(${law.text.slice(params)}`;
+    const scanner = ts.createScanner(
+      ts.ScriptTarget.Latest,
+      true,
+      ts.LanguageVariant.Standard,
+      law.text,
+      undefined,
+      params,
+    );
+    let depth = 1;
+    let token = scanner.scan();
+    while (token !== ts.SyntaxKind.EndOfFileToken && depth > 0) {
+      if (token === ts.SyntaxKind.OpenParenToken) depth++;
+      else if (token === ts.SyntaxKind.CloseParenToken) depth--;
+      if (depth > 0) token = scanner.scan();
+    }
+    if (depth === 0) {
+      const after = scanner.scan();
+      if (after === ts.SyntaxKind.EqualsGreaterThanToken) {
+        const body = law.text.slice(scanner.getTokenEnd()).trim().replace(/;$/, '');
+        const head = law.text.slice(params, scanner.getTokenStart()).trimEnd();
+        rewritten = `${match[1]}function ${match[2]}(${head} { return (${body}); }`;
+      }
+    }
+    lowered = lowered.slice(0, law.start) + rewritten + lowered.slice(law.end);
+  }
+  return `${lowered}\ntype int = number;\n`;
+}
+
+const libraryFiles = new Map<string, ts.SourceFile | undefined>();
+const virtualFile = join(process.cwd(), '__tslaws_proposal__.ts').replaceAll(sep, '/');
+
+/** A type checker over `source` alone: no import is followed (an imported name has an unknown type) and no project file is read. */
+function checkerFor(source: ts.SourceFile): ts.TypeChecker {
+  const options: ts.CompilerOptions = {
+    target: ts.ScriptTarget.ES2022,
+    module: ts.ModuleKind.ESNext,
+    strict: true,
+    noResolve: true,
+    types: [],
+    noEmit: true,
+    skipLibCheck: true,
+  };
+  const host = ts.createCompilerHost(options, true);
+  host.getSourceFile = (name, languageVersion) => {
+    if (name.replaceAll(sep, '/') === virtualFile) return source;
+    const key = `${name}|${languageVersion}`;
+    if (!libraryFiles.has(key)) {
+      const content = ts.sys.readFile(name);
+      libraryFiles.set(key, content === undefined ? undefined : ts.createSourceFile(name, content, languageVersion));
+    }
+    return libraryFiles.get(key);
+  };
+  return ts.createProgram([virtualFile], options, host).getTypeChecker();
+}
+
+/** Whether every member of the type is a number or a numeric literal (so not `any`, `unknown`, a string or a union with one). */
+function isNumberType(type: ts.Type): boolean {
+  if (type.isUnion()) return type.types.every(isNumberType);
+  return (type.flags & (ts.TypeFlags.Number | ts.TypeFlags.NumberLiteral)) !== 0;
+}
 
 /**
  * Throws unless `text` loads code only through a static import or re-export, or an `import()` or `require()` whose one
  * argument is a plain string literal: those are the loads `assertImportsAllowed` can read. A call with another argument,
  * and any other reference to `require`, `module`, `createRequire`, `process.mainModule` or `import.meta`, could load a
- * file the check never saw, so it is refused.
+ * file the check never saw, so it is refused. This is the first layer of defence, not a sandbox: a computed index is
+ * allowed only when the type checker says its type is a number, and a string that spells a name of the loader or of
+ * the prototype chain is refused wherever it stands.
  */
 export function assertStaticLoading(text: string): void {
-  const file = ts.createSourceFile('proposal.ts', text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  let checker: ts.TypeChecker | undefined;
   const refuse = (node: ts.Node, why: string): never => {
-    const shown = node.getText(file).replace(/\s+/g, ' ');
+    const shown = node.getText().replace(/\s+/g, ' ');
     throw new ProposalError(
       `\`${shown.length > 40 ? `${shown.slice(0, 40)}…` : shown}\` ${why}; code may be loaded only by a static import or an import() or require() of a string literal, so that the files it names can be reviewed`,
     );
   };
   const isLiteral = (node: ts.Node | undefined): boolean => node !== undefined && ts.isStringLiteralLike(node);
-  // An index that is always a number, whatever its operands hold, so it cannot spell a property such as `constructor`.
-  // (A plain identifier is allowed as a whole index, but not inside `+`, where it could join a string.)
-  const alwaysNumber = (node: ts.Expression): boolean => {
-    if (ts.isNumericLiteral(node)) return true;
-    if (ts.isParenthesizedExpression(node)) return alwaysNumber(node.expression);
-    if (ts.isBinaryExpression(node)) {
-      const op = node.operatorToken.kind;
-      if (op === ts.SyntaxKind.PlusToken) return alwaysNumber(node.left) || alwaysNumber(node.right);
-      return numericOperators.has(op);
-    }
-    return (
-      ts.isCallExpression(node) &&
-      ts.isPropertyAccessExpression(node.expression) &&
-      ts.isIdentifier(node.expression.expression) &&
-      node.expression.expression.text === 'Math'
-    );
-  };
   const namedBy = (parent: ts.Node, node: ts.Node): boolean =>
     (ts.isPropertyAccessExpression(parent) ||
       ts.isPropertyAssignment(parent) ||
@@ -273,38 +331,101 @@ export function assertStaticLoading(text: string): void {
       ts.isSetAccessorDeclaration(parent) ||
       ts.isEnumMember(parent)) &&
     parent.name === node;
-  const visit = (node: ts.Node): void => {
-    if (
-      ts.isCallExpression(node) &&
-      (node.expression.kind === ts.SyntaxKind.ImportKeyword ||
-        (ts.isIdentifier(node.expression) && node.expression.text === 'require'))
+  // An object literal that is the target of a destructuring assignment, directly or nested in another pattern.
+  const isAssignmentTarget = (literal: ts.Node): boolean => {
+    let child: ts.Node = literal;
+    let parent: ts.Node = literal.parent;
+    while (
+      ts.isParenthesizedExpression(parent) ||
+      ts.isArrayLiteralExpression(parent) ||
+      ts.isObjectLiteralExpression(parent) ||
+      ts.isPropertyAssignment(parent) ||
+      ts.isShorthandPropertyAssignment(parent) ||
+      ts.isSpreadElement(parent) ||
+      ts.isSpreadAssignment(parent)
     ) {
-      if (node.arguments.length !== 1 || !isLiteral(node.arguments[0]))
-        refuse(node, 'loads code by a name that is not a single string literal');
-      return;
+      child = parent;
+      parent = parent.parent;
     }
-    if (ts.isMetaProperty(node) && node.keywordToken === ts.SyntaxKind.ImportKeyword)
-      refuse(node, 'reads import.meta, which can build a loader');
-    else if (ts.isImportEqualsDeclaration(node) && ts.isExternalModuleReference(node.moduleReference)) {
-      if (!isLiteral(node.moduleReference.expression))
-        refuse(node, 'loads code by a name that is not a string literal');
-    } else if (ts.isPropertyAccessExpression(node) && loaderProperties.has(node.name.text))
-      refuse(node, 'reaches the module loader');
-    else if (ts.isElementAccessExpression(node)) {
-      const index = node.argumentExpression;
-      if (!ts.isStringLiteralLike(index) && !ts.isIdentifier(index) && !alwaysNumber(index))
-        refuse(node, 'indexes by a computed name, which can reach the module loader');
-      if (ts.isStringLiteralLike(index) && (loaderNames.has(index.text) || loaderProperties.has(index.text)))
-        refuse(node, 'reaches the module loader');
-    } else if (ts.isBindingElement(node)) {
-      const key = node.propertyName ?? node.name;
-      if ((ts.isIdentifier(key) || ts.isStringLiteralLike(key)) && loaderProperties.has(key.text))
-        refuse(node, 'reaches the module loader');
-    } else if (ts.isIdentifier(node) && loaderNames.has(node.text) && !namedBy(node.parent, node))
-      refuse(node, 'refers to the module loader or a way to run code the check cannot read');
-    ts.forEachChild(node, visit);
+    if (ts.isBinaryExpression(parent))
+      return parent.operatorToken.kind === ts.SyntaxKind.EqualsToken && parent.left === child;
+    return (ts.isForOfStatement(parent) || ts.isForInStatement(parent)) && parent.initializer === child;
   };
-  visit(file);
+  // `arguments` is the module wrapper's own arguments object (require, module and so on) outside any non-arrow function.
+  const hasOwnArguments = (node: ts.Node): boolean =>
+    ts.isFunctionDeclaration(node) ||
+    ts.isFunctionExpression(node) ||
+    ts.isMethodDeclaration(node) ||
+    ts.isConstructorDeclaration(node) ||
+    ts.isGetAccessorDeclaration(node) ||
+    ts.isSetAccessorDeclaration(node);
+  // The name of a module in an import or export declaration or `import x = require(...)`: `assertImportsAllowed` judges those.
+  const isSpecifier = (node: ts.Node): boolean =>
+    (ts.isImportDeclaration(node.parent) || ts.isExportDeclaration(node.parent)) && node.parent.moduleSpecifier === node
+      ? true
+      : ts.isExternalModuleReference(node.parent) ||
+        (ts.isCallExpression(node.parent) &&
+          (node.parent.expression.kind === ts.SyntaxKind.ImportKeyword ||
+            (ts.isIdentifier(node.parent.expression) && node.parent.expression.text === 'require')));
+  // `typed` is set on the pass over the lowered text, where each law is a function and so has typed parameters.
+  const walk = (file: ts.SourceFile, typed: boolean): void => {
+    let functionDepth = 0;
+    const visit = (node: ts.Node): void => {
+      if (hasOwnArguments(node)) {
+        functionDepth++;
+        ts.forEachChild(node, visit);
+        functionDepth--;
+        return;
+      }
+      if (
+        ts.isCallExpression(node) &&
+        (node.expression.kind === ts.SyntaxKind.ImportKeyword ||
+          (ts.isIdentifier(node.expression) && node.expression.text === 'require'))
+      ) {
+        if (node.arguments.length !== 1 || !isLiteral(node.arguments[0]))
+          refuse(node, 'loads code by a name that is not a single string literal');
+        return;
+      }
+      if (ts.isStringLiteralLike(node) && reflected.has(node.text) && !isSpecifier(node))
+        refuse(node, 'spells a name of the module loader or the prototype chain');
+      else if (ts.isMetaProperty(node) && node.keywordToken === ts.SyntaxKind.ImportKeyword)
+        refuse(node, 'reads import.meta, which can build a loader');
+      else if (ts.isImportEqualsDeclaration(node) && ts.isExternalModuleReference(node.moduleReference)) {
+        if (!isLiteral(node.moduleReference.expression))
+          refuse(node, 'loads code by a name that is not a string literal');
+      } else if (ts.isPropertyAccessExpression(node) && loaderProperties.has(node.name.text))
+        refuse(node, 'reaches the module loader');
+      else if (ts.isElementAccessExpression(node)) {
+        const index = node.argumentExpression;
+        if (typed && !ts.isStringLiteralLike(index) && !ts.isNumericLiteral(index)) {
+          checker ??= checkerFor(file);
+          if (!isNumberType(checker.getTypeAtLocation(index)))
+            refuse(node, 'indexes by a name that is not known to be a number, which can reach the module loader');
+        }
+      } else if (ts.isBindingElement(node)) {
+        const key = node.propertyName ?? node.name;
+        if (ts.isComputedPropertyName(key))
+          refuse(node, 'destructures by a computed name, which can reach the module loader');
+        if ((ts.isIdentifier(key) || ts.isStringLiteralLike(key)) && loaderProperties.has(key.text))
+          refuse(node, 'reaches the module loader');
+      } else if (
+        ts.isPropertyAssignment(node) &&
+        ts.isComputedPropertyName(node.name) &&
+        ts.isObjectLiteralExpression(node.parent) &&
+        isAssignmentTarget(node.parent)
+      )
+        refuse(node, 'destructures by a computed name, which can reach the module loader');
+      else if (ts.isIdentifier(node) && loaderNames.has(node.text) && !namedBy(node.parent, node))
+        refuse(node, 'refers to the module loader or a way to run code the check cannot read');
+      else if (ts.isIdentifier(node) && node.text === 'arguments' && functionDepth === 0 && !namedBy(node.parent, node))
+        refuse(node, 'reads the module-level arguments object, which holds require and module');
+      ts.forEachChild(node, visit);
+    };
+    visit(file);
+  };
+  walk(ts.createSourceFile('proposal.ts', text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS), false);
+  // The lowered text is parsed as the virtual file, so the checker is asked about the nodes it was built from.
+  walk(ts.createSourceFile(virtualFile, lowerLaws(text), ts.ScriptTarget.ES2022, true, ts.ScriptKind.TS), true);
 }
 
 /** The compiler options the project's `tsconfig.json` gives (or bundler-style defaults), widened to find .js and .json files. */
@@ -405,6 +526,13 @@ export function assertImportsAllowed(cwd: string, text: string, fromDir: string)
       const found = ts.resolveModuleName(name, containing, compilerOptions, ts.sys).resolvedModule;
       return found === undefined ? [] : [found.resolvedFileName];
     });
+    // The file Node's own resolution loads (it can differ from TypeScript's, as with `exports` conditions or a .json
+    // file); a specifier Node cannot resolve is left to the checks above.
+    try {
+      resolved.push(createRequire(containing).resolve(specifier));
+    } catch {
+      // Unresolvable by Node: nothing more to check.
+    }
     if (resolved.length === 0 && isDirectory(target))
       refuse(specifier, 'names a directory that resolves to no file (no package.json main and no index file)');
     for (const candidate of new Set([...specifierCandidates(target), ...resolved])) {
