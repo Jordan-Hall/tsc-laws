@@ -70,20 +70,23 @@ Packages are published with provenance and `--access public`. The compilers go f
 that is not there yet. `scripts/ci/laws-npm.mjs` does the repacking (the tsc-ts platform tarballs are renamed and given
 tslaws's version) and adds the optional dependencies.
 
-## Repository settings to apply by hand
+## Release gate
 
 The `npm` and `marketplace` jobs in `laws.yml` run in the `release` environment and refuse a tag whose commit is not an
-ancestor of `main`. The workflow cannot create the rules that make this binding, so apply these in the repository settings:
+ancestor of `main`. The gate is two parts:
 
-1. **Environment `release`** (Settings, Environments): add required reviewers, and under deployment branches and tags allow
-   only the tag pattern `laws-v*`.
-2. **Tag ruleset** (Settings, Rules, Rulesets): target the tag pattern `laws-v*` and restrict creation, update and deletion
-   to the people who may release.
-3. **npm trust**: the policy now names the environment, so run `npm trust github` again for each package with
-   `--environment release` (see the npm section above) and remove the old policy that had none.
-4. **Marketplace and Open VSX**: add `release` as the environment on the trusted publisher or policy, or the OIDC match fails.
+- **Environment `release`** (already set up): Jordan is the required reviewer, and the deployment policy allows only the
+  tag pattern `laws-v*`. Every publish waits for that approval.
+- **Ancestor check**: the first steps of each publish job fail unless the tagged commit is an ancestor of `origin/main`.
 
-Until step 3 is done, npm publishing fails.
+There is no tag ruleset restricting who can create `laws-v*`. release-please creates the tags with `github.token`, and a
+personal repository cannot list GitHub Actions as a ruleset bypass actor, so such a ruleset would block releases. The
+environment approval and the ancestor check stand in for it.
+
+The one manual step left: the npm trust policy now names the environment, so run `npm trust github` again for each package
+with `--environment release` (see the npm section above) and remove the old policy that had none. Until then npm
+publishing fails. Also add `release` as the environment on the VS Code Marketplace policy and the Open VSX trusted
+publisher if you use them, or their OIDC match fails.
 
 ## VS Code extension
 
