@@ -52,6 +52,7 @@ import { classifyLawFile, lockLevels } from './lawKinds.ts';
 import { acceptChanges, certificatesFromRun, lockChanges, readLock, writeLockValue, type Lock } from './lock.ts';
 import { escapeGithubData, escapeGithubProperty } from './reporters.ts';
 import type { CheckOptions, ManifestLaw } from './types.ts';
+import { plural } from './plural.ts';
 
 export interface GithubContext {
   cwd: string;
@@ -454,7 +455,7 @@ async function report(ctx: GithubContext): Promise<number> {
     for (const problem of r.verdict.problems) ctx.out(`${monorepo ? `[${label(r.active.unit)}] ` : ''}${problem}\n`);
   ctx.out(
     ok
-      ? `tslaws: ${proposals.length} proposal(s)${monorepo ? ` in ${reports.length} project(s)` : ''}, all passing\n`
+      ? `tslaws: ${plural(proposals.length, 'proposal')}${monorepo ? ` in ${plural(reports.length, 'project')}` : ''}, all passing\n`
       : 'tslaws: the pull request is not ready\n',
   );
   return ok ? 0 : 1;
@@ -1270,7 +1271,9 @@ async function merge(ctx: GithubContext): Promise<number> {
   }
   setOutput(ctx.env, 'accepted', String(accepted));
   if (failures.length > 0 && writes.length > 0)
-    ctx.out(`tslaws: wrote ${writes.length} lock(s); ${failures.length} problem(s) above leave the job failed\n`);
+    ctx.out(
+      `tslaws: wrote ${plural(writes.length, 'lock')}; ${plural(failures.length, 'problem')} above ${failures.length === 1 ? 'leaves' : 'leave'} the job failed\n`,
+    );
   return held === 0 && failures.length === 0 ? 0 : 1;
 }
 
@@ -1420,7 +1423,7 @@ async function changedFiles(api: Api, name: string, pull: PullRequest): Promise<
     );
   if (files.length !== pull.changed_files)
     throw new Error(
-      `GitHub lists ${files.length} changed files for the pull request but reports ${pull.changed_files ?? 'no count of'} files changed; nothing can be checked`,
+      `GitHub lists ${plural(files.length, 'changed file')} for the pull request but reports ${pull.changed_files === undefined ? 'no count of files' : plural(pull.changed_files, 'file')} changed; nothing can be checked`,
     );
   return new Set(files.flatMap((f) => [f.filename, ...(f.previous_filename ? [f.previous_filename] : [])]));
 }

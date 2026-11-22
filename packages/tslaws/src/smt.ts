@@ -23,6 +23,7 @@ import { lawKey } from './lock.ts';
 import { SolverUnavailable, secondOpinion, type SolverName } from './solvers.ts';
 import { Executor, SpuriousModel, Unsupported, and, not, type SeqElement, type Value } from './symbolic.ts';
 import type { ManifestLaw } from './types.ts';
+import { plural } from './plural.ts';
 
 export type Shape =
   | 'number'
@@ -473,7 +474,8 @@ function buildProblem(input: ProveInput, intLimit: bigint | undefined, theory: b
   // In the clauses of a loop the parameters' domains are facts like any other, so they go where the executor keeps them.
   if (theory) executor.assumptions.push(...decl.assumptions);
   if (intLimit !== undefined) executor.bounded.push(`int values stay within ±2^26`);
-  if (!theory && input.shapes.some(containsArray)) executor.bounded.push(`arrays hold at most ${input.bound} elements`);
+  if (!theory && input.shapes.some(containsArray))
+    executor.bounded.push(`arrays hold at most ${plural(input.bound, 'element')}`);
   const result = executor.runLaw(input.jsFile, fn, params);
   const holds = resultOf(result);
   const safe = and(...executor.obligations);

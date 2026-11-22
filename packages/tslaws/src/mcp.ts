@@ -18,6 +18,7 @@ import { parseLawFile } from './promote.ts';
 import { addProposal, mergeProposal, previewProposal, ProposalError } from './proposals.ts';
 import { resolveSettings } from './settings.ts';
 import type { CheckOptions, LawResult } from './types.ts';
+import { plural } from './plural.ts';
 
 const passing = new Set(['proved', 'bounded', 'tested']);
 const supportedVersions = ['2025-06-18', '2025-03-26', '2024-11-05'];
@@ -143,7 +144,7 @@ function withHints(report: CheckReport): unknown {
 
 function totals(report: CheckReport): string {
   const count = (status: string): number => report.results.filter((r) => r.status === status).length;
-  return `${report.results.length} laws: ${count('proved')} proved, ${count('bounded')} bounded, ${count('tested')} tested, ${count('open')} open, ${count('failed')} failed, ${count('tampered')} tampered, ${count('error')} errors`;
+  return `${plural(report.results.length, 'law')}: ${count('proved')} proved, ${count('bounded')} bounded, ${count('tested')} tested, ${count('open')} open, ${count('failed')} failed, ${count('tampered')} tampered, ${plural(count('error'), 'error')}`;
 }
 
 function summarised(report: CheckReport): unknown {
