@@ -1,0 +1,4 @@
+// Strips "../" so a request cannot leave the upload folder.
+export function uploadPath(name: string): string {
+  return name.replace('../', '');
+}

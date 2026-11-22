@@ -103,7 +103,7 @@ describe('mcp server', { skip: compiler === undefined ? 'set TSC_LAWS_BIN' : fal
     assert.equal(out.data.lockMissing, true);
     assert.match(doubles.hint, /accept/);
     const summary = await callTool('tslaws_check', { summary: true });
-    assert.match(summary.data.totals, /1 laws/);
+    assert.match(summary.data.totals, /^1 law:/);
   });
 
   it('proposes into .tslaws/proposals only, and checks it', async () => {

@@ -12,6 +12,11 @@ export interface ManifestLaw {
   body: string;
   /** The declaration from the law's name to its end. */
   text: string;
+  /**
+   * What the law depends on besides `text`, as a digest: the helpers and top-level code of its file that it reaches, the
+   * project modules those import, and the settings it runs under. Set by `readManifest` (see seal.ts); the lock hash covers it.
+   */
+  seal?: string;
   problems: string[];
 }
 

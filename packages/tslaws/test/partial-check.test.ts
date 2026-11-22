@@ -202,7 +202,7 @@ describe('tslaws accept <files>', { skip: compiler === undefined ? 'set TSC_LAWS
     // A lock entry for a file that no longer exists is kept too: only a run over it can drop it.
     writeFileSync(
       join(dir, 'tsc-laws.lock'),
-      JSON.stringify({ version: 1, laws: { ...before.laws, 'src/gone.laws.ts::old': 'z' }, exempt: [] }),
+      JSON.stringify({ version: before.version, laws: { ...before.laws, 'src/gone.laws.ts::old': 'z' }, exempt: [] }),
     );
     writeFileSync(join(dir, 'src', 'a.laws.ts'), head + lawA + lawA2);
 

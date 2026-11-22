@@ -10,6 +10,7 @@ import { readConfig } from './coverage.ts';
 import { installLawRuntime, runtimeFile, type LawRuntime } from './lawRuntime.ts';
 import { commonRoot, readResolution, resolutionCompilerOptions, type Resolution } from './tsconfigResolve.ts';
 import { importMetaEnvGlobal } from './runtimeEnv.ts';
+import { sealLaws } from './seal.ts';
 import type { ManifestLaw } from './types.ts';
 
 export interface BuildResult {
@@ -127,9 +128,10 @@ function assertOneSyntax(files: string[], cwd: string): void {
 
 export function readManifest(compiler: string, files: string[], cwd: string): ManifestLaw[] {
   if (usesBuiltin(compiler, files, cwd))
-    return files
-      .filter((f) => isLawFile(f, cwd))
-      .flatMap((f) => (existsSync(join(cwd, f)) ? lowerFile(f, cwd).laws : []));
+    return sealLaws(
+      cwd,
+      files.filter((f) => isLawFile(f, cwd)).flatMap((f) => (existsSync(join(cwd, f)) ? lowerFile(f, cwd).laws : [])),
+    );
   assertOneSyntax(files, cwd);
   const run = launch(compiler, ['--laws-manifest', ...files], {
     cwd,
@@ -140,7 +142,7 @@ export function readManifest(compiler: string, files: string[], cwd: string): Ma
   if (run.error !== undefined) throw new Error(cannotRun(compiler, run.error));
   const text = (run.stdout ?? '').trim();
   if (text === '') throw new Error(`${compiler} --laws-manifest printed nothing: ${run.stderr ?? ''}`);
-  return (JSON.parse(text) as { laws: ManifestLaw[] }).laws;
+  return sealLaws(cwd, (JSON.parse(text) as { laws: ManifestLaw[] }).laws);
 }
 
 const stringOptions = ['jsx', 'jsxFactory', 'jsxFragmentFactory', 'jsxImportSource'];

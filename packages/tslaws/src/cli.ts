@@ -36,11 +36,12 @@ import {
   revokeFor,
 } from './delegation.ts';
 import { certificateLabel } from './certificates.ts';
-import { fileOfKey, lockOf, mergeScoped, readLock, scopeOf, writeLockValue } from './lock.ts';
+import { fileOfKey, lockFormat, lockOf, mergeScoped, readLock, scopeOf, writeLockValue } from './lock.ts';
 import { lockLevels } from './lawKinds.ts';
 import type { CheckOptions, LawEvent, LawResult } from './types.ts';
 
 import { securityUsage } from './security/cli.ts';
+import { plural } from './plural.ts';
 
 const usage = `tslaws init [--force]       scaffold tslaws.json, .gitignore, AGENTS.md, Claude Code hooks and a starter law (never writes the lock)
 tslaws check [files...] [--reporter text|json|junit|github|ndjson] [--law NAME[,NAME]] [--json] [--summary] [--watch] [--runs N] [--seed N] [--no-prove] [--certify] [--require-certify] [--no-regressions] [--bound N] [--proof-timeout MS] [--property-timeout MS] [--proposed] [--compiler PATH] [--browser chromium|firefox|webkit]
@@ -115,6 +116,8 @@ function parse(args: string[]): Parsed {
     'out',
     'pr',
     'config-from',
+    'results',
+    'results-out',
     'head-sha',
     'rerun-workflow',
     'protect',
@@ -191,9 +194,9 @@ function summarise(result: LawResult): string {
   return `${result.status.toUpperCase()} ${result.name} (${result.file}:${result.line})${detail === '' ? '' : ` ${detail}`}`;
 }
 
-function totals(report: CheckReport): string {
+export function totals(report: CheckReport): string {
   const count = (status: string): number => report.results.filter((r) => r.status === status).length;
-  return `${report.results.length} laws: ${count('proved')} proved, ${count('bounded')} bounded, ${count('tested')} tested, ${count('open')} open, ${count('failed')} failed, ${count('tampered')} tampered, ${count('error')} errors`;
+  return `${plural(report.results.length, 'law')}: ${count('proved')} proved, ${count('bounded')} bounded, ${count('tested')} tested, ${count('open')} open, ${count('failed')} failed, ${count('tampered')} tampered, ${plural(count('error'), 'error')}`;
 }
 
 function render(report: CheckReport, flags: Map<string, string | true>, project?: string): string {
@@ -405,7 +408,7 @@ export async function acceptCommand(
   const opts = options(cwd, flags, chosen);
   const laws = readManifest(opts.compiler, opts.files, cwd);
   out(
-    `${laws.length} laws in ${chosen.length} files:\n${laws.map((l) => `  ${l.file}:${l.line} ${l.name}`).join('\n')}\n`,
+    `${plural(laws.length, 'law')} in ${plural(chosen.length, 'file')}:\n${laws.map((l) => `  ${l.file}:${l.line} ${l.name}`).join('\n')}\n`,
   );
   if (!gate.delegated) {
     const rl = createInterface({ input: process.stdin, output: process.stdout });
@@ -426,6 +429,14 @@ export async function acceptCommand(
   // Certificates enter the lock only for the proofs and problems of this run; see certificatesToAccept.
   // Naming files accepts only those: the lock keeps every entry it has for the other files.
   const held = readLock(opts.lockFile);
+  // The entries a partial accept keeps for the other files were hashed in the old format; keeping them under the new
+  // version would make every one of them read as changed. Only a full accept can write the whole lock again.
+  if (files.length > 0 && held !== undefined && (held.version ?? lockFormat) < lockFormat) {
+    out(
+      'Nothing written: lock format upgraded. The lock holds laws hashed in the old format for files you did not name; run `tslaws accept` without files to record them all.\n',
+    );
+    return 1;
+  }
   const scope = scopeOf(chosen);
   const heldHere =
     files.length === 0
@@ -809,7 +820,7 @@ async function githubRoot(
   selection: Selection,
 ): Promise<number> {
   const { githubCommand, projectPathOf, joinRepo } = await import('./githubCli.ts');
-  // The token stays with tslaws, as in a single project (see runOne).
+  // The token stays with tslaws, as in a single project (see runOne): laws run in a child that never gets it.
   const env = { ...process.env };
   delete process.env.GITHUB_TOKEN;
   delete process.env.GH_TOKEN;
@@ -863,8 +874,8 @@ async function runOne(
 
   if (command === 'github') {
     const { githubCommand, projectPathOf } = await import('./githubCli.ts');
-    // The token stays with tslaws: laws run in worker threads and the compiler in a child process, and both get a copy of
-    // process.env, so a law under test could otherwise read the token and act as the bot.
+    // The token stays with tslaws: the laws run in a child process whose environment is an allowlist (see isolate.ts), so
+    // a law under test cannot read it from process.env or /proc/self/environ and act as the bot.
     const env = { ...process.env };
     delete process.env.GITHUB_TOKEN;
     delete process.env.GH_TOKEN;

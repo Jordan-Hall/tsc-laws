@@ -198,4 +198,51 @@ describe('action.yml', () => {
     assert.doesNotMatch(before.slice(before.lastIndexOf('- if: inputs.install')), /GITHUB_TOKEN/);
     assert.match(install, /GITHUB_TOKEN: \$\{\{ inputs\.token \}\}/);
   });
+  it('needs no token for a run that only runs the laws', () => {
+    assert.match(text, /token:[\s\S]*?required: false[\s\S]*?default: ''/);
+  });
+});
+
+describe('the workflows in docs/github.md', () => {
+  const docs = readFileSync(join(here, '..', '..', '..', 'docs', 'github.md'), 'utf8').replace(/\r\n/g, '\n');
+  const blocks = [...docs.matchAll(/```yaml\n([\s\S]*?)```/g)].map((m) => m[1]!);
+  it('leave no credential in a checkout, where a law could read it from .git/config', () => {
+    let seen = 0;
+    for (const block of blocks) {
+      const lines = block.split('\n');
+      lines.forEach((line, i) => {
+        if (!line.includes('uses: actions/checkout')) return;
+        seen += 1;
+        assert.match(lines[i + 1] ?? '', /persist-credentials: false/, line);
+      });
+    }
+    assert.ok(seen > 0);
+  });
+  it('run the laws in a job with no token and mint the app token in the job that takes the results', () => {
+    const split = blocks.filter((block) => block.includes('--results-out'));
+    assert.ok(split.length >= 4);
+    for (const block of split) {
+      const laws = block.slice(0, block.search(/^ {2}(merge|report):/m));
+      assert.ok(laws.includes('--results-out'));
+      assert.doesNotMatch(laws, /create-github-app-token|secrets\.|token: /);
+    }
+    for (const block of split.filter((b) => b.includes('mode: merge')))
+      assert.ok(block.indexOf('create-github-app-token') > block.indexOf('download-artifact'));
+  });
+  it('run no code of the branch in the merge job that holds the app token', () => {
+    const merges = blocks.filter((b) => b.includes('--results-out') && b.includes('mode: merge'));
+    assert.ok(merges.length >= 2);
+    for (const block of merges) {
+      const job = block.slice(block.search(/^ {2}merge:/m));
+      // No install of the branch's packages runs its scripts, and tslaws is a pinned release in a directory of its own.
+      for (const line of job
+        .split('\n')
+        .filter((l) => /\b(npm (ci|install)|pnpm install|yarn install|bun install)\b/.test(l)))
+        assert.match(line, /--ignore-scripts/, line);
+      assert.match(job, /npm install --prefix "\$RUNNER_TEMP\/tslaws" --ignore-scripts [^\n]*tslaws@\d+\.\d+\.\d+/);
+      assert.match(job, /tslaws-root: '\$\{\{ runner\.temp \}\}\/tslaws'/);
+      assert.match(job, /install: 'false'/);
+      assert.ok(job.indexOf('create-github-app-token') > job.indexOf('npm install --prefix'));
+    }
+  });
 });
