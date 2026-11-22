@@ -1,11 +1,5 @@
 import type { int } from 'tslaws';
 
-export function add(a: int, b: int): int {
-  return (a + b) as int;
-}
-export function triple(n: int): int {
-  return (n + n + n) as int;
-}
 export function countUp(n: int): int {
   let i = 0;
   while (i < n) {
