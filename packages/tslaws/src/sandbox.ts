@@ -152,13 +152,21 @@ export function readableBy(cwd: string, extra: string[] = []): string[] {
   ];
 }
 
+/**
+ * Files that code asks about only to learn what it runs on. `playwright-core` looks for the WSL markers when it loads, and a
+ * path the process may not read makes `existsSync` throw there, which would end the process before any law ran. Naming
+ * them gives a law nothing: they hold no data of the person's.
+ */
+const hostProbes =
+  process.platform === 'win32' ? [] : ['/proc/version', '/proc/sys/fs/binfmt_misc/WSLInterop', '/run/WSL'];
+
 /** The flags that make a process a sandbox, for a project at `cwd`. */
 export function sandboxFlags(cwd: string, extra: string[] = []): string[] {
   const flag = permissionFlag();
   if (flag === undefined) throw new Error('this Node has no permission model');
   return [
     flag,
-    ...readableBy(cwd, extra).map((path) => `--allow-fs-read=${path}`),
+    ...[...readableBy(cwd, extra), ...hostProbes].map((path) => `--allow-fs-read=${path}`),
     '--disallow-code-generation-from-strings',
     '--no-warnings',
     ...process.execArgv.filter((flagged) => keptFlag.test(flagged)),
@@ -239,19 +247,23 @@ function real(path: string): string {
 const folds = process.platform === 'win32' || process.platform === 'darwin' || !ts.sys.useCaseSensitiveFileNames;
 const fold = (path: string): string => (folds ? path.toLowerCase() : path);
 
-/** The first part of `path` (below what it shares with the project's own path) that is a dotfile or a dot directory. */
+/**
+ * The first part of `path` that is a dotfile or a dot directory. A path inside the project is judged below the project,
+ * which is readable already wherever it sits. Any other path is judged below the home directory, or in full when it is not
+ * under it: what it shares with the project's own path says nothing about it (`~/.work/secret` beside `~/.work/proj`).
+ */
 function dottedBelow(path: string, project: string): string | undefined {
-  const own = project.split(/[/\\]/);
+  const home = real(homedir());
+  const base = isInside(fold(project), fold(path)) ? project : isInside(fold(home), fold(path)) ? home : undefined;
   const parts = path.split(/[/\\]/);
-  let shared = 0;
-  while (shared < own.length && shared < parts.length && fold(own[shared]!) === fold(parts[shared]!)) shared++;
-  return parts.slice(shared).find((part) => part.startsWith('.'));
+  const skip = base === undefined ? 0 : base.split(/[/\\]/).length;
+  return parts.slice(skip).find((part) => part.startsWith('.'));
 }
 
 /**
  * Why the sandbox may not read below `root` (as the file system names it), or undefined when it may: a file system root,
- * the home directory or a directory above it, or a place named by a dot (`~/.ssh`, `~/.config`). What the root shares with
- * the project's own path is not looked at: the project is readable already, wherever it sits.
+ * the home directory or a directory above it, or a place named by a dot (`~/.ssh`, `~/.config`). A root inside the project is
+ * judged below the project (it is readable already); any other root below the home directory (or in full).
  */
 function unreadableRoot(root: string, project: string): string | undefined {
   if (dirname(root) === root) return 'is the root of a file system';

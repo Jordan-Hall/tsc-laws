@@ -116,6 +116,18 @@ describe('the permission model flags', () => {
     assert.match(outside.stderr, /ERR_ACCESS_DENIED/);
   });
 
+  it(
+    'lets a module ask whether it runs under WSL, as playwright-core does when it loads',
+    { skip: process.platform === 'win32' },
+    () => {
+      const probe = script(
+        `const fs = require('node:fs'); fs.existsSync('/proc/sys/fs/binfmt_misc/WSLInterop'); fs.existsSync('/run/WSL');`,
+      );
+      assert.equal(probe.status, 0, probe.stderr);
+      assert.match(script(`require('node:fs').readFileSync('/proc/self/environ')`).stderr, /ERR_ACCESS_DENIED/);
+    },
+  );
+
   it('refuses writes, child processes, workers and code from strings', () => {
     const target = join(root, 'written.txt');
     const write = script(`require('node:fs').writeFileSync(${JSON.stringify(target)}, 'x')`);
@@ -727,6 +739,18 @@ describe('reads outside the project', () => {
     const { granted, refused, said } = grant(cwd, [file]);
     assert.deepEqual([granted, refused], [[], [file]]);
     assert.match(said, /may not read .*x\.ts.*sits in \.hid, a dotfile/s);
+  });
+
+  it('judges a file beside a project in a dot directory by that directory too', () => {
+    // The project sits at <dir>/.work/proj; what it shares with <dir>/.work/secret is no reason to read it.
+    const cwd = project('reads-dotshared/.work/proj', {
+      'tslaws.json': JSON.stringify({ sandboxReads: ['../secret'] }),
+      '../secret/key.ts': double,
+    });
+    const file = join(base, 'reads-dotshared', '.work', 'secret', 'key.ts');
+    const { granted, refused, said } = grant(cwd, [file]);
+    assert.deepEqual([granted, refused], [[], [file]]);
+    assert.match(said, /may not read .*key\.ts.*sits in \.work, a dotfile/s);
   });
 
   it('does not follow a link from a named directory to a dotted place', () => {
