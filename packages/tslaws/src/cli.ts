@@ -36,7 +36,7 @@ import {
   revokeFor,
 } from './delegation.ts';
 import { certificateLabel } from './certificates.ts';
-import { fileOfKey, lockOf, mergeScoped, readLock, scopeOf, writeLockValue } from './lock.ts';
+import { fileOfKey, lockFormat, lockOf, mergeScoped, readLock, scopeOf, writeLockValue } from './lock.ts';
 import { lockLevels } from './lawKinds.ts';
 import type { CheckOptions, LawEvent, LawResult } from './types.ts';
 
@@ -428,6 +428,14 @@ export async function acceptCommand(
   // Certificates enter the lock only for the proofs and problems of this run; see certificatesToAccept.
   // Naming files accepts only those: the lock keeps every entry it has for the other files.
   const held = readLock(opts.lockFile);
+  // The entries a partial accept keeps for the other files were hashed in the old format; keeping them under the new
+  // version would make every one of them read as changed. Only a full accept can write the whole lock again.
+  if (files.length > 0 && held !== undefined && (held.version ?? lockFormat) < lockFormat) {
+    out(
+      'Nothing written: lock format upgraded. The lock holds laws hashed in the old format for files you did not name; run `tslaws accept` without files to record them all.\n',
+    );
+    return 1;
+  }
   const scope = scopeOf(chosen);
   const heldHere =
     files.length === 0
