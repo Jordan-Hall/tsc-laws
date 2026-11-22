@@ -7,7 +7,15 @@ import type { LawResult, ManifestLaw } from './types.ts';
 
 export type LockEntries = Record<string, string>;
 
+/**
+ * The lock format this tslaws writes. 2 hashes each law with the code it depends on and the settings it ran under (see
+ * seal.ts); a lock without a version, or with a lower one, hashed the law's own text only and must be accepted again.
+ */
+export const lockFormat = 2;
+
 export interface Lock {
+  /** The format the lock file was written in: 0 when it names none. Set by `readLock`; `writeLockValue` always writes the current one. */
+  version?: number;
   laws: LockEntries;
   /** `file::name` of the functions a person exempted from coverage. */
   exempt: string[];
@@ -27,20 +35,27 @@ export function lawKey(file: string, name: string): string {
   return `${file.replaceAll('\\', '/')}::${name}`;
 }
 
+/** The hash of a law: its own text, whether it is `proved`, and its seal (the code it depends on and the run settings). */
 export function lawHash(law: ManifestLaw): string {
   const normalized = `${law.proved ? 'proved ' : ''}${law.text.replace(/\s+/g, ' ')}`;
-  return createHash('sha256').update(normalized).digest('hex');
+  return createHash('sha256')
+    .update(normalized)
+    .update('|')
+    .update(law.seal ?? '')
+    .digest('hex');
 }
 
 export function readLock(path: string): Lock | undefined {
   if (!existsSync(path)) return undefined;
   const lock = JSON.parse(readFileSync(path, 'utf8')) as {
+    version?: number;
     laws: LockEntries;
     exempt?: string[];
     levels?: Record<string, string>;
     certificates?: Record<string, CertificateRecord>;
   };
   return {
+    version: typeof lock.version === 'number' ? Math.min(lockFormat, Math.max(0, lock.version)) : 0,
     laws: lock.laws,
     exempt: lock.exempt ?? [],
     ...(lock.levels === undefined ? {} : { levels: lock.levels }),
@@ -86,7 +101,7 @@ export function writeLock(
   const recorded: Record<string, string> = {};
   for (const file of Object.keys(levels ?? {}).sort()) recorded[file.replaceAll('\\', '/')] = levels![file]!;
   const body = {
-    version: 1,
+    version: lockFormat,
     laws: entries,
     exempt: [...exempt].sort(),
     ...(levels === undefined ? {} : { levels: recorded }),
@@ -101,14 +116,15 @@ export interface LockViolation {
 }
 
 /**
- * `levels` is the level each laws file resolves to now, or undefined when levels come from names and the lock has no
- * levels section (then nothing about levels is compared). A law whose file's level is not the locked one, or is not
- * locked at all, is a violation until a person accepts again.
+ * `levels` is what to compare of the levels: `locked` is the lock's levels section and `now` the level each laws file
+ * resolves to now, which only a project with `levels: "imports"` has. A law whose file's level is not the locked one, or
+ * is not locked at all, is a violation until a person accepts again, and so is every law of a lock that records levels
+ * when the project no longer resolves any (`levels` went back to names). Leave `levels` out when neither side has any.
  */
 export function compareLock(
   lock: LockEntries | undefined,
   laws: ManifestLaw[],
-  levels?: { locked: Record<string, string> | undefined; now: Record<string, string> },
+  levels?: { locked: Record<string, string> | undefined; now: Record<string, string> | undefined },
 ): LockViolation[] {
   const violations: LockViolation[] = [];
   const seen = new Set<string>();
@@ -120,7 +136,8 @@ export function compareLock(
     else if (locked !== lawHash(law)) violations.push({ key, reason: 'changed' });
     else if (levels !== undefined) {
       const file = law.file.replaceAll('\\', '/');
-      if (levels.locked?.[file] !== levels.now[file]) violations.push({ key, reason: 'level' });
+      if (levels.locked?.[file] !== levels.now?.[file] || (levels.locked !== undefined && levels.now === undefined))
+        violations.push({ key, reason: 'level' });
     }
   }
   for (const key of Object.keys(lock ?? {})) if (!seen.has(key)) violations.push({ key, reason: 'removed' });
@@ -144,7 +161,7 @@ const fingerprintOf = (...parts: string[]): string =>
 
 /**
  * Every change a person would record by accepting the project as it is now. `levels` is the level of each laws file
- * now, or undefined when the lock does not record levels.
+ * now, or undefined when the project resolves none (levels from names); a lock that still records levels then changes.
  */
 export function lockChanges(
   lock: Lock | undefined,
@@ -156,7 +173,7 @@ export function lockChanges(
   const compared = compareLock(
     lock?.laws,
     laws,
-    levels === undefined ? undefined : { locked: lock?.levels, now: levels },
+    levels === undefined && lock?.levels === undefined ? undefined : { locked: lock?.levels, now: levels },
   );
   const changes: LockChange[] = compared.map((violation) => {
     const law = byKey.get(violation.key);
@@ -206,12 +223,16 @@ export function acceptChanges(
     else entries[change.key] = lawHash(law);
   }
   let recorded: Record<string, string> | undefined;
-  if (levels !== undefined) {
+  const fileOf = (key: string): string => key.slice(0, key.lastIndexOf('::'));
+  const open = new Set(
+    changes.filter((c) => c.kind === 'law' && !accepted.has(c.fingerprint)).map((c) => fileOf(c.key)),
+  );
+  if (levels === undefined && lock?.levels !== undefined) {
+    // Levels went back to names: the recorded level of a file goes once every change in it is accepted, not before.
+    const kept = Object.entries(lock.levels).filter(([file]) => open.has(file));
+    recorded = kept.length === 0 ? undefined : Object.fromEntries(kept);
+  } else if (levels !== undefined) {
     recorded = { ...lock?.levels };
-    const fileOf = (key: string): string => key.slice(0, key.lastIndexOf('::'));
-    const open = new Set(
-      changes.filter((c) => c.kind === 'law' && !accepted.has(c.fingerprint)).map((c) => fileOf(c.key)),
-    );
     for (const [file, level] of Object.entries(levels)) if (!open.has(file)) recorded[file] = level;
     for (const file of Object.keys(recorded))
       if (!(file in levels) && !Object.keys(entries).some((key) => fileOf(key) === file)) delete recorded[file];
@@ -259,7 +280,7 @@ export function writeLockValue(path: string, lock: Lock): void {
   const laws: LockEntries = {};
   for (const key of Object.keys(lock.laws).sort((a, b) => a.localeCompare(b))) laws[key] = lock.laws[key]!;
   const body = {
-    version: 1,
+    version: lockFormat,
     laws,
     exempt: [...lock.exempt].sort(),
     ...(lock.levels === undefined

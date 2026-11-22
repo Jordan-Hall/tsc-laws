@@ -862,8 +862,10 @@ under `.tslaws/out/smt`.
 
 ## Keeping agents honest
 
-1. **Laws are the person's.** `tsc-laws.lock` holds a hash of every law declaration and every coverage exemption. Any
-   difference fails the check as `tampered`. `tslaws accept` refuses to run without a terminal, under `CI`, or with
+1. **Laws are the person's.** `tsc-laws.lock` holds a hash of every law and every coverage exemption. A law's hash covers
+   its declaration, the helpers, generators and top-level code of its file that it reaches, the project modules those
+   import (see [The lock covers what a law depends on](#the-lock-covers-what-a-law-depends-on)), and the run settings.
+   Any difference fails the check as `tampered`. `tslaws accept` refuses to run without a terminal, under `CI`, or with
    `TSLAWS_AGENT` set, unless a person has lent it to agents for a limited time with `tslaws delegate grant`
    ([below](#lending-accept-to-an-agent)). Under `CI` it never runs.
 2. **No code escapes.** Every exported function or class in the covered modules must be reached by a law, directly or
@@ -1002,7 +1004,28 @@ check):
 **The lock and levels.** In imports mode `tsc-laws.lock` also records the resolved level of each laws file (a `levels`
 section). A change in the resolved level, for example a helper module that starts importing `tslaws/browser`, reports the
 laws of that file as `tampered` until a person runs `tslaws accept` again. So does switching a project to imports mode, until
-it is accepted once. In names mode the lock has no `levels` section and verifies exactly as before.
+it is accepted once. In names mode the lock has no `levels` section. A lock that still has one while the project resolves
+none (levels went back to names) reports every law as `tampered` until a person runs `tslaws accept` again.
+
+### The lock covers what a law depends on
+
+A law is only as strong as the code it calls and the settings it runs under, so each law's hash covers more than its text:
+
+- the top-level declarations of its file that the law references, transitively (helpers, generators, types);
+- the top-level code of its file that declares nothing (an `arbitrary(...)` call, a side effect), which can change every law;
+- the project modules the law's file imports that the law reaches, whole and transitively (`paths` from the tsconfig are
+  followed; modules under `node_modules` are not, the lockfile pins those);
+- the settings of `tslaws.json` that decide how hard a law is checked: `runs`, `bound`, `proofTimeoutMs`,
+  `propertyTimeoutMs`, `solvers`, `certify` and `compilerOptions`. A flag such as `--runs` is one run's choice and is not part
+  of it.
+
+Code is compared as tokens, so comments and layout change nothing. The other laws of the file and helpers no law reaches are
+not in a law's hash, so an edit that reaches no law, such as a comment, a helper nobody calls or a different law, does not
+report the rest as `tampered`. Changing a run setting in either direction asks for `tslaws accept`.
+
+A lock written by an older tslaws hashed only each law's own text (`version` below 2 in `tsc-laws.lock`, or none). Its laws
+are reported `tampered` with `lock format upgraded`, so the check fails until a person runs `tslaws accept` once; nothing
+passes silently on the old hashes.
 
 ### Proposals
 

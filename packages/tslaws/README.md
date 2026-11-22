@@ -172,7 +172,10 @@ See [docs/laws.md](../../docs/laws.md#the-dashboard).
 
 ## Agents cannot move the goalposts
 
-`tsc-laws.lock` holds a hash of every law declaration and the list of coverage exemptions. A change, an added law, a removed
+`tsc-laws.lock` holds a hash of every law and the list of coverage exemptions. A law's hash covers its declaration, the helpers,
+generators and top-level code of its file that it reaches, the project modules those import, and the run settings of
+`tslaws.json` (`runs`, `bound`, the timeouts, `solvers`, `certify`, `compilerOptions`), so weakening a helper or setting `runs: 1`
+reads as tampering too; comments, layout and edits no law reaches do not. A change, an added law, a removed
 law or a new `@tslaws-exempt` fails the check until a person runs `tslaws accept`, which refuses to run without a terminal,
 under `CI`, or with `TSLAWS_AGENT` set, unless a person has lent it for a limited time with `tslaws delegate grant`. Agents propose laws in `*.proposed.laws.ts` files (or optionally in `.tslaws/proposals/`, outside the tree and git-ignored; `tslaws propose` or the MCP tool) and try them with `tslaws check
 --proposed` (no lock, no coverage gate); a person moves one into the tree with `tslaws promote` and accepts. Every laws file in the tree must be in the lock. A project that accepts laws on GitHub (a `github` section in `tslaws.json`) still lets a person run `tslaws accept` by hand, and a maintainer can run the workflow on demand; set `github.local` to false to leave the lock to the workflow alone. See [docs/github.md](../../docs/github.md).

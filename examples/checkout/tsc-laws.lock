@@ -1,8 +1,8 @@
 {
-  "version": 1,
+  "version": 2,
   "laws": {
-    "src/cart.laws.ts::couponNeverRaisesTheTotal": "4630241e0c3056f6556d9fbc0784de57460004be2d268c037cc223cc6a85e08b",
-    "src/cart.laws.ts::totalNeverNegative": "1dce0ddac524da8a170dfbbbd6bcd126a45b9ec54ce69eb8ea71347fde2505a2"
+    "src/cart.laws.ts::couponNeverRaisesTheTotal": "e221a234eeb0961b45659d1507235db170e073900cc96cd60f0d2effcd0b1958",
+    "src/cart.laws.ts::totalNeverNegative": "1d8e593ea91e93f98633035839647e6f32691d00cfbe11a9dd58f0732b08cd81"
   },
   "exempt": []
 }

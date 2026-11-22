@@ -48,7 +48,7 @@ import {
   type IssueComment,
   type Proposal,
 } from './github.ts';
-import { classifyLawFile, lockLevels } from './lawKinds.ts';
+import { lockLevels } from './lawKinds.ts';
 import { acceptChanges, certificatesFromRun, lockChanges, readLock, writeLockValue, type Lock } from './lock.ts';
 import { escapeGithubData, escapeGithubProperty } from './reporters.ts';
 import type { CheckOptions, ManifestLaw } from './types.ts';
@@ -213,17 +213,8 @@ export function projectState(options: CheckOptions): ProjectState {
   const laws = readManifest(options.compiler, options.files, options.cwd);
   const exempt = exemptionsOf(options);
   const mode = readConfig(options.cwd).levels ?? 'names';
-  const levels =
-    mode === 'imports'
-      ? lockLevels(options.cwd, laws, 'imports')
-      : lock?.levels !== undefined
-        ? Object.fromEntries(
-            [...new Set(laws.map((l) => l.file.replaceAll('\\', '/')))].map((f) => [
-              f,
-              classifyLawFile(options.cwd, f, 'names').kind,
-            ]),
-          )
-        : undefined;
+  // Levels by name record nothing: a lock that still records them is a change until accepted again.
+  const levels = mode === 'imports' ? lockLevels(options.cwd, laws, 'imports') : undefined;
   return { laws, exempt, levels, lock };
 }
 
