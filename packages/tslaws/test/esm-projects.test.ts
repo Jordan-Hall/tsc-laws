@@ -20,8 +20,6 @@ const native = process.env.TSC_LAWS_BIN;
 
 after(() => {
   rmSync(root, { recursive: true, force: true, maxRetries: 5 });
-  // Z3's worker threads keep the test process alive.
-  setTimeout(() => process.exit(process.exitCode ?? 0), 100).unref();
 });
 
 let counter = 0;

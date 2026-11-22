@@ -31,7 +31,6 @@ const here = dirname(fileURLToPath(import.meta.url));
 const scratch = mkdtempSync(join(here, '..', '.tmp-delegation-'));
 after(() => {
   rmSync(scratch, { recursive: true, force: true });
-  setTimeout(() => process.exit(process.exitCode ?? 0), 100).unref();
 });
 
 const bin = join(here, '..', 'bin', 'tslaws.js');

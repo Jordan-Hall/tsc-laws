@@ -21,7 +21,6 @@ const fixtures = join(here, 'fixtures', 'tsrx');
 
 after(() => {
   rmSync(root, { recursive: true, force: true });
-  setTimeout(() => process.exit(process.exitCode ?? 0), 100).unref();
 });
 
 function hasBrowser(): boolean {

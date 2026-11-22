@@ -103,7 +103,6 @@ const root = compiler === undefined ? '' : mkdtempSync(join(here, '..', '.tmp-as
 after(() => {
   if (root === '') return;
   rmSync(root, { recursive: true, force: true });
-  setTimeout(() => process.exit(process.exitCode ?? 0), 100).unref();
 });
 
 const lines = (...l: string[]): string => `${l.join('\n')}\n`;

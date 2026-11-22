@@ -31,7 +31,6 @@ function hasBrowser(): boolean {
 
 after(() => {
   rmSync(root, { recursive: true, force: true });
-  setTimeout(() => process.exit(process.exitCode ?? 0), 100).unref();
 });
 
 function project(name: string, source: string): CheckOptions {
