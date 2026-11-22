@@ -897,6 +897,11 @@ tslaws check [files...] [--json] [--summary] [--watch] [--runs N] [--seed N] [--
              [--proof-timeout MS] [--proposed] [--compiler PATH] [--reporter text|json|junit|github|ndjson] [--law NAME[,NAME]]
 ```
 
+Naming files (`tslaws check src/a.laws.ts`, `tslaws accept src/a.laws.ts`) limits the run to them. The lock is compared only for
+the laws of those files: a locked law in any other file is neither checked nor reported as removed, and a law removed from a
+named file still is. `accept <files>` records only those files and keeps every other entry of the lock. Without files the
+whole project is compared, so a deleted laws file is reported.
+
 In a monorepo, run these at the root and they run in every project; `--project <dir>` and `--filter <glob>` narrow it. See
 [monorepo.md](monorepo.md).
 
