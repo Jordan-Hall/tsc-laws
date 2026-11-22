@@ -306,6 +306,39 @@ describe('what a law reaches through the code that runs when its file loads', ()
       false,
     );
   });
+
+  // Each of these runs code of its own when the file loads, or when a later statement touches the value.
+  for (const [name, init] of [
+    ['a getter read', 'config.value'],
+    ['a coercing binary operator', 'box + 1'],
+    ['a coercing unary operator', '-box'],
+    ['a template expression', '`${box}`'],
+    ['an object literal with a method', '{ valueOf() { return 1; } }'],
+    ['an object literal with an accessor', '{ get value() { return 1; } }'],
+    ['a spread', '{ ...box }'],
+  ] as const) {
+    it(`seals a declaration whose initializer is ${name}, though no law names it`, () => {
+      const p = project();
+      p.edit(
+        'src/f.laws.ts',
+        '// nothing calls this one',
+        `const config = { value: 1 };\nconst box = {};\nconst trap = ${init};`,
+      );
+      assert.equal(
+        sameSeals(p, () => p.edit('src/f.laws.ts', 'const trap = ', 'const trap = 0 || ')),
+        false,
+      );
+    });
+  }
+
+  it('does not seal a declaration of plain literals no law names', () => {
+    const p = project();
+    p.edit('src/f.laws.ts', '// nothing calls this one', 'const plain = { a: 1, b: [2, 3] };');
+    assert.equal(
+      sameSeals(p, () => p.edit('src/f.laws.ts', 'b: [2, 3]', 'b: [2, 4]')),
+      true,
+    );
+  });
 });
 
 describe('what a law reaches through its imports', () => {
@@ -363,6 +396,37 @@ describe('what a law reaches through its imports', () => {
     const manifest = join(p.cwd, 'node_modules/registry-thing/package.json');
     assert.equal(
       sameSeals(p, () => writeFileSync(manifest, '{"name":"registry-thing","version":"1.0.1","main":"index.js"}')),
+      false,
+    );
+  });
+
+  it('records a builtin as such only when nothing else answers to its name', () => {
+    const p = project({ 'src/f.laws.ts': importing('fs') });
+    assert.equal(
+      sameSeals(p, () => p.edit('src/f.laws.ts', "'fs'", "'node:fs'")),
+      false,
+    );
+  });
+
+  it('digests a package that shadows a builtin name, and a file that does', () => {
+    const p = project({
+      'src/f.laws.ts': importing('fs'),
+      'node_modules/fs/package.json': '{"name":"fs","version":"1.0.0","main":"index.js"}',
+      'node_modules/fs/index.js': 'module.exports = 1;\n',
+    });
+    assert.equal(
+      sameSeals(p, () =>
+        writeFileSync(join(p.cwd, 'node_modules/fs/package.json'), '{"name":"fs","version":"1.0.1","main":"index.js"}'),
+      ),
+      false,
+    );
+    const q = project({
+      'src/f.laws.ts': importing('fs'),
+      'src/fs.ts': 'export const x = 1;\n',
+      'tsconfig.json': '{"compilerOptions":{"baseUrl":"src"}}\n',
+    });
+    assert.equal(
+      sameSeals(q, () => writeFileSync(join(q.cwd, 'src/fs.ts'), 'export const x = 2;\n')),
       false,
     );
   });

@@ -139,15 +139,18 @@ class Linker {
   }
 
   link(specifier: string, from: string): Linked {
-    if (specifier.startsWith('node:') || builtins.has(specifier))
-      return { files: [], externals: [`builtin ${specifier}`] };
+    if (specifier.startsWith('node:')) return { files: [], externals: [`builtin ${specifier}`] };
+    // A bare name that is also a builtin is the builtin only when nothing else answers to it.
+    const builtin = builtins.has(specifier);
     const files: string[] = [];
     const externals: string[] = [];
     const bare = !/^\.{1,2}(?:[\\/]|$)/.test(specifier) && !isAbsolute(specifier);
     const installed = bare ? this.installed(specifier, from) : undefined;
     if (installed !== undefined && installed !== 'linked') externals.push(registry(installed, specifier));
     const found = ts.resolveModuleName(specifier, from, this.options, ts.sys).resolvedModule;
-    if (found !== undefined && existsSync(found.resolvedFileName)) {
+    const typesOnly =
+      builtin && found !== undefined && /[\/]node_modules[\/]@types[\/]/.test(realOf(found.resolvedFileName));
+    if (found !== undefined && existsSync(found.resolvedFileName) && !typesOnly) {
       const real = realOf(found.resolvedFileName);
       if (underNodeModules.test(real)) {
         // A registry package reached through `paths` or as types only (`@types/x`): its name and version.
@@ -164,6 +167,8 @@ class Linker {
           if (sibling !== undefined) files.push(realOf(sibling));
         }
       }
+    } else if (builtin && (installed === undefined || installed === 'linked') && files.length === 0) {
+      externals.push(`builtin ${specifier}`);
     } else if (installed === undefined || installed === 'linked') {
       // An asset TypeScript does not resolve (css, svg, txt) is digested when the specifier names a file.
       const asset = bare ? undefined : resolve(dirname(from), specifier);
@@ -202,32 +207,17 @@ function runsOnLoad(text: string): boolean {
     if (ts.isParenthesizedExpression(node) || ts.isAsExpression(node) || ts.isNonNullExpression(node))
       return inert(node.expression);
     if (ts.isSatisfiesExpression(node) || ts.isTypeAssertionExpression(node)) return inert(node.expression);
-    if (ts.isPrefixUnaryExpression(node))
-      return (
-        node.operator !== ts.SyntaxKind.PlusPlusToken &&
-        node.operator !== ts.SyntaxKind.MinusMinusToken &&
-        inert(node.operand)
-      );
-    if (ts.isTemplateExpression(node)) return node.templateSpans.every((span) => inert(span.expression));
-    if (ts.isPropertyAccessExpression(node)) return inert(node.expression);
-    if (ts.isConditionalExpression(node)) return inert(node.condition) && inert(node.whenTrue) && inert(node.whenFalse);
-    if (ts.isBinaryExpression(node))
-      return node.operatorToken.kind < ts.SyntaxKind.FirstAssignment ||
-        node.operatorToken.kind > ts.SyntaxKind.LastAssignment
-        ? inert(node.left) && inert(node.right)
-        : false;
     if (ts.isArrayLiteralExpression(node)) return node.elements.every((e) => !ts.isSpreadElement(e) && inert(e));
     if (ts.isObjectLiteralExpression(node))
       return node.properties.every((p) => {
         if (ts.isShorthandPropertyAssignment(p)) return true;
-        if (ts.isPropertyAssignment(p)) return plainName(p.name) && inert(p.initializer);
-        return (ts.isMethodDeclaration(p) || ts.isGetAccessor(p) || ts.isSetAccessor(p)) && plainName(p.name);
+        return ts.isPropertyAssignment(p) && plainName(p.name) && inert(p.initializer);
       });
     return false;
   };
   const classInert = (node: ts.ClassLikeDeclaration): boolean =>
     !ts.canHaveDecorators(node) || (ts.getDecorators(node) ?? []).length === 0
-      ? (node.heritageClauses ?? []).every((clause) => clause.types.every((type) => inert(type.expression))) &&
+      ? node.heritageClauses === undefined &&
         node.members.every((member) => {
           if (ts.isClassStaticBlockDeclaration(member)) return false;
           if (!plainName(member.name as ts.PropertyName | undefined)) return false;
@@ -246,7 +236,7 @@ function runsOnLoad(text: string): boolean {
     if (ts.isClassDeclaration(statement)) return !classInert(statement);
     if (ts.isEnumDeclaration(statement)) return !statement.members.every((m) => inert(m.initializer));
     if (ts.isVariableStatement(statement))
-      return !statement.declarationList.declarations.every((d) => inert(d.initializer));
+      return !statement.declarationList.declarations.every((d) => ts.isIdentifier(d.name) && inert(d.initializer));
     return true;
   });
 }
