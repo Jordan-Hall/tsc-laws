@@ -1089,7 +1089,7 @@ directory) and made canonical on the real file system, so links, short Windows n
 cannot hide a reserved directory; the names `.tslaws`, `node_modules` and `.git` are compared without regard to case.
 A specifier with `%`, `?`, `#` or a control character (a percent escape, a query, a fragment or a `#` alias) is refused.
 Git must answer the ignore question: when git is not installed, the project is not in a repository or the check fails,
-a file import is refused rather than allowed (package imports are not paths and are unaffected). Each path is also
+a file import is refused rather than allowed (package imports are not paths and are unaffected, unless the project's `paths` or `baseUrl` maps the name to a file outside `node_modules`, which is checked as a path). Each path is also
 resolved with the TypeScript module resolution of the project's compiler options (`package.json` `main`, index files,
 `rootDirs`), the file that gives is checked as well (so is the file Node's own `require.resolve` gives, when it resolves), and a directory that resolves to no file is refused. Code may load
 other code only through a static import or an `import()` or `require()` of one string literal. The check refuses a computed

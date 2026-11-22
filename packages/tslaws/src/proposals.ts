@@ -458,7 +458,7 @@ const isDirectory = (path: string): boolean => {
  * Throws unless every file the module specifiers of `text` name (an import, a re-export, `require` or `import()`)
  * is code a person has reviewed: inside the project, not under `.tslaws/` (the proposals area), `node_modules` or
  * `.git`, and not git-ignored. Specifiers are read relative to the project-relative directory `fromDir`, where the file
- * stands. A package name is not a path and is left alone. Any specifier with `%`, `?`, `#` or a control character is
+ * stands. A package name is not a path and is left alone, unless the project's `paths` or `baseUrl` maps it to a file outside `node_modules`, which is checked as a path. Any specifier with `%`, `?`, `#` or a control character is
  * refused (percent escapes, queries, fragments and package `imports` aliases make the file the runtime loads differ
  * from the text). A path specifier is resolved as the runtime does, as a URL against the importing directory, then
  * made canonical on the real file system; the reserved names are compared without regard to case. Git must answer: when
@@ -493,7 +493,9 @@ export function assertImportsAllowed(cwd: string, text: string, fromDir: string)
       /^[A-Za-z]:[\\/]/.test(v) ||
       v.startsWith('\\'),
   );
-  if (specifiers.length === 0) return;
+  // A bare name the project's `paths` or `baseUrl` maps to a file of its own is code in the project, not a package.
+  const bare = all.filter((v) => !specifiers.includes(v) && !isBuiltin(v));
+  if (specifiers.length === 0 && bare.length === 0) return;
   const root = realpathSync.native(cwd);
   const reserved = new Set([...ignoredDirs].map((name) => name.toLowerCase()));
   let rootIgnored: boolean | undefined;
@@ -507,6 +509,23 @@ export function assertImportsAllowed(cwd: string, text: string, fromDir: string)
       );
     return state === 'ignored';
   };
+  // The checks on one file a specifier leads to: inside the project, outside reserved directories, not git-ignored.
+  const guardFile = (specifier: string, candidate: string): void => {
+    const rel = relative(root, realish(candidate)).replaceAll('\\', '/');
+    if (rel === '..' || rel.startsWith('../') || isAbsolute(rel)) refuse(specifier, 'resolves outside the project');
+    const name = rel.split('/').find((part) => reserved.has(part.toLowerCase()));
+    if (name !== undefined) refuse(specifier, `resolves into ${name}/ (${rel})`);
+    rootIgnored ??= ignored(specifier, root);
+    if (!rootIgnored && ignored(specifier, rel)) refuse(specifier, `resolves to ${rel}, which git ignores`);
+  };
+  for (const specifier of bare) {
+    const compilerOptions = (options ??= resolutionOptions(root));
+    // Without `paths` or `baseUrl` nothing maps a bare name to a project file: it is a package.
+    if (compilerOptions.paths === undefined && compilerOptions.baseUrl === undefined) break;
+    const containing = join(root, fromDir, 'proposal.ts');
+    const found = ts.resolveModuleName(specifier, containing, compilerOptions, ts.sys).resolvedModule;
+    if (found !== undefined && !found.isExternalLibraryImport) guardFile(specifier, found.resolvedFileName);
+  }
   for (const specifier of specifiers) {
     if (specifier.startsWith('file:')) refuse(specifier, 'is a file URL');
     // Resolve as the runtime does: a URL against the directory of the importing file.
@@ -535,14 +554,7 @@ export function assertImportsAllowed(cwd: string, text: string, fromDir: string)
     }
     if (resolved.length === 0 && isDirectory(target))
       refuse(specifier, 'names a directory that resolves to no file (no package.json main and no index file)');
-    for (const candidate of new Set([...specifierCandidates(target), ...resolved])) {
-      const rel = relative(root, realish(candidate)).replaceAll('\\', '/');
-      if (rel === '..' || rel.startsWith('../') || isAbsolute(rel)) refuse(specifier, 'resolves outside the project');
-      const name = rel.split('/').find((part) => reserved.has(part.toLowerCase()));
-      if (name !== undefined) refuse(specifier, `resolves into ${name}/ (${rel})`);
-      rootIgnored ??= ignored(specifier, root);
-      if (!rootIgnored && ignored(specifier, rel)) refuse(specifier, `resolves to ${rel}, which git ignores`);
-    }
+    for (const candidate of new Set([...specifierCandidates(target), ...resolved])) guardFile(specifier, candidate);
   }
 }
 

@@ -948,6 +948,37 @@ describe('an import is checked by the file the project resolution gives', () => 
     assert.throws(() => check(cwd, '../../src/broken'), /resolves to no file/);
   });
 
+  it('checks a bare name that tsconfig paths or baseUrl maps to a file of the project', () => {
+    const cwd = project({
+      'tsconfig.json': JSON.stringify({
+        compilerOptions: {
+          moduleResolution: 'bundler',
+          module: 'esnext',
+          baseUrl: '.',
+          paths: {
+            '@app/*': ['src/*'],
+            '@evil/*': ['.tslaws/proposals/*'],
+            '@gen/*': ['gen/*'],
+            '@out/*': ['../outside/*'],
+          },
+        },
+      }),
+      '.gitignore': 'gen/\n',
+      'gen/made.ts': 'export const x = 1;\n',
+      '.tslaws/proposals/evil.ts': 'export const x = 1;\n',
+      'node_modules/pkg/index.js': 'exports.x = 1;\n',
+    });
+    mkdirSync(join(dirname(cwd), 'outside'), { recursive: true });
+    writeFileSync(join(dirname(cwd), 'outside', 'x.ts'), 'export const x = 1;\n');
+    assert.throws(() => check(cwd, '@evil/evil', '.tslaws/proposals'), /resolves into \.tslaws/);
+    assert.throws(() => check(cwd, '@gen/made', '.tslaws/proposals'), /git ignores/);
+    assert.throws(() => check(cwd, '@out/x', '.tslaws/proposals'), /resolves outside the project/);
+    check(cwd, '@app/cart', '.tslaws/proposals');
+    // A package, and a bare name that resolves to nothing, are left alone.
+    check(cwd, 'pkg', '.tslaws/proposals');
+    check(cwd, 'not-a-package-anywhere', '.tslaws/proposals');
+  });
+
   it('uses the compiler options of the project, such as rootDirs', () => {
     const cwd = project({
       'tsconfig.json': JSON.stringify({
