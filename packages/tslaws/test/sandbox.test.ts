@@ -116,17 +116,27 @@ describe('the permission model flags', () => {
     assert.match(outside.stderr, /ERR_ACCESS_DENIED/);
   });
 
-  it(
-    'lets a module ask whether it runs under WSL, as playwright-core does when it loads',
-    { skip: process.platform === 'win32' },
-    () => {
-      const probe = script(
-        `const fs = require('node:fs'); fs.existsSync('/proc/sys/fs/binfmt_misc/WSLInterop'); fs.existsSync('/run/WSL');`,
-      );
-      assert.equal(probe.status, 0, probe.stderr);
-      assert.match(script(`require('node:fs').readFileSync('/proc/self/environ')`).stderr, /ERR_ACCESS_DENIED/);
-    },
-  );
+  it('does not let a process learn what it runs on from /proc and /run', { skip: process.platform === 'win32' }, () => {
+    for (const path of ['/proc/version', '/proc/sys/fs/binfmt_misc/WSLInterop', '/run/WSL'])
+      assert.match(script(`require('node:fs').existsSync(${JSON.stringify(path)})`).stderr, /ERR_ACCESS_DENIED/);
+  });
+
+  it('does not load playwright-core, which probes for WSL, with the code a law process runs', () => {
+    const browser = new URL('../dist/browser.js', import.meta.url).href;
+    const probe = spawnSync(
+      process.execPath,
+      [
+        ...sandboxFlags(root, [fileURLToPath(new URL('..', import.meta.url))]),
+        '--input-type=module',
+        '-e',
+        `await import(${JSON.stringify(browser)}); const { createRequire } = await import('node:module');
+         const loaded = Object.keys(createRequire(${JSON.stringify(browser)}).cache).filter((file) => file.includes('playwright-core'));
+         if (loaded.length > 0) throw new Error('loaded ' + loaded[0]);`,
+      ],
+      { encoding: 'utf8', cwd: root },
+    );
+    assert.equal(probe.status, 0, probe.stderr);
+  });
 
   it('refuses writes, child processes, workers and code from strings', () => {
     const target = join(root, 'written.txt');

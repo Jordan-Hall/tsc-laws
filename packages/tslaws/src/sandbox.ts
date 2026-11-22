@@ -152,21 +152,13 @@ export function readableBy(cwd: string, extra: string[] = []): string[] {
   ];
 }
 
-/**
- * Files that code asks about only to learn what it runs on. `playwright-core` looks for the WSL markers when it loads, and a
- * path the process may not read makes `existsSync` throw there, which would end the process before any law ran. Naming
- * them gives a law nothing: they hold no data of the person's.
- */
-const hostProbes =
-  process.platform === 'win32' ? [] : ['/proc/version', '/proc/sys/fs/binfmt_misc/WSLInterop', '/run/WSL'];
-
 /** The flags that make a process a sandbox, for a project at `cwd`. */
 export function sandboxFlags(cwd: string, extra: string[] = []): string[] {
   const flag = permissionFlag();
   if (flag === undefined) throw new Error('this Node has no permission model');
   return [
     flag,
-    ...[...readableBy(cwd, extra), ...hostProbes].map((path) => `--allow-fs-read=${path}`),
+    ...readableBy(cwd, extra).map((path) => `--allow-fs-read=${path}`),
     '--disallow-code-generation-from-strings',
     '--no-warnings',
     ...process.execArgv.filter((flagged) => keptFlag.test(flagged)),
