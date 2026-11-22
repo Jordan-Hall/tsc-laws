@@ -73,6 +73,3 @@ jobs:
         env:
           TSLAWS_REQUIRE_CERT_TOOLS: '1'
         run: node --test test/certificates.test.ts
-      - name: TEMP variants
-        if: always()
-        run: node scripts/ci/certificates-variants.mjs

@@ -18,6 +18,7 @@ import {
   hashOf,
   noCertificate,
   readRecords,
+  rareDeclarations,
   rareRulesOf,
   recordOf,
   uncertifiable,
@@ -135,6 +136,56 @@ describe('the RARE rules of a proof', () => {
   });
 });
 
+describe('the RARE declarations for Carcara', () => {
+  const eol = String.fromCharCode(10);
+  /** What cvc5 1.4.2's `-o rare-db` prints: no `ite-eq`, and `div_total` in the integer `div` rule. */
+  const db = [
+    '(declare-rule eq-refl ((@T0 Type) (t1 @T0))',
+    '  :args (t1)',
+    '  :conclusion (= (= t1 t1) true)',
+    ')',
+    '(declare-rule arith-int-div-total ((t1 Int) (s1 Int))',
+    '  :premises ((= (= s1 0) false))',
+    '  :args (t1 s1)',
+    '  :conclusion (= (div t1 s1) (div_total t1 s1))',
+    ')',
+    '',
+  ].join(eol);
+  const cvc5PrintsDb = (): string => fake(`console.log(${JSON.stringify(db)});`).path;
+
+  it('takes the rules a proof names from the database cvc5 prints, as RARE declarations', async () => {
+    process.env.TSLAWS_CVC5 = cvc5PrintsDb();
+    const declared = await rareDeclarations(['eq-refl'], root, 5000);
+    assert.ok('text' in declared, JSON.stringify(declared));
+    assert.match(declared.text, /^\(declare-rare-rule eq-refl /);
+    assert.doesNotMatch(declared.text, /div_total/);
+  });
+
+  it('declares ite-eq, which cvc5 cites in Alethe proofs but leaves out of its database', async () => {
+    process.env.TSLAWS_CVC5 = cvc5PrintsDb();
+    const declared = await rareDeclarations(['eq-refl', 'ite-eq'], root, 5000);
+    assert.ok('text' in declared, JSON.stringify(declared));
+    assert.match(declared.text, /\(declare-rare-rule ite-eq \(\(@T0 Type\) \(C Bool\) \(t1 @T0\) \(t2 @T0\)\)/);
+    assert.match(declared.text, /^\(declare-rare-rule eq-refl /);
+  });
+
+  it('declares the integer div rule without div_total, which Carcara does not read', async () => {
+    process.env.TSLAWS_CVC5 = cvc5PrintsDb();
+    const declared = await rareDeclarations(['arith-int-div-total'], root, 5000);
+    assert.ok('text' in declared, JSON.stringify(declared));
+    assert.match(declared.text, /:conclusion \(= \(div t1 s1\) \(div t1 s1\)\)/);
+    assert.doesNotMatch(declared.text, /div_total/);
+  });
+
+  it('is uncertified, naming the rule, for a rule cvc5 does not declare and tslaws does not know', async () => {
+    process.env.TSLAWS_CVC5 = cvc5PrintsDb();
+    const declared = await rareDeclarations(['eq-refl', 'no-such-rule'], root, 5000);
+    assert.ok('status' in declared, JSON.stringify(declared));
+    assert.equal(declared.status, 'uncertified');
+    assert.match(declared.reason, /no-such-rule/);
+  });
+});
+
 describe('the SMT-LIB translation for cvc5', () => {
   it('drops the Z3 timeout and get-model, and sets a logic', () => {
     assert.equal(
@@ -179,6 +230,9 @@ describe('certify', () => {
     const args = cvc5.args();
     for (const arg of cvc5ProofArgs) assert.ok(args.includes(arg), `cvc5 was not given ${arg}`);
     assert.ok(args.includes('--dump-proofs') && args.includes('--proof-format-mode=alethe'));
+    // Pivots named by cvc5 are not found in a clause that repeats a literal, so Carcara refuses a sound proof.
+    assert.ok(args.includes('--no-proof-alethe-res-pivots'));
+    assert.ok(!args.includes('--proof-alethe-res-pivots'));
     assert.equal(args[args.indexOf('--tlimit') + 1], '4321');
     assert.match(args.at(-1)!, /problem\.smt2$/);
     const checked = carcara.args();
@@ -244,6 +298,50 @@ describe('certify', () => {
     assert.equal(certificate.status, 'uncertified');
     assert.equal(certificate.reason, 'Carcara did not accept the proof (invalid)');
     assert.equal(certificate.proofHash, undefined);
+  });
+
+  it('says which step Carcara rejected, from its error line', async () => {
+    process.env.TSLAWS_CVC5 = cvc5Proves().path;
+    process.env.TSLAWS_CARCARA = fake(
+      [
+        "console.log('invalid');",
+        "console.error('error: pivot was not found in clause: (not (>= a 1))');",
+        "console.error('  --> in file /tmp/x/proof.alethe');",
+        'process.exitCode = 1;',
+      ].join(String.fromCharCode(10)),
+    ).path;
+    const certificate = await certify(query, { timeoutMs: 1000 });
+    assert.equal(certificate.status, 'uncertified');
+    assert.equal(
+      certificate.reason,
+      'Carcara did not accept the proof (invalid: error: pivot was not found in clause: (not (>= a 1)))',
+    );
+  });
+
+  it('does not call a proof rejected when Carcara cannot read the rewrite rules cvc5 declared', async () => {
+    const rareProof = proof.replace(
+      '(step t1',
+      '(step t0 (cl (= (= x x) true)) :rule rare_rewrite :args ("eq-refl" x))\n(step t1',
+    );
+    const db = '(declare-rule eq-refl ((t1 Int))\n  :args (t1)\n  :conclusion (= (= t1 t1) true)\n)';
+    process.env.TSLAWS_CVC5 = fake(
+      `if (args.includes('rare-db')) console.log(${JSON.stringify(db)});
+else { console.log('unsat'); console.log(${JSON.stringify(rareProof)}); }`,
+    ).path;
+    process.env.TSLAWS_CARCARA = fake(
+      [
+        "console.log('invalid');",
+        'console.error("error: identifier \'div_total\' is not defined");',
+        "console.error('  --> in file ' + args[args.indexOf('--rare-file') + 1] + ':4:31');",
+        'process.exitCode = 1;',
+      ].join(String.fromCharCode(10)),
+    ).path;
+    const certificate = await certify(query, { timeoutMs: 1000 });
+    assert.equal(certificate.status, 'uncertified');
+    assert.equal(
+      certificate.reason,
+      "Carcara could not read the rewrite rules cvc5 declared (error: identifier 'div_total' is not defined)",
+    );
   });
 
   it('does not certify a proof Carcara could only partly check', async () => {
@@ -680,8 +778,6 @@ function installed(env: string, binary: string): boolean {
 // TSLAWS_REQUIRE_CERT_TOOLS=1 (set by the certificates workflow) makes missing tools a failure instead of a skip.
 const requireTools = process.env.TSLAWS_REQUIRE_CERT_TOOLS === '1';
 const realTools = installed('TSLAWS_CVC5', 'cvc5') && installed('TSLAWS_CARCARA', 'carcara');
-// cvc5 1.4.2 and Carcara cannot yet check these together: `ite-eq` is not declared for Carcara, and Carcara does not know `div_total`.
-const limited = new Set(['int-define-fun-ite', 'bigint-div']);
 const problems = JSON.parse(readFileSync(join(here, 'certificates.problems.json'), 'utf8')) as Record<string, string>;
 
 describe(
@@ -693,9 +789,9 @@ describe(
         assert.ok(realTools, 'TSLAWS_REQUIRE_CERT_TOOLS=1 but cvc5 or carcara does not answer --version');
     });
 
-    // The problems are shaped like the prover's queries: int and bigint (Int) and boolean laws, with define-fun terms.
+    // The problems are shaped like the prover's queries: int and bigint (Int) and boolean laws, among them the integer
+    // range obligations (`ite`, `div` and `mod` included) that a law over `int` carries.
     for (const name of Object.keys(problems)) {
-      if (limited.has(name)) continue;
       it(`certifies ${name}`, async () => {
         const certificate = await certify(problems[name]!, { timeoutMs: 20000 });
         assert.equal(certificate.status, 'certified', certificate.reason);
@@ -703,17 +799,12 @@ describe(
       });
     }
 
-    // The honest answers are `certified` (a newer cvc5 or Carcara) or `uncertified`; never a certificate that was not checked.
-    for (const name of limited) {
-      it(`certifies ${name}, or declines to`, async () => {
-        const certificate = await certify(problems[name]!, { timeoutMs: 20000 });
-        assert.ok(
-          ['certified', 'uncertified'].includes(certificate.status),
-          `${certificate.status}: ${certificate.reason}`,
-        );
-      });
-    }
-
+    it('does not certify a proof that Carcara rejects, and says so', async () => {
+      process.env.TSLAWS_CVC5 = fake(`console.log('unsat'); console.log(${JSON.stringify(proof)});`).path;
+      const certificate = await certify(query, { timeoutMs: 10000 });
+      assert.equal(certificate.status, 'uncertified');
+      assert.match(certificate.reason ?? '', /^Carcara did not accept the proof \(invalid/);
+    });
     it('refuses to certify a satisfiable query', async () => {
       const open = await certify(
         ['(declare-const x Int)', '(assert (> x 5))', '(check-sat)'].join(String.fromCharCode(10)),
