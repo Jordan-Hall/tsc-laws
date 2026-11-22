@@ -82,6 +82,18 @@ const byConfig = new Map<string, ResolutionOptions>();
 const load = createRequire(import.meta.url);
 let hooked = false;
 
+/**
+ * TypeScript, which the resolver asks when Node cannot find a module. It needs Node modules a law may not load, and the
+ * guard refuses a module that a law's code is waiting on, so a law process loads it before the first law runs (`loadResolver`).
+ */
+let typescriptModule: typeof ts | undefined;
+const typescriptOf = (): typeof ts => (typescriptModule ??= load('typescript') as typeof ts);
+
+/** Loads what the resolver needs, while no law is running. A law process calls it once its project is installed. */
+export function loadResolver(): void {
+  typescriptOf();
+}
+
 const outDirOf = (cwd: string): string => join(cwd, '.tslaws', 'out');
 
 /** The file the build leaves beside the output, so a property worker can put the same resolution in place. */
@@ -231,7 +243,7 @@ function resolveThroughTypeScript(request: string, parent: Parent | undefined): 
     owner === undefined ? from : join(owner.cwd, relative(compiledRoot(owner), from)).replace(/\.js$/, '.ts');
   const options = owner === undefined ? optionsAround(from) : owner.options;
   if (options === undefined) return undefined;
-  const typescript = load('typescript') as typeof ts;
+  const typescript = typescriptOf();
   const compilerOptions: ts.CompilerOptions = {
     ...resolutionCompilerOptions(options),
     module: typescript.ModuleKind.ESNext,

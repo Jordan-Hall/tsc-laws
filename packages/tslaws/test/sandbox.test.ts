@@ -613,6 +613,35 @@ export law asks(n: number) { return typeof (h as any).${call} === 'function'; }
   });
 
   it(
+    'lets the loader link the imports of an ES module package a law loads, but not an import() it makes for the law',
+    { skip: typeof nodeModule.registerHooks === 'function' ? false : 'needs Node 22.15 or later' },
+    async () => {
+      const files = (body: string): Record<string, string> => ({
+        'package.json': JSON.stringify({ name: 'p', dependencies: { esmhelper: '1.0.0' } }),
+        'node_modules/esmhelper/package.json': JSON.stringify({
+          name: 'esmhelper',
+          type: 'module',
+          exports: './index.js',
+        }),
+        'node_modules/esmhelper/index.js': [
+          "import { readFileSync } from 'node:fs';",
+          'export const linked = typeof readFileSync === "function";',
+          'export const dyn = (name) => import(name);',
+          '',
+        ].join('\n'),
+        'src/a.laws.ts': `import * as h from 'esmhelper';\nexport law asks(n: number) { ${body} }\n`,
+      });
+      // The package's own `import ... from 'node:fs'` is linked on the law's behalf.
+      assert.equal(only(await run('link-esm', files('return (h as any).linked === true;'))).status, 'tested');
+      // A function of the package that imports what the law names is the law's request.
+      refused(
+        only(await run('link-esm-dyn', files("return (h as any).dyn('node:child_process').then(() => true);"))),
+        /"node:child_process" is not a module a law may load/,
+      );
+    },
+  );
+
+  it(
     'cannot import an unreviewed ES module',
     { skip: typeof nodeModule.registerHooks === 'function' ? false : 'needs Node 22.15 or later' },
     async () => {

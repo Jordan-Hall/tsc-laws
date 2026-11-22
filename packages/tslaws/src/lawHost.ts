@@ -5,7 +5,7 @@
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
-import { installLawRuntime, runtimeFile, useTransforms, type LawRuntime } from './lawRuntime.ts';
+import { installLawRuntime, loadResolver, runtimeFile, useTransforms, type LawRuntime } from './lawRuntime.ts';
 import { arbitraryOf, type Plan } from './plan.ts';
 import { isDiscard, jsPath, runLaw, summarise } from './propertyRun.ts';
 import { installLoaderHooks, setImportMetaEnv, type ImportMetaEnv } from './runtimeEnv.ts';
@@ -170,6 +170,8 @@ function load(outDir: string, law: ManifestLaw, env: ImportMetaEnv, fresh: boole
     plugin: (file, _cwd, _plugins, format) => lookup(format, file),
   });
   installLawRuntime(JSON.parse(readFileSync(join(outDir, runtimeFile), 'utf8')) as LawRuntime);
+  // Before the guard: the resolver loads TypeScript, which needs Node modules that no law may load.
+  loadResolver();
   // From here on only reviewed files load. Installed after the runtime's own hooks, so it sees what they resolve.
   if (!guarded) {
     guarded = true;

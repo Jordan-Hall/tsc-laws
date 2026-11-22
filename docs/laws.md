@@ -918,7 +918,9 @@ by default; the only way to turn it off is `--no-sandbox`.
 - **Who is asking.** The guard decides from the call stack, never from the `parent` a caller passes to `Module._load`
   or `require.call`. Every file on the stack counts: if one is a law or a project file, the request is a law's, however
   many trusted packages sit in between, so a helper that a law calls cannot load `fs` or `child_process` on its behalf.
-  `process.getBuiltinModule` follows the same rule. The cost is that a declared package gets the law's list of Node
+  `process.getBuiltinModule` follows the same rule. The one exception is the loader linking the `import` statements of an
+  ES module package that a law loads: those specifiers are fixed text in the package, so they count as the package's own.
+  The cost is that a declared package gets the law's list of Node
   modules while a law runs it; code that needs `fs` for real work needs `--no-sandbox` (see below). After it is installed the loader's functions and tables
   (`_load`, `_resolveFilename`, `_extensions`, `_cache`, `createRequire`, `Module.prototype.require`) are read-only and
   `module.registerHooks` and `module.register` throw, so a law cannot take the guard out or put a hook in front of it.

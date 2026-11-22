@@ -151,19 +151,27 @@ export class Guard {
    * Throws unless the Node module `request` may be loaded. The callers are the files on the call stack; `parent` is what
    * the loader says imports it (a `file:` URL or a path), consulted as well. The strictest wins: if any of them is a law or
    * project file the request is a law's, whatever package code sits between (a law that has a trusted helper `require`
-   * `child_process` for it is refused).
+   * `child_process` for it is refused). One thing is not a law's request: the loader linking the `import` statements of a
+   * package that a law loads (`linking`). The specifiers are text in the package, which the law cannot change, and no code
+   * of a package is running (a package function that calls `import()` is on the stack, and is judged like any other).
    */
-  builtin(request: string, parent?: string): void {
+  builtin(request: string, parent?: string, linking = false): void {
     const name = request.startsWith('node:') ? request.slice(5) : request;
     const declared = parent === undefined ? undefined : parent.startsWith('file:') ? fileURLToPath(parent) : parent;
     const frames = callerFiles();
     const callers = declared === undefined ? frames : [...frames, declared];
-    const fromPackage = callers.length > 0 && callers.every((file) => this.isPackageFile(normal(file)));
+    const linked =
+      linking &&
+      declared !== undefined &&
+      this.isPackageFile(normal(declared)) &&
+      !frames.some((file) => !within(normal(file), selfRoot) && this.isPackageFile(normal(file)));
+    const fromPackage = linked || (callers.length > 0 && callers.every((file) => this.isPackageFile(normal(file))));
     const asking = frames.find((file) => !this.isPackageFile(normal(file))) ?? frames[0];
     if ((fromPackage ? packageBuiltins : lawBuiltins).includes(name)) return;
     // tslaws itself asks what Node's modules are called (`builtinModules`, to tell a package from a built-in). The loader's
     // functions that could load anything are locked, so naming the module gives its caller nothing it could use.
-    if (name === 'module' && callers.length > 0 && callers.every((file) => within(normal(file), selfRoot))) return;
+    const naming = linked ? [declared] : callers;
+    if (name === 'module' && naming.length > 0 && naming.every((file) => within(normal(file), selfRoot))) return;
     throw refusal(
       `"${request}"`,
       `is not a module a law may load${fromPackage ? '' : ' (allowed: ' + lawBuiltins.join(', ') + ')'}` +
@@ -183,8 +191,8 @@ export class Guard {
   }
 
   /** Checks one resolution: `request` as written, `resolved` as Node found it (a `file:` or `node:` URL, or a path). */
-  resolved(request: string, resolved: string, parent?: string): void {
-    if (resolved.startsWith('node:') || nodeModule.isBuiltin(resolved)) return this.builtin(resolved, parent);
+  resolved(request: string, resolved: string, parent?: string, linking = false): void {
+    if (resolved.startsWith('node:') || nodeModule.isBuiltin(resolved)) return this.builtin(resolved, parent, linking);
     if (resolved.startsWith('file:')) return this.file(fileURLToPath(resolved), request);
     if (/^[a-z][a-z0-9+.-]+:/i.test(resolved) && !/^[a-z]:[\\/]/i.test(resolved))
       throw refusal(`"${request}"`, `resolves to ${resolved.slice(0, 40)}, which is not a file`);
@@ -232,11 +240,12 @@ export function installGuard(guard: Guard): void {
   register({
     resolve(
       specifier: string,
-      context: { parentURL?: string },
+      context: { parentURL?: string; conditions?: string[] },
       nextResolve: (specifier: string, context: unknown) => { url: string },
     ) {
       const result = nextResolve(specifier, context);
-      guard.resolved(specifier, result.url, context.parentURL);
+      // Only the loader's own `import` resolution names the importing module itself; `require` passes what its caller says.
+      guard.resolved(specifier, result.url, context.parentURL, context.conditions?.includes('import') === true);
       return result;
     },
   });
