@@ -15,10 +15,26 @@ export interface ParsedLaw {
   end: number;
 }
 
+/** A top-level statement that is neither an import nor a law (a helper const, function, type, interface, class, enum or namespace). */
+export interface ParsedDeclaration {
+  /** The names the statement declares: one for most, several for `const a = 1, b = 2` or a destructuring. */
+  names: string[];
+  /** The statement as written, with the comments directly above it (a JSDoc block, `//` lines) and no blank line between. */
+  text: string;
+  start: number;
+  end: number;
+  /** Every identifier the statement mentions, apart from property names after a `.`. A superset of what it really references. */
+  references: string[];
+}
+
 export interface ParsedLawFile {
   /** Whole import statements, in order. */
   imports: string[];
   laws: ParsedLaw[];
+  /** Where the last import statement ends, or 0 when there is none. */
+  importEnd: number;
+  /** The named top-level statements that are not imports or laws, in source order. */
+  declarations: ParsedDeclaration[];
 }
 
 /**
@@ -37,6 +53,7 @@ export function acceptedPathFor(proposed: string): string | undefined {
 export function parseLawFile(text: string): ParsedLawFile {
   const scanner = ts.createScanner(ts.ScriptTarget.Latest, true, ts.LanguageVariant.Standard, text);
   const imports: string[] = [];
+  const importRanges: { start: number; end: number }[] = [];
   const laws: ParsedLaw[] = [];
   const templates: number[] = []; // depth at which each open template substitution started
   let depth = 0;
@@ -44,8 +61,10 @@ export function parseLawFile(text: string): ParsedLawFile {
   let arrow = false;
   const finish = (end: number): void => {
     if (statement === undefined) return;
-    if (statement.kind === 'import') imports.push(text.slice(statement.start, end));
-    else laws.push({ name: statement.name, text: text.slice(statement.start, end), start: statement.start, end });
+    if (statement.kind === 'import') {
+      imports.push(text.slice(statement.start, end));
+      importRanges.push({ start: statement.start, end });
+    } else laws.push({ name: statement.name, text: text.slice(statement.start, end), start: statement.start, end });
     statement = undefined;
     arrow = false;
   };
@@ -145,7 +164,102 @@ export function parseLawFile(text: string): ParsedLawFile {
   for (const call of callLaws(text))
     if (!laws.some((l) => call.start >= l.start && call.start < l.end)) laws.push(call);
   laws.sort((a, b) => a.start - b.start);
-  return { imports, laws };
+  return {
+    imports,
+    laws,
+    importEnd: importRanges[importRanges.length - 1]?.end ?? 0,
+    declarations: declarationsOf(text, [...importRanges, ...laws]),
+  };
+}
+
+/** `text` with the given ranges overwritten by spaces (line breaks kept), so positions stay the same. */
+function blank(text: string, ranges: { start: number; end: number }[]): string {
+  let out = text;
+  for (const { start, end } of ranges)
+    out = out.slice(0, start) + out.slice(start, end).replace(/[^\r\n]/g, ' ') + out.slice(end);
+  return out;
+}
+
+/** The names a statement declares; empty for statements that declare none (expressions, `export { x }`, `export default`). */
+function declaredNames(statement: ts.Statement): string[] {
+  if (ts.isVariableStatement(statement)) {
+    const names: string[] = [];
+    const walk = (name: ts.BindingName): void => {
+      if (ts.isIdentifier(name)) names.push(name.text);
+      else for (const element of name.elements) if (!ts.isOmittedExpression(element)) walk(element.name);
+    };
+    for (const declaration of statement.declarationList.declarations) walk(declaration.name);
+    return names;
+  }
+  if (
+    ts.isFunctionDeclaration(statement) ||
+    ts.isClassDeclaration(statement) ||
+    ts.isInterfaceDeclaration(statement) ||
+    ts.isTypeAliasDeclaration(statement) ||
+    ts.isEnumDeclaration(statement) ||
+    ts.isModuleDeclaration(statement)
+  )
+    return statement.name !== undefined && ts.isIdentifier(statement.name) ? [statement.name.text] : [];
+  return [];
+}
+
+/** Where the comments directly above a statement start: only a run with no blank line between its comments and the statement. */
+function commentStart(text: string, statement: ts.Statement, source: ts.SourceFile): number {
+  const start = statement.getStart(source);
+  const ranges = ts.getLeadingCommentRanges(text, statement.getFullStart()) ?? [];
+  let from = start;
+  for (const range of [...ranges].reverse()) {
+    if ((text.slice(range.end, from).match(/\n/g) ?? []).length > 1) break;
+    from = range.pos;
+  }
+  return from;
+}
+
+/** The identifiers in `text`, found with the scanner so it also reads a law (`export law ...`, which is not standard TypeScript). */
+export function identifiersIn(text: string): Set<string> {
+  const scanner = ts.createScanner(ts.ScriptTarget.Latest, true, ts.LanguageVariant.Standard, text);
+  const found = new Set<string>();
+  const templates: number[] = [];
+  let depth = 0;
+  let previous = ts.SyntaxKind.Unknown;
+  let kind = scanner.scan();
+  while (kind !== ts.SyntaxKind.EndOfFileToken) {
+    if (kind === ts.SyntaxKind.CloseBraceToken && templates.length > 0 && templates[templates.length - 1] === depth) {
+      templates.pop();
+      kind = scanner.reScanTemplateToken(false);
+      if (kind === ts.SyntaxKind.TemplateMiddle) templates.push(depth);
+    } else if (kind === ts.SyntaxKind.TemplateHead) {
+      templates.push(depth);
+    } else if (kind === ts.SyntaxKind.OpenBraceToken) {
+      depth += 1;
+    } else if (kind === ts.SyntaxKind.CloseBraceToken) {
+      depth = Math.max(0, depth - 1);
+    } else if (
+      (kind === ts.SyntaxKind.Identifier || kind > ts.SyntaxKind.LastReservedWord) &&
+      previous !== ts.SyntaxKind.DotToken &&
+      previous !== ts.SyntaxKind.QuestionDotToken
+    ) {
+      found.add(scanner.getTokenValue());
+    }
+    previous = kind;
+    kind = scanner.scan();
+  }
+  return found;
+}
+
+/** The named statements left once imports and laws are blanked out, each with the comments directly above it. */
+function declarationsOf(text: string, taken: { start: number; end: number }[]): ParsedDeclaration[] {
+  const rest = blank(text, taken);
+  const source = ts.createSourceFile('laws.ts', rest, ts.ScriptTarget.Latest, false, ts.ScriptKind.TS);
+  const found: ParsedDeclaration[] = [];
+  for (const statement of source.statements) {
+    const names = declaredNames(statement);
+    if (names.length === 0) continue;
+    const start = commentStart(rest, statement, source);
+    const written = text.slice(start, statement.end);
+    found.push({ names, text: written, start, end: statement.end, references: [...identifiersIn(written)] });
+  }
+  return found;
 }
 
 /** The call-style laws: top-level `law('name', ...)` and `law.proved('name', ...)` statements, found in the syntax tree. */
@@ -176,6 +290,34 @@ function callLaws(text: string): ParsedLaw[] {
 
 const squash = (s: string): string => s.replace(/\s+/g, ' ').trim();
 
+/** The code of `text` printed from its syntax tree without comments: layout is normalised, string and template contents are not. */
+function sameCode(a: string, b: string): boolean {
+  const printer = ts.createPrinter({ removeComments: true });
+  const print = (text: string): string => {
+    const source = ts.createSourceFile('helper.ts', text, ts.ScriptTarget.Latest, false, ts.ScriptKind.TS);
+    return source.statements
+      .map((statement) => printer.printNode(ts.EmitHint.Unspecified, statement, source))
+      .join('\n');
+  };
+  return print(a) === print(b);
+}
+
+/** The local names the import statements bind (`import a, { b as c, type d } from 'x'` binds a, c and d). */
+function importedNames(imports: string[]): Set<string> {
+  const names = new Set<string>();
+  const source = ts.createSourceFile('imports.ts', imports.join('\n'), ts.ScriptTarget.Latest, false, ts.ScriptKind.TS);
+  for (const statement of source.statements) {
+    if (ts.isImportEqualsDeclaration(statement)) names.add(statement.name.text);
+    if (!ts.isImportDeclaration(statement) || statement.importClause === undefined) continue;
+    const { name, namedBindings } = statement.importClause;
+    if (name !== undefined) names.add(name.text);
+    if (namedBindings === undefined) continue;
+    if (ts.isNamespaceImport(namedBindings)) names.add(namedBindings.name.text);
+    else for (const element of namedBindings.elements) names.add(element.name.text);
+  }
+  return names;
+}
+
 /** Joins the import statements, dropping repeats by whitespace-insensitive text. */
 export function dedupeImports(existing: string[], added: string[]): string[] {
   const seen = new Set(existing.map(squash));
@@ -189,10 +331,39 @@ export function dedupeImports(existing: string[], added: string[]): string[] {
 }
 
 /**
- * The accepted file after promoting `laws` (with the proposed file's imports) into it. `existing` is the current text
- * of the accepted file, or undefined when it does not exist yet. Throws when a law name is already taken there.
+ * The declarations the promoted `laws` need: every one of `declarations` whose name a law mentions, and so on for the
+ * names those declarations mention, in source order. A declaration is taken with all others of the same name
+ * (overloads, merged interfaces). One that no promoted law reaches stays behind.
  */
-export function buildAccepted(existing: string | undefined, imports: string[], laws: ParsedLaw[]): string {
+function neededDeclarations(laws: ParsedLaw[], declarations: ParsedDeclaration[]): ParsedDeclaration[] {
+  const byName = new Map<string, ParsedDeclaration[]>();
+  for (const declaration of declarations)
+    for (const name of declaration.names) byName.set(name, [...(byName.get(name) ?? []), declaration]);
+  const needed = new Set<ParsedDeclaration>();
+  const queue = laws.flatMap((l) => [...identifiersIn(l.text)]);
+  for (let name = queue.pop(); name !== undefined; name = queue.pop())
+    for (const declaration of byName.get(name) ?? []) {
+      if (needed.has(declaration)) continue;
+      needed.add(declaration);
+      queue.push(...declaration.references);
+    }
+  return declarations.filter((d) => needed.has(d));
+}
+
+/**
+ * The accepted file after promoting `laws` (with the proposed file's imports) into it. `existing` is the current text
+ * of the accepted file, or undefined when it does not exist yet. `declarations` are all the helper declarations of the
+ * proposed file: the ones the laws use, directly or through each other, are copied too. A declaration already in the
+ * accepted file with the same code (layout and comments aside) is not copied again; one of the same name with different text is
+ * an error. Throws when a law name is already taken there, and, as a safety net, when the result would use a name the
+ * proposed file declares but the accepted file does not.
+ */
+export function buildAccepted(
+  existing: string | undefined,
+  imports: string[],
+  laws: ParsedLaw[],
+  declarations: ParsedDeclaration[] = [],
+): string {
   const base = existing ?? '';
   const parsed = parseLawFile(base);
   const taken = new Set(parsed.laws.map((l) => l.name));
@@ -212,9 +383,61 @@ export function buildAccepted(existing: string | undefined, imports: string[], l
         ? `${block}\n${base === '' ? '' : `${base.startsWith('\n') ? '' : '\n'}`}${base}`
         : `${base.slice(0, lastEnd)}\n${block}${base.slice(lastEnd)}`;
   }
+  const copied = copiedDeclarations(text, laws, declarations);
+  if (copied.length > 0) text = withDeclarations(text, copied.map((d) => d.text.trim()).join('\n\n'));
   const body = laws.map((l) => l.text.trimEnd()).join('\n\n');
   const trimmed = text.trimEnd();
-  return `${trimmed === '' ? '' : `${trimmed}\n\n`}${body}\n`;
+  const result = `${trimmed === '' ? '' : `${trimmed}\n\n`}${body}\n`;
+  assertNothingLost(result, laws, copied, declarations);
+  return result;
+}
+
+/** The needed declarations that `accepted` does not have yet; throws when it has a different one under the same name. */
+function copiedDeclarations(
+  accepted: string,
+  laws: ParsedLaw[],
+  declarations: ParsedDeclaration[],
+): ParsedDeclaration[] {
+  const { declarations: have, imports } = parseLawFile(accepted);
+  const imported = importedNames(imports);
+  return neededDeclarations(laws, declarations).filter((declaration) => {
+    const bound = declaration.names.find((n) => imported.has(n));
+    if (bound !== undefined)
+      throw new Error(
+        `'${bound}' is imported in the accepted file but declared as a helper in the proposed file; rename one`,
+      );
+    const same = have.filter((h) => h.names.some((n) => declaration.names.includes(n)));
+    if (same.length === 0) return true;
+    if (same.some((h) => sameCode(h.text, declaration.text))) return false;
+    throw new Error(
+      `'${declaration.names.find((n) => same.some((h) => h.names.includes(n)))}' is declared differently in the accepted file; make the two the same or rename one`,
+    );
+  });
+}
+
+/** `block` placed after the last declaration of `text`, else after its last import, else before its first law, else at the end. */
+function withDeclarations(text: string, block: string): string {
+  const parsed = parseLawFile(text);
+  const lastDeclaration = parsed.declarations[parsed.declarations.length - 1];
+  const at = lastDeclaration?.end ?? (parsed.importEnd > 0 ? parsed.importEnd : (parsed.laws[0]?.start ?? text.length));
+  const before = text.slice(0, at).trimEnd();
+  const after = text.slice(at).trimStart();
+  return `${before === '' ? '' : `${before}\n\n`}${block}${after === '' ? '' : `\n\n${after}`}`;
+}
+
+/** Throws when the result mentions a name the proposed file declares and the result does not declare or import. */
+function assertNothingLost(
+  result: string,
+  laws: ParsedLaw[],
+  copied: ParsedDeclaration[],
+  declarations: ParsedDeclaration[],
+): void {
+  const proposed = new Set(declarations.flatMap((d) => d.names));
+  const present = new Set(parseLawFile(result).declarations.flatMap((d) => d.names));
+  for (const part of [...laws, ...copied])
+    for (const name of identifiersIn(part.text))
+      if (proposed.has(name) && !present.has(name))
+        throw new Error(`'${name}' is declared in the proposed file but would be missing from the accepted file`);
 }
 
 /** The proposed file without the promoted laws, or undefined when no law is left (the file is deleted). */
@@ -267,7 +490,7 @@ export async function promoteFiles(host: PromoteHost, proposedFiles: string[]): 
     const existing = existsSync(acceptedPath) ? readFileSync(acceptedPath, 'utf8') : undefined;
     let built: string;
     try {
-      built = buildAccepted(existing, parsed.imports, chosen);
+      built = buildAccepted(existing, parsed.imports, chosen, parsed.declarations);
     } catch (error) {
       host.out(
         `${accepted}: ${error instanceof Error ? error.message : String(error)}; nothing promoted from ${file}\n`,
@@ -389,7 +612,7 @@ export async function promoteProposal(
   const moved = parseLawFile(importsForTarget(text, toDir === '.' ? '' : toDir));
   let built: string;
   try {
-    built = buildAccepted(existing, moved.imports, moved.laws);
+    built = buildAccepted(existing, moved.imports, moved.laws, moved.declarations);
   } catch (error) {
     host.out(`${target}: ${error instanceof Error ? error.message : String(error)}; nothing moved\n`);
     return {};
