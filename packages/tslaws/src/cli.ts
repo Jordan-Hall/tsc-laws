@@ -115,6 +115,8 @@ function parse(args: string[]): Parsed {
     'out',
     'pr',
     'config-from',
+    'results',
+    'results-out',
     'head-sha',
     'rerun-workflow',
     'protect',
@@ -817,7 +819,7 @@ async function githubRoot(
   selection: Selection,
 ): Promise<number> {
   const { githubCommand, projectPathOf, joinRepo } = await import('./githubCli.ts');
-  // The token stays with tslaws, as in a single project (see runOne).
+  // The token stays with tslaws, as in a single project (see runOne): laws run in a child that never gets it.
   const env = { ...process.env };
   delete process.env.GITHUB_TOKEN;
   delete process.env.GH_TOKEN;
@@ -871,8 +873,8 @@ async function runOne(
 
   if (command === 'github') {
     const { githubCommand, projectPathOf } = await import('./githubCli.ts');
-    // The token stays with tslaws: laws run in worker threads and the compiler in a child process, and both get a copy of
-    // process.env, so a law under test could otherwise read the token and act as the bot.
+    // The token stays with tslaws: the laws run in a child process whose environment is an allowlist (see isolate.ts), so
+    // a law under test cannot read it from process.env or /proc/self/environ and act as the bot.
     const env = { ...process.env };
     delete process.env.GITHUB_TOKEN;
     delete process.env.GH_TOKEN;

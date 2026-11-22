@@ -23,7 +23,8 @@ import { readFileSync, writeFileSync, appendFileSync, existsSync } from 'node:fs
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
-import { check, exemptionsOf } from './check.ts';
+import { exemptionsOf } from './check.ts';
+import { checkIsolated, readReport, type Expected } from './isolate.ts';
 import type { CheckReport } from './check.ts';
 import { extendsTarget, readConfig } from './coverage.ts';
 import { discoverFromFiles, discoverySignature, type DiscoveryInputs } from './projects.ts';
@@ -49,7 +50,7 @@ import {
   type Proposal,
 } from './github.ts';
 import { lockLevels } from './lawKinds.ts';
-import { acceptChanges, certificatesFromRun, lockChanges, readLock, writeLockValue, type Lock } from './lock.ts';
+import { acceptChanges, lawKey, lockChanges, readLock, writeLockValue, type Lock } from './lock.ts';
 import { escapeGithubData, escapeGithubProperty } from './reporters.ts';
 import type { CheckOptions, ManifestLaw } from './types.ts';
 
@@ -312,6 +313,96 @@ function plan(ctx: GithubContext, units: Unit[], dirOf: (unit: Unit) => string):
   return { active, all };
 }
 
+// ---- running the laws ----------------------------------------------------------------------------------------------
+
+/**
+ * What the laws job hands to the job that holds the token: each project's report, as data, and the lock it was run
+ * against. Laws never run in the process that has the token (see isolate.ts); with `--results-out` they do not run in
+ * the same job either.
+ */
+interface Results {
+  version: 1;
+  mode: 'report' | 'merge';
+  sha: string;
+  projects: Record<string, { lockSha: string; report?: unknown; error?: string }>;
+}
+
+/** The laws a project has, as this process sees them: a compile that runs none of the project. A report is held to it. */
+function expectedOf(unit: Unit): Expected {
+  const state = projectState(unit.options);
+  return {
+    laws: new Set(state.laws.map((law) => lawKey(law.file, law.name))),
+    lock: new Set(Object.keys(state.lock?.laws ?? {})),
+    exempt: new Set(state.exempt),
+  };
+}
+
+const lockShaOf = (unit: Unit): string =>
+  existsSync(unit.options.lockFile) ? gitBlobSha(readFileSync(unit.options.lockFile)) : '';
+
+const resultsRead = new WeakMap<Map<string, string | true>, Results>();
+
+function resultsOf(ctx: GithubContext, file: string, mode: Results['mode'], sha: string): Results {
+  const known = resultsRead.get(ctx.flags);
+  if (known !== undefined) return known;
+  let value: Partial<Results>;
+  try {
+    value = JSON.parse(readFileSync(file, 'utf8')) as Partial<Results>;
+  } catch (error) {
+    throw new Error(`cannot read the results in ${file}: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  if (typeof value !== 'object' || value === null || value.version !== 1 || typeof value.projects !== 'object')
+    throw new Error(`${file} is not a tslaws results file`);
+  if (value.mode !== mode) throw new Error(`${file} holds results for ${String(value.mode)}, not ${mode}`);
+  if (value.sha !== sha)
+    throw new Error(
+      `${file} was made for commit ${String(value.sha).slice(0, 7)}, but this run is for ${sha.slice(0, 7)}`,
+    );
+  resultsRead.set(ctx.flags, value as Results);
+  return value as Results;
+}
+
+/**
+ * The report of one project's laws: from the results file when `--results` names one, else from a run in a child with no
+ * credentials. Either way it is validated as data before anything acts on it.
+ */
+async function runLaws(ctx: GithubContext, unit: Unit, mode: Results['mode'], sha: string): Promise<CheckReport> {
+  const file = ctx.flags.get('results');
+  if (typeof file !== 'string') return checkIsolated(unit.options, true, expectedOf(unit));
+  const entry = Object.hasOwn(resultsOf(ctx, file, mode, sha).projects, unit.path)
+    ? resultsOf(ctx, file, mode, sha).projects[unit.path]
+    : undefined;
+  if (entry === undefined) throw new Error(`${file} has no results for ${label(unit)}`);
+  if (typeof entry.error === 'string') throw new Error(entry.error);
+  if (entry.lockSha !== lockShaOf(unit))
+    throw new Error(`${label(unit)}'s lock is not the one its laws were run against`);
+  return readReport(entry.report, expectedOf(unit));
+}
+
+/** `--results-out <file>`: run the laws of every project and write the reports, doing nothing else. Needs no token. */
+async function collect(ctx: GithubContext, mode: Results['mode'], file: string): Promise<number> {
+  const { active } = plan(ctx, unitsOf(ctx), (u) => u.cwd);
+  const ev = event(ctx.env);
+  const sha = String(
+    mode === 'report' ? (ev.pull_request?.head?.sha ?? ctx.env.GITHUB_SHA) : (ev.after ?? ctx.env.GITHUB_SHA),
+  );
+  const projects: Results['projects'] = {};
+  for (const { unit } of active) {
+    const entry: Results['projects'][string] = { lockSha: lockShaOf(unit) };
+    try {
+      entry.report = await checkIsolated(unit.options, true, expectedOf(unit));
+    } catch (error) {
+      entry.error = error instanceof Error ? error.message : String(error);
+    }
+    projects[unit.path] = entry;
+  }
+  writeFileSync(file, JSON.stringify({ version: 1, mode, sha, projects } satisfies Results));
+  ctx.out(
+    `tslaws: ran the laws of ${active.length} project${active.length === 1 ? '' : 's'}; results are in ${file}\n`,
+  );
+  return 0;
+}
+
 // ---- report ---------------------------------------------------------------------------------------------------------
 
 interface UnitReport {
@@ -331,7 +422,7 @@ async function report(ctx: GithubContext): Promise<number> {
   const ran: { active: Active; checked: CheckReport | undefined; proposals: Proposal[]; failed?: string }[] = [];
   for (const a of active) {
     try {
-      const checked: CheckReport = await check(a.unit.options, true);
+      const checked: CheckReport = await runLaws(ctx, a.unit, 'report', sha);
       const state = projectState(a.unit.options);
       ran.push({
         active: a,
@@ -1152,6 +1243,14 @@ async function merge(ctx: GithubContext): Promise<number> {
       | { sha: string; content: string }
       | undefined;
     const localBlob = existsSync(lockFile) ? gitBlobSha(readFileSync(lockFile)) : undefined;
+    // With results from another job, the lock they were made against must be the branch's lock now: a lock that is gone (or
+    // cannot be read) counts as movement when the checkout has one, so a stale lock is never written back.
+    if (typeof ctx.flags.get('results') === 'string' && headLock?.sha !== localBlob) {
+      stop(
+        `tslaws: ${lockPath} on ${config.branch} has moved on since the laws ran on this checkout; nothing accepted. Run the workflow again.`,
+      );
+      continue;
+    }
     if (headLock !== undefined && headLock.sha !== localBlob) {
       if (!(await lockTrustedBetween(sha, branchRef, lockPath, config))) {
         stop(
@@ -1164,7 +1263,7 @@ async function merge(ctx: GithubContext): Promise<number> {
     let checked: CheckReport;
     let state: ProjectState;
     try {
-      checked = await check(unit.options, true);
+      checked = await runLaws(ctx, unit, 'merge', sha);
       state = projectState(unit.options);
     } catch (error) {
       if (!monorepo) throw error;
@@ -1197,9 +1296,8 @@ async function merge(ctx: GithubContext): Promise<number> {
     const wins = proposals.filter((p) => decision.accept.has(p.fingerprint));
     if (wins.length > 0) {
       const next = acceptChanges(state.lock, state.laws, state.exempt, state.levels, decision.accept);
-      // Certificates come only from this run's own proofs; none is carried over from the lock it replaces.
-      const certificates = certificatesFromRun(next, state.laws, checked.results);
-      if (Object.keys(certificates).length > 0) next.certificates = certificates;
+      // A certificate would come from the run of the laws, which is not trusted with the lock: readReport drops them, and a
+      // lock written here records none (a record the lock already holds stays only while its law and problem match).
       writeLockValue(lockFile, next);
       writes.push({
         path: lockPath,
@@ -1548,6 +1646,28 @@ async function verify(ctx: GithubContext): Promise<number> {
 
 export async function githubCommand(action: string | undefined, ctx: GithubContext): Promise<number> {
   try {
+    const out = ctx.flags.get('results-out');
+    if (out !== undefined || ctx.flags.has('results')) {
+      if (action !== 'report' && action !== 'merge') {
+        ctx.err('tslaws github: --results and --results-out are for report and merge\n');
+        return 1;
+      }
+      if (out !== undefined && ctx.flags.has('results')) {
+        ctx.err('tslaws github: use --results-out to run the laws or --results to act on them, not both\n');
+        return 1;
+      }
+      if (out !== undefined) {
+        if (typeof out !== 'string') {
+          ctx.err('tslaws github: --results-out needs a file\n');
+          return 1;
+        }
+        return await collect(ctx, action, out);
+      }
+      if (typeof ctx.flags.get('results') !== 'string') {
+        ctx.err('tslaws github: --results needs a file\n');
+        return 1;
+      }
+    }
     if (action === 'report') return await report(ctx);
     if (action === 'command') return await command(ctx);
     if (action === 'merge') return await merge(ctx);
