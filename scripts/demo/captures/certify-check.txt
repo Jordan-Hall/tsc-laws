@@ -1,0 +1,22 @@
+PROVED   addition commutes (src/math.laws.ts:8) [smt]
+         certificate: certified
+PROVED   doubling is adding twice (src/math.laws.ts:9) [smt]
+         certificate: certified
+PROVED   and commutes (src/math.laws.ts:10) [smt]
+         certificate: certified
+PROVED   counting up reaches n (src/math.laws.ts:11) [smt]
+         assuming: int parameters stay within ±(2^53 - 1); loop 1 invariant over (n, i): (not (>= (+ i (* (- 1) n)) 1))
+         certificate: uncertified (proved with loop invariants found by a Horn solver; cvc5 and Carcara have no proof of that to check)
+PROVED   the largest is never negative (src/math.laws.ts:15) [smt]
+         assuming: int parameters stay within ±(2^53 - 1); loop 1 invariant over (xs.length, xs, m, i): (and (not (<= i (- 1))) (not (<= m (- 1))))
+         certificate: uncertified (proved with loop invariants found by a Horn solver; cvc5 and Carcara have no proof of that to check)
+TESTED   the average sits between (src/math.laws.ts:16) [property]
+         solver gave up within 5000 ms
+PROVED   half is at most n (src/math.laws.ts:20) [smt]
+         assuming: int parameters stay within ±(2^53 - 1)
+         certificate: uncertified (Carcara did not accept the proof (invalid))
+PROVED   clamping never goes below the floor (src/math.laws.ts:24) [smt]
+         assuming: int parameters stay within ±(2^53 - 1)
+         certificate: uncertified (cvc5 does not define the rewrite rules the proof uses: ite-eq)
+
+8 laws: 7 proved, 0 bounded, 1 tested, 0 open, 0 failed, 0 tampered, 0 errors

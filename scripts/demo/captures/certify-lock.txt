@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "laws": {
+    "src/math.laws.ts::addition commutes": "ece357fde3b6c0e7e85b8768e4121686840aeea21e3acc00addae3a076d38f75",
+    "src/math.laws.ts::and commutes": "da59703eed979247eb3d728902242993e6b5aafc9cc92108acba4714176ffa94",
+    "src/math.laws.ts::clamping never goes below the floor": "2e112a8b590199f0cf4ab3406388787fe5a0046f35ad65f19dd609ec705b6b10",
+    "src/math.laws.ts::counting up reaches n": "3bd053b06a61cf778893286ed4f16a7c9cf2cb395ca1c414d4931df461ffcdb1",
+    "src/math.laws.ts::doubling is adding twice": "a4895118c72c8f8dd832ca47452f559a2d63c7a6088b7b29e22d97b5523760c7",
+    "src/math.laws.ts::half is at most n": "e5d700a24a4a6f54d9e267b31eb0ee4a15b69a03aa74aa46ba3a785e0ce66ec4",
+    "src/math.laws.ts::the average sits between": "c197db1bfa070363ab2fccd6a1d3c3e6852fb13062582255797a9994ba6ee30e",
+    "src/math.laws.ts::the largest is never negative": "325d54a3d743f7fdc0c7e13cdfe180584418966fe02257f05818382cc352456e"
+  },
+  "exempt": [],
+  "certificates": {
+    "src/math.laws.ts::addition commutes": {
+      "law": "ece357fde3b6c0e7e85b8768e4121686840aeea21e3acc00addae3a076d38f75",
+      "problemHash": "b070b6637e023df9d0f0975a2fb984032ec0856174fe0a24655529e14963eafa",
+      "proofHash": "43f3334abf68c10be2575e0ea4d49c2b5ed5903b77dffc1a1095029aa7a4f643",
+      "checkerHash": "5ea10d0285efac1f2d08338c3c2839f66f81972155ef29a054cfd367084909db"
+    },
+    "src/math.laws.ts::and commutes": {
+      "law": "da59703eed979247eb3d728902242993e6b5aafc9cc92108acba4714176ffa94",
+      "problemHash": "d6176a8000d921cd865b3b52f12a6be9dfa588b1ec15d5f82238efa1499c1242",
+      "proofHash": "d66ab779796b0a55981860022877afa348b4fdbdde0f06d21ab775ea9b652e17",
+      "checkerHash": "303c85eef0731ffdf73b3fff614f0b29e8b0d0a2a1d05ba624e8c4603c9c1a0f"
+    },
+    "src/math.laws.ts::doubling is adding twice": {
+      "law": "a4895118c72c8f8dd832ca47452f559a2d63c7a6088b7b29e22d97b5523760c7",
+      "problemHash": "54f8b584d405c651c35099391f76beb75ff9ce343a3c5da14e6e1ab68f319b9f",
+      "proofHash": "79637d9028d4026867935a086cdad3c690575eb0b0b15e19da56933ca949fea0",
+      "checkerHash": "412152e5fdd8e3f330c697eff7f73bf0a6d8f96ce02e67afd8c327af49d345fc"
+    }
+  }
+}

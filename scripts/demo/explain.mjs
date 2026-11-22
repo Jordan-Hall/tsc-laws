@@ -77,6 +77,21 @@ const termLines = (rows, start, gap) =>
       return `<div class="a" ${at(start + i * gap)}>${html}</div>`;
     })
     .join('');
+// Rows of real output, with the proof certificate verdicts coloured: certified green, uncertified amber.
+const vRows = (rows, start, gap) =>
+  rows
+    .map((l, i) => {
+      const html = esc(l)
+        .replace(/^(PROVED)/, '<span class="ok">$1</span>')
+        .replace(/^(FAILED|ERROR|TAMPERED|FAIL)\b/, '<span class="bad">$1</span>')
+        .replace(/^(TESTED|warn)\b/, '<span style="color:#f2c230;font-weight:700">$1</span>')
+        .replace(/(counterexample: .*)$/, '<span class="bad">$1</span>')
+        .replace(/certificate: (certified)/, 'certificate: <span class="ok">$1</span>')
+        .replace(/(uncertified)/, '<span style="color:#f2c230;font-weight:700">$1</span>')
+        .replace(/^(── .* ──)/, '<span class="dim">$1</span>');
+      return `<div class="a" ${at(start + i * gap)}>${html}</div>`;
+    })
+    .join('');
 const codeHtml = (text) =>
   esc(text)
     .replace(/\b(export|law|return|import|from|assume)\b/g, '<span class="kw">$1</span>')
@@ -387,6 +402,189 @@ const scenes = {
        <div class="abs a" style="--d:.3s;left:80px;top:310px;font-size:190px;font-weight:600;color:#fff;letter-spacing:-4px">tslaws</div>
        <div class="abs a mono" style="--d:1.2s;left:86px;top:560px;font-size:46px;color:var(--yellow)">npm i -D tslaws</div>
        <div class="abs a mono" style="--d:3.4s;left:86px;top:660px;font-size:36px;color:#fff">github.com/Jordan-Hall/tsc-laws</div>`,
+    ),
+  // What is new in tslaws v1. Real output is from captures/ (run locally, or from the `certificates` CI job for the proof
+  // certificates, which needs cvc5 and Carcara); a yellow pill marks an illustration, a mint pill marks real output.
+  v_hook: () =>
+    doc(
+      'var(--cream)',
+      `<div class="sun a" style="width:280px;height:280px;right:80px;top:80px"></div>
+       <div class="abs a" style="left:80px;top:250px;font-size:100px;font-weight:300;line-height:1.1">tests sample.</div>
+       <div class="abs a" style="--d:2.2s;left:80px;top:390px;font-size:100px;font-weight:600;line-height:1.1;color:var(--red)">laws prove.</div>
+       <div class="abs a" style="--d:4.6s;left:80px;top:540px;font-size:62px;font-weight:300;line-height:1.2">and now, proofs carry<br><span style="font-weight:600;color:var(--blue);font-size:96px">certificates</span></div>
+       <div class="abs a mono" style="--d:7s;left:84px;top:840px;font-size:30px;color:#6a6a80">what is new in tslaws 1.0</div>`,
+    ),
+  v_mono: () => {
+    const pkg = (name, x, y, d) =>
+      `<div class="card a mono" style="--d:${d}s;left:${x}px;top:${y}px;width:190px;height:150px;padding:14px;font-size:20px;line-height:1.35;background:#fff"><b style="font-size:24px;color:var(--blue)">${name}</b><br>laws<br>config<br>approvers · accept</div>`;
+    return doc(
+      'var(--cream)',
+      `<div class="pill a" style="--d:.2s;left:60px;top:40px;background:var(--yellow);font-size:26px">illustration, drawn from docs/monorepo.md</div>
+       <div class="abs a" style="--d:.4s;left:60px;top:110px;font-size:58px;font-weight:300">monorepos</div>
+       <div class="card a mono" style="--d:1s;left:60px;top:230px;width:840px;height:90px;padding:20px 26px;font-size:26px;background:#fff">tslaws.json   <span class="ty">"projects": ["apps/*", "packages/*"]</span></div>
+       ${pkg('packages/core', 60, 380, 2)}${pkg('packages/ui', 290, 380, 3.4)}${pkg('packages/docs', 520, 380, 4.8)}${pkg('apps/web', 750, 380, 6.2)}
+       <div class="abs a" style="--d:7.6s;left:60px;top:580px;width:840px;font-size:38px;line-height:1.35"><span style="color:var(--red);font-weight:600">one</span> GitHub flow covers the repo</div>
+       <div class="abs a" style="--d:11s;left:60px;top:660px;width:840px;font-size:38px;line-height:1.35">VS Code follows the <span style="color:var(--blue);font-weight:600">open file's</span> project</div>
+       <div class="abs a" style="--d:14s;left:60px;top:760px;width:840px;font-size:38px;line-height:1.35;font-weight:300">each package: its own laws, lock and accept</div>`,
+    );
+  },
+  v_changed: () => {
+    const rows = capture('mono-changed.txt').filter((l) =>
+      /^(--changed|  (apps|packages)|── |PROVED|TESTED|\d+ projects)/.test(l),
+    );
+    return doc(
+      '#d9e6f2',
+      `<div class="pill a" style="--d:.2s;left:60px;top:40px;background:var(--mint);font-size:26px">real output, a sample monorepo</div>
+       <div class="term" style="left:60px;top:110px;width:840px;height:560px;font-size:19px"><div class="a" ${at(0.6)}><span class="dim">$ tslaws check --changed main   # core changed</span></div>${vRows(rows, 1.4, 0.7)}</div>
+       <div class="note a" style="--d:11s;left:60px;top:720px;width:560px;font-size:32px">packages/docs is not selected</div>
+       <div class="abs a" style="--d:12.5s;left:60px;top:830px;font-size:36px;font-weight:300">nothing that depends on your change is missed</div>`,
+    );
+  },
+  v_cert: () => {
+    const step = (x, label, sub, d, color) =>
+      `<div class="card a" style="--d:${d}s;left:${x}px;top:330px;width:200px;height:200px;background:${color};text-align:center;padding-top:44px"><div style="font-size:34px;font-weight:600">${label}</div><div class="mono" style="font-size:19px;margin-top:10px">${sub}</div></div>`;
+    const arrow = (x, d) =>
+      `<div class="abs a" style="--d:${d}s;left:${x}px;top:395px;font-size:56px;color:var(--ink)">&rarr;</div>`;
+    return doc(
+      'var(--cream)',
+      `<div class="pill a" style="--d:.2s;left:60px;top:40px;background:var(--yellow);font-size:26px">illustration, drawn from docs/certificates.md</div>
+       <div class="abs a" style="--d:.4s;left:60px;top:120px;font-size:62px;font-weight:300">proof certificates</div>
+       ${step(60, 'law', 'proved', 1.2, '#fff8')}${arrow(268, 2.4)}${step(330, 'cvc5', 'writes an Alethe proof', 3.2, '#bcd6f0')}${arrow(538, 5)}${step(600, 'Carcara', 'checks the proof', 6, '#f6e08a')}${arrow(808, 8)}
+       <div class="abs a" style="--d:8.6s;left:845px;top:395px;font-size:40px;font-weight:600;color:var(--green)">ok</div>
+       <div class="abs a" style="--d:10.5s;left:60px;top:620px;width:840px;font-size:44px;line-height:1.3">two programs agree before a law says <span style="color:var(--green);font-weight:600">certified</span></div>
+       <div class="abs a mono" style="--d:13s;left:60px;top:790px;font-size:26px;color:#6a6a80">depends on cvc5 1.4.2 and Carcara</div>`,
+    );
+  },
+  v_cert_real: () => {
+    const rows = capture('certify-check.txt').filter(
+      (l) => !/^\s+assuming:/.test(l) && !/^\s+(Only|solver|Z3)/.test(l),
+    );
+    return doc(
+      '#d9d0e8',
+      `<div class="pill a" style="--d:.2s;left:60px;top:40px;background:var(--mint);font-size:26px">real output, CI job: cvc5 1.4.2 + Carcara</div>
+       <div class="term" style="left:40px;top:110px;width:880px;height:790px;font-size:17px;line-height:1.5;padding:20px 24px"><div class="a" ${at(0.6)}><span class="dim">$ tslaws check</span></div>${vRows(rows, 1.2, 1.05)}</div>`,
+    );
+  },
+  v_cert_bind: () => {
+    const rows = capture('certify-require.txt').filter((l) => /^(ERROR|PROVED|exit status)/.test(l));
+    const lock = readFileSync(new URL('captures/certify-lock.txt', import.meta.url), 'utf8').split(/\r?\n/);
+    const from = lock.findIndex((l) => l.includes('"src/math.laws.ts::addition commutes": {'));
+    const rec = lock
+      .slice(from, from + 6)
+      .map((l) => l.replace(/^ {4}/, ''))
+      .map((l) => l.replace(/"([0-9a-f]{12})[0-9a-f]+"/g, '"$1..."'));
+    return doc(
+      '#ecd27a',
+      `<div class="pill a" style="--d:.2s;left:60px;top:40px;background:var(--mint);font-size:26px">real output, CI job</div>
+       <div class="term" style="left:60px;top:110px;width:840px;height:300px;font-size:17px"><div class="a" ${at(0.6)}><span class="dim">$ tslaws check --require-certify</span></div>${vRows(rows, 1.2, 0.5)}</div>
+       <div class="abs a mono" style="--d:6.5s;left:60px;top:440px;font-size:24px;color:var(--blue)">tsc-laws.lock</div>
+       <div class="code" style="left:60px;top:480px;width:840px;font-size:21px;line-height:1.45;padding:18px 26px">${rec.map((l, i) => `<div class="a" ${at(7 + i * 0.6)}>${esc(l)}</div>`).join('')}</div>
+       <div class="abs a" style="--d:12s;left:60px;top:800px;width:840px;font-size:36px;line-height:1.3">edit the law and the certificate is void</div>`,
+    );
+  },
+  v_loops: () => {
+    const source = readFileSync(new URL('../ci/certificates-demo/src/math.ts', import.meta.url), 'utf8');
+    const start = source.indexOf('export function largest');
+    const fn = source.slice(start, source.indexOf('\n}\n', start) + 2).replace(' as int', '');
+    const step = (y, label, d, color) =>
+      `<div class="card a" style="--d:${d}s;left:520px;top:${y}px;width:380px;height:92px;background:${color};padding:14px 20px;font-size:28px;line-height:1.2">${label}</div>`;
+    return doc(
+      'var(--cream)',
+      `<div class="pill a" style="--d:.2s;left:60px;top:40px;background:var(--yellow);font-size:26px">illustration, drawn from docs/laws.md</div>
+       <div class="abs a" style="--d:.4s;left:60px;top:110px;font-size:58px;font-weight:300">loop invariants</div>
+       <div class="code a" style="--d:1s;left:60px;top:230px;width:430px;font-size:21px;line-height:1.5;padding:20px 22px">${codeHtml(fn)}</div>
+       ${step(230, 'z3 Spacer finds the invariant (CHC)', 3, '#bcd6f0')}
+       ${step(350, 'plain z3 checks it again', 6, '#b9e0c4')}
+       ${step(470, 'Eldarica or Golem cross-check, if installed', 9, '#fff8')}
+       <div class="abs a" style="--d:12s;left:60px;top:700px;width:840px;font-size:42px;line-height:1.35">arrays of <span style="font-weight:600;color:var(--red)">any length</span></div>
+       <div class="abs a" style="--d:14.5s;left:60px;top:780px;width:840px;font-size:42px;line-height:1.35;font-weight:300">a loop is proved, not just bounded</div>`,
+    );
+  },
+  v_loops_real: () => {
+    const all = capture('certify-check.txt');
+    const rows = [];
+    for (let i = 0; i < all.length; i++)
+      if (/^PROVED   (counting up|the largest)/.test(all[i])) rows.push(all[i], all[i + 1], all[i + 2]);
+    return doc(
+      '#b9c6d8',
+      `<div class="pill a" style="--d:.2s;left:60px;top:40px;background:var(--mint);font-size:26px">real output, CI job</div>
+       <div class="term" style="left:40px;top:130px;width:880px;height:560px;font-size:20px"><div class="a" ${at(0.6)}><span class="dim">$ tslaws check</span></div>${vRows(rows, 1.2, 1.4)}</div>
+       <div class="abs a" style="--d:6s;left:60px;top:740px;width:840px;font-size:38px;line-height:1.3">the invariant is printed beside the law</div>
+       <div class="abs a" style="--d:9s;left:60px;top:820px;width:840px;font-size:34px;font-weight:300">proved, but no certificate for it yet</div>`,
+    );
+  },
+  v_sec: () => {
+    const chips = [
+      ['path traversal', 'CWE-22'],
+      ['prototype pollution', 'CWE-1321'],
+      ['open redirect', 'CWE-601'],
+      ['ReDoS', 'CWE-1333'],
+      ['XSS', 'CWE-79'],
+      ['integer issues', 'CWE-190'],
+      ['validation', 'CWE-20'],
+    ];
+    const rows = capture('security-paths.txt');
+    return doc(
+      'var(--cream)',
+      `<div class="pill a" style="--d:.2s;left:60px;top:40px;background:var(--mint);font-size:26px">real output, a sample project</div>
+       ${chips.map(([n, c], i) => `<div class="card a mono" style="--d:${0.6 + i * 0.45}s;left:${60 + (i % 4) * 215}px;top:${110 + Math.floor(i / 4) * 78}px;width:200px;height:64px;padding:7px 10px;font-size:15px;line-height:1.35;background:#fff"><b style="font-size:17px">${n}</b><br><span class="ty">${c}</span></div>`).join('')}
+       <div class="code a" style="--d:5.5s;left:60px;top:290px;width:840px;font-size:22px;padding:16px 26px"><span class="kw">return</span> name.replace(<span class="ty">'../'</span>, <span class="ty">''</span>);   <span class="cm">// strips ../</span></div>
+       <div class="term" style="left:60px;top:400px;width:840px;height:430px;font-size:18px"><div class="a" ${at(7)}><span class="dim">$ tslaws check</span></div>${vRows(rows, 7.6, 1.2)}</div>`,
+    );
+  },
+  v_deps: () => {
+    const rows = readFileSync(new URL('captures/security-deps.txt', import.meta.url), 'utf8')
+      .split(/\r?\n/)
+      .filter((l) => l && !/^\s+(Lodash|Regular|lodash)/.test(l));
+    return doc(
+      '#d9e6f2',
+      `<div class="pill a" style="--d:.2s;left:60px;top:40px;background:var(--mint);font-size:26px">real output, against OSV</div>
+       <div class="term" style="left:40px;top:110px;width:880px;height:600px;font-size:17px"><div class="a" ${at(0.6)}><span class="dim">$ tslaws security deps --no-cache</span></div>${vRows(rows, 1.4, 0.9)}</div>
+       <div class="abs a" style="--d:9s;left:60px;top:760px;width:840px;font-size:38px;line-height:1.3">in CI, <span class="mono" style="color:var(--red)">--no-cache</span>: every run asks again</div>`,
+    );
+  },
+  v_accept: () => {
+    const lane = (y, title, steps, d) =>
+      `<div class="abs a" style="--d:${d}s;left:60px;top:${y}px;font-size:40px;font-weight:600;color:var(--blue)">${title}</div>` +
+      steps
+        .map(
+          (s, i) =>
+            `<div class="card a mono" style="--d:${d + 0.8 + i * 0.9}s;left:${60 + i * 285}px;top:${y + 60}px;width:255px;height:120px;padding:14px 16px;font-size:20px;line-height:1.35;background:#fff">${s}</div>`,
+        )
+        .join('');
+    return doc(
+      'var(--cream)',
+      `<div class="pill a" style="--d:.2s;left:60px;top:40px;background:var(--yellow);font-size:26px">illustration, drawn from docs/github.md</div>
+       <div class="abs a" style="--d:.4s;left:60px;top:105px;font-size:54px;font-weight:300">accepting laws</div>
+       ${lane(200, 'local', ['a person at a terminal', 'tslaws accept', 'tsc-laws.lock written'], 1)}
+       ${lane(430, 'GitHub, on demand', ['manual run of the merge workflow', 'the person has maintain access', 'still the head of the branch'], 7)}
+       <div class="note a" style="--d:15s;left:60px;top:700px;width:760px;font-size:32px">branch moved? it accepts nothing, and says so</div>
+       <div class="card a mono" style="--d:17s;left:60px;top:810px;width:840px;height:70px;padding:16px 20px;font-size:22px;background:#fff">the workflow commits tsc-laws.lock as the bot</div>`,
+    );
+  },
+  v_oidc: () =>
+    doc(
+      '#b9c6d8',
+      `<div class="pill a" style="--d:.2s;left:60px;top:40px;background:var(--yellow);font-size:26px">illustration, drawn from release.yml</div>
+       <div class="abs a" style="--d:.4s;left:60px;top:105px;font-size:54px;font-weight:300">trusted publishing</div>
+       <div class="code a" style="--d:1.2s;left:60px;top:210px;width:840px;font-size:25px;line-height:1.5"><span class="cm"># release.yml</span>
+permissions:
+  <span class="kw">id-token</span>: write
+...
+npm publish "$package" <span class="kw">--provenance</span> --access public</div>
+       <div class="abs a" style="--d:5s;left:60px;top:520px;width:840px;font-size:38px;line-height:1.4">GitHub signs a short lived identity</div>
+       <div class="abs a" style="--d:7s;left:60px;top:580px;width:840px;font-size:38px;line-height:1.4">npm trusts that workflow</div>
+       <div class="abs a" style="--d:9s;left:60px;top:680px;width:840px;font-size:38px">every package carries provenance</div>
+       <div class="note a" style="--d:11s;left:60px;top:780px;width:560px;font-size:40px;background:var(--yellow)">no npm tokens</div>`,
+    ),
+  v_outro: () =>
+    doc(
+      'var(--red)',
+      `<div class="sun a" style="width:240px;height:240px;right:110px;top:110px"></div>
+       <div class="abs a" style="--d:.3s;left:80px;top:300px;font-size:190px;font-weight:600;color:#fff;letter-spacing:-4px">tslaws</div>
+       <div class="abs a" style="--d:1s;left:86px;top:520px;font-size:96px;font-weight:300;color:#fff">1.0.0</div>
+       <div class="abs a mono" style="--d:2.2s;left:86px;top:680px;font-size:46px;color:var(--yellow)">npm i -D tslaws</div>
+       <div class="abs a mono" style="--d:4s;left:86px;top:770px;font-size:36px;color:#fff">github.com/Jordan-Hall/tsc-laws</div>`,
     ),
 };
 
