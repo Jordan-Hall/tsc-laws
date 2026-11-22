@@ -68,6 +68,55 @@ const modeLaw = [
   '',
 ].join('\n');
 
+const nl = String.fromCharCode(10);
+
+const widgetPlugin = [
+  'export default () => ({',
+  "  name: 'widget',",
+  '  setup(build) {',
+  '    build.onLoad({ filter: /[.]widget$/ }, async (args) => {',
+  "      const { readFile } = await import('node:fs/promises');",
+  "      const text = (await readFile(args.path, 'utf8')).trim();",
+  '      return { contents: `export const label = ${JSON.stringify(text.toUpperCase())};`, loader: "js" };',
+  '    });',
+  '  },',
+  '});',
+  '',
+].join(nl);
+
+const widgetProject = (name: string, config: object): string =>
+  project(name, {
+    'tslaws.json': JSON.stringify(config),
+    'tools/widget-plugin.mjs': widgetPlugin,
+    'src/hello.widget': 'hello',
+    'src/widget.d.ts': `declare module '*.widget' { export const label: string; }${nl}`,
+    'src/view.ts': `import { label } from './hello.widget';${nl}export const view = (): string => '<' + label + '>';${nl}`,
+    'src/a.laws.ts': [
+      "import { law } from 'tslaws';",
+      "import { view } from './view';",
+      "law('a plugin format loads in a property worker', (n: number) => view() === '<HELLO>' && n === n);",
+      "law('a plugin format loads in the main process', () => view() === '<HELLO>');",
+      '',
+    ].join(nl),
+  });
+
+describe('bundlerPlugins in node laws', () => {
+  it('load a source format Node cannot, through the plugin, in a worker and in the main process', async () => {
+    const cwd = widgetProject('widget', { bundlerPlugins: ['./tools/widget-plugin.mjs'] });
+    const { results } = await check(options(cwd, ['src/a.laws.ts']), true);
+    for (const name of ['a plugin format loads in a property worker', 'a plugin format loads in the main process'])
+      assert.equal(byName(results, name).status, 'tested', JSON.stringify(byName(results, name)));
+  });
+
+  it('fail with a message naming the extension and the setting when no plugin handles it', async () => {
+    const cwd = widgetProject('widget-none', {});
+    const { results } = await check(options(cwd, ['src/a.laws.ts']), true);
+    const result = byName(results, 'a plugin format loads in the main process');
+    assert.equal(result.status, 'error', JSON.stringify(result));
+    assert.match(JSON.stringify(result), /no bundler plugin handles \\?"\.widget\\?" files.*bundlerPlugins/);
+  });
+});
+
 describe('import.meta.env', () => {
   it('is an object in laws run by a property worker, with the defaults and the tslaws.json env', async () => {
     const cwd = project('env', {
