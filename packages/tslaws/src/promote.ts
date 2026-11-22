@@ -35,6 +35,8 @@ export interface ParsedLawFile {
   importEnd: number;
   /** The named top-level statements that are not imports or laws, in source order. */
   declarations: ParsedDeclaration[];
+  /** The text with the imports and laws overwritten by spaces (line breaks kept): what is left to the helpers and anything else. */
+  rest: string;
 }
 
 /**
@@ -169,6 +171,7 @@ export function parseLawFile(text: string): ParsedLawFile {
     laws,
     importEnd: importRanges[importRanges.length - 1]?.end ?? 0,
     declarations: declarationsOf(text, [...importRanges, ...laws]),
+    rest: blank(text, [...importRanges, ...laws]),
   };
 }
 
@@ -291,7 +294,7 @@ function callLaws(text: string): ParsedLaw[] {
 const squash = (s: string): string => s.replace(/\s+/g, ' ').trim();
 
 /** The code of `text` printed from its syntax tree without comments: layout is normalised, string and template contents are not. */
-function sameCode(a: string, b: string): boolean {
+export function sameCode(a: string, b: string): boolean {
   const printer = ts.createPrinter({ removeComments: true });
   const print = (text: string): string => {
     const source = ts.createSourceFile('helper.ts', text, ts.ScriptTarget.Latest, false, ts.ScriptKind.TS);
@@ -416,7 +419,7 @@ function copiedDeclarations(
 }
 
 /** `block` placed after the last declaration of `text`, else after its last import, else before its first law, else at the end. */
-function withDeclarations(text: string, block: string): string {
+export function withDeclarations(text: string, block: string): string {
   const parsed = parseLawFile(text);
   const lastDeclaration = parsed.declarations[parsed.declarations.length - 1];
   const at = lastDeclaration?.end ?? (parsed.importEnd > 0 ? parsed.importEnd : (parsed.laws[0]?.start ?? text.length));

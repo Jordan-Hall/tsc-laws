@@ -893,19 +893,19 @@ project root:
 The compiler is found as for the CLI: `--compiler PATH`, then `TSC_LAWS_BIN`, then the bundled one. The server uses stdout
 only for protocol messages.
 
-| Tool                    | Does                                                                                                            |
-| ----------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `tslaws_check`          | `check --json` with hints; `files` limits it, `summary` keeps only the laws that do not pass and the totals     |
-| `tslaws_check_proposed` | `check --proposed`: every proposal in `.tslaws/proposals/`                                                      |
-| `tslaws_list`           | `list --json`: each laws file and proposal, its level and whether it is accepted, unaccepted or proposed        |
-| `tslaws_explain`        | a law's source, its last result in this session with the hint, and the next action                              |
-| `tslaws_propose`        | writes a law into a proposal in `.tslaws/proposals/` (a same-named law there is replaced) and returns its check |
+| Tool                    | Does                                                                                                                                       |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `tslaws_check`          | `check --json` with hints; `files` limits it, `summary` keeps only the laws that do not pass and the totals                                |
+| `tslaws_check_proposed` | `check --proposed`: every proposal in `.tslaws/proposals/`                                                                                 |
+| `tslaws_list`           | `list --json`: each laws file and proposal, its level and whether it is accepted, unaccepted or proposed                                   |
+| `tslaws_explain`        | a law's source, its last result in this session with the hint, and the next action                                                         |
+| `tslaws_propose`        | writes a law, and the helpers it needs, into a proposal in `.tslaws/proposals/` (a same-named law there is replaced) and returns its check |
 
 **Property: the server cannot weaken accepted laws.** No tool accepts laws, writes `tsc-laws.lock`, promotes a proposal
 or edits any file of the tree. The only files `tslaws_propose` writes are plain `.ts` files directly inside
 `.tslaws/proposals/`. It refuses any other path, an absolute path, a name with `..`, a nested path, an in-tree
 `*.proposed.laws.ts` name, a `.tslaws` or `proposals` directory that is a link (or junction) leading out of the project, and
-a proposal file that is itself a link. It accepts only imports and `law` declarations as source. The server sets
+a proposal file that is itself a link. It accepts only imports, `law` declarations and the top-level `const`, function, type and interface declarations the laws need as source. The server sets
 `TSLAWS_AGENT=1`, so nothing it spawns can run `accept` or `promote`. A proposal is still code that `check --proposed`
 runs, as with any law file.
 
@@ -996,6 +996,13 @@ tslaws accept                              # records the promoted laws in tsc-la
 `propose` writes only inside `.tslaws/proposals/` (a name or `.tslaws/proposals/name.ts`) and refuses every other path and
 any link out of the project. It merges into an existing proposal (a same-named law is replaced) and never touches the lock or
 any file of the tree. `check --proposed` prints every law of every proposal with its status.
+
+A proposal may hold the helpers its laws need beside the laws: top-level `const`, function, type and interface
+declarations, each with the comment directly above it. They are stored before the laws, after the imports and any helpers
+already there. A helper of the same name with other code replaces the old one (so the other laws of that proposal see the
+new one); an identical one is kept as it is. `promote` carries the helpers a promoted law uses across. Any other top-level
+statement (a bare call, `let` or `var`, a loop or block, `export default`, `export { x }`, a class, enum or namespace) is
+refused and nothing is written. The initialiser of a helper `const` runs when the file is checked, as the law bodies do.
 
 Imports in a proposal that start with `./` are written relative to the project root: `import { total } from './src/cart'`.
 `propose` stores them relative to the proposal file (`../../src/cart`), so the stored file is ordinary TypeScript that
