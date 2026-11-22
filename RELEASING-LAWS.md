@@ -83,10 +83,10 @@ There is no tag ruleset restricting who can create `laws-v*`. release-please cre
 personal repository cannot list GitHub Actions as a ruleset bypass actor, so such a ruleset would block releases. The
 environment approval and the ancestor check stand in for it.
 
-The one manual step left: the npm trust policy now names the environment, so run `npm trust github` again for each package
-with `--environment release` (see the npm section above) and remove the old policy that had none. Until then npm
-publishing fails. Also add `release` as the environment on the VS Code Marketplace policy and the Open VSX trusted
-publisher if you use them, or their OIDC match fails.
+The npm trust policy is done: all six packages trust only `laws.yml` running in the `release` environment (set with
+`npm trust github ... --environment release`), and the old policies are revoked. Publishing needs the `environment: release`
+line this workflow now has. If you add a package, trust it the same way (see the npm section above). If you use the VS Code
+Marketplace policy or the Open VSX trusted publisher, add `release` as their environment too, or their OIDC match fails.
 
 ## VS Code extension
 
