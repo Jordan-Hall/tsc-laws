@@ -168,7 +168,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
       - run: npm ci
-      - uses: Jordan-Hall/tsc-laws/packages/tslaws/github@main
+      - uses: Jordan-Hall/tsc-laws/packages/tslaws/github@laws-v0.10.0 # pin a release tag or a full commit SHA, never @main
         with: { mode: report, args: '--results-out ${{ runner.temp }}/tslaws-results.json' }
       - uses: actions/upload-artifact@v4
         with: { name: tslaws-results, path: '${{ runner.temp }}/tslaws-results.json' }
@@ -186,7 +186,7 @@ jobs:
         with: { ref: '${{ github.event.pull_request.head.sha }}', path: pr, persist-credentials: false }
       - uses: actions/download-artifact@v4
         with: { name: tslaws-results, path: '${{ runner.temp }}' }
-      - uses: Jordan-Hall/tsc-laws/packages/tslaws/github@main
+      - uses: Jordan-Hall/tsc-laws/packages/tslaws/github@laws-v0.10.0 # pin a release tag or a full commit SHA, never @main
         with:
           mode: report
           working-directory: pr
@@ -214,7 +214,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
       - run: npm ci
-      - uses: Jordan-Hall/tsc-laws/packages/tslaws/github@main
+      - uses: Jordan-Hall/tsc-laws/packages/tslaws/github@laws-v0.10.0 # pin a release tag or a full commit SHA, never @main
         with:
           mode: verify
           token: '${{ github.token }}'
@@ -247,7 +247,7 @@ jobs:
         env: { GH_TOKEN: '${{ github.token }}' }
       - uses: actions/checkout@v4 # the pull request's files, read as data only (no npm ci, no scripts)
         with: { ref: '${{ steps.pr.outputs.sha }}', path: pr, persist-credentials: false }
-      - uses: Jordan-Hall/tsc-laws/packages/tslaws/github@main
+      - uses: Jordan-Hall/tsc-laws/packages/tslaws/github@laws-v0.10.0 # pin a release tag or a full commit SHA, never @main
         with:
           mode: command
           working-directory: pr
@@ -271,7 +271,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
       - run: npm ci
-      - uses: Jordan-Hall/tsc-laws/packages/tslaws/github@main
+      - uses: Jordan-Hall/tsc-laws/packages/tslaws/github@laws-v0.10.0 # pin a release tag or a full commit SHA, never @main
         with: { mode: merge, args: '--results-out ${{ runner.temp }}/tslaws-results.json' }
       - uses: actions/upload-artifact@v4
         with: { name: tslaws-results, path: '${{ runner.temp }}/tslaws-results.json' }
@@ -289,7 +289,7 @@ jobs:
       - uses: actions/create-github-app-token@v1 # after every step that installs anything
         id: app
         with: { app-id: '${{ vars.TSLAWS_APP_ID }}', private-key: '${{ secrets.TSLAWS_APP_KEY }}' }
-      - uses: Jordan-Hall/tsc-laws/packages/tslaws/github@main
+      - uses: Jordan-Hall/tsc-laws/packages/tslaws/github@laws-v0.10.0 # pin a release tag or a full commit SHA, never @main
         with:
           mode: merge
           install: 'false'
@@ -361,7 +361,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { ref: '${{ github.event.pull_request.head.sha }}', persist-credentials: false }
-      - uses: Jordan-Hall/tsc-laws/packages/tslaws/github@main
+      - uses: Jordan-Hall/tsc-laws/packages/tslaws/github@laws-v0.10.0 # pin a release tag or a full commit SHA, never @main
         with: { mode: report, args: '--results-out ${{ runner.temp }}/tslaws-results.json' }
       - uses: actions/upload-artifact@v4
         with: { name: tslaws-results, path: '${{ runner.temp }}/tslaws-results.json' }
@@ -376,7 +376,7 @@ jobs:
         with: { ref: '${{ github.event.pull_request.head.sha }}', path: pr, persist-credentials: false }
       - uses: actions/download-artifact@v4
         with: { name: tslaws-results, path: '${{ runner.temp }}' }
-      - uses: Jordan-Hall/tsc-laws/packages/tslaws/github@main
+      - uses: Jordan-Hall/tsc-laws/packages/tslaws/github@laws-v0.10.0 # pin a release tag or a full commit SHA, never @main
         with:
           mode: report
           working-directory: pr
@@ -397,7 +397,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { persist-credentials: false }
-      - uses: Jordan-Hall/tsc-laws/packages/tslaws/github@main
+      - uses: Jordan-Hall/tsc-laws/packages/tslaws/github@laws-v0.10.0 # pin a release tag or a full commit SHA, never @main
         with: { mode: merge, args: '--results-out ${{ runner.temp }}/tslaws-results.json' }
       - uses: actions/upload-artifact@v4
         with: { name: tslaws-results, path: '${{ runner.temp }}/tslaws-results.json' }
@@ -412,7 +412,7 @@ jobs:
       - uses: actions/create-github-app-token@v1 # the install the action runs is in this job too: see the note below
         id: app
         with: { app-id: '${{ vars.TSLAWS_APP_ID }}', private-key: '${{ secrets.TSLAWS_APP_KEY }}' }
-      - uses: Jordan-Hall/tsc-laws/packages/tslaws/github@main
+      - uses: Jordan-Hall/tsc-laws/packages/tslaws/github@laws-v0.10.0 # pin a release tag or a full commit SHA, never @main
         with:
           mode: merge
           token: '${{ steps.app.outputs.token }}'

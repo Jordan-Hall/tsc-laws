@@ -137,6 +137,26 @@ describe('writing proposals', () => {
   });
 
   describe('helpers', () => {
+    it('refuses a helper that could run code, in propose, and writes nothing', () => {
+      const cwd = project();
+      for (const helper of [
+        'const boot = start();',
+        'const when = new Date();',
+        'const q = sql`select 1`;',
+        'class Maker {}',
+        'const o = { ...other };',
+        'const o = { [sideEffect()]() {} };',
+        'const o = { [Symbol.dispose]() {} };',
+        'using r = acquire();',
+      ])
+        assert.throws(() => addProposal(cwd, 'a.ts', `${helper}\n${source}`), /is refused|only imports, law/, helper);
+      assert.deepEqual(discoverProposals(cwd), []);
+      assert.throws(
+        () => addProposal(cwd, 'a.ts', `const boot = start();\n${source}`),
+        /helper 'boot' is refused: const 'boot' is initialised with a call `start\(\)`.*Helpers may only be function, type and interface declarations/,
+      );
+    });
+
     const helperSource = [
       "import { total } from './src/cart';",
       '',
@@ -266,12 +286,14 @@ describe('writing proposals', () => {
         {
           cwd,
           checkFile: async () => new Map(),
-          ask: async () => '',
+          ask: async (q) => (q.includes('helper code') ? 'y' : ''),
           out: (t) => void out.push(t),
         },
         '.tslaws/proposals/cart.ts',
       );
       assert.equal(result.target, 'src/cart.laws.ts');
+      assert.match(out.join(''), /helpers \(4\):\n/);
+      assert.match(out.join(''), /const size = \(n: number\)/);
       const moved = readFileSync(join(cwd, 'src/cart.laws.ts'), 'utf8');
       assert.match(moved, /const size =/);
       assert.match(moved, /function cartOf/);
@@ -514,6 +536,58 @@ describe('the promote and propose commands', () => {
     assert.ok(existsSync(join(cwd, 'src/cart.laws.ts')));
     assert.match(out.join(''), /moved to src\/cart\.laws\.ts/);
     assert.ok(!existsSync(join(cwd, 'tsc-laws.lock')));
+  });
+
+  it('promote shows helper code first, asks, and writes nothing on a refusal', async () => {
+    const cwd = project();
+    addProposal(cwd, 'cart.ts', `const size = 3;\n${source}\nexport law again(n: number) { return size > 0; }\n`);
+    const stored = readFileSync(join(cwd, '.tslaws/proposals/cart.ts'), 'utf8');
+    const refused = ctxFor({
+      ask: async (q: string) => (q.includes('helper code') ? 'n' : ''),
+      checkFile: async () => new Map(),
+    });
+    assert.equal(await promoteCommand(cwd, new Map(), ['cart.ts'], refused.ctx), 0);
+    assert.match(refused.out.join(''), /helpers \(1\):\nconst size = 3;/);
+    assert.match(refused.out.join(''), /nothing moved/);
+    assert.ok(!existsSync(join(cwd, 'src/cart.laws.ts')));
+    assert.equal(readFileSync(join(cwd, '.tslaws/proposals/cart.ts'), 'utf8'), stored);
+  });
+
+  it('promote --yes adds helper code without asking, still prints it, and still needs a terminal', async () => {
+    const cwd = project();
+    addProposal(cwd, 'cart.ts', `const size = 3;\n${source}\nexport law again(n: number) { return size > 0; }\n`);
+    const asked: string[] = [];
+    const yes = ctxFor({ ask: async (q: string) => (asked.push(q), ''), checkFile: async () => new Map() });
+    assert.equal(await promoteCommand(cwd, new Map([['yes', true]]), ['cart.ts'], yes.ctx), 0);
+    assert.match(yes.out.join(''), /helpers \(1\):\nconst size = 3;/);
+    assert.ok(
+      asked.every((q) => !q.includes('helper code')),
+      asked.join('|'),
+    );
+    assert.match(readFileSync(join(cwd, 'src/cart.laws.ts'), 'utf8'), /const size = 3;/);
+    // --yes does not let promote run where it was refused before.
+    const other = project();
+    addProposal(other, 'cart.ts', source);
+    for (const over of [{ isTTY: false }, { env: { CI: '1' } }, { env: { TSLAWS_AGENT: '1' } }]) {
+      const { err, ctx } = ctxFor({ ask: async () => 'y', checkFile: async () => new Map(), ...over });
+      assert.equal(await promoteCommand(other, new Map([['yes', true]]), ['cart.ts'], ctx), 1, JSON.stringify(over));
+      assert.match(err.join(''), /needs a person at a terminal/);
+    }
+    assert.ok(!existsSync(join(other, 'src/cart.laws.ts')));
+  });
+
+  it('promote refuses a helper that could run code in a hand-written proposal, even with --yes', async () => {
+    const cwd = project();
+    mkdirSync(join(cwd, '.tslaws/proposals'), { recursive: true });
+    writeFileSync(
+      join(cwd, '.tslaws/proposals/cart.ts'),
+      "import { total } from '../../src/cart';\nconst boot = process.exit();\nexport law a(n: number) { return boot === undefined && total(n) === n; }\n",
+    );
+    const { out, ctx } = ctxFor({ ask: async () => 'y', checkFile: async () => new Map() });
+    assert.equal(await promoteCommand(cwd, new Map([['yes', true]]), ['cart.ts'], ctx), 0);
+    assert.match(out.join(''), /helper 'boot' is refused: const 'boot' is initialised with a call/);
+    assert.ok(!existsSync(join(cwd, 'src/cart.laws.ts')));
+    assert.ok(existsSync(join(cwd, '.tslaws/proposals/cart.ts')));
   });
 
   it('promote lists the proposals when none is named, and refuses a name outside the directory', async () => {

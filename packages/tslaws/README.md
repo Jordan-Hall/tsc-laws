@@ -192,6 +192,8 @@ tslaws check [files...] [--json] [--summary] [--watch] [--runs N] [--seed N] [--
              [--proof-timeout MS] [--property-timeout MS] [--proposed] [--compiler PATH]
 ```
 
+- `check <files>` and `accept <files>` work on the named laws files only: the lock is compared only for their laws, so a locked law in
+  another file is not reported as removed, and `accept` keeps the lock entries of the other files. A law removed from a named file is still reported.
 - `init` scaffolds `tslaws.json`, the `.tslaws` ignore entry, the agent rules in `AGENTS.md`, the Claude Code hook in
   `.claude/settings.json`, and a starter law if none exists. It never writes the lock; a person then runs `accept`.
 - `accept` records the laws and the `@tslaws-exempt` functions in `tsc-laws.lock`. It refuses to run without a terminal,

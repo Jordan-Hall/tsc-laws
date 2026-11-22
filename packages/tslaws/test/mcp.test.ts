@@ -194,7 +194,31 @@ describe('mcp server', { skip: compiler === undefined ? 'set TSC_LAWS_BIN' : fal
       'export law smallDoubleIsTwice(n: number) => double(pairOf(n).a) === pairOf(n).a * 2;',
       '',
     ].join('\n');
-    const out = await callTool('tslaws_propose', { name: 'smallDoubleIsTwice', source: withHelpers, file: 'h.ts' });
+    const held = await callTool('tslaws_propose', { name: 'smallDoubleIsTwice', source: withHelpers, file: 'h.ts' });
+    assert.equal(held.isError, undefined, held.text);
+    assert.equal(held.data.needsConfirmation, true);
+    assert.equal(held.data.written, false);
+    assert.deepEqual(
+      held.data.helpers.map((h: { names: string[] }) => h.names),
+      [['small'], ['Pair'], ['Twice'], ['pairOf']],
+    );
+    assert.ok(held.data.helpers[0].text.startsWith('/** Keeps the generated number small. */'));
+    assert.deepEqual(held.data.imports, ['import { double } from "../../src/f";']);
+    assert.ok(!existsSync(join(root, '.tslaws', 'proposals', 'h.ts')));
+    const wrong = await callTool('tslaws_propose', {
+      name: 'smallDoubleIsTwice',
+      source: withHelpers,
+      file: 'h.ts',
+      confirmHelpers: 'yes',
+    });
+    assert.equal(wrong.data.needsConfirmation, true);
+    assert.ok(!existsSync(join(root, '.tslaws', 'proposals', 'h.ts')));
+    const out = await callTool('tslaws_propose', {
+      name: 'smallDoubleIsTwice',
+      source: withHelpers,
+      file: 'h.ts',
+      confirmHelpers: true,
+    });
     assert.equal(out.isError, undefined, out.text);
     assert.equal(out.data.file, '.tslaws/proposals/h.ts');
     assert.equal(out.data.results.length, 1);
@@ -206,7 +230,12 @@ describe('mcp server', { skip: compiler === undefined ? 'set TSC_LAWS_BIN' : fal
     assert.ok(stored.includes('"../../src/f"'), stored);
     assert.ok(stored.indexOf('function pairOf') < stored.indexOf('export law smallDoubleIsTwice'));
     // Proposing it again keeps one copy of each helper.
-    await callTool('tslaws_propose', { name: 'smallDoubleIsTwice', source: withHelpers, file: 'h.ts' });
+    await callTool('tslaws_propose', {
+      name: 'smallDoubleIsTwice',
+      source: withHelpers,
+      file: 'h.ts',
+      confirmHelpers: true,
+    });
     const again = readFileSync(join(root, '.tslaws', 'proposals', 'h.ts'), 'utf8');
     assert.equal(again.split('const small').length, 2);
     assert.equal(again.split('export law').length, 2);
@@ -225,6 +254,34 @@ describe('mcp server', { skip: compiler === undefined ? 'set TSC_LAWS_BIN' : fal
     }
     assert.ok(!existsSync(join(root, file)));
     assert.equal(readFileSync(join(root, 'src', 'f.laws.ts'), 'utf8'), lawsText);
+  });
+
+  it('writes a proposal with no helpers without confirmHelpers', async () => {
+    const out = await callTool('tslaws_propose', { name: 'doubleIsTwice', source: proposal, file: 'plain.ts' });
+    assert.equal(out.isError, undefined, out.text);
+    assert.equal(out.data.needsConfirmation, undefined);
+    assert.ok(existsSync(join(root, '.tslaws', 'proposals', 'plain.ts')));
+  });
+
+  it('refuses a helper that could run code, even with confirmHelpers, and writes nothing', async () => {
+    for (const helper of [
+      'const boot = start();',
+      'const when = new Date();',
+      'const q = sql`select 1`;',
+      'const o = { get x() { return 1; } };',
+      'class Maker {}',
+    ]) {
+      const out = await callTool('tslaws_propose', {
+        name: 'doubleIsTwice',
+        source: `${helper}
+${proposal}`,
+        file: 'bad.ts',
+        confirmHelpers: true,
+      });
+      assert.equal(out.isError, true, helper);
+      assert.match(out.text, /is refused|only imports, law declarations/, helper);
+    }
+    assert.ok(!existsSync(join(root, '.tslaws', 'proposals', 'bad.ts')));
   });
 
   it('explains a law with its source and last result', async () => {

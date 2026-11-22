@@ -330,19 +330,19 @@ describe('helpers a promoted law uses', () => {
     assert.ok(out.includes('/**\n * Picks a level.\n * @param n any number\n */\nfunction pick'));
   });
 
-  it('copies type, interface, class and enum helpers a law mentions', () => {
+  it('copies type, interface, function and const helpers a law mentions', () => {
     const text = [
       'interface Viewer { level: number }',
       'type Flags = number;',
-      'enum Colour { Red, Blue }',
-      'class Maker { make(flags: Flags): Viewer { return { level: flags + Colour.Red }; } }',
-      'const person = (flags: Flags): Viewer => new Maker().make(flags);',
+      'const Colour = { Red: 0, Blue: 1 } as const;',
+      'function make(flags: Flags): Viewer { return { level: flags + Colour.Red }; }',
+      'const person = (flags: Flags): Viewer => make(flags);',
       'export law a(f: number) => person(f).level === person(f).level;',
       'type Unused = string;',
       '',
     ].join('\n');
     const out = promoteAll(text);
-    assert.deepEqual(declared(out), ['Viewer', 'Flags', 'Colour', 'Maker', 'person']);
+    assert.deepEqual(declared(out), ['Viewer', 'Flags', 'Colour', 'make', 'person']);
     assert.ok(!out.includes('Unused'));
   });
 
@@ -490,7 +490,7 @@ describe('helpers a promoted law uses', () => {
       '',
     ].join('\n');
     writeFileSync(join(dir, 'p.proposed.laws.ts'), source);
-    const answers = ['y', 'n'];
+    const answers = ['y', 'n', 'y'];
     await promoteFiles(
       { cwd: dir, checkFile: async () => new Map(), ask: async () => answers.shift() ?? 'n', out: () => {} },
       ['p.proposed.laws.ts'],
