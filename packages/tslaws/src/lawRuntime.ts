@@ -5,6 +5,7 @@
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import Module, { createRequire } from 'node:module';
 import { dirname, extname, join, relative, resolve, sep } from 'node:path';
+import { installPluginHooks, pluginExtensionNeeded } from './pluginHooks.ts';
 import { transformPluginFile } from './pluginHost.ts';
 import { transformSync } from 'esbuild';
 import type ts from 'typescript';
@@ -60,6 +61,7 @@ export function installLawRuntime(runtime: LawRuntime): void {
   projects.set(outDirOf(runtime.cwd), runtime);
   if (hooked) return;
   hooked = true;
+  installPluginHooks({ ownerOf, beside });
   const internals = Module as unknown as Internals;
   const original = internals._resolveFilename;
   internals._resolveFilename = function (request, parent, ...rest) {
@@ -97,13 +99,11 @@ export function installLawRuntime(runtime: LawRuntime): void {
     };
 }
 
-const nodeExtensions = new Set(['', '.js', '.cjs', '.mjs', '.json', '.node', '.ts', '.tsx', '.mts', '.cts']);
-const pluginExtensionNeeded = (extension: string): boolean => !nodeExtensions.has(extension);
-
-/** The project a file belongs to: the one whose directory holds it, else the most recently registered. */
+/** The project a file belongs to: the one with the deepest directory holding it, else the most recently registered. */
 function ownerOf(file: string): LawRuntime | undefined {
   const all = [...projects.values()];
-  return all.find((p) => file.startsWith(p.cwd + sep)) ?? all.at(-1);
+  const holding = all.filter((p) => file.startsWith(p.cwd + sep)).sort((a, b) => b.cwd.length - a.cwd.length);
+  return holding[0] ?? all.at(-1);
 }
 
 /**

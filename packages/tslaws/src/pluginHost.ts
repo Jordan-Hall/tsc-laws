@@ -31,8 +31,16 @@ function startHost(cwd: string, plugins: readonly string[]): Host {
   return { worker, port: port1, signal };
 }
 
-/** The CommonJS source Node can run for `file`, a file in a format only the project's bundler plugins know. */
-export function transformPluginFile(file: string, cwd: string, plugins: readonly string[]): string {
+/**
+ * The source Node can run for `file`, a file in a format only the project's bundler plugins know: CommonJS for `require`,
+ * an ES module for `import()`.
+ */
+export function transformPluginFile(
+  file: string,
+  cwd: string,
+  plugins: readonly string[],
+  format: 'cjs' | 'esm' = 'cjs',
+): string {
   const key = `${cwd}\0${plugins.join('\0')}`;
   let host = hosts.get(key);
   if (host === undefined) {
@@ -40,7 +48,7 @@ export function transformPluginFile(file: string, cwd: string, plugins: readonly
     hosts.set(key, host);
   }
   Atomics.store(host.signal, 0, 0);
-  host.worker.postMessage({ file });
+  host.worker.postMessage({ file, format });
   const waited = Atomics.wait(host.signal, 0, 0, waitLimitMs);
   const message = receiveMessageOnPort(host.port)?.message as Answer | undefined;
   if (waited === 'timed-out' || message === undefined)
