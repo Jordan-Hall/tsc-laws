@@ -178,6 +178,55 @@ describe('mcp server', { skip: compiler === undefined ? 'set TSC_LAWS_BIN' : fal
     assert.ok(!existsSync(join(root, 'src', 'f.proposed.laws.ts')));
   });
 
+  it('proposes a law with the helpers it needs, and checks it', async () => {
+    const withHelpers = [
+      'import { double } from "./src/f";',
+      '',
+      '/** Keeps the generated number small. */',
+      'const small = (n: number): number => n % 1000;',
+      '',
+      '// What a pair holds.',
+      'interface Pair { a: number }',
+      'type Twice = Pair[];',
+      '/** Builds a pair. */',
+      'function pairOf(n: number): Pair { return { a: small(n) }; }',
+      '',
+      'export law smallDoubleIsTwice(n: number) => double(pairOf(n).a) === pairOf(n).a * 2;',
+      '',
+    ].join('\n');
+    const out = await callTool('tslaws_propose', { name: 'smallDoubleIsTwice', source: withHelpers, file: 'h.ts' });
+    assert.equal(out.isError, undefined, out.text);
+    assert.equal(out.data.file, '.tslaws/proposals/h.ts');
+    assert.equal(out.data.results.length, 1);
+    assert.match(out.data.results[0].status, /proved|bounded|tested/, out.text);
+    const stored = readFileSync(join(root, '.tslaws', 'proposals', 'h.ts'), 'utf8');
+    assert.ok(stored.includes('/** Keeps the generated number small. */\nconst small ='), stored);
+    assert.ok(stored.includes('// What a pair holds.\ninterface Pair'), stored);
+    assert.ok(stored.includes('type Twice = Pair[];'));
+    assert.ok(stored.includes('"../../src/f"'), stored);
+    assert.ok(stored.indexOf('function pairOf') < stored.indexOf('export law smallDoubleIsTwice'));
+    // Proposing it again keeps one copy of each helper.
+    await callTool('tslaws_propose', { name: 'smallDoubleIsTwice', source: withHelpers, file: 'h.ts' });
+    const again = readFileSync(join(root, '.tslaws', 'proposals', 'h.ts'), 'utf8');
+    assert.equal(again.split('const small').length, 2);
+    assert.equal(again.split('export law').length, 2);
+  });
+
+  it('refuses a proposal with a top-level statement that is not a helper, and writes nothing', async () => {
+    const file = '.tslaws/proposals/s.ts';
+    for (const stray of ["require('fs').rmSync('x');", 'let counter = 0;', 'export default 1;', 'go();']) {
+      const out = await callTool('tslaws_propose', {
+        name: 'doubleIsTwice',
+        source: `${proposal}\nconst h = 1;\n${stray}\n`,
+        file: 's.ts',
+      });
+      assert.equal(out.isError, true, stray);
+      assert.match(out.text, /only imports, law declarations and top-level const, function, type and interface/, stray);
+    }
+    assert.ok(!existsSync(join(root, file)));
+    assert.equal(readFileSync(join(root, 'src', 'f.laws.ts'), 'utf8'), lawsText);
+  });
+
   it('explains a law with its source and last result', async () => {
     const out = await callTool('tslaws_explain', { law: 'doubles' });
     assert.match(out.data.declarations[0].source, /export law doubles/);

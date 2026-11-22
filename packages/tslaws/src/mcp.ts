@@ -67,7 +67,7 @@ export const tools: Tool[] = [
   {
     name: 'tslaws_propose',
     description:
-      'Write a law into a proposal file in .tslaws/proposals/ (appended; a law of the same name is replaced) and check it. Only that directory can be written. Write imports of project files relative to the project root with a leading ./ (for example ./src/cart); the level (Node, browser, end to end) comes from what the file imports. A person promotes proposals with `tslaws promote`.',
+      'Write a law into a proposal file in .tslaws/proposals/ (appended; a law of the same name is replaced) and check it. The source may also hold the top-level const, function, type and interface declarations the law needs (a helper of the same name is replaced); any other top-level statement is refused. Only that directory can be written. Write imports of project files relative to the project root with a leading ./ (for example ./src/cart); the level (Node, browser, end to end) comes from what the file imports. A person promotes proposals with `tslaws promote`.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -75,7 +75,7 @@ export const tools: Tool[] = [
         source: {
           type: 'string',
           description:
-            "the full law, as `law('name', ...)` or `export law name ...` (the project's syntax), with any imports it needs",
+            "the full law, as `law('name', ...)` or `export law name ...` (the project's syntax), with any imports and helper declarations it needs",
         },
         file: {
           type: 'string',

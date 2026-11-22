@@ -1,10 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createRequire } from 'node:module';
 import fc from 'fast-check';
 
-const require = createRequire(import.meta.url);
-const { rewrite, lex, PositionMap, applyEdits } = require('../ts-plugin/transform.js');
+import { rewrite, lex, PositionMap, applyEdits } from '../ts-plugin/transform.js';
 
 const out = (text) => rewrite(text)?.text;
 

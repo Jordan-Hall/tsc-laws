@@ -1,5 +1,3 @@
-'use strict';
-
 // The last report survives a reload: it is kept in `.tslaws/last-report.json` (the folder tslaws already uses for scratch
 // files, ignored by git), and read back when the folder opens. Apart from the `fs` and `path` it is given, pure.
 
@@ -51,4 +49,4 @@ function loadCache(io) {
   }
 }
 
-module.exports = { saveCache, loadCache, cachePath };
+export { saveCache, loadCache, cachePath };

@@ -2,6 +2,7 @@
   "name": "tslaws-example-checkout",
   "private": true,
   "description": "A checkout held to a law: a total is never below zero.",
+  "type": "module",
   "scripts": {
     "check": "tslaws check",
     "ui": "tslaws ui"

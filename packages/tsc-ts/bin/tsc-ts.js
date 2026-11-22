@@ -16,8 +16,8 @@ import {
   unlinkSync,
   writeSync,
 } from 'node:fs';
-import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { executableName, hostDescription, hostPlatform, packageName } from './platforms.js';
 
 const platform = hostPlatform();
@@ -26,7 +26,7 @@ if (platform === undefined) fail(`no native executable for ${hostDescription()}`
 const name = packageName(platform);
 let root;
 try {
-  root = dirname(createRequire(import.meta.url).resolve(`${name}/package.json`));
+  root = dirname(fileURLToPath(import.meta.resolve(`${name}/package.json`)));
 } catch {
   fail(`${name} is not installed; reinstall tsc-ts with optional dependencies enabled`);
 }

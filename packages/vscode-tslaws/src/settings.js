@@ -1,5 +1,3 @@
-'use strict';
-
 // Reads the run settings. `tslaws.run` replaces the boolean `tslaws.runOnSave`; the old setting still decides when the
 // new one has not been set, so nobody's configuration changes meaning. Pure.
 
@@ -25,8 +23,6 @@ function clampInt(value, min, max, fallback) {
   return Number.isInteger(value) ? Math.min(max, Math.max(min, value)) : fallback;
 }
 
-module.exports = { RUN_MODES, resolveRunMode, explicitValue, clampInt };
-
 const LIVE_MODES = ['auto', 'on', 'off'];
 
 /**
@@ -42,5 +38,4 @@ function liveEnabled(s) {
   return s.hasConfig && !s.runExplicit;
 }
 
-module.exports.LIVE_MODES = LIVE_MODES;
-module.exports.liveEnabled = liveEnabled;
+export { RUN_MODES, LIVE_MODES, resolveRunMode, explicitValue, clampInt, liveEnabled };

@@ -17,34 +17,42 @@
   "exports": {
     ".": {
       "types": "./dist/api.d.ts",
+      "import": "./dist/api.js",
       "default": "./dist/api.js"
     },
     "./browser": {
       "types": "./dist/browserApi.d.ts",
+      "import": "./dist/browserApi.js",
       "default": "./dist/browserApi.js"
     },
     "./e2e": {
       "types": "./dist/e2eApi.d.ts",
+      "import": "./dist/e2eApi.js",
       "default": "./dist/e2eApi.js"
     },
     "./security": {
       "types": "./dist/security/index.d.ts",
+      "import": "./dist/security/index.js",
       "default": "./dist/security/index.js"
     },
     "./adapters/react": {
       "types": "./dist/adapters/react.d.ts",
+      "import": "./dist/adapters/react.js",
       "default": "./dist/adapters/react.js"
     },
     "./adapters/angular": {
       "types": "./dist/adapters/angular.d.ts",
+      "import": "./dist/adapters/angular.js",
       "default": "./dist/adapters/angular.js"
     },
     "./adapters/dom": {
       "types": "./dist/adapters/dom.d.ts",
+      "import": "./dist/adapters/dom.js",
       "default": "./dist/adapters/dom.js"
     },
     "./adapters/element": {
       "types": "./dist/adapters/element.d.ts",
+      "import": "./dist/adapters/element.js",
       "default": "./dist/adapters/element.js"
     },
     "./env": {

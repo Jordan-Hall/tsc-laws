@@ -75,14 +75,21 @@ export function uncertifiable(query: string): string | undefined {
  */
 export const problemText = cvc5Text;
 
-/** Options that make cvc5 print an Alethe proof Carcara can check. */
+/**
+ * Options that make cvc5 print an Alethe proof Carcara can check.
+ *
+ * `--no-proof-alethe-res-pivots` matters: with pivots on, cvc5 names the pivot of each `resolution` step, and for a clause
+ * that repeats a literal (every integer range obligation does: `a` is bounded once per use) the named pivot is not found
+ * in the clause, so Carcara fails with "pivot was not found" on a proof that is sound. Without them Carcara finds each
+ * pivot itself. cvc5's own regression tests check Alethe proofs with this option off.
+ */
 export const cvc5ProofArgs: readonly string[] = [
   '--lang',
   'smt2',
   '--dump-proofs',
   '--proof-format-mode=alethe',
   '--proof-granularity=dsl-rewrite',
-  '--proof-alethe-res-pivots',
+  '--no-proof-alethe-res-pivots',
   '--dag-thresh=0',
   '--simplification=none',
   '--enum-inst-interleave',
@@ -154,8 +161,35 @@ export function rareRulesOf(proof: string): string[] {
 }
 
 /**
+ * Rewrite rules that cvc5 1.4.2 cites in Alethe proofs but whose declarations Carcara cannot use from `-o rare-db`: it
+ * omits `ite-eq` (cvc5 issue 12801) and declares the integer `div` rule with `div_total`, which Carcara does not know.
+ * cvc5 keeps the Alethe form of these in proofs/alethe/rewrites.eo, and these are copied from there. Each states an
+ * identity that holds for every argument: `ite-eq` is the case split on `C`, and the `div` rule only restates a term
+ * under the premise that the divisor is not 0. (`ite-eq` has one sort variable for both branches: upstream writes `@T1`
+ * for the second and Carcara 1.1.0 does not accept that.) The integer `mod` rules are not here: a `mod` proof also needs
+ * `mod-elim`, which cvc5 1.4.2 does not declare either, and `tslaws` does not add a rule it cannot show to be sound, so
+ * a law with `mod` stays `uncertified` and the reason names the rule.
+ */
+const aletheRareRules: Readonly<Record<string, string>> = {
+  'ite-eq': [
+    '(declare-rare-rule ite-eq ((@T0 Type) (C Bool) (t1 @T0) (t2 @T0))',
+    '  :args (C t1 t2)',
+    '  :conclusion (= (ite C (= (ite C t1 t2) t1) (= (ite C t1 t2) t2)) true)',
+    ')',
+  ].join('\n'),
+  'arith-int-div-total': [
+    '(declare-rare-rule arith-int-div-total ((t1 Int) (s1 Int))',
+    '  :premises ((= (= s1 0) false))',
+    '  :args (t1 s1)',
+    '  :conclusion (= (div t1 s1) (div t1 s1))',
+    ')',
+  ].join('\n'),
+};
+
+/**
  * The RARE rule declarations for `names`, in the form Carcara reads. cvc5 itself prints its database of rewrite rules, so
- * the rules a proof may lean on come from the same binary that wrote the proof and never from a file beside the proof.
+ * the rules a proof may lean on come from the same binary that wrote the proof and never from a file beside the proof;
+ * the few rules in `aletheRareRules` are the exception, because the binary's own text for them cannot be checked.
  */
 export async function rareDeclarations(
   names: string[],
@@ -193,13 +227,13 @@ export async function rareDeclarations(
       current = undefined;
     }
   }
-  const missing = names.filter((name) => !blocks.has(name));
+  const missing = names.filter((name) => !blocks.has(name) && aletheRareRules[name] === undefined);
   if (missing.length > 0)
     return {
       status: 'uncertified',
       reason: `cvc5 does not define the rewrite rules the proof uses: ${missing.join(', ')}`,
     };
-  return { text: `${names.map((name) => blocks.get(name)).join('\n')}\n` };
+  return { text: `${names.map((name) => aletheRareRules[name] ?? blocks.get(name)).join('\n')}\n` };
 }
 
 /** Runs Carcara on a saved proof and problem: `certified` (with its verdict) only when Carcara says `valid`. */
@@ -226,6 +260,18 @@ async function recheck(
   }
 }
 
+const terminalColours = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, 'g');
+
+/** Carcara's first `error:` line, and the file it points at, from what it printed (without terminal colours). */
+function carcaraError(output: string): { error: string; file: string | undefined } {
+  const lines = output.replace(terminalColours, '').split(/\r?\n/);
+  const at = lines.findIndex((line) => line.startsWith('error:'));
+  if (at < 0) return { error: '', file: undefined };
+  const located = lines.slice(at + 1, at + 4).find((line) => /\bin file\s/.test(line));
+  const file = located === undefined ? undefined : /\bin file\s+(\S+?)(?::\d+:\d+)?\s*$/.exec(located)?.[1];
+  return { error: lines[at]!.trim(), file };
+}
+
 async function runCarcara(
   carcara: { file: string; args: string[] },
   proofFile: string,
@@ -242,11 +288,18 @@ async function runCarcara(
   if (checked === 'timeout') return { status: 'uncertified', reason: `Carcara did not finish within ${budget} ms` };
   const verdict = firstLine(checked.stdout);
   if (checked.code !== 0 || verdict !== 'valid') {
+    const { error, file } = carcaraError(`${checked.stdout}\n${checked.stderr}`);
+    // An error in the rules file is Carcara not reading what cvc5 declared; the proof was never checked, so it was not rejected.
+    if (file?.endsWith('.rare') === true)
+      return { status: 'uncertified', reason: `Carcara could not read the rewrite rules cvc5 declared (${error})` };
     const why =
       verdict === 'holey'
         ? 'the proof has steps Carcara could not check'
         : (verdict !== '' ? verdict : firstLine(checked.stderr)) || `exited with code ${checked.code}`;
-    return { status: 'uncertified', reason: `Carcara did not accept the proof (${why})` };
+    return {
+      status: 'uncertified',
+      reason: `Carcara did not accept the proof (${error === '' ? why : `${why}: ${error}`})`,
+    };
   }
   return { status: 'certified', verdict };
 }

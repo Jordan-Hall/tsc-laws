@@ -1,9 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createRequire } from 'node:module';
 
-const require = createRequire(import.meta.url);
-const { parseLawDiagnostics, compileDiagnostics } = require('../src/compile-diagnostics.js');
+import { parseLawDiagnostics, compileDiagnostics } from '../src/compile-diagnostics.js';
 
 const output = [
   "src/a.laws.ts(1,12): error TS9101: A law must return boolean or void, not 'number'.",

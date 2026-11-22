@@ -403,7 +403,7 @@ A plugin for `.tsrx` templates compiled by the public `@tsrx/ripple` compiler is
 The plugins run before the built-in resolver and apply to every browser law (`check`, `ui`, `mcp`), including the
 component laws that mount a component. End-to-end laws bundle nothing: they drive your running app. `mutate` copies only
 compiled output, so a file the compiler does not emit (a template, a stylesheet) resolves to the file beside the source. Keep in mind that laws
-are compiled to CommonJS, so a bare import reaches the bundler as `require()`: a package whose `exports` offer only the `import`
+are compiled to CommonJS (see [ES modules and CommonJS](#es-modules-and-commonjs)), so a bare import reaches the bundler as `require()`: a package whose `exports` offer only the `import`
 condition needs the plugin to resolve it (`build.resolve(path, { kind: 'import-statement', resolveDir })`).
 
 A stylesheet a law imports (directly or through a template) is added to the page in a `<style>` element before the law's script runs, and an image or font it imports (`.png`, `.jpg`, `.svg`, `.woff2` and so on) is inlined as a data URL, so computed styles and images match the app.
@@ -411,6 +411,17 @@ A stylesheet a law imports (directly or through a template) is added to the page
 A plugin that cannot be loaded, or whose factory throws, makes each browser law of the run report `error`, naming the setting and
 the module. Without a plugin for the extension, a law that imports such a file reports an `error` that names the extension and
 the `bundlerPlugins` setting. The compiler does not know the format either: it reports the import as TS2307 in `compileDiagnostics`, which does not stop the bundle from running, and the imported value is untyped in the law.
+
+Node laws use the same plugins. Node cannot read a `.tsrx` file with `require` or with `import()`, so a node law (a property
+law, or any law that runs in the main process) that imports project source which imports such a file loads it through the
+plugin: tslaws runs esbuild with your `bundlerPlugins` on that one file and hands Node the result, as CommonJS for `require` and
+as an ES module for `import()`. Both go through `module.registerHooks` (Node 22.15 or later; an older Node still serves `require`). Plugins
+may be asynchronous: a helper thread runs them while the loader waits, so there is no pre-compile step. The file is not bundled, so
+its own imports stay `require` calls and a module shared with the law is the same instance. A plugin that answers with CSS leaves
+an empty module, since a stylesheet means nothing in Node. Only `onLoad` (and `onResolve` for the file itself) applies: a plugin
+that invents virtual module names for imports is not consulted for those imports. An extension that no plugin handles fails the
+law with an `error` naming the file, the extension and the `bundlerPlugins` setting. The compiler needs an ambient declaration for the format
+(`declare module '*.tsrx' { ... }`, as in the browser case above), or it reports TS2307.
 
 ### Source written for a bundler
 
@@ -433,8 +444,8 @@ Each value is a string, except `DEV`, `PROD` and `SSR`, which are booleans; anot
 compilers read the project as ES modules, so `import.meta` is not an error, and the output is lowered to CommonJS with
 `import.meta.env` rewritten to a global (`globalThis.__tslawsImportMetaEnv`) that the runner sets before any law module loads.
 TypeScript files that Node loads itself (a workspace package that exports its `.ts` source) get the same rewrite through a
-loader hook; files under `node_modules` are never rewritten. The browser bundle uses the same global. The rest of
-`import.meta` (`url`, `dirname`) is not provided in compiled laws.
+loader hook; files under `node_modules` are never rewritten. The browser bundle uses the same global. `import.meta.url`, `import.meta.filename` and `import.meta.dirname` are the
+source file's own, as they are when Node runs the project, and the rest of `import.meta` is an empty object.
 
 Types: when the project declares no `ImportMeta.env` of its own (Vite's `vite/client` and rsbuild's types do), the build adds
 the declaration that ships with tslaws, so `import.meta.env.MODE` is a `string`, `DEV`, `PROD` and `SSR` are booleans, and any
@@ -449,6 +460,21 @@ resolve, in a `.ts`, `.tsx`, `.mts` or `.cts` file outside `node_modules`, it tr
 `.js`, `/index.ts` and `/index.tsx` added, and a `.js` specifier that names a `.ts` file. The hooks need Node 22.15, 23.5 or
 later; on an older Node they are skipped, and such an import fails with the error above.
 
+### ES modules and CommonJS
+
+tslaws is ES-module first: its own files, its `bin` and hooks, and the packages that ship with it are ES modules
+(`"type": "module"`, with `import` conditions in `exports`). Your project can be an ES module too: `tslaws init` writes
+a `package.json` with `"type": "module"` and a `tsconfig.json` with `module` `NodeNext` when the project has none. Laws and
+the modules they import can use `import` with `.js` specifiers that name `.ts` files, `.mts` files (`./x.mjs`), `NodeNext`
+or `Bundler` resolution, `import.meta.url`, `import.meta.dirname` and `import.meta.filename`. A CommonJS project keeps
+working as before.
+
+Internally a law is compiled once to CommonJS under `.tslaws/out` (the file that holds `"type": "commonjs"` is written
+there for that reason, whatever your `package.json` says) and loaded with `require`, so that a recompiled law can be
+loaded again and the analysers read a single output shape. That is an implementation detail, with one limit that shows:
+**top-level `await`** cannot be required, so a law, or a module a law imports, that uses it reports `error` naming the file
+and the reason, instead of crashing. Move the `await` into an async function, or into the law body, which may be async.
+
 Troubleshooting:
 
 - `TS1343` or `TS2339` on `import.meta.env`: use a tslaws newer than 0.9; older versions compiled laws as
@@ -457,8 +483,10 @@ Troubleshooting:
   project code outside `node_modules` gets the extension retry; a package installed from a registry has to ship files that
   resolve under Node.
 - `No "exports" main defined in .../package.json`: the package lists only an `import` (or `types`) condition and no `require`
-  or `default`, so the CommonJS loader of a law cannot resolve it. Add a `default` condition that points at a file Node can
-  load.
+  or `default`. A law resolves such a package the way an `import` would and loads the ES module with `require()`, which
+  needs Node 22.12 or later (and the hooks above, Node 22.15 or 23.5). On an older Node, add a `default` condition that
+  points at a file Node can load.
+- `top-level await is not supported in a law or in a module a law imports`: see [ES modules and CommonJS](#es-modules-and-commonjs).
 - A value from `process.env` has the wrong type: `env` values from the environment are strings; set the typed value under
   `env` in `tslaws.json`.
 
@@ -898,19 +926,19 @@ project root:
 The compiler is found as for the CLI: `--compiler PATH`, then `TSC_LAWS_BIN`, then the bundled one. The server uses stdout
 only for protocol messages.
 
-| Tool                    | Does                                                                                                            |
-| ----------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `tslaws_check`          | `check --json` with hints; `files` limits it, `summary` keeps only the laws that do not pass and the totals     |
-| `tslaws_check_proposed` | `check --proposed`: every proposal in `.tslaws/proposals/`                                                      |
-| `tslaws_list`           | `list --json`: each laws file and proposal, its level and whether it is accepted, unaccepted or proposed        |
-| `tslaws_explain`        | a law's source, its last result in this session with the hint, and the next action                              |
-| `tslaws_propose`        | writes a law into a proposal in `.tslaws/proposals/` (a same-named law there is replaced) and returns its check |
+| Tool                    | Does                                                                                                                                       |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `tslaws_check`          | `check --json` with hints; `files` limits it, `summary` keeps only the laws that do not pass and the totals                                |
+| `tslaws_check_proposed` | `check --proposed`: every proposal in `.tslaws/proposals/`                                                                                 |
+| `tslaws_list`           | `list --json`: each laws file and proposal, its level and whether it is accepted, unaccepted or proposed                                   |
+| `tslaws_explain`        | a law's source, its last result in this session with the hint, and the next action                                                         |
+| `tslaws_propose`        | writes a law, and the helpers it needs, into a proposal in `.tslaws/proposals/` (a same-named law there is replaced) and returns its check |
 
 **Property: the server cannot weaken accepted laws.** No tool accepts laws, writes `tsc-laws.lock`, promotes a proposal
 or edits any file of the tree. The only files `tslaws_propose` writes are plain `.ts` files directly inside
 `.tslaws/proposals/`. It refuses any other path, an absolute path, a name with `..`, a nested path, an in-tree
 `*.proposed.laws.ts` name, a `.tslaws` or `proposals` directory that is a link (or junction) leading out of the project, and
-a proposal file that is itself a link. It accepts only imports and `law` declarations as source. The server sets
+a proposal file that is itself a link. It accepts only imports, `law` declarations and the top-level `const`, function, type and interface declarations the laws need as source. The server sets
 `TSLAWS_AGENT=1`, so nothing it spawns can run `accept` or `promote`. A proposal is still code that `check --proposed`
 runs, as with any law file.
 
@@ -1002,6 +1030,14 @@ tslaws accept                              # records the promoted laws in tsc-la
 any link out of the project. It merges into an existing proposal (a same-named law is replaced) and never touches the lock or
 any file of the tree. `check --proposed` prints every law of every proposal with its status.
 
+A proposal may hold the helpers its laws need beside the laws: top-level `const`, function, type and interface
+declarations, each with the comment directly above it. They are stored before the laws, after the imports and any helpers
+already there. A helper of the same name with other code replaces the old one (so the other laws of that proposal see the
+new one); an identical one is kept as it is. A statement that binds several names (`const a = 1, b = 2`) is replaced only when
+the new text declares all of them; otherwise it is refused and nothing is written. `promote` carries the helpers a promoted law uses across. Any other top-level
+statement (a bare call, `let` or `var`, a loop or block, `export default`, `export { x }`, a class, enum or namespace) is
+refused and nothing is written. The initialiser of a helper `const` runs when the file is checked, as the law bodies do.
+
 Imports in a proposal that start with `./` are written relative to the project root: `import { total } from './src/cart'`.
 `propose` stores them relative to the proposal file (`../../src/cart`), so the stored file is ordinary TypeScript that
 resolves, type-checks and runs where it is; `check --proposed` does the same for a file someone placed there by hand.
@@ -1013,7 +1049,12 @@ then asks where to put them: the suggested path is `<directory of the source the
 (otherwise `laws/<name>.laws.ts`), or `--to`; Enter takes it, another path replaces it, `n` cancels. The path must be
 inside the project, not in `node_modules`, `.tslaws` or `.git`, not a link, and a name a laws file has (`*.laws.ts`, or
 one a `laws` glob matches). If the file exists the laws are merged into it (imports added once; a law name already there is
-refused). The proposal is removed. `promote` never writes the lock: until a person runs `tslaws accept`, `check` fails the
+refused). The helpers the laws use come along: a top-level `const`, `function`, `type`, `interface`, `class`, `enum` or
+`namespace` that a promoted law mentions, and any helper that one uses in turn, is copied with its comments, in source order,
+after the imports and before the laws (or after the declarations already in the target). A helper the target already has
+with the same code (layout and comments aside, string contents compared as written) is not copied twice; one of the same name with different code,
+or one named like a binding the target imports, is refused, and so is a promotion that would leave a law using a name the proposal declared but the target does not. Helpers no promoted law uses stay behind.
+The proposal is removed. `promote` never writes the lock: until a person runs `tslaws accept`, `check` fails the
 new laws as not in the lock.
 
 ### Why proposals can live outside the tree
@@ -1039,7 +1080,7 @@ before you run it.
 
 `*.proposed.laws.ts`, `*.browser.proposed.laws.ts` and `*.e2e.proposed.laws.ts` in the tree are the normal way to propose a
 law. They work through `check --proposed` and `promote` (asked per law, into the accepted file with the proposal's name
-minus `.proposed`). Being in the tree they are not locked as laws files. `tslaws propose` and `tslaws_propose` do not write
+minus `.proposed`; the helper declarations the chosen laws use move with them, and a proposed file that keeps laws keeps its helpers). Being in the tree they are not locked as laws files. `tslaws propose` and `tslaws_propose` do not write
 them; they write `.tslaws/proposals/`.
 
 ## Lending accept to an agent

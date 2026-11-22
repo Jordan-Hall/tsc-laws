@@ -2,12 +2,10 @@
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { createRequire } from 'node:module';
 import { makeProject, startTsserver, locate, tslawsBuilt } from './tsserver-client.mjs';
 
-const require = createRequire(import.meta.url);
-const ts = require('typescript');
-const init = require('../ts-plugin/index.js');
+import ts from 'typescript';
+import init from '../ts-plugin/index.js';
 
 const rules = `export function total(price: number, coupon: number): number {
   return price - coupon;

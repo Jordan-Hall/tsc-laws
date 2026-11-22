@@ -1,12 +1,10 @@
-'use strict';
-
 // Which laws exist and which functions each one exercises, for navigation. The first source is the last report (its
 // `exercises`); where no run has covered a law yet, the laws file's own imports say what it uses: an imported function
 // the law mentions is a function the law exercises. Pure: `readText` and `exists` are passed in.
 
-const nodePath = require('node:path/posix');
-const { findLaws } = require('./find-laws.js');
-const { declarationRange, declarations } = require('./ranges.js');
+import nodePath from 'node:path/posix';
+import { findLaws } from './find-laws.js';
+import { declarationRange, declarations } from './ranges.js';
 
 const isLawsFile = (rel) => rel.endsWith('.laws.ts');
 const key = (file, name) => `${file}::${name}`;
@@ -161,13 +159,4 @@ function functionIdsFor({ rel, text, line, character, exists }) {
   return { word: at.word, range: at, ids };
 }
 
-module.exports = {
-  buildNavigation,
-  importsOf,
-  staticFunctions,
-  resolveSpecifier,
-  functionIdsFor,
-  wordAt,
-  isLawsFile,
-  key,
-};
+export { buildNavigation, importsOf, staticFunctions, resolveSpecifier, functionIdsFor, wordAt, isLawsFile, key };

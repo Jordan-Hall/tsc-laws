@@ -2,6 +2,7 @@
   "name": "tslaws-example-react",
   "version": "0.0.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "check": "tslaws check",
     "ui": "tslaws ui"

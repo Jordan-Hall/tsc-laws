@@ -1,8 +1,6 @@
-'use strict';
-
 // The words the editor shows: lens titles, diagnostic and hover text, the command that reproduces a failure. Pure.
 
-const { PASSING, countStatuses, ORDER } = require('./summary.js');
+import { PASSING, countStatuses, ORDER } from './summary.js';
 
 const oneLine = (s) => String(s).replace(/\s+/g, ' ').trim();
 
@@ -141,7 +139,7 @@ function sourceLensTitle(laws) {
   return `${failing === 0 ? '$(shield)' : '$(error)'} covered by ${n} law${n === 1 ? '' : 's'}, ${failing} failing`;
 }
 
-module.exports = {
+export {
   splitArguments,
   inputsText,
   reproduceCommand,

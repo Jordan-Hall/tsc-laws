@@ -1,8 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createRequire } from 'node:module';
 
-const { lawRange, declarationRange, callRange, textOf } = createRequire(import.meta.url)('../src/ranges.js');
+import { lawRange, declarationRange, callRange, textOf } from '../src/ranges.js';
 
 const laws = [
   "import { sortNumbers } from './math';",

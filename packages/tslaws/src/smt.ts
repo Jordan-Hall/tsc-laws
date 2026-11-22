@@ -13,7 +13,6 @@
 // Numbers are IEEE doubles; a parameter typed `number` is a finite double (the generators exclude NaN and the
 // infinities too). A parameter typed `int` (from 'tslaws') or `bigint` is an exact integer.
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { createRequire } from 'node:module';
 import { Worker } from 'node:worker_threads';
 import { jobs, WorkerPool } from './pool.ts';
 import { dirname, join } from 'node:path';
@@ -290,30 +289,6 @@ function jsValue(shape: Shape, name: string, model: Map<string, number | bigint 
 
 // Z3 runs in a worker thread: its WebAssembly build blocks the thread and `:timeout` does not always interrupt it,
 // so a query that runs away is stopped by terminating the worker, and the next query starts a fresh one.
-const workerSource = `
-const { parentPort, workerData } = require('node:worker_threads');
-const { init } = require(workerData.z3);
-const ready = init().then((api) => api.Z3);
-parentPort.on('message', async ({ id, query, values }) => {
-  try {
-    const Z3 = await ready;
-    const config = Z3.mk_config();
-    const ctx = Z3.mk_context(config);
-    let out = '';
-    let vals = '';
-    try {
-      out = (await Z3.eval_smtlib2_string(ctx, query)).trim();
-      vals = out.startsWith('sat') && values ? (await Z3.eval_smtlib2_string(ctx, values)).trim() : '';
-    } finally {
-      Z3.del_context(ctx);
-      Z3.del_config(config);
-    }
-    parentPort.postMessage({ id, out, vals });
-  } catch (error) {
-    parentPort.postMessage({ id, error: String(error && error.message || error) });
-  }
-});
-`;
 
 interface SolverReply {
   id: number;
@@ -325,10 +300,8 @@ interface SolverReply {
 let nextId = 0;
 
 function startWorker(): Worker {
-  const w = new Worker(workerSource, {
-    eval: true,
-    workerData: { z3: createRequire(import.meta.url).resolve('z3-solver') },
-  });
+  const ext = import.meta.url.endsWith('.ts') ? '.ts' : '.js';
+  const w = new Worker(new URL(`./smtWorker${ext}`, import.meta.url));
   w.unref();
   return w;
 }

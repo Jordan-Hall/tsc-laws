@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { nearestTsconfig } from './tsconfigResolve.ts';
 
 export const hookCommand = 'node node_modules/tslaws/hooks/claude-hook.mjs';
 export const agentsBegin = '<!-- tslaws:begin -->';
@@ -43,6 +44,44 @@ function hasLawsFile(dir: string): boolean {
     } else if (entry.endsWith('.laws.ts')) return true;
   }
   return false;
+}
+
+/** The nearest `package.json` in `dir` or above it. */
+function nearestPackageJson(dir: string): string | undefined {
+  for (let current = dir; ; current = dirname(current)) {
+    const candidate = join(current, 'package.json');
+    if (existsSync(candidate)) return candidate;
+    if (dirname(current) === current) return undefined;
+  }
+}
+
+/** A project that has none gets the ES-module defaults; one that has them is left as it is. */
+function initModules(cwd: string): string[] {
+  const out: string[] = [];
+  const pkg = nearestPackageJson(cwd);
+  if (pkg === undefined) {
+    writeFile(join(cwd, 'package.json'), `${JSON.stringify({ private: true, type: 'module' }, null, 2)}\n`);
+    out.push('wrote    package.json (ES module project)');
+  } else {
+    let type: unknown;
+    try {
+      type = (JSON.parse(readFileSync(pkg, 'utf8')) as { type?: unknown }).type;
+    } catch {
+      // An unreadable package.json is the project's to fix; init only reports what it found.
+    }
+    out.push(
+      type === 'module'
+        ? 'kept     package.json (already "type": "module")'
+        : 'kept     package.json (no "type": "module"; add it to make the project an ES module)',
+    );
+  }
+  const config = nearestTsconfig(cwd);
+  if (config === undefined) {
+    const compilerOptions = { target: 'es2022', module: 'nodenext', strict: true, skipLibCheck: true, noEmit: true };
+    writeFile(join(cwd, 'tsconfig.json'), `${JSON.stringify({ compilerOptions }, null, 2)}\n`);
+    out.push('wrote    tsconfig.json (module nodenext)');
+  } else out.push('kept     tsconfig.json (exists)');
+  return out;
 }
 
 function commandsOf(entries: unknown[]): string[] {
@@ -137,6 +176,8 @@ export function init(options: InitOptions): string[] {
     writeFile(config, `${JSON.stringify({ cover: ['src/**/*.ts', '!src/**/*.laws.ts'] }, null, 2)}\n`);
     out.push('wrote    tslaws.json');
   }
+
+  out.push(...initModules(cwd));
 
   const ignore = join(cwd, '.gitignore');
   const ignoreText = existsSync(ignore) ? readFileSync(ignore, 'utf8') : '';

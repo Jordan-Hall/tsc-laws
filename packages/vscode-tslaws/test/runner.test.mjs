@@ -1,9 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
-import { createRequire } from 'node:module';
 
-const { startCheck, liveSupport, checkArguments } = createRequire(import.meta.url)('../src/runner.js');
+import { startCheck, liveSupport, checkArguments } from '../src/runner.js';
 
 /** A child process whose output and end the test controls. */
 function fakeChild() {

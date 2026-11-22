@@ -1,13 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import vsctm from 'vscode-textmate';
 import onig from 'vscode-oniguruma';
 
-const require = createRequire(import.meta.url);
-const wasm = fs.readFileSync(require.resolve('vscode-oniguruma/release/onig.wasm'));
+const wasm = fs.readFileSync(fileURLToPath(import.meta.resolve('vscode-oniguruma/release/onig.wasm')));
 await onig.loadWASM(wasm.buffer.slice(wasm.byteOffset, wasm.byteOffset + wasm.byteLength));
 const injection = JSON.parse(
   fs.readFileSync(fileURLToPath(new URL('../syntaxes/tslaws.injection.json', import.meta.url)), 'utf8'),

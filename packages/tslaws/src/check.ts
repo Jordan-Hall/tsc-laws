@@ -315,6 +315,8 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
     (programOf ??=
       built.program ?? ts.createProgram(declarationFiles(built.outDir), withResolution(built.outDir, compilerOptions)));
   const sourceCwd = built.program === undefined ? undefined : options.cwd;
+  // Compiled laws are CommonJS (see `build` in compile.ts): the one place a law is loaded, so `require` is unavoidable here
+  // (`import()` would cache the module for good, and a recompiled law must load again).
   const require = createRequire(import.meta.url);
   // Laws that run here (end to end) and the code they load read `import.meta.env` and extensionless imports as bundled.
   prepareRuntime(lawEnv(options.cwd, 'node'));

@@ -1,5 +1,3 @@
-'use strict';
-
 // The compiler's own law rules (TS9101 to TS9106: a law returns boolean or void, is exported, has typed parameters ...)
 // reach the editor through `tslaws check`, which compiles the project with the tsc-laws compiler and reports what it
 // printed as `compileDiagnostics`. This turns those lines into diagnostics on the same ranges, so they show in the
@@ -59,4 +57,4 @@ function compileDiagnostics(text, readText, toRelative) {
   return out;
 }
 
-module.exports = { parseLawDiagnostics, compileDiagnostics };
+export { parseLawDiagnostics, compileDiagnostics };
