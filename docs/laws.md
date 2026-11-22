@@ -1008,7 +1008,12 @@ then asks where to put them: the suggested path is `<directory of the source the
 (otherwise `laws/<name>.laws.ts`), or `--to`; Enter takes it, another path replaces it, `n` cancels. The path must be
 inside the project, not in `node_modules`, `.tslaws` or `.git`, not a link, and a name a laws file has (`*.laws.ts`, or
 one a `laws` glob matches). If the file exists the laws are merged into it (imports added once; a law name already there is
-refused). The proposal is removed. `promote` never writes the lock: until a person runs `tslaws accept`, `check` fails the
+refused). The helpers the laws use come along: a top-level `const`, `function`, `type`, `interface`, `class`, `enum` or
+`namespace` that a promoted law mentions, and any helper that one uses in turn, is copied with its comments, in source order,
+after the imports and before the laws (or after the declarations already in the target). A helper the target already has
+with the same text is not copied twice; one of the same name with different text is refused, and so is a promotion that
+would leave a law using a name the proposal declared but the target does not. Helpers no promoted law uses stay behind.
+The proposal is removed. `promote` never writes the lock: until a person runs `tslaws accept`, `check` fails the
 new laws as not in the lock.
 
 ### Why proposals can live outside the tree
@@ -1034,7 +1039,7 @@ before you run it.
 
 `*.proposed.laws.ts`, `*.browser.proposed.laws.ts` and `*.e2e.proposed.laws.ts` in the tree are the normal way to propose a
 law. They work through `check --proposed` and `promote` (asked per law, into the accepted file with the proposal's name
-minus `.proposed`). Being in the tree they are not locked as laws files. `tslaws propose` and `tslaws_propose` do not write
+minus `.proposed`; the helper declarations the chosen laws use move with them, and a proposed file that keeps laws keeps its helpers). Being in the tree they are not locked as laws files. `tslaws propose` and `tslaws_propose` do not write
 them; they write `.tslaws/proposals/`.
 
 ## Lending accept to an agent
