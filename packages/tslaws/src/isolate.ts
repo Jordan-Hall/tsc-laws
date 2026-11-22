@@ -9,7 +9,8 @@
 // the token (see docs/github.md and `--results-out`).
 import { fork } from 'node:child_process';
 import type { CheckReport } from './check.ts';
-import type { CheckOptions, LawResult, LawStatus } from './types.ts';
+import { lawKey } from './lock.ts';
+import type { CheckOptions, LawResult, LawStatus, ProposalOutcome } from './types.ts';
 
 /** Names a child may inherit. Everything else, tokens included, is dropped. */
 const allowed = new Set(
@@ -71,41 +72,153 @@ const statuses: readonly LawStatus[] = [
   'uncovered',
   'error',
 ];
+const proposalReasons: readonly ProposalOutcome['reason'][] = ['added', 'changed', 'removed', 'level', 'exempt'];
 
 /**
- * A report as plain data, or an error. A child (or a results file) is untrusted: this checks the shape, not the
- * truth, so everything later code reads from it has the type it expects.
+ * What the parent knows of a project without running any of it: the keys (`file::name`) of the laws its own compile found,
+ * of the laws the lock records, and of the functions marked exempt. A report may name only these.
  */
-export function readReport(value: unknown): CheckReport {
+export interface Expected {
+  laws: ReadonlySet<string>;
+  lock: ReadonlySet<string>;
+  exempt: ReadonlySet<string>;
+}
+
+const longest = { path: 1024, method: 200, text: 20000, assumptions: 100 };
+
+/**
+ * A report as plain data, or an error. A child (or a results file) is untrusted, so each result is rebuilt from the fields
+ * checked here and everything else, certificates included, is dropped. The keys must be exactly the project's laws, plus
+ * the removals, exemptions and uncovered functions the parent's own view allows; nothing else is taken on trust. What a
+ * law says of itself (its status, a counterexample) is the law's own claim and stays one.
+ */
+export function readReport(value: unknown, expected: Expected): CheckReport {
   const fail = (why: string): never => {
     throw new Error(`the check's report is not valid: ${why}`);
   };
-  if (typeof value !== 'object' || value === null) return fail('not an object');
-  const report = value as Record<string, unknown>;
+  const object = (input: unknown, what: string): Record<string, unknown> => {
+    if (typeof input !== 'object' || input === null || Array.isArray(input)) return fail(`${what} is not an object`);
+    return input as Record<string, unknown>;
+  };
+  const text = (input: unknown, what: string, max: number): string => {
+    if (typeof input !== 'string') return fail(`${what} is not text`);
+    if (input.length > max) return fail(`${what} is longer than ${max} characters`);
+    return input;
+  };
+  const optionalText = (input: unknown, what: string, max: number): string | undefined =>
+    input === undefined ? undefined : text(input, what, max);
+  const whole = (input: unknown, what: string, max: number): number => {
+    if (typeof input !== 'number' || !Number.isSafeInteger(input) || input < 0 || input > max)
+      return fail(`${what} is not a whole number from 0 to ${max}`);
+    return input;
+  };
+  const known = (set: ReadonlySet<string>, key: string): boolean =>
+    set.has(key) || [...set].some((member) => member.startsWith(`${key}::`));
+
+  const report = object(value, 'the report');
   if (!Array.isArray(report.results)) return fail('results is not a list');
-  if (typeof report.compileDiagnostics !== 'string') return fail('compileDiagnostics is not text');
-  for (const key of ['compileOk', 'lockMissing', 'ok'] as const)
+  if (report.results.length > 100000) return fail('results is too long');
+  const compileDiagnostics = text(report.compileDiagnostics, 'compileDiagnostics', longest.text * 10);
+  for (const key of ['compileOk', 'lockMissing'] as const)
     if (typeof report[key] !== 'boolean') return fail(`${key} is not a boolean`);
-  if (!Array.isArray(report.notices) || report.notices.some((n) => typeof n !== 'string'))
-    return fail('notices is not a list of text');
+  if (!Array.isArray(report.notices) || report.notices.length > 10000) return fail('notices is not a list');
+  const notices = (report.notices as unknown[]).map((n) => text(n, 'a notice', longest.text));
+
   const results: LawResult[] = [];
+  const seenLaws = new Set<string>();
+  const seenUncovered = new Set<string>();
   for (const entry of report.results as unknown[]) {
-    if (typeof entry !== 'object' || entry === null) return fail('a result is not an object');
-    const r = entry as Record<string, unknown>;
-    if (typeof r.file !== 'string' || typeof r.name !== 'string' || typeof r.method !== 'string')
-      return fail('a result lacks its file, name or method');
-    if (typeof r.line !== 'number') return fail('a result lacks its line');
+    const r = object(entry, 'a result');
+    const file = text(r.file, 'a result file', longest.path);
+    const name = text(r.name, 'a result name', longest.path);
+    const key = lawKey(file, name);
     if (typeof r.status !== 'string' || !statuses.includes(r.status as LawStatus))
       return fail('a result has no status');
-    results.push(r as unknown as LawResult);
+    const status = r.status as LawStatus;
+    const result: LawResult = {
+      file,
+      name,
+      line: whole(r.line, 'a result line', 10_000_000),
+      status,
+      method: text(r.method, 'a result method', longest.method),
+    };
+    const message = optionalText(r.message, 'a message', longest.text);
+    const counterexample = optionalText(r.counterexample, 'a counterexample', longest.text);
+    if (message !== undefined) result.message = message;
+    if (counterexample !== undefined) result.counterexample = counterexample;
+    if (r.runs !== undefined) result.runs = whole(r.runs, 'runs', 1_000_000_000);
+    if (r.seed !== undefined) {
+      // A seed may be negative (a 32-bit signed integer).
+      if (typeof r.seed !== 'number' || !Number.isSafeInteger(r.seed)) return fail('a seed is not a whole number');
+      result.seed = r.seed;
+    }
+    if (r.assumptions !== undefined) {
+      if (!Array.isArray(r.assumptions) || r.assumptions.length > longest.assumptions)
+        return fail('assumptions is not a short list');
+      result.assumptions = (r.assumptions as unknown[]).map((a) => text(a, 'an assumption', longest.path));
+    }
+    if (r.screenshot !== undefined) {
+      const shot = text(r.screenshot, 'a screenshot path', longest.path);
+      // A path the parent could be led to read or upload: only one inside the project.
+      if (/^([/\\]|[A-Za-z]:)/.test(shot) || shot.split(/[/\\]/).includes('..'))
+        return fail('a screenshot path leaves the project');
+      result.screenshot = shot;
+    }
+    if (r.proposal !== undefined) {
+      const p = object(r.proposal, 'a proposal');
+      if (typeof p.reason !== 'string' || !proposalReasons.includes(p.reason as ProposalOutcome['reason']))
+        return fail('a proposal has no reason');
+      if (
+        typeof p.status !== 'string' ||
+        !statuses.includes(p.status as LawStatus) ||
+        p.status === 'tampered' ||
+        p.status === 'uncovered'
+      )
+        return fail('a proposal has no status');
+      const proposal: ProposalOutcome = {
+        reason: p.reason as ProposalOutcome['reason'],
+        status: p.status as ProposalOutcome['status'],
+        method: text(p.method, 'a proposal method', longest.method),
+      };
+      const proposalCounterexample = optionalText(p.counterexample, 'a proposal counterexample', longest.text);
+      const proposalMessage = optionalText(p.message, 'a proposal message', longest.text);
+      if (proposalCounterexample !== undefined) proposal.counterexample = proposalCounterexample;
+      if (proposalMessage !== undefined) proposal.message = proposalMessage;
+      result.proposal = proposal;
+    }
+
+    if (status === 'uncovered') {
+      if (seenUncovered.has(key)) return fail(`${key} is reported twice`);
+      seenUncovered.add(key);
+    } else {
+      const kind = result.proposal?.reason;
+      const allowed =
+        expected.laws.has(key) ||
+        (status === 'tampered' && kind === 'removed' && known(expected.lock, key)) ||
+        (status === 'tampered' && kind === 'exempt' && known(expected.exempt, key));
+      if (!allowed) return fail(`${key} is not a law of this project`);
+      const identity = `${key}\0${kind === 'removed' || kind === 'exempt' ? kind : ''}`;
+      if (seenLaws.has(identity)) return fail(`${key} is reported twice`);
+      seenLaws.add(identity);
+    }
+    results.push(result);
   }
+  const got = new Set(results.filter((r) => r.status !== 'uncovered').map((r) => lawKey(r.file, r.name)));
+  for (const key of expected.laws) if (!got.has(key)) return fail(`${key} has no result`);
+
+  const compileOk = report.compileOk as boolean;
+  const lockMissing = report.lockMissing as boolean;
   return {
     results,
-    compileDiagnostics: report.compileDiagnostics,
-    compileOk: report.compileOk as boolean,
-    lockMissing: report.lockMissing as boolean,
-    notices: report.notices as string[],
-    ok: report.ok as boolean,
+    compileDiagnostics,
+    compileOk,
+    lockMissing,
+    notices,
+    // The parent decides this itself from the results it has kept.
+    ok:
+      compileOk &&
+      !lockMissing &&
+      results.every((r) => r.status === 'proved' || r.status === 'bounded' || r.status === 'tested'),
   };
 }
 
@@ -116,6 +229,7 @@ export type ChildRequest = { options: Omit<CheckOptions, 'onEvent'>; enforceLock
 export function checkIsolated(
   options: CheckOptions,
   enforceLock: boolean,
+  expected: Expected,
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<CheckReport> {
   const extension = import.meta.url.endsWith('.ts') ? '.ts' : '.js';
@@ -140,7 +254,7 @@ export function checkIsolated(
         if (message.error !== undefined) reject(new Error(message.error));
         else {
           try {
-            resolve(readReport(message.report));
+            resolve(readReport(message.report, expected));
           } catch (error) {
             reject(error);
           }

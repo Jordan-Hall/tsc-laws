@@ -24,7 +24,7 @@ import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
 import { exemptionsOf } from './check.ts';
-import { checkIsolated, readReport } from './isolate.ts';
+import { checkIsolated, readReport, type Expected } from './isolate.ts';
 import type { CheckReport } from './check.ts';
 import { extendsTarget, readConfig } from './coverage.ts';
 import { discoverFromFiles, discoverySignature, type DiscoveryInputs } from './projects.ts';
@@ -50,7 +50,7 @@ import {
   type Proposal,
 } from './github.ts';
 import { classifyLawFile, lockLevels } from './lawKinds.ts';
-import { acceptChanges, certificatesFromRun, lockChanges, readLock, writeLockValue, type Lock } from './lock.ts';
+import { acceptChanges, lawKey, lockChanges, readLock, writeLockValue, type Lock } from './lock.ts';
 import { escapeGithubData, escapeGithubProperty } from './reporters.ts';
 import type { CheckOptions, ManifestLaw } from './types.ts';
 
@@ -336,6 +336,16 @@ interface Results {
   projects: Record<string, { lockSha: string; report?: unknown; error?: string }>;
 }
 
+/** The laws a project has, as this process sees them: a compile that runs none of the project. A report is held to it. */
+function expectedOf(unit: Unit): Expected {
+  const state = projectState(unit.options);
+  return {
+    laws: new Set(state.laws.map((law) => lawKey(law.file, law.name))),
+    lock: new Set(Object.keys(state.lock?.laws ?? {})),
+    exempt: new Set(state.exempt),
+  };
+}
+
 const lockShaOf = (unit: Unit): string =>
   existsSync(unit.options.lockFile) ? gitBlobSha(readFileSync(unit.options.lockFile)) : '';
 
@@ -367,7 +377,7 @@ function resultsOf(ctx: GithubContext, file: string, mode: Results['mode'], sha:
  */
 async function runLaws(ctx: GithubContext, unit: Unit, mode: Results['mode'], sha: string): Promise<CheckReport> {
   const file = ctx.flags.get('results');
-  if (typeof file !== 'string') return checkIsolated(unit.options, true);
+  if (typeof file !== 'string') return checkIsolated(unit.options, true, expectedOf(unit));
   const entry = Object.hasOwn(resultsOf(ctx, file, mode, sha).projects, unit.path)
     ? resultsOf(ctx, file, mode, sha).projects[unit.path]
     : undefined;
@@ -375,7 +385,7 @@ async function runLaws(ctx: GithubContext, unit: Unit, mode: Results['mode'], sh
   if (typeof entry.error === 'string') throw new Error(entry.error);
   if (entry.lockSha !== lockShaOf(unit))
     throw new Error(`${label(unit)}'s lock is not the one its laws were run against`);
-  return readReport(entry.report);
+  return readReport(entry.report, expectedOf(unit));
 }
 
 /** `--results-out <file>`: run the laws of every project and write the reports, doing nothing else. Needs no token. */
@@ -389,7 +399,7 @@ async function collect(ctx: GithubContext, mode: Results['mode'], file: string):
   for (const { unit } of active) {
     const entry: Results['projects'][string] = { lockSha: lockShaOf(unit) };
     try {
-      entry.report = await checkIsolated(unit.options, true);
+      entry.report = await checkIsolated(unit.options, true, expectedOf(unit));
     } catch (error) {
       entry.error = error instanceof Error ? error.message : String(error);
     }
@@ -1293,9 +1303,8 @@ async function merge(ctx: GithubContext): Promise<number> {
     const wins = proposals.filter((p) => decision.accept.has(p.fingerprint));
     if (wins.length > 0) {
       const next = acceptChanges(state.lock, state.laws, state.exempt, state.levels, decision.accept);
-      // Certificates come only from this run's own proofs; none is carried over from the lock it replaces.
-      const certificates = certificatesFromRun(next, state.laws, checked.results);
-      if (Object.keys(certificates).length > 0) next.certificates = certificates;
+      // A certificate would come from the run of the laws, which is not trusted with the lock: readReport drops them, and a
+      // lock written here records none (a record the lock already holds stays only while its law and problem match).
       writeLockValue(lockFile, next);
       writes.push({
         path: lockPath,

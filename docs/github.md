@@ -126,8 +126,15 @@ A law, and any module a law imports, is code a pull request wrote. `report` and 
   `TSC_LAWS_*`, `TSLAWS_*` and `TSC_TS_*`. `GITHUB_*`, `GH_*`, `ACTIONS_*`, `RUNNER_*`, and any name that looks like a
   credential (`*TOKEN*`, `*SECRET*`, `*PASSWORD*`, `*_KEY`) are dropped, and `NODE_OPTIONS` keeps only memory limits. So
   `process.env` and `/proc/self/environ` in a law hold no token. The process that talks to GitHub receives the laws'
-  reports as plain data, checks their shape, and only then comments or writes the lock. A law that reads another
-  variable needs it named with a `TSLAWS_` prefix.
+  reports as plain data and only then comments or writes the lock. A law that reads another variable needs it named
+  with a `TSLAWS_` prefix.
+- **Its report is rebuilt, not trusted.** Each result is copied field by field, with a length cap on every string
+  and a range on every number, and anything else is dropped. The results must name exactly the laws that the process
+  holding the token finds in the pull request itself, plus the removals, exemptions and uncovered functions its own
+  view of the lock allows: an extra, missing or repeated law refuses the whole report. The hash of each law, and every
+  other thing the lock records, comes from the process holding the token, never from the laws. **Certificates are
+  dropped**: a lock written by `merge` records none, so a law proved with `certify` is uncertified there until a person
+  runs `tslaws accept` with the checkers installed.
 - **With the workflows below, it never runs beside the token.** The laws run in a job that holds no token, and its
   checkout has `persist-credentials: false`, so `.git/config` holds none either. A second job, which runs none of the
   pull request's code, downloads the reports as an artifact and does the GitHub work. The app's token is minted in that
