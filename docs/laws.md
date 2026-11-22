@@ -926,19 +926,19 @@ project root:
 The compiler is found as for the CLI: `--compiler PATH`, then `TSC_LAWS_BIN`, then the bundled one. The server uses stdout
 only for protocol messages.
 
-| Tool                    | Does                                                                                                                                                                                           |
-| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tslaws_check`          | `check --json` with hints; `files` limits it, `summary` keeps only the laws that do not pass and the totals                                                                                    |
-| `tslaws_check_proposed` | `check --proposed`: every proposal in `.tslaws/proposals/`                                                                                                                                     |
-| `tslaws_list`           | `list --json`: each laws file and proposal, its level and whether it is accepted, unaccepted or proposed                                                                                       |
-| `tslaws_explain`        | a law's source, its last result in this session with the hint, and the next action                                                                                                             |
-| `tslaws_propose`        | writes a law, and the helpers it needs, into a proposal in `.tslaws/proposals/` (a same-named law there is replaced) and returns its check; a source with helpers needs `confirmHelpers: true` |
+| Tool                    | Does                                                                                                                                                                                                           |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tslaws_check`          | `check --json` with hints; `files` limits it, `summary` keeps only the laws that do not pass and the totals                                                                                                    |
+| `tslaws_check_proposed` | `check --proposed`: every proposal in `.tslaws/proposals/`                                                                                                                                                     |
+| `tslaws_list`           | `list --json`: each laws file and proposal, its level and whether it is accepted, unaccepted or proposed                                                                                                       |
+| `tslaws_explain`        | a law's source, its last result in this session with the hint, and the next action                                                                                                                             |
+| `tslaws_propose`        | writes a law, and the helpers it needs, into a proposal in `.tslaws/proposals/` (a same-named law there is replaced) and returns its check; a source with helpers or package imports needs `confirmCode: true` |
 
 **Property: the server cannot weaken accepted laws.** No tool accepts laws, writes `tsc-laws.lock`, promotes a proposal
 or edits any file of the tree. The only files `tslaws_propose` writes are plain `.ts` files directly inside
 `.tslaws/proposals/`. It refuses any other path, an absolute path, a name with `..`, a nested path, an in-tree
 `*.proposed.laws.ts` name, a `.tslaws` or `proposals` directory that is a link (or junction) leading out of the project, and
-a proposal file that is itself a link. It accepts only imports, `law` declarations and the top-level function, type, interface and side-effect-free `const` declarations the laws need as source. A source with helpers is not written on the first call: the tool returns the helper and import text and `needsConfirmation: true`, and writes only when it is called again with `confirmHelpers: true`, so the person can read the helpers first. The server sets
+a proposal file that is itself a link. It accepts only imports, `law` declarations and the top-level function, type, interface and side-effect-free `const` declarations the laws need as source. A source with helpers or package imports is not written on the first call: the tool returns the helper and import text and `needsConfirmation: true`, and writes only when it is called again with `confirmCode: true`, so the person can read that code first (`confirmHelpers`, the earlier name, is still accepted as a deprecated alias). An import of a file must name reviewed code: a path that resolves inside the project, outside `.tslaws/`, `node_modules` and `.git`, and not git-ignored; any other (a file URL, an absolute path, a path outside the project, a git-ignored file, and the same through `require` or `import()`) is refused with nothing written. The server sets
 `TSLAWS_AGENT=1`, so nothing it spawns can run `accept` or `promote`. A proposal is still code that `check --proposed`
 runs, as with any law file.
 
@@ -1046,11 +1046,20 @@ a helper becomes part of the trusted tree. Both `propose` and `promote` refuse s
 and the reason, and write nothing. `promote` checks the helpers it would copy even in a proposal that was written by hand.
 
 **Promote shows what it adds.** Before `promote` writes the accepted file it prints, in full, every import and every
-helper declaration it will add, then asks `add this helper code to <file>? [y/N]` (an empty answer is no). `--yes`
+helper declaration it will add, then asks `add this import and helper code to <file>? [y/N]` (`import`, `helper` or
+both, whichever it adds; an empty answer is no), whenever it adds any import or helper. `--yes`
 skips that question; the code is still printed. `--yes` does not let `promote` run where it was refused: it still needs a
 person at a terminal and refuses under CI, as an agent or with `TSLAWS_AGENT` set, and the MCP server cannot promote at all.
-The imports are listed under the same rules as the imports of a law: this tool has no import allowlist or denylist, so
-the list is what a person reviews, and anything that is not one plain import statement is refused. In GitHub mode
+Package imports are listed for the person to review. An import of a file (a relative or absolute path, in an import, a
+re-export, `require` or `import()`, in the new imports, the copied helpers and the promoted laws) must resolve inside
+the project, outside `.tslaws/`, `node_modules` and `.git`, and not to a git-ignored file; otherwise `promote` refuses,
+even with `--yes`, and writes nothing. The path is read from the directory of the file the code lands in, resolved as the runtime does (as a URL against that
+directory) and made canonical on the real file system, so links, short Windows names and a file that does not exist yet
+cannot hide a reserved directory; the names `.tslaws`, `node_modules` and `.git` are compared without regard to case.
+A specifier with `%`, `?`, `#` or a control character (a percent escape, a query, a fragment or a `#` alias) is refused.
+Git must answer the ignore question: when git is not installed, the project is not in a repository or the check fails,
+a file import is refused rather than allowed (package imports are not paths and are unaffected). Anything that is not one plain import
+statement is refused. In GitHub mode
 (`accept: "merge"` or `"comment"`) nothing is promoted by hand, and the reviewed pull request diff, which holds the
 proposal with its helpers, is the confirmation before a merge accepts it.
 

@@ -119,7 +119,8 @@ describe('promoteFiles', () => {
     mkdirSync(join(dir, 'src'), { recursive: true });
     writeFileSync(join(dir, 'src', 'math.proposed.laws.ts'), proposed);
     writeFileSync(join(dir, 'src', 'one.proposed.laws.ts'), 'export law only(a: number) => a === a;\n');
-    const answers = ['y', 'n', 'y', 'y'];
+    // Three laws in math (the middle one declined), then the imports they add, then the one law of one.proposed.
+    const answers = ['y', 'n', 'y', 'y', 'y'];
     let output = '';
     const count = await promoteFiles(
       {

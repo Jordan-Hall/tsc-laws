@@ -19,9 +19,11 @@ import {
   appendFileSync,
   writeFileSync,
 } from 'node:fs';
-import { join, posix } from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { basename, dirname, isAbsolute, join, posix, relative, sep } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { moduleSpecifiers } from './lawKinds.ts';
-import { proposalsDir } from './lawFiles.ts';
+import { ignoredDirs, proposalsDir } from './lawFiles.ts';
 import ts from 'typescript';
 import {
   assertHelpersSafe,
@@ -133,6 +135,123 @@ export function importsForTarget(text: string, toDir: string): string {
   });
 }
 
+/**
+ * Whether git ignores `path` (absolute, or relative to `cwd`): `ignored`, `kept`, or `unknown` when git is missing,
+ * `cwd` is not in a repository or the check fails for any other reason. Callers treat `unknown` as a refusal.
+ */
+function gitIgnoreState(cwd: string, path: string): 'ignored' | 'kept' | 'unknown' {
+  const result = spawnSync('git', ['check-ignore', '-q', '--', path], {
+    cwd,
+    stdio: 'ignore',
+    windowsHide: true,
+    timeout: 15_000,
+  });
+  if (result.error !== undefined || result.status === null) return 'unknown';
+  if (result.status === 0) return 'ignored';
+  return result.status === 1 ? 'kept' : 'unknown';
+}
+
+const sourceSuffixes = [
+  '',
+  '.ts',
+  '.tsx',
+  '.mts',
+  '.cts',
+  '.js',
+  '.jsx',
+  '.mjs',
+  '.cjs',
+  '.json',
+  '/index.ts',
+  '/index.js',
+];
+
+/** The files a relative specifier may name: the path itself, the same with an extension or `index`, and `.js` read as `.ts`. */
+function specifierCandidates(target: string): string[] {
+  const swapped = target.replace(/\.([cm]?)js$/, '.$1ts');
+  const all = [...new Set([target, swapped].flatMap((base) => sourceSuffixes.map((suffix) => base + suffix)))];
+  const found = all.filter((candidate) => existsSync(candidate));
+  return found.length > 0 ? [target, ...found] : [target];
+}
+
+/**
+ * The canonical path of `path`: links followed and the file system's own spelling of every part (long names and case
+ * on Windows and macOS), as far as it exists; the parts that do not exist yet are appended to the nearest existing parent.
+ */
+function realish(path: string): string {
+  const rest: string[] = [];
+  let probe = path;
+  while (!existsSync(probe) && dirname(probe) !== probe) {
+    rest.unshift(basename(probe));
+    probe = dirname(probe);
+  }
+  return join(realpathSync.native(probe), ...rest);
+}
+
+/**
+ * Throws unless every file the module specifiers of `text` name (an import, a re-export, `require` or `import()`)
+ * is code a person has reviewed: inside the project, not under `.tslaws/` (the proposals area), `node_modules` or
+ * `.git`, and not git-ignored. Specifiers are read relative to the project-relative directory `fromDir`, where the file
+ * stands. A package name is not a path and is left alone. Any specifier with `%`, `?`, `#` or a control character is
+ * refused (percent escapes, queries, fragments and package `imports` aliases make the file the runtime loads differ
+ * from the text). A path specifier is resolved as the runtime does, as a URL against the importing directory, then
+ * made canonical on the real file system; the reserved names are compared without regard to case. Git must answer: when
+ * git is missing, the project is not in a repository or the check fails, the import is refused. A project that sits
+ * inside an ignored directory of a larger repository has no usable ignore rules, so each file is not asked.
+ */
+export function assertImportsAllowed(cwd: string, text: string, fromDir: string): void {
+  const all = [...new Set(moduleSpecifiers(text, 'proposal.ts').map((s) => s.value))];
+  const refuse = (specifier: string, why: string): never => {
+    throw new ProposalError(
+      `import '${specifier}' ${why}; an import must name code that is inside the project, outside .tslaws/, node_modules and .git, and not git-ignored, so that a person has reviewed it`,
+    );
+  };
+  for (const specifier of all)
+    if (/[%?#]/.test(specifier) || [...specifier].some((c) => c.charCodeAt(0) < 0x20 || c === '\u007f'))
+      refuse(specifier, 'has a %, ?, # or control character, which can make the loaded file differ from its text');
+  const specifiers = all.filter(
+    (v) =>
+      v.startsWith('.') ||
+      v.startsWith('/') ||
+      v.startsWith('file:') ||
+      /^[A-Za-z]:[\\/]/.test(v) ||
+      v.startsWith('\\'),
+  );
+  if (specifiers.length === 0) return;
+  const root = realpathSync.native(cwd);
+  const reserved = new Set([...ignoredDirs].map((name) => name.toLowerCase()));
+  let rootIgnored: boolean | undefined;
+  const ignored = (specifier: string, path: string): boolean => {
+    const state = gitIgnoreState(root, path);
+    if (state === 'unknown')
+      refuse(
+        specifier,
+        'could not be checked against git ignore rules (git is missing, this is not a repository or the check failed)',
+      );
+    return state === 'ignored';
+  };
+  for (const specifier of specifiers) {
+    if (specifier.startsWith('file:')) refuse(specifier, 'is a file URL');
+    // Resolve as the runtime does: a URL against the directory of the importing file.
+    let url: URL;
+    try {
+      url = new URL(specifier, pathToFileURL(join(root, fromDir) + sep));
+    } catch {
+      return refuse(specifier, 'is not a path');
+    }
+    if (url.protocol !== 'file:' || url.host !== '') refuse(specifier, 'is not a path inside the project');
+    const target = fileURLToPath(url);
+    for (const candidate of specifierCandidates(target)) {
+      const rel = relative(root, realish(candidate)).replaceAll('\\', '/');
+      if (rel === '..' || rel.startsWith('../') || isAbsolute(rel)) refuse(specifier, 'resolves outside the project');
+      const name = rel.split('/').find((part) => reserved.has(part.toLowerCase()));
+      if (name !== undefined) refuse(specifier, `resolves into ${name}/ (${rel})`);
+      rootIgnored ??= ignored(specifier, root);
+      if (!rootIgnored && ignored(specifier, rel)) refuse(specifier, `resolves to ${rel}, which git ignores`);
+    }
+  }
+}
+
 /** Whether a top-level statement may stand in a proposal beside the laws: a `const`, function, type or interface. */
 function isHelper(statement: ts.Statement): boolean {
   if (ts.isVariableStatement(statement)) return isPlainConst(statement);
@@ -146,7 +265,7 @@ function isHelper(statement: ts.Statement): boolean {
  * `const`, function, type and interface declarations, with their comments). Any other top-level statement, such as a
  * bare call, a loop, `export default` or `let`, runs on its own or changes shared state, so it is refused.
  */
-function parts(source: string): ReturnType<typeof parseLawFile> {
+function parts(source: string, cwd: string): ReturnType<typeof parseLawFile> {
   const parsed = parseLawFile(source);
   const file = ts.createSourceFile('proposal.ts', parsed.rest, ts.ScriptTarget.Latest, false, ts.ScriptKind.TS);
   for (const statement of file.statements)
@@ -159,17 +278,30 @@ function parts(source: string): ReturnType<typeof parseLawFile> {
   try {
     assertImportStatements(parsed.imports);
     assertHelpersSafe(parsed.declarations);
+    // The source is stored in the proposals directory, so its specifiers are read from there.
+    assertImportsAllowed(cwd, source, proposalsDir);
   } catch (error) {
     throw new ProposalError(error instanceof Error ? error.message : String(error));
   }
   return parsed;
 }
 
-/** The imports and helper declarations of `source` as they would be stored, after the same checks `addProposal` makes. */
-export function previewProposal(source: string): { imports: string[]; helpers: { names: string[]; text: string }[] } {
-  const parsed = parts(toStoredImports(source));
+/**
+ * The imports and helper declarations of `source` as they would be stored, after the same checks `addProposal` makes.
+ * `packages` lists the package specifiers the source loads (anything that is not a relative path), which are code
+ * outside the project that no person has reviewed.
+ */
+export function previewProposal(
+  source: string,
+  cwd: string,
+): { imports: string[]; packages: string[]; helpers: { names: string[]; text: string }[] } {
+  const parsed = parts(toStoredImports(source), cwd);
+  const packages = moduleSpecifiers(source, 'proposal.ts')
+    .map((s) => s.value)
+    .filter((v) => !v.startsWith('.'));
   return {
     imports: parsed.imports.map((i) => i.trim()),
+    packages: [...new Set(packages)],
     helpers: parsed.declarations.map((d) => ({ names: d.names, text: d.text.trim() })),
   };
 }
@@ -270,7 +402,7 @@ function ignoreProposals(cwd: string): void {
 export function addProposal(cwd: string, file: string, source: string, only?: string): Written {
   const { rel, abs } = writablePath(cwd, file);
   const stored = toStoredImports(source);
-  const parsed = parts(stored);
+  const parsed = parts(stored, cwd);
   if (parsed.laws.length === 0)
     throw new ProposalError('source must declare at least one law (`export law name(...) ...`)');
   if (only !== undefined && !parsed.laws.some((l) => l.name === only))

@@ -13,6 +13,7 @@ import {
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, describe, it } from 'node:test';
@@ -22,6 +23,7 @@ import { discoverProposals } from '../dist/lawFiles.js';
 import { defaultTarget, parseLawFile, promoteProposal, promotionTarget } from '../dist/promote.js';
 import {
   addProposal,
+  assertImportsAllowed,
   importsForTarget,
   normaliseProposal,
   ProposalError,
@@ -34,9 +36,11 @@ const root = realpathSync.native(mkdtempSync(join(tmpdir(), 'tslaws-proposals-')
 after(() => rmSync(root, { recursive: true, force: true }));
 
 let n = 0;
-function project(files: Record<string, string> = {}): string {
+// A project is a git repository: an import is allowed only when git can say its file is not ignored.
+function project(files: Record<string, string> = {}, repo = true): string {
   const cwd = join(root, `p${(n += 1)}`);
   mkdirSync(cwd, { recursive: true });
+  if (repo) spawnSync('git', ['init', '-q'], { cwd });
   files = { 'src/cart.ts': 'export const total = (n: number): number => n;\n', ...files };
   for (const [file, text] of Object.entries(files)) {
     mkdirSync(dirname(join(cwd, file)), { recursive: true });
@@ -55,7 +59,7 @@ const source = [
 const tree = (cwd: string): string[] =>
   readdirSync(cwd, { recursive: true, encoding: 'utf8' })
     .map((f) => f.replaceAll('\\', '/'))
-    .filter((f) => !f.startsWith('.tslaws'))
+    .filter((f) => !f.startsWith('.tslaws') && f !== '.git' && !f.startsWith('.git/') && f !== '.gitignore')
     .sort();
 
 describe('import storage', () => {
@@ -286,7 +290,7 @@ describe('writing proposals', () => {
         {
           cwd,
           checkFile: async () => new Map(),
-          ask: async (q) => (q.includes('helper code') ? 'y' : ''),
+          ask: async (q) => (q.includes('code to ') ? 'y' : ''),
           out: (t) => void out.push(t),
         },
         '.tslaws/proposals/cart.ts',
@@ -375,7 +379,8 @@ describe('promoting a proposal', () => {
   const host = (cwd: string, answers: string[], out: string[]) => ({
     cwd,
     checkFile: async () => new Map([['totalKeeps', 'tested']]),
-    ask: async () => answers.shift() ?? 'n',
+    // The path question takes the next answer; the question about added import or helper code is answered y.
+    ask: async (q: string) => (q.includes('code to ') ? 'y' : (answers.shift() ?? 'n')),
     out: (t: string) => void out.push(t),
   });
 
@@ -466,6 +471,26 @@ describe('promoting a proposal', () => {
     assert.match(output.join(''), /nothing moved/);
   });
 
+  it('refuses to promote a hand-written proposal whose import names unreviewed code, even when asked yes', async () => {
+    const cwd = project();
+    mkdirSync(join(cwd, '.tslaws/proposals'), { recursive: true });
+    for (const [name, spec] of [
+      ['nm', '../../node_modules/pkg/index.js'],
+      ['up', '../../../outside'],
+      ['own', './sibling'],
+    ] as const) {
+      writeFileSync(
+        join(cwd, `.tslaws/proposals/${name}.ts`),
+        `import { x } from '${spec}';\nexport law l${name}(n: number) { return x === n; }\n`,
+      );
+      const output: string[] = [];
+      const yes = { ...host(cwd, ['src/hand.laws.ts'], output), yes: true };
+      assert.deepEqual(await promoteProposal(yes, `${name}.ts`), {}, name);
+      assert.match(output.join(''), /an import must name code that is inside the project.*nothing moved/s, name);
+      assert.ok(!existsSync(join(cwd, 'src/hand.laws.ts')), name);
+    }
+  });
+
   it('accepts a path the laws setting names', () => {
     const cwd = project({ 'tslaws.json': JSON.stringify({ laws: ['specs/**/*.ts'] }) });
     assert.equal(promotionTarget(cwd, 'specs/cart.ts'), 'specs/cart.ts');
@@ -478,6 +503,98 @@ describe('promoting a proposal', () => {
     mkdirSync(outside, { recursive: true });
     symlinkSync(outside, join(cwd, 'linked'), 'junction');
     assert.throws(() => promotionTarget(cwd, 'linked/a.laws.ts'), /outside the project/);
+  });
+});
+
+describe('an import must name reviewed code, however the specifier is spelled', () => {
+  const imp = (specifier: string): string =>
+    `import { x } from '${specifier.replaceAll('\\', '\\\\').replaceAll('\t', '\\t')}';\n`;
+  const refused = /an import must name code that is inside the project/;
+  const check = (cwd: string, specifier: string, fromDir = '.tslaws/proposals'): void =>
+    assertImportsAllowed(cwd, imp(specifier), fromDir);
+
+  it('allows a file inside the project, one that does not exist yet and a package', () => {
+    const cwd = project();
+    check(cwd, '../../src/cart');
+    check(cwd, '../../src/not/yet/written');
+    check(cwd, 'some-package');
+    check(cwd, './sibling', 'src');
+  });
+
+  it('refuses any specifier with %, ? or # (percent escapes, queries, fragments, # aliases)', () => {
+    const cwd = project();
+    for (const bad of [
+      '../../%2e%74slaws/proposals/evil',
+      '../../.tslaws%2Fproposals/evil',
+      '../../node%5Fmodules/pkg/index.js',
+      '../../src/cart?x=1',
+      '../../src/cart#frag',
+      '#internal',
+      'pkg?query',
+      '../../src/car%74',
+    ])
+      assert.throws(() => check(cwd, bad), refused, bad);
+  });
+
+  it('refuses a control character in a specifier', () => {
+    assert.throws(() => check(project(), '../../src/ca\trt'), refused);
+  });
+
+  it('compares the reserved directory names without regard to case', () => {
+    const cwd = project();
+    for (const bad of [
+      '../../.TSLAWS/proposals/evil',
+      '../../Node_Modules/pkg/index.js',
+      '../../src/../.Git/config',
+      '../proposals/../../.TsLaws/x',
+    ])
+      assert.throws(() => check(cwd, bad), /resolves into/, bad);
+  });
+
+  it('reads a path as a URL does: backslashes, dot segments and extra slashes cannot hide a reserved directory', () => {
+    const cwd = project();
+    for (const bad of ['..\\..\\node_modules\\pkg\\index.js', '.././../src/./../node_modules/pkg', '..//..//.tslaws/x'])
+      assert.throws(() => check(cwd, bad), /resolves into/, bad);
+    assert.throws(() => check(cwd, '//host/share/x'), refused);
+    assert.throws(() => check(cwd, 'C:\\Windows\\x'), refused);
+  });
+
+  it('refuses a path that reaches a reserved directory through a link, and a file that does not exist yet there', () => {
+    const cwd = project();
+    mkdirSync(join(cwd, 'node_modules', 'pkg'), { recursive: true });
+    symlinkSync(join(cwd, 'node_modules', 'pkg'), join(cwd, 'src', 'alias'), 'junction');
+    assert.throws(() => check(cwd, '../../src/alias/index.js'), /resolves into node_modules/);
+    assert.throws(() => check(cwd, '../../src/alias/not/yet/there.js'), /resolves into node_modules/);
+    assert.throws(() => check(cwd, '../../node_modules/new/pkg'), /resolves into node_modules/);
+    const outside = join(root, `outside-import${n}`);
+    mkdirSync(outside, { recursive: true });
+    symlinkSync(outside, join(cwd, 'src', 'out'), 'junction');
+    assert.throws(() => check(cwd, '../../src/out/file.js'), /resolves outside the project/);
+    assert.throws(() => check(cwd, '../../src/out/not/yet.js'), /resolves outside the project/);
+  });
+
+  it('refuses a git-ignored file, including one that does not exist yet', () => {
+    const cwd = project({ '.gitignore': 'gen/\n', 'gen/rates.ts': 'export const rate = 1;\n' });
+    assert.throws(() => check(cwd, '../../gen/rates'), /git ignores/);
+    assert.throws(() => check(cwd, '../../gen/new'), /git ignores/);
+    check(cwd, '../../src/cart');
+  });
+
+  it('refuses when the project is not in a git repository, because git cannot say what is ignored', () => {
+    const cwd = project({}, false);
+    assert.throws(() => check(cwd, '../../src/cart'), /could not be checked against git/);
+    check(cwd, 'some-package');
+  });
+
+  it('refuses when git is not installed', () => {
+    const cwd = project();
+    const saved = process.env.PATH;
+    process.env.PATH = join(root, 'no-such-bin');
+    try {
+      assert.throws(() => check(cwd, '../../src/cart'), /could not be checked against git/);
+    } finally {
+      process.env.PATH = saved;
+    }
   });
 });
 
@@ -531,7 +648,10 @@ describe('the promote and propose commands', () => {
   it('promote moves the proposal for a person at a terminal', async () => {
     const cwd = project();
     addProposal(cwd, 'cart.ts', source);
-    const { out, ctx } = ctxFor({ ask: async () => '', checkFile: async () => new Map([['totalKeeps', 'tested']]) });
+    const { out, ctx } = ctxFor({
+      ask: async (q: string) => (q.includes('code to ') ? 'y' : ''),
+      checkFile: async () => new Map([['totalKeeps', 'tested']]),
+    });
     assert.equal(await promoteCommand(cwd, new Map(), ['cart.ts'], ctx), 0);
     assert.ok(existsSync(join(cwd, 'src/cart.laws.ts')));
     assert.match(out.join(''), /moved to src\/cart\.laws\.ts/);
@@ -543,7 +663,7 @@ describe('the promote and propose commands', () => {
     addProposal(cwd, 'cart.ts', `const size = 3;\n${source}\nexport law again(n: number) { return size > 0; }\n`);
     const stored = readFileSync(join(cwd, '.tslaws/proposals/cart.ts'), 'utf8');
     const refused = ctxFor({
-      ask: async (q: string) => (q.includes('helper code') ? 'n' : ''),
+      ask: async (q: string) => (q.includes('code to ') ? 'n' : ''),
       checkFile: async () => new Map(),
     });
     assert.equal(await promoteCommand(cwd, new Map(), ['cart.ts'], refused.ctx), 0);
@@ -561,7 +681,7 @@ describe('the promote and propose commands', () => {
     assert.equal(await promoteCommand(cwd, new Map([['yes', true]]), ['cart.ts'], yes.ctx), 0);
     assert.match(yes.out.join(''), /helpers \(1\):\nconst size = 3;/);
     assert.ok(
-      asked.every((q) => !q.includes('helper code')),
+      asked.every((q) => !q.includes('code to ')),
       asked.join('|'),
     );
     assert.match(readFileSync(join(cwd, 'src/cart.laws.ts'), 'utf8'), /const size = 3;/);
