@@ -223,16 +223,44 @@ function tsconfigDirs(cwd: string): string[] {
 
 const isInside = (dir: string, file: string): boolean => {
   const rel = relative(dir, file);
-  return rel !== '' && !rel.startsWith('..') && !isAbsolute(rel);
+  return rel !== '' && rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel);
 };
 
-/** Why the sandbox may not read below `root`, or undefined when it may: a dotfile, the home directory, a file system root. */
-function unreadableRoot(root: string): string | undefined {
-  const home = resolve(homedir());
+/** The path as the file system has it: links followed, and the case Windows and macOS keep. Itself when it does not exist. */
+function real(path: string): string {
+  try {
+    return realpathSync.native(path);
+  } catch {
+    return resolve(path);
+  }
+}
+
+/** Paths compare in one case on a file system that ignores it. */
+const folds = process.platform === 'win32' || process.platform === 'darwin' || !ts.sys.useCaseSensitiveFileNames;
+const fold = (path: string): string => (folds ? path.toLowerCase() : path);
+
+/** The first part of `path` (below what it shares with the project's own path) that is a dotfile or a dot directory. */
+function dottedBelow(path: string, project: string): string | undefined {
+  const own = project.split(/[/\\]/);
+  const parts = path.split(/[/\\]/);
+  let shared = 0;
+  while (shared < own.length && shared < parts.length && fold(own[shared]!) === fold(parts[shared]!)) shared++;
+  return parts.slice(shared).find((part) => part.startsWith('.'));
+}
+
+/**
+ * Why the sandbox may not read below `root` (as the file system names it), or undefined when it may: a file system root,
+ * the home directory or a directory above it, or a place named by a dot (`~/.ssh`, `~/.config`). What the root shares with
+ * the project's own path is not looked at: the project is readable already, wherever it sits.
+ */
+function unreadableRoot(root: string, project: string): string | undefined {
   if (dirname(root) === root) return 'is the root of a file system';
-  if (root === home || home.startsWith(root + sep)) return 'is the home directory or a directory above it';
-  if (root.split(/[\\/]/).pop()!.startsWith('.')) return 'is a dotfile';
-  return undefined;
+  const home = real(homedir());
+  const toHome = relative(fold(root), fold(home));
+  if (toHome === '' || (toHome !== '..' && !toHome.startsWith(`..${sep}`) && !isAbsolute(toHome)))
+    return 'is the home directory or a directory above it';
+  const dotted = dottedBelow(root, project);
+  return dotted === undefined ? undefined : `sits in ${dotted}, a dotfile`;
 }
 
 /** What `grantOutside` told the person already, so a project that is checked again is not told again. */
@@ -259,26 +287,28 @@ export function grantOutside(cwd: string, outside: string[]): { granted: string[
   for (const dir of tsconfigDirs(cwd)) roots.push([dir, 'a target of the tsconfig']);
   for (const path of readConfig(cwd).sandboxReads ?? [])
     roots.push([resolve(cwd, path), '"sandboxReads" in tslaws.json']);
+  const project = real(cwd);
+  const places = roots.map(([root, why]) => ({ root: real(root), why }));
   const granted: string[] = [];
   const refused: string[] = [];
   for (const file of outside) {
-    const named = roots.filter(([root]) => isInside(root, file));
-    const dottedIn = (root: string): string | undefined =>
-      relative(root, file)
-        .split(/[\\/]/)
-        .find((part) => part.startsWith('.'));
-    const hit = named.find(([root]) => unreadableRoot(root) === undefined && dottedIn(root) === undefined);
+    // What counts is where the file really is, so a link cannot lead from a named directory to a place that is not.
+    const actual = real(file);
+    const named = places.filter(({ root }) => isInside(fold(root), fold(actual)));
+    const dotted = dottedBelow(actual, project);
+    const hit =
+      dotted === undefined ? named.find(({ root }) => unreadableRoot(root, project) === undefined) : undefined;
     if (hit !== undefined) {
       granted.push(file);
-      tell(`the law sandbox may read ${file} (${hit[1]})`);
+      tell(`the law sandbox may read ${file} (${hit.why})`);
       continue;
     }
     refused.push(file);
-    const [first] = [...named].sort((a, b) => b[0].length - a[0].length);
+    const [first] = [...named].sort((a, b) => b.root.length - a.root.length);
     const why =
       first === undefined
         ? undefined
-        : `${first[0]} ${unreadableRoot(first[0]) ?? `holds ${dottedIn(first[0])}, a dotfile`}`;
+        : `${first.root} ${unreadableRoot(first.root, project) ?? `holds ${dotted}, a dotfile`}`;
     tell(
       `the law sandbox may not read ${file}${why === undefined ? '' : ` (${why})`}; ` +
         'to allow it, name its directory under "sandboxReads" in tslaws.json',

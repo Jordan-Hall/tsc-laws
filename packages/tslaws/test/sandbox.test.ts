@@ -4,11 +4,11 @@
 // Needs the built compiler in TSC_LAWS_BIN and `npm run build` for dist/.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import nodeModule from 'node:module';
-import { homedir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { dirname, join, parse } from 'node:path';
-import { after, describe, it } from 'node:test';
+import { after, before, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { check } from '../dist/check.js';
 import { grantOutside, permissionFlag, readOutcome, sandboxFlags, useSandbox } from '../dist/sandbox.js';
@@ -17,15 +17,20 @@ import type { CheckOptions, LawResult } from '../dist/types.js';
 const compiler = process.env.TSC_LAWS_BIN;
 const here = dirname(fileURLToPath(import.meta.url));
 const root = mkdtempSync(join(here, '..', '.tmp-'));
+// Projects with files outside them sit beside each other in a directory that no workspace of this repository contains, so
+// that what the sandbox may read there is decided by what the project names and not by the repository's own layout.
+const apart = mkdtempSync(join(tmpdir(), 'tslaws-apart-'));
+let base = root;
 
 after(() => {
   rmSync(root, { recursive: true, force: true });
+  rmSync(apart, { recursive: true, force: true });
   // Z3's worker threads keep the test process alive.
   setTimeout(() => process.exit(process.exitCode ?? 0), 100).unref();
 });
 
 function project(name: string, files: Record<string, string>): string {
-  const dir = join(root, name);
+  const dir = join(base, name);
   for (const [file, text] of Object.entries(files)) {
     mkdirSync(dirname(join(dir, file)), { recursive: true });
     writeFileSync(join(dir, file), text);
@@ -523,8 +528,8 @@ describe('what a hostile law cannot do', { skip: compiler === undefined ? 'set T
         name: 'p',
         dependencies: Object.fromEntries(declared.map((d) => [d, '1.0.0'])),
       }),
-      ...pkg('declared', "exports.read = () => typeof require('node:fs').readFileSync;\n"),
-      ...pkg('stranger', "exports.read = () => typeof require('node:fs').readFileSync;\n"),
+      ...pkg('declared', "exports.read = () => typeof require('node:path').join;\n"),
+      ...pkg('stranger', "exports.read = () => typeof require('node:path').join;\n"),
       ...pkg('meddler', "exports.read = () => typeof require('node:module').createRequire;\n"),
     });
     const use = (name: string, declared: string[], from: string) =>
@@ -550,6 +555,41 @@ describe('what a hostile law cannot do', { skip: compiler === undefined ? 'set T
     );
   });
 
+  it('does not let a trusted package load a Node module for a law that is on the stack', async () => {
+    const helper = [
+      'exports.load = (name) => require(name);',
+      'exports.builtin = (name) => process.getBuiltinModule(name);',
+      "exports.spawn = () => require('node:child_process').spawnSync;",
+      "exports.read = () => require('node:fs').readFileSync;",
+      '',
+    ].join('\n');
+    const files = (call: string): Record<string, string> => ({
+      'package.json': JSON.stringify({ name: 'p', dependencies: { helper: '1.0.0' } }),
+      'node_modules/helper/package.json': JSON.stringify({ name: 'helper', main: 'index.js' }),
+      'node_modules/helper/index.js': helper,
+      'src/a.laws.ts': `import * as h from 'helper';
+export law asks(n: number) { return typeof (h as any).${call} === 'function'; }
+`,
+    });
+    // The helper asks for child_process itself, with a law up the stack.
+    refused(only(await run('stack-spawn', files('spawn()'))), /"node:child_process" is not a module a law may load/);
+    // The law names the module; the helper only passes the name on.
+    refused(
+      only(await run('stack-load', files("load('node:child_process').spawnSync"))),
+      /"node:child_process" is not a module/,
+    );
+    refused(
+      only(await run('stack-fs', files("load('node:fs').readFileSync"))),
+      /"node:fs" is not a module a law may load/,
+    );
+    // `process.getBuiltinModule` obeys the same rule.
+    refused(
+      only(await run('stack-getbuiltin', files("builtin('node:fs').readFileSync"))),
+      /"node:fs" is not a module a law may load/,
+    );
+    refused(only(await run('stack-fs-direct', files('read()'))), /"node:fs" is not a module a law may load/);
+  });
+
   it(
     'cannot import an unreviewed ES module',
     { skip: typeof nodeModule.registerHooks === 'function' ? false : 'needs Node 22.15 or later' },
@@ -569,6 +609,13 @@ describe('what a hostile law cannot do', { skip: compiler === undefined ? 'set T
 });
 
 describe('reads outside the project', () => {
+  before(() => {
+    base = apart;
+  });
+  after(() => {
+    base = root;
+  });
+
   const double = 'export const double = (n: number): number => n * 2;\n';
   const law = "import { double } from '@lib/x';\nexport law doubles(n: number) { return double(n) === n + n; }\n";
   const config = (name: string) => JSON.stringify({ compilerOptions: { paths: { '@lib/*': [`../${name}-lib/*`] } } });
@@ -614,8 +661,8 @@ describe('reads outside the project', () => {
 
   it('refuses a dotfile even under a directory that is named', () => {
     const cwd = project('reads-dot/app', { 'tslaws.json': JSON.stringify({ sandboxReads: ['../shared'] }) });
-    const fine = join(root, 'reads-dot', 'shared', 'src', 'y.ts');
-    const hidden = join(root, 'reads-dot', 'shared', 'src', '.secret', 'y.ts');
+    const fine = join(base, 'reads-dot', 'shared', 'src', 'y.ts');
+    const hidden = join(base, 'reads-dot', 'shared', 'src', '.secret', 'y.ts');
     const write = process.stderr.write.bind(process.stderr);
     let said = '';
     process.stderr.write = ((text: string) => ((said += text), true)) as typeof process.stderr.write;
@@ -644,5 +691,59 @@ describe('reads outside the project', () => {
       process.stderr.write = write;
     }
     assert.match(said, /may not read .*(home directory|root of a file system)/);
+  });
+
+  // Every grant check below runs `grantOutside` with its messages collected, since a person reads them.
+  const grant = (cwd: string, files: string[]) => {
+    const write = process.stderr.write.bind(process.stderr);
+    let said = '';
+    process.stderr.write = ((text: string) => ((said += text), true)) as typeof process.stderr.write;
+    try {
+      return { ...grantOutside(cwd, files), said };
+    } finally {
+      process.stderr.write = write;
+    }
+  };
+
+  it(
+    'finds the home directory whatever the case of its name, where the file system ignores case',
+    { skip: process.platform === 'linux' ? 'case matters on this file system' : false },
+    () => {
+      const home = homedir();
+      const cwd = project('reads-case', { 'tslaws.json': JSON.stringify({ sandboxReads: [home.toLowerCase()] }) });
+      const inside = join(home.toUpperCase(), 'case-check', 'x.ts');
+      const { granted, refused, said } = grant(cwd, [inside]);
+      assert.deepEqual([granted, refused], [[], [inside]]);
+      assert.match(said, /home directory/);
+    },
+  );
+
+  it('refuses a root under a dot directory, wherever in its path the dot is', () => {
+    const cwd = project('reads-dotparent/app', {
+      'tslaws.json': JSON.stringify({ sandboxReads: ['../.hid/lib'] }),
+      '../.hid/lib/sub/x.ts': double,
+    });
+    const file = join(base, 'reads-dotparent', '.hid', 'lib', 'sub', 'x.ts');
+    const { granted, refused, said } = grant(cwd, [file]);
+    assert.deepEqual([granted, refused], [[], [file]]);
+    assert.match(said, /may not read .*x\.ts.*sits in \.hid, a dotfile/s);
+  });
+
+  it('does not follow a link from a named directory to a dotted place', () => {
+    const cwd = project('reads-link/app', {
+      'tslaws.json': JSON.stringify({ sandboxReads: ['../lib'] }),
+      '../lib/ok.ts': double,
+      '../.hid/real.ts': double,
+    });
+    const lib = join(base, 'reads-link', 'lib');
+    try {
+      symlinkSync(join(base, 'reads-link', '.hid'), join(lib, 'sub'), 'junction');
+    } catch {
+      return; // links are not allowed here
+    }
+    const ok = join(lib, 'ok.ts');
+    const linked = join(lib, 'sub', 'real.ts');
+    const { granted, refused } = grant(cwd, [ok, linked]);
+    assert.deepEqual([granted, refused], [[ok], [linked]]);
   });
 });

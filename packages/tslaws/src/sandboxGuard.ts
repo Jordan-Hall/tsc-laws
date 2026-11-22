@@ -92,11 +92,12 @@ const selfPath = normal(fileURLToPath(import.meta.url));
 const selfRoot = selfPath.slice(0, selfPath.lastIndexOf('/'));
 
 /**
- * The file that is really asking: the closest frame of the call stack that is neither Node's own nor this file. A
- * `parent` handed to `Module._load` is the caller's claim (`module.constructor._load('fs', { filename })` makes any), so
- * the stack, which the caller cannot write, decides. Undefined when no code of any file is on the stack.
+ * The files that are really asking: every frame of the call stack that is neither Node's own nor this file, closest
+ * first. A `parent` handed to `Module._load` is the caller's claim (`module.constructor._load('fs', { filename })` makes
+ * any), so the stack, which the caller cannot write, decides. All frames count, not the closest: a trusted package that a
+ * law calls must not vouch for what the law asked it to load.
  */
-function callerFile(): string | undefined {
+function callerFiles(): string[] {
   const limit = ErrorClass.stackTraceLimit;
   const prepare = ErrorClass.prepareStackTrace;
   ErrorClass.stackTraceLimit = 100;
@@ -104,20 +105,21 @@ function callerFile(): string | undefined {
   let sites: NodeJS.CallSite[] = [];
   try {
     const holder: { stack?: unknown } = {};
-    captureStackTrace(holder, callerFile);
+    captureStackTrace(holder, callerFiles);
     sites = (holder.stack as NodeJS.CallSite[] | undefined) ?? [];
   } finally {
     ErrorClass.prepareStackTrace = prepare;
     ErrorClass.stackTraceLimit = limit;
   }
+  const files: string[] = [];
   for (const site of sites) {
     const name = site.getFileName();
     if (typeof name !== 'string' || name === '' || name.startsWith('node:')) continue;
     const path = name.startsWith('file:') ? fileURLToPath(name) : name;
     if (normal(path) === selfPath) continue;
-    return path;
+    files.push(path);
   }
-  return undefined;
+  return files;
 }
 
 /** The rule: what may be loaded, and by whom. */
@@ -146,15 +148,18 @@ export class Guard {
   }
 
   /**
-   * Throws unless the Node module `request` may be loaded. The caller is the file on the call stack; `parent` is what the
-   * loader says imports it (a `file:` URL or a path), consulted as well. When both are known the stricter one decides.
+   * Throws unless the Node module `request` may be loaded. The callers are the files on the call stack; `parent` is what
+   * the loader says imports it (a `file:` URL or a path), consulted as well. The strictest wins: if any of them is a law or
+   * project file the request is a law's, whatever package code sits between (a law that has a trusted helper `require`
+   * `child_process` for it is refused).
    */
   builtin(request: string, parent?: string): void {
     const name = request.startsWith('node:') ? request.slice(5) : request;
     const declared = parent === undefined ? undefined : parent.startsWith('file:') ? fileURLToPath(parent) : parent;
-    const asking = callerFile();
-    const callers = [asking, declared].filter((file): file is string => file !== undefined);
+    const frames = callerFiles();
+    const callers = declared === undefined ? frames : [...frames, declared];
     const fromPackage = callers.length > 0 && callers.every((file) => this.isPackageFile(normal(file)));
+    const asking = frames.find((file) => !this.isPackageFile(normal(file))) ?? frames[0];
     if ((fromPackage ? packageBuiltins : lawBuiltins).includes(name)) return;
     // tslaws itself asks what Node's modules are called (`builtinModules`, to tell a package from a built-in). The loader's
     // functions that could load anything are locked, so naming the module gives its caller nothing it could use.
@@ -162,7 +167,8 @@ export class Guard {
     throw refusal(
       `"${request}"`,
       `is not a module a law may load${fromPackage ? '' : ' (allowed: ' + lawBuiltins.join(', ') + ')'}` +
-        (asking === undefined ? '' : `; requested by ${asking}`),
+        (asking === undefined ? '' : `; requested by ${asking}`) +
+        (frames.length > 1 ? ` (call stack: ${frames.slice(0, 6).join(' <- ')})` : ''),
     );
   }
 

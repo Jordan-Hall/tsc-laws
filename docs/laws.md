@@ -910,12 +910,16 @@ by default; the only way to turn it off is `--no-sandbox`.
   every module it imports), and the packages that `package.json` declares (dependencies, optional and peer dependencies,
   and the project's dev dependencies, with what each of those declares in turn) and tslaws itself. A law and the project
   code may load these Node modules: `assert`, `buffer`, `crypto`, `events`, `path`, `punycode`, `querystring`,
-  `string_decoder`, `timers`, `url`, `util`. A declared package may also use a few more (`fs`, `os`, `stream`, `zlib`,
-  and similar), never `module` or `process`. A file nobody reviewed, a package nothing declares, a `data:` or network
+  `string_decoder`, `timers`, `url`, `util`. Code that no law or project file is running (tslaws itself, a package that
+  only other packages call) may also use a few more (`fs`, `os`, `stream`, `zlib`), never `module` or `process`. A file
+  nobody reviewed, a package nothing declares, a `data:` or network
   URL, and any other Node module (`child_process`, `net`, `vm`, `module`, `worker_threads`) are refused with a plain
   error, as is a path a law computes at run time.
-- **Who is asking.** The guard decides from the call stack, the real file that makes the request, never from the
-  `parent` a caller passes to `Module._load` or `require.call`. After it is installed the loader's functions and tables
+- **Who is asking.** The guard decides from the call stack, never from the `parent` a caller passes to `Module._load`
+  or `require.call`. Every file on the stack counts: if one is a law or a project file, the request is a law's, however
+  many trusted packages sit in between, so a helper that a law calls cannot load `fs` or `child_process` on its behalf.
+  `process.getBuiltinModule` follows the same rule. The cost is that a declared package gets the law's list of Node
+  modules while a law runs it; code that needs `fs` for real work needs `--no-sandbox` (see below). After it is installed the loader's functions and tables
   (`_load`, `_resolveFilename`, `_extensions`, `_cache`, `createRequire`, `Module.prototype.require`) are read-only and
   `module.registerHooks` and `module.register` throw, so a law cannot take the guard out or put a hook in front of it.
   The permission model is the fence that holds whatever the guard misses.
