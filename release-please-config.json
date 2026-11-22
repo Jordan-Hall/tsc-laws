@@ -84,7 +84,8 @@
           "jsonpath": "$.packages['packages/vscode-tslaws'].version"
         }
       ],
-      "exclude-paths": ["apps", "docs", "examples"]
+      "exclude-paths": ["apps", "docs", "examples"],
+      "release-as": "1.0.0"
     }
   }
 }
