@@ -65,7 +65,6 @@ after(async () => {
     await closed;
   }
   rmSync(root, { recursive: true, force: true });
-  setTimeout(() => process.exit(process.exitCode ?? 0), 100).unref();
 });
 
 describe('mcp server', { skip: compiler === undefined ? 'set TSC_LAWS_BIN' : false }, () => {

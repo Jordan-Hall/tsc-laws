@@ -5,6 +5,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { after, afterEach, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import './serial-solver.ts';
 import { check } from '../dist/check.js';
 import { hornText, solveHorn, type Engine, type HornSystem } from '../dist/chc.js';
 import { readManifest } from '../dist/compile.js';
@@ -19,7 +20,6 @@ const saved = { eld: process.env.TSLAWS_ELDARICA, golem: process.env.TSLAWS_GOLE
 
 after(() => {
   rmSync(root, { recursive: true, force: true });
-  setTimeout(() => process.exit(process.exitCode ?? 0), 100).unref();
 });
 
 afterEach(() => {

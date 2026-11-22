@@ -14,7 +14,6 @@ const root = mkdtempSync(join(here, '..', '.tmp-settings-'));
 
 after(() => {
   rmSync(root, { recursive: true, force: true });
-  setTimeout(() => process.exit(process.exitCode ?? 0), 100).unref();
 });
 
 describe('tslaws.json run settings', () => {

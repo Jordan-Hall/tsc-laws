@@ -16,7 +16,6 @@ const root = mkdtempSync(join(here, '..', '.tmp-cross-'));
 
 after(() => {
   rmSync(root, { recursive: true, force: true });
-  setTimeout(() => process.exit(process.exitCode ?? 0), 100).unref();
 });
 
 const outcome = (extra: Partial<PropertyOutcome>): PropertyOutcome => ({

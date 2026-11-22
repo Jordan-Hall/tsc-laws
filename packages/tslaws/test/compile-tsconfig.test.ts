@@ -14,7 +14,6 @@ const here = dirname(fileURLToPath(import.meta.url));
 const root = mkdtempSync(join(here, '..', '.tmp-tsconfig-'));
 after(() => {
   rmSync(root, { recursive: true, force: true, maxRetries: 5 });
-  setTimeout(() => process.exit(process.exitCode ?? 0), 100).unref();
 });
 
 const json = (value: unknown): string => JSON.stringify(value);
