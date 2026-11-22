@@ -157,7 +157,7 @@ describe('report from the root', needsCompiler, () => {
     assert.match(body, /No change in `packages\/c`\./);
     assert.match(out, /::notice file=packages\/a\/src\/f\.laws\.ts,line=\d+,title=tslaws proposal%3A dblIsTwice/);
     assert.match(out, /::notice file=packages\/b\/src\/f\.laws\.ts/);
-    assert.match(out, /2 proposal\(s\) in 3 project\(s\)/);
+    assert.match(out, /2 proposals in 3 projects/);
   });
 
   it('leaves a project that owns its flow out, and says so', async () => {

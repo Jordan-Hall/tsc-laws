@@ -41,6 +41,7 @@ import { lockLevels } from './lawKinds.ts';
 import type { CheckOptions, LawEvent, LawResult } from './types.ts';
 
 import { securityUsage } from './security/cli.ts';
+import { plural } from './plural.ts';
 
 const usage = `tslaws init [--force]       scaffold tslaws.json, .gitignore, AGENTS.md, Claude Code hooks and a starter law (never writes the lock)
 tslaws check [files...] [--reporter text|json|junit|github|ndjson] [--law NAME[,NAME]] [--json] [--summary] [--watch] [--runs N] [--seed N] [--no-prove] [--certify] [--require-certify] [--no-regressions] [--no-sandbox] [--allow-e2e] [--bound N] [--proof-timeout MS] [--property-timeout MS] [--proposed] [--compiler PATH] [--browser chromium|firefox|webkit]
@@ -193,9 +194,9 @@ function summarise(result: LawResult): string {
   return `${result.status.toUpperCase()} ${result.name} (${result.file}:${result.line})${detail === '' ? '' : ` ${detail}`}`;
 }
 
-function totals(report: CheckReport): string {
+export function totals(report: CheckReport): string {
   const count = (status: string): number => report.results.filter((r) => r.status === status).length;
-  return `${report.results.length} laws: ${count('proved')} proved, ${count('bounded')} bounded, ${count('tested')} tested, ${count('open')} open, ${count('failed')} failed, ${count('tampered')} tampered, ${count('error')} errors`;
+  return `${plural(report.results.length, 'law')}: ${count('proved')} proved, ${count('bounded')} bounded, ${count('tested')} tested, ${count('open')} open, ${count('failed')} failed, ${count('tampered')} tampered, ${plural(count('error'), 'error')}`;
 }
 
 function render(report: CheckReport, flags: Map<string, string | true>, project?: string): string {
@@ -409,7 +410,7 @@ export async function acceptCommand(
   const opts = options(cwd, flags, chosen);
   const laws = readManifest(opts.compiler, opts.files, cwd);
   out(
-    `${laws.length} laws in ${chosen.length} files:\n${laws.map((l) => `  ${l.file}:${l.line} ${l.name}`).join('\n')}\n`,
+    `${plural(laws.length, 'law')} in ${plural(chosen.length, 'file')}:\n${laws.map((l) => `  ${l.file}:${l.line} ${l.name}`).join('\n')}\n`,
   );
   if (!gate.delegated) {
     const rl = createInterface({ input: process.stdin, output: process.stdout });

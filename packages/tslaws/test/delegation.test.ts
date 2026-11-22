@@ -325,6 +325,7 @@ describe('delegate and accept commands', () => {
     });
     assert.equal(code, 0, c.err.join(''));
     assert.match(c.out.join(''), /DELEGATED ACCEPT/);
+    assert.match(c.out.join(''), /^1 law in 1 file:$/m);
     assert.ok(existsSync(join(root, 'tsc-laws.lock')));
     const log = readFileSync(join(root, '.tslaws', 'accept.log'), 'utf8')
       .trim()
