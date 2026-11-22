@@ -1,5 +1,4 @@
-accept
-8 laws in 1 files:
+8 laws in 1 file:
   src/math.laws.ts:8 addition commutes
   src/math.laws.ts:9 doubling is adding twice
   src/math.laws.ts:10 and commutes

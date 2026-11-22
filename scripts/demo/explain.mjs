@@ -16,10 +16,11 @@ const seconds = (file) =>
     }).stdout,
   );
 const lengths = Object.fromEntries(Object.keys(lines).map((key) => [key, seconds(join(voDir, `${key}.wav`))]));
-const capture = (name) =>
+// The v1 scenes show the whole output, totals included; the older illustrated scenes leave the totals line out.
+const capture = (name, totals = false) =>
   readFileSync(new URL(`captures/${name}`, import.meta.url), 'utf8')
     .split(/\r?\n/)
-    .filter((l) => l && !/^\s+(hint|reproduce):/.test(l) && !/^\d+ laws:/.test(l));
+    .filter((l) => l && !/^\s+(hint|reproduce):/.test(l) && (totals || !/^\d+ laws?:/.test(l)));
 
 // The checkout example's real sources, plus the proposal that was checked for captures/proposed.txt.
 const exampleFile = (name) =>
@@ -92,20 +93,30 @@ const stripes = (x, y, w, h) =>
   ).join('');
 
 // A plain screencast look for the v1 scenes: one dark window, monospace type, text that is typed or cut in. Nothing slides.
+// The frame is 1920x1080 with a 5% safe margin; the window fills it, and the type is sized per scene (see fit below).
+const W = 1920;
+const H = 1080;
+const SAFE_X = W * 0.05;
+const SAFE_Y = H * 0.05;
 const vcss = `
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
-body.v{margin:0;width:960px;height:960px;overflow:hidden;background:#1e1e1e;color:#d4d4d4;font-family:'JetBrains Mono',Consolas,monospace}
-.scr{position:absolute;left:56px;right:56px;top:48px;bottom:84px;overflow:hidden;font-size:22px;line-height:33px;white-space:pre-wrap;overflow-wrap:anywhere;font-variant-ligatures:none}
-.foot{position:absolute;left:56px;right:56px;bottom:50px;font-size:18px;line-height:24px;color:#6f7680}
+body.v{margin:0;width:${W}px;height:${H}px;overflow:hidden;background:#1e1e1e;color:#d4d4d4;font-family:'JetBrains Mono',Consolas,monospace}
+.scr{position:absolute;left:${SAFE_X}px;right:${SAFE_X}px;top:${SAFE_Y}px;bottom:${SAFE_Y}px;overflow:hidden;font-size:30px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere;font-variant-ligatures:none}
 .r,.k{opacity:0;animation:cut 0s forwards;animation-delay:var(--d,0s)}
+.shot{position:absolute;left:0;top:0;right:0;bottom:0;background:#0d1117;opacity:0;animation:cut 0s forwards var(--d,0s),off 0s forwards var(--e,99999s)}
+.shot img{display:block;width:100%}
 @keyframes cut{to{opacity:1}}
+@keyframes off{to{opacity:0}}
+.hang{padding-left:var(--h,0ch);text-indent:calc(-1 * var(--h,0ch))}
 .pr{color:#6a9955}.dm{color:#7f8790}.ok{color:#4ec97b;font-weight:700}.bad{color:#f48771;font-weight:700}.am{color:#e5c07b;font-weight:700}.kw{color:#c586c0}.ty{color:#4fc1ff}.cm{color:#7f8790}.fn{color:#dcdcaa}.str{color:#ce9178}
-.tab{color:#9da5b0;border-bottom:1px solid #3a3a3a;margin-bottom:12px;padding-bottom:6px}
+.tab{color:#9da5b0;border-bottom:1px solid #3a3a3a;margin-bottom:.4em;padding-bottom:.2em}
 .ln{color:#5a6068;display:inline-block;width:3ch;margin-right:2ch;text-align:right}
-.big{font-size:56px;line-height:72px;font-weight:700}
+.nw{white-space:pre;overflow-wrap:normal}
+.big{display:block;font-size:2.4em;line-height:1.3;font-weight:700}
 `;
-const vdoc = (body, foot, size = 22) =>
-  `<!doctype html><meta charset=utf-8><style>${vcss}</style><body class="v"><div class="scr" style="font-size:${size}px;line-height:${Math.round(size * 1.5)}px">${body}</div><div class="foot">${foot}</div>`;
+// `cap` is the largest type size the scene may use (see fit below); a scene returns [html, seconds, cap].
+const vdoc = (body) =>
+  `<!doctype html><meta charset=utf-8><style>${vcss}</style><body class="v"><div class="scr"><div class="in">${body}</div></div>`;
 const vcolor = (line) =>
   esc(line)
     .replace(/^(PROVED)/, '<span class="ok">$1</span>')
@@ -150,7 +161,8 @@ const timeline = () => {
       t = d + 0.6;
       return api;
     },
-    // Rows of output; an unindented row starts a burst, and the indented rows under it arrive with it.
+    // Rows of output; an unindented row starts a burst, and the indented rows under it arrive with it. A row too long for the
+    // window wraps under its own text, not back to column 0: after the indent and the status word or label that opens it.
     out(rows, gap, colour = vcolor) {
       const groups = [];
       for (const row of rows) {
@@ -158,19 +170,30 @@ const timeline = () => {
         else groups.push([row]);
       }
       for (const g of groups) {
-        parts.push(`<div class="r" ${at(t.toFixed(2))}>${g.map(colour).join('\n')}</div>`);
+        const hang = (row) => (row.match(/^\s*(?:[A-Za-z][A-Za-z ]{0,13}: |\S+\s{2,})?/) ?? [''])[0].length;
+        parts.push(
+          `<div class="r" ${at(t.toFixed(2))}>${g.map((row) => `<div class="hang" style="--h:${hang(row)}ch">${colour(row)}</div>`).join('')}</div>`,
+        );
         t += gap;
       }
       return api;
     },
     // Source code as an editor shows it: a tab, then numbered lines, cut in at once.
-    code(name, text, colour = vcode, first = 1, size = 0) {
+    code(name, text, colour = vcode, first = 1) {
       const body = text
         .split('\n')
         .map((l, i) => `<span class="ln">${first + i}</span>${colour(l)}`)
         .join('\n');
       parts.push(
-        `<div class="r" ${at(t.toFixed(2))}><div class="tab">${esc(name)}</div><div ${size ? `style="font-size:${size}px;line-height:${Math.round(size * 1.5)}px"` : ''}>${body}</div></div>`,
+        `<div class="r" ${at(t.toFixed(2))}><div class="tab nw">${esc(name)}</div><div class="nw">${body}</div></div>`,
+      );
+      return api;
+    },
+    // A real screenshot, shown over the whole window from the current time until `until` (seconds on this scene's clock).
+    shot(name, until) {
+      const data = readFileSync(new URL(`captures/${name}`, import.meta.url)).toString('base64');
+      parts.push(
+        `<div class="shot" style="--d:${t.toFixed(2)}s;--e:${until.toFixed(2)}s"><img src="data:image/png;base64,${data}"></div>`,
       );
       return api;
     },
@@ -489,30 +512,30 @@ const scenes = {
        <div class="abs a mono" style="--d:3.4s;left:86px;top:660px;font-size:36px;color:#fff">github.com/Jordan-Hall/tsc-laws</div>`,
     ),
   // What is new in tslaws v1. Real output is from captures/ (run locally, or from the `certificates` CI job for the proof
-  // certificates, which needs cvc5 and Carcara). The footer of each scene says whether it shows a recording or a summary.
+  // certificates, which needs cvc5 and Carcara). Every scene shows a recording or a real screenshot; nothing is captioned.
   v_hook: () => {
     const t = timeline();
     t.at(0.3).line('<span class="cm"># tests sample</span>');
     t.at(1.9).line('<span class="cm"># laws prove</span>');
     t.at(3.4).line('<span class="cm"># and now the proofs carry certificates</span>');
     t.at(5.4).blank().type('tslaws check').wait(0.2);
-    t.out(capture('certify-check.txt').slice(0, 6), 0.7);
-    return [vdoc(t.html(), 'real output, captured from the certificates CI job'), t.now];
+    t.out(capture('certify-check.txt', true).slice(0, 6), 0.7);
+    return [vdoc(t.html()), t.now];
   },
   v_mono: () => {
     const t = timeline();
     t.type('cat tslaws.json').wait(0.2);
     t.line(esc(readFileSync(new URL('captures/mono-config.txt', import.meta.url), 'utf8').trim()));
     t.wait(5.5).blank().type('tslaws check').wait(0.3);
-    t.out(capture('mono-check.txt'), 0.9);
-    return [vdoc(t.html(), 'real output, captured from a sample monorepo'), t.now];
+    t.out(capture('mono-check.txt', true), 0.9);
+    return [vdoc(t.html()), t.now];
   },
   v_changed: () => {
     const t = timeline();
     t.type('tslaws check --changed main').wait(0.3);
-    t.out(capture('mono-changed.txt'), 1);
+    t.out(capture('mono-changed.txt', true), 1);
     t.wait(1).line('<span class="cm"># packages/docs is not in the list, so it is skipped</span>');
-    return [vdoc(t.html(), 'real output, captured from a sample monorepo'), t.now];
+    return [vdoc(t.html()), t.now];
   },
   v_cert: () => {
     const laws = readFileSync(new URL('../ci/certificates-demo/src/math.laws.ts', import.meta.url), 'utf8')
@@ -520,21 +543,22 @@ const scenes = {
       .slice(7, 10)
       .join('\n');
     const t = timeline();
-    t.code('src/math.laws.ts', laws, vcode, 8, 17);
+    t.code('src/math.laws.ts', laws, vcode, 8);
     t.at(5).blank().line('<span class="cm"># cvc5 proves it and writes the proof, in the Alethe format</span>');
     t.at(8.5).line('<span class="cm"># Carcara, a separate program, checks that proof</span>');
     t.at(12).line('<span class="cm"># both agree: certificate: certified</span>');
-    return [vdoc(t.html(), 'the laws are from the certificates CI project'), t.now];
+    return [vdoc(t.html()), t.now];
   },
   v_cert_real: () => {
-    const rows = capture('certify-check.txt').filter((l) => !/^\s+(assuming|Only|solver)/.test(l));
+    const rows = capture('certify-check.txt', true).filter((l) => !/^\s+(assuming|Only|solver)/.test(l));
     const t = timeline();
-    t.type('tslaws check').wait(0.4);
+    t.at(0.3).shot('certificates-run.png', 6.5);
+    t.at(7).type('tslaws check').wait(0.4);
     t.out(rows, 0.9);
-    return [vdoc(t.html(), 'real output, captured from the certificates CI job: cvc5 1.4.2 and Carcara', 20), t.now];
+    return [vdoc(t.html()), t.now];
   },
   v_cert_bind: () => {
-    const rows = capture('certify-require.txt').filter((l) => /^(ERROR|PROVED|exit status)/.test(l));
+    const rows = capture('certify-require.txt', true).filter((l) => /^(ERROR|PROVED|exit status)/.test(l));
     const lock = readFileSync(new URL('captures/certify-lock.txt', import.meta.url), 'utf8').split(/\r?\n/);
     const from = lock.findIndex((l) => l.includes('"src/math.laws.ts::addition commutes": {'));
     const rec = lock
@@ -548,7 +572,7 @@ const scenes = {
     t.at(9)
       .blank()
       .code('tsc-laws.lock (one record)', rec, (l) => esc(l));
-    return [vdoc(t.html(), 'real output, captured from the certificates CI job'), t.now];
+    return [vdoc(t.html()), t.now];
   },
   v_loops: () => {
     const source = readFileSync(new URL('../ci/certificates-demo/src/math.ts', import.meta.url), 'utf8');
@@ -559,17 +583,17 @@ const scenes = {
     t.at(5).blank().line('<span class="cm"># z3 Spacer finds the loop invariant (constrained Horn clauses)</span>');
     t.at(10).line('<span class="cm"># plain z3 checks it again; Eldarica or Golem cross-check it if installed</span>');
     t.at(16).line('<span class="cm"># xs can be any length</span>');
-    return [vdoc(t.html(), 'the function is from the certificates CI project'), t.now];
+    return [vdoc(t.html()), t.now];
   },
   v_loops_real: () => {
-    const all = capture('certify-check.txt');
+    const all = capture('certify-check.txt', true);
     const rows = [];
     for (let i = 0; i < all.length; i++)
       if (/^PROVED   (counting up|the largest)/.test(all[i])) rows.push(all[i], all[i + 1], all[i + 2]);
     const t = timeline();
     t.type('tslaws check').wait(0.4);
     t.out(rows, 2.2);
-    return [vdoc(t.html(), 'real output, captured from the certificates CI job', 20), t.now];
+    return [vdoc(t.html()), t.now];
   },
   v_sec: () => {
     const t = timeline();
@@ -580,8 +604,8 @@ const scenes = {
       4,
     );
     t.at(6).blank().type('tslaws check').wait(0.4);
-    t.out(capture('security-paths.txt'), 1.6);
-    return [vdoc(t.html(), 'real output, captured from a sample project'), t.now];
+    t.out(capture('security-paths.txt', true), 1.6);
+    return [vdoc(t.html()), t.now];
   },
   v_deps: () => {
     const rows = readFileSync(new URL('captures/security-deps.txt', import.meta.url), 'utf8')
@@ -590,18 +614,13 @@ const scenes = {
     const t = timeline();
     t.type('tslaws security deps --no-cache').wait(0.8);
     t.out(rows, 0.9);
-    return [vdoc(t.html(), 'real output, checked against OSV', 20), t.now];
+    return [vdoc(t.html()), t.now];
   },
   v_accept: () => {
     const t = timeline();
     t.type('tslaws accept').wait(0.3);
-    t.out(capture('certify-accept.txt'), 0.8, (l) => esc(l));
-    t.at(10).blank().line('<span class="dm">in GitHub mode:</span>');
-    t.at(11.5).line('<span class="dm">  a maintainer runs the accept workflow on the branch</span>');
-    t.at(14).line('<span class="dm">  admin or maintain access is checked</span>');
-    t.at(16.5).line('<span class="dm">  the branch head must be where the run saw it</span>');
-    t.at(19).line('<span class="dm">  then the workflow commits tsc-laws.lock as the bot</span>');
-    return [vdoc(t.html(), 'the terminal part is real output; the GitHub steps are a summary, not a recording'), t.now];
+    t.out(capture('certify-accept.txt', true), 0.8, (l) => esc(l));
+    return [vdoc(t.html()), t.now];
   },
   v_oidc: () => {
     const t = timeline();
@@ -611,23 +630,25 @@ const scenes = {
       vcode,
     );
     t.at(9).blank().line('<span class="cm"># no npm token secret is used anywhere in the job</span>');
-    return [vdoc(t.html(), 'lines taken from the release workflow'), t.now];
+    return [vdoc(t.html()), t.now];
   },
   v_outro: () => {
     const t = timeline();
     t.at(0.5).line('<span class="big">tslaws 1.0.0</span>');
     t.at(2.5).blank().type('npm i -D tslaws');
-    return [vdoc(t.html(), ''), t.now];
+    return [vdoc(t.html()), t.now, 60];
   },
 };
 
-const W = 960;
+// The v1 scenes are 16:9; the older illustrated scenes are square pictures drawn for 960 by 960.
+const wide = Object.keys(lines).every((key) => key.startsWith('v_'));
+const [frameW, frameH] = wide ? [W, H] : [960, 960];
 const browser = await chromium
   .launch({ channel: 'chrome', headless: false })
   .catch(() => chromium.launch({ channel: 'msedge', headless: false }));
 const context = await browser.newContext({
-  viewport: { width: W, height: W },
-  recordVideo: { dir: join(outDir, 'video'), size: { width: W, height: W } },
+  viewport: { width: frameW, height: frameH },
+  recordVideo: { dir: join(outDir, 'video'), size: { width: frameW, height: frameH } },
 });
 const page = await context.newPage();
 const t0 = Date.now();
@@ -638,26 +659,55 @@ for (const key of Object.keys(lines)) {
   const left = voiceEnd - (Date.now() - t0);
   if (left > 0) await page.waitForTimeout(left + 250);
   const made = scenes[key]();
-  const [html, ends] = Array.isArray(made) ? made : [made];
+  const [html, ends, cap = 56] = Array.isArray(made) ? made : [made];
   await page.setContent(html, { waitUntil: 'load' });
   await page.evaluate(() => document.fonts.ready);
   if (key.startsWith('v_')) {
     if (ends > lengths[key])
       console.warn(`${key}: the picture runs ${ends.toFixed(1)}s, the voice ${lengths[key].toFixed(1)}s`);
+    // Size the type: the largest size up to `cap` at which the finished content (every line, including those not yet shown) fills
+    // no more than 70% of the frame height and no code line is wider than the window. If even 20px is too much, allow the
+    // whole safe area; past that the scene has too much on it and the check below fails.
+    await page.evaluate(
+      ([cap, target, room]) => {
+        const scr = document.querySelector('.scr');
+        const inner = scr.firstElementChild;
+        const fits = (px, height) => {
+          scr.style.fontSize = `${px}px`;
+          return (
+            inner.offsetHeight <= height &&
+            [...scr.querySelectorAll('.nw')].every((el) => el.scrollWidth <= el.clientWidth)
+          );
+        };
+        for (const height of [target, room]) for (let px = cap; px >= 20; px--) if (fits(px, height)) return;
+        scr.style.fontSize = '20px';
+      },
+      [cap, H * 0.7, H * 0.9],
+    );
     // Nothing may touch the outer 5% of the frame, and nothing may be cut off by the window.
-    const bad = await page.evaluate(() => {
-      const found = [];
-      for (const el of document.querySelectorAll('body *')) {
-        const r = el.getBoundingClientRect();
-        if (!r.width || el.classList.contains('scr')) continue;
-        if (r.left < 47 || r.top < 47 || r.right > 913 || r.bottom > 913)
-          found.push(`${el.className} ${el.textContent.slice(0, 40)}`);
-      }
-      const scr = document.querySelector('.scr');
-      if (scr.scrollHeight > scr.clientHeight)
-        found.push(`content is ${scr.scrollHeight}px in a ${scr.clientHeight}px window`);
-      return found;
-    });
+    const bad = await page.evaluate(
+      ([x, y, w, h]) => {
+        const found = [];
+        for (const el of document.querySelectorAll('body *')) {
+          const r = el.getBoundingClientRect();
+          if (!r.width || el.classList.contains('scr') || el.classList.contains('shot') || el.closest('.shot'))
+            continue;
+          if (r.left < x - 0.5 || r.top < y - 0.5 || r.right > w - x + 0.5 || r.bottom > h - y + 0.5)
+            found.push(`${el.className} ${el.textContent.slice(0, 40)}`);
+        }
+        const scr = document.querySelector('.scr');
+        const inner = scr.firstElementChild;
+        if (inner.offsetHeight > scr.clientHeight)
+          found.push(`content is ${inner.offsetHeight}px in a ${scr.clientHeight}px window`);
+        for (const el of scr.querySelectorAll('.nw'))
+          if (el.scrollWidth > el.clientWidth)
+            found.push(`a line is ${el.scrollWidth}px wide in a ${el.clientWidth}px window`);
+        for (const img of document.querySelectorAll('.shot img'))
+          if (img.getBoundingClientRect().bottom > h - y + 0.5) found.push('a screenshot runs past the safe area');
+        return found;
+      },
+      [SAFE_X, SAFE_Y, frameW, frameH],
+    );
     if (bad.length) throw new Error(`${key} overflows the frame: ${bad.join(' | ')}`);
   }
   timings[key] = (Date.now() - t0) / 1000;

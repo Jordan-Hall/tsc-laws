@@ -1,11 +1,11 @@
 {
-  "version": 1,
+  "version": 2,
   "laws": {
-    "src/board.browser.laws.ts::addedTaskIsListed": "a63a39d64fe54860fa132e12c0c63a2412136fa06ad74bd6a264d5bca249ac03",
-    "src/board.browser.laws.ts::boardPageIsAccessible": "8d6692d8d5657a0d6155a552e19f12deff0d8d6ce41ae768bf7105ff8fa2133e",
-    "src/board.browser.laws.ts::boardPageIsFast": "9c5ba8dd939e29ee3774f7d02a27b83d83d0f1f863e8feb47bd39d70cfe9dde6",
-    "src/board.browser.laws.ts::counterCountsTheUndone": "2ebed30912a65db5f162f91386f5373db082033b580256aed150b3cc7f93f3db",
-    "src/board.browser.laws.ts::deletedTaskStaysGone": "baee45aa7d30ecf0503478a3043eb49ca9b3b0e3a16f6928912cb061916e90ad"
+    "src/board.browser.laws.ts::addedTaskIsListed": "a9ac4e57f4817138dc1bd760f74d673ddfc07895a4ba279f7a0476de8dd751fb",
+    "src/board.browser.laws.ts::boardPageIsAccessible": "1b0667f096adaae5f5dfd9d929616a039b74d5b126a4e0cc0470dac8c4763527",
+    "src/board.browser.laws.ts::boardPageIsFast": "4c3768699dd9c77d3409e0234ea2a1eab3156b8fcabcd9b7c67bb052ad278354",
+    "src/board.browser.laws.ts::counterCountsTheUndone": "ec0d8d52b6f7a3a2a0ce7b8b858393a330a62ef1831fb9cc32278844dfcecec3",
+    "src/board.browser.laws.ts::deletedTaskStaysGone": "b7380f8d0f07946cce409843b0e80dd142a7e6630e6df4e7eed28f8e58a640e2"
   },
   "exempt": []
 }

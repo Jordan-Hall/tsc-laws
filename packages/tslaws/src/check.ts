@@ -30,7 +30,7 @@ import {
   readRecords,
   type CertificateRecord,
 } from './certificates.ts';
-import { compareLock, lawHash, lawKey, proofStatus, readLock, scopeOf, type Lock } from './lock.ts';
+import { compareLock, lawHash, lawKey, lockFormat, proofStatus, readLock, scopeOf, type Lock } from './lock.ts';
 import { crossCheck, disagreement } from './propertyRun.ts';
 import { prepareRuntime } from './runtimeEnv.ts';
 import { problemTexts, proveLaw } from './smt.ts';
@@ -258,16 +258,26 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
     lock = readLock(options.lockFile);
     lockMissing = lock === undefined;
     const byKey = new Map(laws.map((l) => [lawKey(l.file, l.name), l]));
-    // With levels from imports (or a lock that recorded levels), the resolved level of each laws file is part of the lock.
+    // With levels from imports, the resolved level of each laws file is part of the lock. A lock that recorded levels
+    // while the project no longer resolves any (levels went back to names) is tampered until accepted again.
     const levels =
       levelsMode === 'imports' || lock?.levels !== undefined
         ? {
             locked: lock?.levels,
-            now: Object.fromEntries(
-              [...new Set(laws.map((l) => l.file.replaceAll('\\', '/')))].map((f) => [f, verdictOf(f).kind]),
-            ),
+            now:
+              levelsMode === 'imports'
+                ? Object.fromEntries(
+                    [...new Set(laws.map((l) => l.file.replaceAll('\\', '/')))].map((f) => [f, verdictOf(f).kind]),
+                  )
+                : undefined,
           }
         : undefined;
+    // A lock from before the hashes covered helpers, imports and run settings: every law differs from it by the format.
+    const outdated = (lock?.version ?? lockFormat) < lockFormat;
+    if (outdated)
+      notices.push(
+        `lock format upgraded: the lock was written in format ${lock?.version ?? 0} and tslaws now hashes helpers, imported code and run settings too (format ${lockFormat}); run \`tslaws accept\` to record the laws again`,
+      );
     for (const violation of compareLock(
       lock?.laws,
       laws,
@@ -294,7 +304,9 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
               ? `law is not in the lock; ${acceptor}`
               : violation.reason === 'level'
                 ? `the level this laws file runs at (node, browser or e2e) changed since the lock was accepted; ${acceptor}`
-                : 'law changed since the lock was accepted',
+                : outdated
+                  ? `lock format upgraded: this lock hashes only the law's own text; ${acceptor} to record it in the new format`
+                  : 'law changed since the lock was accepted',
         });
       }
     }

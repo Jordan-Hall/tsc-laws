@@ -6,18 +6,18 @@
 TESTED   the banner never goes negative (src/cart.laws.ts:5) [property]
          unknown name import_badge
 
-1 laws: 0 proved, 0 bounded, 1 tested, 0 open, 0 failed, 0 tampered, 0 errors
+1 law: 0 proved, 0 bounded, 1 tested, 0 open, 0 failed, 0 tampered, 0 errors
 
 ── packages/core ──
 PROVED   a discount is never negative (src/money.laws.ts:5) [smt]
          assuming: int parameters stay within ±(2^53 - 1)
 
-1 laws: 1 proved, 0 bounded, 0 tested, 0 open, 0 failed, 0 tampered, 0 errors
+1 law: 1 proved, 0 bounded, 0 tested, 0 open, 0 failed, 0 tampered, 0 errors
 
 ── packages/ui ──
 TESTED   a saving never exceeds the price (src/badge.laws.ts:5) [property]
          unknown name import_money
 
-1 laws: 0 proved, 0 bounded, 1 tested, 0 open, 0 failed, 0 tampered, 0 errors
+1 law: 0 proved, 0 bounded, 1 tested, 0 open, 0 failed, 0 tampered, 0 errors
 
 3 projects, 0 failed
