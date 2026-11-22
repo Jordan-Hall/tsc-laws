@@ -287,4 +287,24 @@ describe('tslaws at a monorepo root without a compiler', () => {
       ['src/f.laws.ts'],
     );
   });
+
+  it('ends by itself once every project is done, instead of calling process.exit', () => {
+    // `process.exit()` can deadlock in V8's teardown (a background thread waits for a collection the exiting thread
+    // will never run), so the CLI must not need it. The preload reports any call to it.
+    const root = twoPackages();
+    const preload = join(scratch, 'report-exit.cjs');
+    writeFileSync(
+      preload,
+      "process.reallyExit = (code) => { process.stderr.write('process.exit called'); process.kill(process.pid, 'SIGKILL'); };",
+    );
+    const run = spawnSync('node', ['--require', preload, bin, 'list'], {
+      cwd: root,
+      encoding: 'utf8',
+      timeout: 60_000,
+      killSignal: 'SIGKILL',
+    });
+    assert.equal(run.status, 0, run.stderr);
+    assert.match(run.stdout, /^2 projects, 0 failed$/m);
+    assert.doesNotMatch(run.stderr, /process\.exit called/);
+  });
 });
