@@ -1,5 +1,3 @@
-'use strict';
-
 // Turns the output of `tslaws check` (`--json`, or the `--reporter ndjson` stream) into per-law records. Pure.
 
 /** Extract and parse the JSON object from stdout, tolerating noise before it. */
@@ -132,7 +130,7 @@ function parseUiUrl(text) {
   return m === null ? null : m[1];
 }
 
-module.exports = {
+export {
   parseReport,
   createStreamParser,
   normalizeRecord,

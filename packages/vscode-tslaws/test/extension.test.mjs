@@ -1,17 +1,27 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import Module, { createRequire } from 'node:module';
+import { readFileSync } from 'node:fs';
+import { registerHooks } from 'node:module';
 import { makeFake } from './fake-vscode.mjs';
 
-// extension.js is the only file that requires `vscode`. Load it against the fake and check what activation registers.
-test('activate registers the commands, providers, test controller and status bar; accept only types the command', () => {
+// extension.js is the only file that imports `vscode`. Load it against the fake, by answering that one specifier with a
+// module whose exports are the fake's, and check what activation registers.
+test('activate registers the commands, providers, test controller and status bar; accept only types the command', async () => {
   const fake = makeFake({ root: '/w' });
-  const origLoad = Module._load;
-  Module._load = function (request, ...rest) {
-    return request === 'vscode' ? fake.vscode : origLoad.call(this, request, ...rest);
-  };
+  globalThis.__tslawsFakeVscode = fake.vscode;
+  const stub = 'vscode-stub:vscode';
+  const hooks = registerHooks({
+    resolve: (specifier, context, next) =>
+      specifier === 'vscode' ? { url: stub, shortCircuit: true } : next(specifier, context),
+    load: (url, context, next) => {
+      if (url !== stub) return next(url, context);
+      const exports = Object.keys(fake.vscode).map((name) => `export const ${name} = api.${name};`);
+      const source = ['const api = globalThis.__tslawsFakeVscode;', ...exports, ''].join('\n');
+      return { format: 'module', source, shortCircuit: true };
+    },
+  });
   try {
-    const ext = createRequire(import.meta.url)('../src/extension.js');
+    const ext = await import('../src/extension.js');
     const context = { subscriptions: [] };
     ext.activate(context);
     assert.deepEqual([...fake.commands.keys()].sort(), [
@@ -52,12 +62,13 @@ test('activate registers the commands, providers, test controller and status bar
     context.subscriptions.at(-1).dispose();
     ext.deactivate();
   } finally {
-    Module._load = origLoad;
+    hooks.deregister();
+    delete globalThis.__tslawsFakeVscode;
   }
 });
 
 test('every command and setting the manifest declares is real, and the old ones are still there', () => {
-  const pkg = createRequire(import.meta.url)('../package.json');
+  const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
   const declared = pkg.contributes.commands.map((c) => c.command).sort();
   for (const old of ['tslaws.check', 'tslaws.runFile', 'tslaws.openDashboard', 'tslaws.accept'])
     assert.ok(declared.includes(old), old);

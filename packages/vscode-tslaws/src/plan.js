@@ -1,5 +1,3 @@
-'use strict';
-
 // Chooses which laws files to run for a change to one file. Pure.
 
 const SOURCE = /\.(ts|tsx|mts|cts)$/;
@@ -38,4 +36,4 @@ function planRun({ file, lawFiles, coverage }) {
   return { files: null, reason: 'all' };
 }
 
-module.exports = { planRun, isRunnable };
+export { planRun, isRunnable };

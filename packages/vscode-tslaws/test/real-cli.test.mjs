@@ -7,13 +7,11 @@ import fs from 'node:fs';
 import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createRequire } from 'node:module';
 import { spawn } from 'node:child_process';
 import { makeFake, until } from './fake-vscode.mjs';
 
-const require = createRequire(import.meta.url);
-const { activateExtension } = require('../src/host.js');
-const { textOf } = require('../src/ranges.js');
+import { activateExtension } from '../src/host.js';
+import { textOf } from '../src/ranges.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repo = path.join(here, '..', '..', '..');

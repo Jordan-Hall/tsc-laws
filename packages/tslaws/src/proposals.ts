@@ -22,7 +22,8 @@ import {
 import { join, posix } from 'node:path';
 import { moduleSpecifiers } from './lawKinds.ts';
 import { proposalsDir } from './lawFiles.ts';
-import { parseLawFile } from './promote.ts';
+import ts from 'typescript';
+import { parseLawFile, sameCode, withDeclarations } from './promote.ts';
 
 /** A refusal with a message for the person or agent that asked. */
 export class ProposalError extends Error {}
@@ -125,22 +126,75 @@ export function importsForTarget(text: string, toDir: string): string {
   });
 }
 
-/** The proposal's own text after `parseLawFile`: only imports and law declarations are allowed in one. */
+/** Whether a top-level statement may stand in a proposal beside the laws: a `const`, function, type or interface. */
+function isHelper(statement: ts.Statement): boolean {
+  if (ts.isVariableStatement(statement)) return (statement.declarationList.flags & ts.NodeFlags.Const) !== 0;
+  return (
+    ts.isFunctionDeclaration(statement) || ts.isTypeAliasDeclaration(statement) || ts.isInterfaceDeclaration(statement)
+  );
+}
+
+/**
+ * The proposal's own text after `parseLawFile`: imports, law declarations and the helpers the laws need (top-level
+ * `const`, function, type and interface declarations, with their comments). Any other top-level statement, such as a
+ * bare call, a loop, `export default` or `let`, runs on its own or changes shared state, so it is refused.
+ */
 function parts(source: string): ReturnType<typeof parseLawFile> {
   const parsed = parseLawFile(source);
-  let rest = source;
-  for (const part of [...parsed.laws, ...parsed.imports.map((text) => ({ text }))]) rest = rest.replace(part.text, '');
-  if (rest.trim() !== '') throw new ProposalError('a proposal may contain only imports and law declarations');
+  const file = ts.createSourceFile('proposal.ts', parsed.rest, ts.ScriptTarget.Latest, false, ts.ScriptKind.TS);
+  for (const statement of file.statements)
+    if (!isHelper(statement) && !ts.isEmptyStatement(statement)) {
+      const shown = parsed.rest.slice(statement.getStart(file), statement.end).replace(/\s+/g, ' ');
+      throw new ProposalError(
+        `a proposal may contain only imports, law declarations and top-level const, function, type and interface declarations; found \`${shown.length > 40 ? `${shown.slice(0, 40)}…` : shown}\``,
+      );
+    }
   return parsed;
 }
 
-/** The proposed file with the proposal's laws appended (same-named laws replaced) and its imports added once. */
-export function mergeProposal(current: string, imports: string[], laws: { name: string; text: string }[]): string {
+interface Helper {
+  names: string[];
+  text: string;
+}
+
+/**
+ * The proposed file with the proposal's laws appended (same-named laws replaced), its imports added once and its
+ * helpers placed after the declarations already there (a helper of the same name with other code replaces the old one,
+ * and throws when that would drop a name its statement bound together with it; an identical one is kept as it is).
+ */
+export function mergeProposal(
+  current: string,
+  imports: string[],
+  laws: { name: string; text: string }[],
+  helpers: Helper[] = [],
+): string {
   const parsed = parseLawFile(current);
-  let text = current;
-  for (const law of [...parsed.laws].reverse()) {
-    if (laws.some((l) => l.name === law.name)) text = text.slice(0, law.start) + text.slice(law.end);
+  const added = helpers.filter(
+    (helper) =>
+      !parsed.declarations.some((d) => d.names.some((n) => helper.names.includes(n)) && sameCode(d.text, helper.text)),
+  );
+  const replaced = parsed.declarations.filter((d) => added.some((h) => h.names.some((n) => d.names.includes(n))));
+  for (const declaration of replaced) {
+    // One statement may bind several names (`const a = 1, b = 2`); dropping it must not take a name nobody redeclares.
+    const lost = declaration.names.find((n) => !added.some((h) => h.names.includes(n)));
+    if (lost !== undefined)
+      throw new ProposalError(
+        `'${lost}' is declared together with ${declaration.names
+          .filter((n) => n !== lost)
+          .map((n) => `'${n}'`)
+          .join(', ')} in the proposal; send the whole declaration again, or rename the helper`,
+      );
   }
+  const drops = [...parsed.laws.filter((law) => laws.some((l) => l.name === law.name)), ...replaced].sort(
+    (a, b) => b.start - a.start,
+  );
+  let text = current;
+  for (const { start, end } of drops) {
+    let to = end;
+    while (text[to] === '\r' || text[to] === '\n') to += 1;
+    text = text.slice(0, start) + text.slice(to);
+  }
+  if (added.length > 0) text = withDeclarations(text, added.map((h) => h.text.trim()).join('\n\n'));
   const have = new Set(parseLawFile(text).imports.map((i) => i.replace(/\s+/g, ' ').trim()));
   const missing = imports.filter((i) => !have.has(i.replace(/\s+/g, ' ').trim()));
   const head = missing.length > 0 ? `${missing.join('\n')}\n` : '';
@@ -167,6 +221,8 @@ export interface Written {
   file: string;
   /** The names of the laws the source declared. */
   laws: string[];
+  /** The names of the helpers the source declared. */
+  helpers: string[];
 }
 
 /**
@@ -186,8 +242,8 @@ function ignoreProposals(cwd: string): void {
 }
 
 /**
- * Adds laws to a proposal (appended; a law of the same name is replaced). `source` holds only imports and `export law`
- * declarations; with `only`, it must declare that law. Writes inside `.tslaws/proposals/` and nowhere else.
+ * Adds laws to a proposal (appended; a law of the same name is replaced). `source` holds imports, `export law`
+ * declarations and the helpers they need (see `parts`); with `only`, it must declare that law. Writes inside `.tslaws/proposals/` and nowhere else.
  */
 export function addProposal(cwd: string, file: string, source: string, only?: string): Written {
   const { rel, abs } = writablePath(cwd, file);
@@ -198,9 +254,9 @@ export function addProposal(cwd: string, file: string, source: string, only?: st
   if (only !== undefined && !parsed.laws.some((l) => l.name === only))
     throw new ProposalError(`source must contain \`export law ${only}\`…`);
   const current = existsSync(abs) ? readFileSync(abs, 'utf8') : '';
-  write(abs, mergeProposal(current, parsed.imports, parsed.laws));
+  write(abs, mergeProposal(current, parsed.imports, parsed.laws, parsed.declarations));
   ignoreProposals(cwd);
-  return { file: rel, laws: parsed.laws.map((l) => l.name) };
+  return { file: rel, laws: parsed.laws.map((l) => l.name), helpers: parsed.declarations.flatMap((d) => d.names) };
 }
 
 /**

@@ -1,16 +1,14 @@
-'use strict';
-
 // The editor surface: diagnostics, CodeLens, hover, quick fixes and decorations. `vscode` is passed in (only
 // extension.js requires it), and everything shown is built by the pure modules from the view the host supplies.
 
-const path = require('node:path');
-const { findLaws } = require('./find-laws.js');
-const { declarationRange } = require('./ranges.js');
-const { lawLensTitle, fileLensTitle, sourceLensTitle } = require('./format.js');
-const { relativeTo } = require('./parse-report.js');
+import path from 'node:path';
+import { findLaws } from './find-laws.js';
+import { declarationRange } from './ranges.js';
+import { lawLensTitle, fileLensTitle, sourceLensTitle } from './format.js';
+import { relativeTo } from './parse-report.js';
 
 const SELECTOR = [{ scheme: 'file', pattern: '**/*.{ts,tsx,mts,cts}' }];
-const MEDIA = path.join(__dirname, '..', 'media');
+const MEDIA = path.join(import.meta.dirname, '..', 'media');
 const COMMANDS = ['tslaws.runLaw', 'tslaws.copyReproduce', 'tslaws.openLaw', 'tslaws.openSource', 'tslaws.writeLaw'];
 
 const commandUri = (command, args) => `command:${command}?${encodeURIComponent(JSON.stringify(args))}`;
@@ -263,4 +261,4 @@ function createEditor(vscode, host) {
   };
 }
 
-module.exports = { createEditor, SELECTOR, commandUri };
+export { createEditor, SELECTOR, commandUri };

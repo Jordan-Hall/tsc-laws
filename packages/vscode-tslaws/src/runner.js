@@ -1,10 +1,8 @@
-'use strict';
-
 // Starts one `tslaws check` and turns its output into events. `spawn` is injected so tests can run it without a process.
 // With a tslaws that streams (`--reporter ndjson`) results arrive law by law; with an older one, the `--json` report
 // arrives at the end and is replayed as the same events.
 
-const { createStreamParser, parseReport } = require('./parse-report.js');
+import { createStreamParser, parseReport } from './parse-report.js';
 
 /**
  * @param {{
@@ -98,4 +96,4 @@ function checkArguments(request, support) {
   return args;
 }
 
-module.exports = { startCheck, liveSupport, checkArguments };
+export { startCheck, liveSupport, checkArguments };

@@ -3,16 +3,14 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { createRequire } from 'node:module';
 
-const require = createRequire(import.meta.url);
-const { functionStatus, uncoveredStatus, ageText } = require('../src/live-status.js');
-const { createLiveGuard, createCpuSampler } = require('../src/live-guard.js');
-const { saveCache, loadCache } = require('../src/live-cache.js');
-const { liveEnabled } = require('../src/settings.js');
-const { proposedPath, parametersOf, lawSkeleton, addToProposed } = require('../src/law-skeleton.js');
-const { buildNavigation, importsOf, resolveSpecifier, functionIdsFor, wordAt } = require('../src/law-index.js');
-const { buildTree } = require('../src/laws-tree.js');
+import { functionStatus, uncoveredStatus, ageText } from '../src/live-status.js';
+import { createLiveGuard, createCpuSampler } from '../src/live-guard.js';
+import { saveCache, loadCache } from '../src/live-cache.js';
+import { liveEnabled } from '../src/settings.js';
+import { proposedPath, parametersOf, lawSkeleton, addToProposed } from '../src/law-skeleton.js';
+import { buildNavigation, importsOf, resolveSpecifier, functionIdsFor, wordAt } from '../src/law-index.js';
+import { buildTree } from '../src/laws-tree.js';
 
 const entry = (...laws) => ({ laws: laws.map((l) => ({ file: 'a.laws.ts', name: l.name ?? 'l', ...l })) });
 const ctx = (over = {}) => ({

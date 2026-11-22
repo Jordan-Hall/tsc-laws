@@ -1,8 +1,8 @@
 // The compiler that npm installs with tslaws: one optional dependency per platform, `tslaws-compiler-<platform>`, holding
 // the native executable and the TypeScript lib files beside it.
 import { existsSync, readFileSync } from 'node:fs';
-import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 export interface Platform {
   name: string;
@@ -50,7 +50,7 @@ export function bundledCompiler(): string | undefined {
   const platform = hostPlatform();
   if (platform === undefined) return undefined;
   try {
-    const manifest = createRequire(import.meta.url).resolve(`${packageName(platform)}/package.json`);
+    const manifest = fileURLToPath(import.meta.resolve(`${packageName(platform)}/package.json`));
     const executable = join(dirname(manifest), 'lib', executableName());
     return existsSync(executable) ? executable : undefined;
   } catch {

@@ -1,8 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createRequire } from 'node:module';
 
-const { merge, functionIndex, coverageMap, blamedFunctions } = createRequire(import.meta.url)('../src/model.js');
+import { merge, functionIndex, coverageMap, blamedFunctions } from '../src/model.js';
 
 const span = (file, line, column = 1) => ({ file, line, column, endLine: line, endColumn: column + 3 });
 const rec = (file, name, status, extra = {}) => ({

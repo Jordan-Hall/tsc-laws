@@ -1,5 +1,3 @@
-'use strict';
-
 // Debounces requests to run laws and cancels a run that a newer edit has made stale. Pure: timers and the way a run
 // starts are injected, so tests drive it with a fake clock.
 
@@ -94,4 +92,4 @@ function createScheduler(o) {
   };
 }
 
-module.exports = { createScheduler, mergeRequests };
+export { createScheduler, mergeRequests };

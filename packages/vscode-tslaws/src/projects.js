@@ -1,5 +1,3 @@
-'use strict';
-
 // Which tslaws project a file belongs to. A project is a directory with a tslaws.json, and a file belongs to the nearest
 // one above it, never past the workspace folder it lies in. Pure: `fs` and `path` are passed in, so the unit tests run on
 // a table of files and the extension passes the real ones.
@@ -17,7 +15,7 @@
  * @typedef {{fs: Fs, path?: typeof import('node:path')}} Io
  */
 
-const nodePath = require('node:path');
+import nodePath from 'node:path';
 
 const norm = (path, p) => path.normalize(p).replace(/[\\/]+$/, '');
 const fold = (path, p) => norm(path, p).toLowerCase();
@@ -126,4 +124,4 @@ function describeProject(project, folders, io) {
   ];
 }
 
-module.exports = { locate, locateIn, labelOf, describeProject, isInside, owningFolder };
+export { locate, locateIn, labelOf, describeProject, isInside, owningFolder };

@@ -72,3 +72,13 @@ export function explainBundleError(error: Error): Error {
     `JavaScript (see "Bundler plugins" in docs/laws.md)`;
   return new Error(`${advice}. esbuild said: ${error.message.split('\n')[0]}`);
 }
+
+/** The error for a file a node law loads that no `bundlerPlugins` entry handles (and esbuild has no loader for). */
+export function explainNodeLoadError(file: string, esbuildMessage: string): Error {
+  const extension = /No loader is configured for "(\.[^"]+)" files/.exec(esbuildMessage)?.[1] ?? file;
+  return new Error(
+    `cannot load "${file}": no bundler plugin handles "${extension}" files. Add one in tslaws.json ` +
+      `"${bundlerPluginsSetting}" (an esbuild plugin whose onLoad returns JavaScript for the extension); node laws use ` +
+      `the same plugins as browser laws (see "Bundler plugins" in docs/laws.md)`,
+  );
+}

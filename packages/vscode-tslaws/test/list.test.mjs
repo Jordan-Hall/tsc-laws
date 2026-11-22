@@ -1,8 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createRequire } from 'node:module';
 
-const { parseList, fromName, badgeFor } = createRequire(import.meta.url)('../src/list.js');
+import { parseList, fromName, badgeFor } from '../src/list.js';
 
 const entry = (file, kind, status) => ({ file, kind, status, notices: [] });
 

@@ -1,13 +1,11 @@
-'use strict';
-
 // Test Explorer: every law is a test, in the Testing view, with run profiles that map onto `tslaws check`. Results go
 // back to the same locations the diagnostics use: the law, and the function it exercises. `vscode` is passed in.
 
-const path = require('node:path');
-const { findLaws } = require('./find-laws.js');
-const { buildDiagnostics } = require('./diagnostics.js');
-const { PASSING } = require('./summary.js');
-const { oneLine } = require('./format.js');
+import path from 'node:path';
+import { findLaws } from './find-laws.js';
+import { buildDiagnostics } from './diagnostics.js';
+import { PASSING } from './summary.js';
+import { oneLine } from './format.js';
 
 const idOf = (file, name) => `${file}::${name}`;
 
@@ -185,4 +183,4 @@ function* flat(collection) {
   }
 }
 
-module.exports = { createTesting, idOf };
+export { createTesting, idOf };

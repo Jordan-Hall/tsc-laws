@@ -19,7 +19,7 @@ import { after, describe, it } from 'node:test';
 import { promoteCommand, proposeCommand } from '../dist/cli.js';
 import { grantFor } from '../dist/delegation.js';
 import { discoverProposals } from '../dist/lawFiles.js';
-import { defaultTarget, promoteProposal, promotionTarget } from '../dist/promote.js';
+import { defaultTarget, parseLawFile, promoteProposal, promotionTarget } from '../dist/promote.js';
 import {
   addProposal,
   importsForTarget,
@@ -125,15 +125,160 @@ describe('writing proposals', () => {
     assert.deepEqual(tree(cwd), ['src', 'src/cart.ts']);
   });
 
-  it('keeps only imports and law declarations, and needs a law', () => {
+  it('keeps only imports, laws and helper declarations, and needs a law', () => {
     const cwd = project();
     assert.throws(
       () => addProposal(cwd, 'a.ts', `${source}\nrequire('fs').rmSync('x');\n`),
-      /only imports and law declarations/,
+      /only imports, law declarations and top-level const, function, type and interface declarations; found `require/,
     );
     assert.throws(() => addProposal(cwd, 'a.ts', "import { total } from './src/cart';\n"), /at least one law/);
     assert.throws(() => addProposal(cwd, 'a.ts', source, 'nope'), /must contain `export law nope`/);
     assert.deepEqual(discoverProposals(cwd), []);
+  });
+
+  describe('helpers', () => {
+    const helperSource = [
+      "import { total } from './src/cart';",
+      '',
+      '/** How many items a generated cart holds. */',
+      'const size = (n: number): number => Math.abs(Math.trunc(n)) % 50;',
+      '',
+      '// A cart line.',
+      'interface Line { price: number }',
+      'export type Cart = Line[];',
+      '/** Builds a cart. */',
+      'export function cartOf(n: number): Cart {',
+      '  return Array.from({ length: size(n) }, () => ({ price: 1 }));',
+      '}',
+      '',
+      'export law totalIsNeverNegative(n: number) { return total(cartOf(n).length) >= 0; }',
+      '',
+    ].join('\n');
+
+    it('stores the helpers with their comments, after the imports and before the laws', () => {
+      const cwd = project();
+      const written = addProposal(cwd, 'cart.ts', helperSource);
+      assert.deepEqual(written.laws, ['totalIsNeverNegative']);
+      assert.deepEqual(written.helpers, ['size', 'Line', 'Cart', 'cartOf']);
+      const text = readFileSync(join(cwd, '.tslaws/proposals/cart.ts'), 'utf8');
+      assert.match(text, /from '\.\.\/\.\.\/src\/cart'/);
+      assert.ok(text.includes('/** How many items a generated cart holds. */\nconst size ='), text);
+      assert.ok(text.includes('// A cart line.\ninterface Line'), text);
+      assert.ok(text.indexOf('import') < text.indexOf('const size'));
+      assert.ok(text.indexOf('function cartOf') < text.indexOf('export law totalIsNeverNegative'));
+      assert.equal(text.split('const size').length, 2);
+    });
+
+    it('keeps an identical helper once, replaces a changed one, and keeps the laws already there', () => {
+      const cwd = project();
+      addProposal(cwd, 'cart.ts', helperSource);
+      addProposal(
+        cwd,
+        'cart.ts',
+        'const size = (n: number): number => Math.abs(Math.trunc(n)) % 50;\nexport law other(n: number) { return size(n) >= 0; }\n',
+      );
+      let text = readFileSync(join(cwd, '.tslaws/proposals/cart.ts'), 'utf8');
+      assert.equal(text.split('const size').length, 2);
+      assert.ok(text.includes('/** How many items a generated cart holds. */\nconst size ='), text);
+      addProposal(
+        cwd,
+        'cart.ts',
+        'const size = (n: number): number => Math.abs(Math.trunc(n)) % 10;\nexport law third(n: number) { return size(n) < 10; }\n',
+      );
+      text = readFileSync(join(cwd, '.tslaws/proposals/cart.ts'), 'utf8');
+      assert.equal(text.split('const size').length, 2);
+      assert.ok(text.includes('% 10'));
+      assert.ok(!text.includes('% 50'));
+      assert.deepEqual(
+        parseLawFile(text).laws.map((l) => l.name),
+        ['totalIsNeverNegative', 'other', 'third'],
+      );
+      assert.deepEqual(
+        parseLawFile(text).declarations.flatMap((d) => d.names),
+        ['Line', 'Cart', 'cartOf', 'size'],
+      );
+    });
+
+    it('refuses to replace one name of a declaration that binds several, and writes nothing', () => {
+      const cwd = project();
+      const law = 'export law pair(n: number) { return a + b === 3; }\n';
+      addProposal(cwd, 'pair.ts', `const a = 1, b = 2;\n${law}`);
+      const file = join(cwd, '.tslaws/proposals/pair.ts');
+      const before = readFileSync(file, 'utf8');
+      assert.throws(
+        () => addProposal(cwd, 'pair.ts', 'const a = 5;\nexport law other(n: number) { return a === 5; }\n'),
+        /'b' is declared together with 'a'/,
+      );
+      assert.equal(readFileSync(file, 'utf8'), before);
+      // Sending every name of the statement again is a replacement.
+      addProposal(cwd, 'pair.ts', 'const a = 1, b = 3;\nexport law other(n: number) { return a + b === 4; }\n');
+      const text = readFileSync(file, 'utf8');
+      assert.equal(text.split('const a').length, 2);
+      assert.ok(text.includes('b = 3'));
+    });
+
+    it('refuses every top-level statement that is not a helper, and writes nothing', () => {
+      const cwd = project();
+      for (const stray of [
+        "doSomething('x');",
+        "require('fs').rmSync('x');",
+        'let counter = 0;',
+        'var shared = 1;',
+        'if (true) { go(); }',
+        'for (;;) {}',
+        '{ go(); }',
+        'export default 1;',
+        'export { total };',
+        "export * from './src/cart';",
+        'class Thing { static { go(); } }',
+        'enum Mode { A }',
+        'namespace N { go(); }',
+        'await go();',
+        'const ok = 1;\nsideEffect();',
+      ]) {
+        assert.throws(() => addProposal(cwd, 'a.ts', `${source}\n${stray}\n`), ProposalError, stray);
+        assert.throws(() => addProposal(cwd, 'a.ts', `${stray}\n${source}`), ProposalError, stray);
+      }
+      assert.deepEqual(discoverProposals(cwd), []);
+      assert.ok(!existsSync(join(cwd, '.tslaws/proposals/a.ts')));
+    });
+
+    it('still checks the imports and the file name of a proposal that has helpers', () => {
+      const cwd = project();
+      assert.throws(
+        () =>
+          addProposal(
+            cwd,
+            'a.ts',
+            `import { x } from './../outside';\nconst h = 1;\nexport law a(n: number) { return h === 1; }\n`,
+          ),
+        /leaves the project/,
+      );
+      assert.throws(() => addProposal(cwd, '../a.ts', helperSource), /not a proposal file/);
+      assert.deepEqual(discoverProposals(cwd), []);
+    });
+
+    it('promotes with the helpers its laws use', async () => {
+      const cwd = project();
+      addProposal(cwd, 'cart.ts', `${helperSource}\nconst unused = 1;\n`);
+      const out: string[] = [];
+      const result = await promoteProposal(
+        {
+          cwd,
+          checkFile: async () => new Map(),
+          ask: async () => '',
+          out: (t) => void out.push(t),
+        },
+        '.tslaws/proposals/cart.ts',
+      );
+      assert.equal(result.target, 'src/cart.laws.ts');
+      const moved = readFileSync(join(cwd, 'src/cart.laws.ts'), 'utf8');
+      assert.match(moved, /const size =/);
+      assert.match(moved, /function cartOf/);
+      assert.match(moved, /interface Line/);
+      assert.match(moved, /from '\.\/cart'/);
+      assert.match(moved, /export law totalIsNeverNegative/);
+    });
   });
 
   it('refuses every name that is not a plain .ts file in the directory', () => {

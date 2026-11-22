@@ -1,9 +1,7 @@
-'use strict';
-
 // The one-line status of a function the laws reach, shown after its signature: `proved`, `tested 24 runs`, `bounded`,
 // `failing: counterexample (price=0, coupon=1)`, `running…`, `stale · ran 3m ago`, or `uncovered`. Pure.
 
-const { inputsText } = require('./format.js');
+import { inputsText } from './format.js';
 
 /** `just now`, `3m ago`, `2h ago`, `4d ago`. */
 function ageText(ms) {
@@ -75,4 +73,4 @@ function uncoveredStatus() {
   return { kind: 'uncovered', tone: 'muted', text: 'uncovered: no law reaches this function' };
 }
 
-module.exports = { functionStatus, uncoveredStatus, ageText, counterexampleText };
+export { functionStatus, uncoveredStatus, ageText, counterexampleText };
