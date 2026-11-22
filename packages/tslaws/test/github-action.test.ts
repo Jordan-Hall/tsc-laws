@@ -229,4 +229,20 @@ describe('the workflows in docs/github.md', () => {
     for (const block of split.filter((b) => b.includes('mode: merge')))
       assert.ok(block.indexOf('create-github-app-token') > block.indexOf('download-artifact'));
   });
+  it('run no code of the branch in the merge job that holds the app token', () => {
+    const merges = blocks.filter((b) => b.includes('--results-out') && b.includes('mode: merge'));
+    assert.ok(merges.length >= 2);
+    for (const block of merges) {
+      const job = block.slice(block.search(/^ {2}merge:/m));
+      // No install of the branch's packages runs its scripts, and tslaws is a pinned release in a directory of its own.
+      for (const line of job
+        .split('\n')
+        .filter((l) => /\b(npm (ci|install)|pnpm install|yarn install|bun install)\b/.test(l)))
+        assert.match(line, /--ignore-scripts/, line);
+      assert.match(job, /npm install --prefix "\$RUNNER_TEMP\/tslaws" --ignore-scripts [^\n]*tslaws@\d+\.\d+\.\d+/);
+      assert.match(job, /tslaws-root: '\$\{\{ runner\.temp \}\}\/tslaws'/);
+      assert.match(job, /install: 'false'/);
+      assert.ok(job.indexOf('create-github-app-token') > job.indexOf('npm install --prefix'));
+    }
+  });
 });

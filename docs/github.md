@@ -137,8 +137,10 @@ A law, and any module a law imports, is code a pull request wrote. `report` and 
   runs `tslaws accept` with the checkers installed.
 - **With the workflows below, it never runs beside the token.** The laws run in a job that holds no token, and its
   checkout has `persist-credentials: false`, so `.git/config` holds none either. A second job, which runs none of the
-  pull request's code, downloads the reports as an artifact and does the GitHub work. The app's token is minted in that
-  job after every step that installs anything.
+  pull request's code, downloads the reports as an artifact and does the GitHub work. In the `merge` job that tslaws is
+  a pinned release installed on its own, never the one the branch's lockfile installs, and the branch's packages are
+  installed with `--ignore-scripts`, so no code from the branch runs there. The app's token is minted after every step
+  that installs anything.
 
 What this does not do. A process that runs as the same user can read the environment of the other processes and the
 files of the checkout, so a single job that holds the token while the laws run is protected from `process.env` reads
@@ -146,8 +148,9 @@ but not from a determined law: run the two jobs. The reports are data that the l
 about its own result; the token stays safe, and the lock still records only what a person, or the `merge` flow,
 accepts for that exact version of the law. Files in the workspace and the home directory (an `.npmrc` with a registry
 token, for example) are readable by laws, so keep credentials out of the laws job. The job that holds the token still
-compiles the pull request's files, reads their config and lock, and installs dependencies from the lockfile before the
-token exists.
+compiles the pull request's files and reads their config and lock, as data. If you change the `merge` job to install
+`tslaws` from the branch's lockfile, or to run its install scripts, the branch controls the code that holds the token,
+and none of the above holds.
 
 The action always runs the `tslaws` installed in `tslaws-root` (default: the workspace root) by path. It never looks
 `tslaws` up from `working-directory`, so in the command job, where `working-directory` is the pull request's files,
@@ -275,15 +278,16 @@ jobs:
         with: { mode: merge, args: '--results-out ${{ runner.temp }}/tslaws-results.json' }
       - uses: actions/upload-artifact@v4
         with: { name: tslaws-results, path: '${{ runner.temp }}/tslaws-results.json' }
-  merge: # holds the app's token, and runs none of the branch's code
+  merge: # holds the app's token, and runs none of the branch's code: its packages are installed as data, never run
     needs: laws
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4 # the pushed commit, read as data
         with: { persist-credentials: false }
       - uses: actions/setup-node@v4
         with: { node-version: 22 } # no cache: see "Monorepos"
-      - run: npm ci
+      - run: npm ci --ignore-scripts # so the project's imports resolve; no install script of the branch runs
+      - run: npm install --prefix "$RUNNER_TEMP/tslaws" --ignore-scripts --no-package-lock tslaws@0.10.0 # a pinned release: the branch's lockfile decides nothing here
       - uses: actions/download-artifact@v4
         with: { name: tslaws-results, path: '${{ runner.temp }}' }
       - uses: actions/create-github-app-token@v1 # after every step that installs anything
@@ -293,6 +297,7 @@ jobs:
         with:
           mode: merge
           install: 'false'
+          tslaws-root: '${{ runner.temp }}/tslaws' # the pinned tslaws, never one the branch installed
           token: '${{ steps.app.outputs.token }}'
           args: --results ${{ runner.temp }}/tslaws-results.json
 ```
@@ -401,26 +406,33 @@ jobs:
         with: { mode: merge, args: '--results-out ${{ runner.temp }}/tslaws-results.json' }
       - uses: actions/upload-artifact@v4
         with: { name: tslaws-results, path: '${{ runner.temp }}/tslaws-results.json' }
-  merge:
+  merge: # holds the app's token; the branch's packages are installed as data, never run
     needs: laws
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4 # the pushed commit, read as data
         with: { persist-credentials: false }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 } # no cache: a cache could carry code from another run into a job with the token
+      - run: npm ci --ignore-scripts # so the projects' imports resolve; no install script of the branch runs
+      - run: npm install --prefix "$RUNNER_TEMP/tslaws" --ignore-scripts --no-package-lock tslaws@0.10.0 # a pinned release: the branch's lockfile decides nothing here
       - uses: actions/download-artifact@v4
         with: { name: tslaws-results, path: '${{ runner.temp }}' }
-      - uses: actions/create-github-app-token@v1 # the install the action runs is in this job too: see the note below
+      - uses: actions/create-github-app-token@v1 # after every step that installs anything
         id: app
         with: { app-id: '${{ vars.TSLAWS_APP_ID }}', private-key: '${{ secrets.TSLAWS_APP_KEY }}' }
       - uses: Jordan-Hall/tsc-laws/packages/tslaws/github@laws-v0.10.0 # pin a release tag or a full commit SHA, never @main
         with:
           mode: merge
+          install: 'false'
+          tslaws-root: '${{ runner.temp }}/tslaws' # the pinned tslaws, never one the branch installed
           token: '${{ steps.app.outputs.token }}'
           args: --results ${{ runner.temp }}/tslaws-results.json
 ```
 
-The action installs in a step of its own, where the token is not in the environment. To mint the token only after every
-install, install in an earlier step and pass `install: 'false'`, as in the single-project example.
+The `merge` job never runs the branch's `tslaws`: it installs a pinned release into a directory of its own and passes
+that as `tslaws-root`. The branch's packages are installed with `--ignore-scripts` only so that imports resolve while
+the files are compiled; nothing in them runs. Change the pinned version with the action's tag.
 
 The `verify` and `command` workflows above work as they are, run from the root. The concurrency group keeps one pending
 run when pushes arrive quickly. That loses nothing: `merge` compares the laws at the branch head with each lock, so the
