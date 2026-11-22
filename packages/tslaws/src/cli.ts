@@ -52,7 +52,7 @@ tslaws delegate grant [--for 1h|8h|1d|7d] [--root DIR]   lend accept to an agent
 tslaws delegate revoke [--root DIR]   withdraw the delegation for a project (people only)
 tslaws delegate status        list delegations and when they end
 tslaws propose <file.ts> [--from PATH]   write a proposal into .tslaws/proposals/ from PATH or stdin (outside the tree, git-ignored; never touches the lock or any other file)
-tslaws promote <proposal> [--to PATH]   move a proposal from .tslaws/proposals/ into the tree at a path you confirm (people only: needs a terminal; run accept afterwards). In-tree *.proposed.laws.ts files (the usual proposals) promote with --all or by name
+tslaws promote <proposal> [--to PATH] [--yes]   move a proposal from .tslaws/proposals/ into the tree at a path you confirm (people only: needs a terminal; run accept afterwards). It prints the imports and helper code it would add and asks first; --yes adds it without asking (it is still printed; it never lets promote run without a terminal). In-tree *.proposed.laws.ts files (the usual proposals) promote with --all or by name
 tslaws list [--json]   the laws files and proposals of the project: the level each runs at (from its name, or its imports with levels: imports) and whether it is accepted, unaccepted or proposed (reads files and the lock; runs nothing)
 tslaws github report|command|merge|verify   accept laws on GitHub: flag and run each proposal on a pull request, record /tslaws accept comments, and write tsc-laws.lock on merge or on demand (workflow_dispatch) (CI only; see "github" in tslaws.json)
 tslaws mcp [--compiler PATH]   serve check, check_proposed, explain and propose as Model Context Protocol tools on stdio (cannot accept, promote or touch the lock)
@@ -573,6 +573,7 @@ export async function promoteCommand(
     err('--to takes one path, for one proposal\n');
     return 1;
   }
+  const yes = flags.get('yes') === true;
   const rl = ctx.ask === undefined ? createInterface({ input: process.stdin, output: process.stdout }) : undefined;
   const ask = ctx.ask ?? ((question: string) => rl!.question(question));
   const checkFile =
@@ -587,11 +588,11 @@ export async function promoteCommand(
     for (const file of chosen) {
       const rel = relative(cwd, resolve(cwd, file)).replaceAll('\\', '/');
       if (isProposedLawFile(rel) && !file.startsWith('.tslaws')) {
-        await promoteFiles({ cwd, ask, out, checkFile }, [rel]);
+        await promoteFiles({ cwd, ask, out, checkFile, yes }, [rel]);
         continue;
       }
       try {
-        await promoteProposal({ cwd, ask, out, checkFile }, file, to);
+        await promoteProposal({ cwd, ask, out, checkFile, yes }, file, to);
       } catch (error) {
         if (!(error instanceof ProposalError)) throw error;
         err(`${error.message}\n`);
