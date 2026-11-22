@@ -60,7 +60,7 @@ every `laws-v*` tag after the GitHub release succeeds.
 To set it up, or to add a package, log in to npm and run, for each package:
 
 ```sh
-npm trust github <package> --repo Jordan-Hall/tsc-laws --file laws.yml --allow-publish --registry https://registry.npmjs.org
+npm trust github <package> --repo Jordan-Hall/tsc-laws --file laws.yml --environment release --allow-publish --registry https://registry.npmjs.org
 ```
 
 `npm trust list <package>` shows what is trusted. A package that does not exist yet must be published once by hand before it
@@ -69,6 +69,24 @@ can be trusted.
 Packages are published with provenance and `--access public`. The compilers go first, so `tslaws` never points at a package
 that is not there yet. `scripts/ci/laws-npm.mjs` does the repacking (the tsc-ts platform tarballs are renamed and given
 tslaws's version) and adds the optional dependencies.
+
+## Release gate
+
+The `npm` and `marketplace` jobs in `laws.yml` run in the `release` environment and refuse a tag whose commit is not an
+ancestor of `main`. The gate is two parts:
+
+- **Environment `release`** (already set up): Jordan is the required reviewer, and the deployment policy allows only the
+  tag pattern `laws-v*`. Every publish waits for that approval.
+- **Ancestor check**: the first steps of each publish job fail unless the tagged commit is an ancestor of `origin/main`.
+
+There is no tag ruleset restricting who can create `laws-v*`. release-please creates the tags with `github.token`, and a
+personal repository cannot list GitHub Actions as a ruleset bypass actor, so such a ruleset would block releases. The
+environment approval and the ancestor check stand in for it.
+
+The npm trust policy is done: all six packages trust only `laws.yml` running in the `release` environment (set with
+`npm trust github ... --environment release`), and the old policies are revoked. Publishing needs the `environment: release`
+line this workflow now has. If you add a package, trust it the same way (see the npm section above). If you use the VS Code
+Marketplace policy or the Open VSX trusted publisher, add `release` as their environment too, or their OIDC match fails.
 
 ## VS Code extension
 
