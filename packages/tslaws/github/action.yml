@@ -5,13 +5,20 @@ inputs:
     description: report | command | merge | verify
     required: true
   token:
-    description: Token for the GitHub API. For merge and command, use the tslaws GitHub App's token so the bot's commits and comments are the app's.
-    required: true
+    description: >-
+      Token for the GitHub API. For merge and command, use the tslaws GitHub App's token so the bot's commits and
+      comments are the app's. Leave it empty for a run with `--results-out` in `args`: that run executes the laws and
+      must never hold a token.
+    required: false
+    default: ''
   working-directory:
     description: Where tslaws runs. A project's directory, or a monorepo root (a tslaws.json with "projects", or package.json/pnpm workspaces) to cover every project in one run.
     default: .
   args:
-    description: Extra arguments for `tslaws github <mode>`.
+    description: >-
+      Extra arguments for `tslaws github <mode>`. For report and merge, `--results-out <file>` runs the laws and writes
+      their reports (a job with no token), and `--results <file>` acts on such a file without running a law (the job
+      with the token). See docs/github.md.
     default: ''
   tslaws-root:
     description: >-
