@@ -12,6 +12,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import ts from 'typescript';
 import type { Predicate } from './chc.ts';
+import { plural } from './plural.ts';
 
 export class Unsupported extends Error {}
 
@@ -712,7 +713,7 @@ export class Executor {
         const room = v.slots.length;
         const len = declare('Int');
         this.assumptions.push(`(and (<= 0 ${len}) (<= ${len} ${room}))`);
-        const why = `arrays changed in an invariant loop hold at most ${room} elements`;
+        const why = `arrays changed in an invariant loop hold at most ${plural(room, 'element')}`;
         if (!this.bounded.includes(why)) this.bounded.push(why);
         return {
           k: 'arr',
@@ -1499,7 +1500,7 @@ export class Executor {
     if (literal) slots.push({ k: 'undef' });
     else if (slots.length > 0) {
       this.assume(f, pc, this.implies(when, this.lt(arr.len, intLit(BigInt(slots.length))).t));
-      const why = `arrays hold at most ${slots.length} elements here`;
+      const why = `arrays hold at most ${plural(slots.length, 'element')} here`;
       if (!this.bounded.includes(why)) this.bounded.push(why);
     }
     for (let i = 0; i < slots.length; i += 1)

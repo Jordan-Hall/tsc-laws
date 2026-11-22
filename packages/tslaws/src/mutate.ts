@@ -8,6 +8,7 @@ import { check } from './check.ts';
 import { coverFiles, readConfig } from './coverage.ts';
 import { mutateDefaults } from './settings.ts';
 import type { CheckOptions } from './types.ts';
+import { plural } from './plural.ts';
 
 export interface Mutant {
   file: string;
@@ -274,7 +275,7 @@ export async function mutate(options: MutateOptions): Promise<MutateReport> {
     const originals = new Map(files.map((f) => [f, readFileSync(join(cwd, f), 'utf8')]));
     const all = files.flatMap((f) => mutantsOf(f, originals.get(f)!));
     const chosen = sample(all, options.max, options.seed ?? 1);
-    say(`${chosen.length} of ${all.length} mutants in ${files.length} files`);
+    say(`${chosen.length} of ${plural(all.length, 'mutant')} in ${plural(files.length, 'file')}`);
 
     const results: MutantResult[] = [];
     for (const [n, mutant] of chosen.entries()) {

@@ -1,4 +1,5 @@
 import type { LawResult } from './types.ts';
+import { plural } from './plural.ts';
 
 /** The concrete next action for an agent that reads a result, or undefined when nothing needs doing. */
 export function hintFor(result: LawResult): string | undefined {
@@ -26,7 +27,7 @@ export function hintFor(result: LawResult): string | undefined {
       );
     case 'tested':
       return (
-        `Only property-tested${result.runs !== undefined ? ` (${result.runs} runs)` : ''}, not proved: ` +
+        `Only property-tested${result.runs !== undefined ? ` (${plural(result.runs, 'run')})` : ''}, not proved: ` +
         `the prover did not lower this law${result.method !== 'property' && result.method !== '' ? ` (${firstLine(result.method)})` : ''}. ` +
         'Passing; to get a proof, restrict the code to int/bigint/boolean/string and simple control flow. More inputs: `--runs N`.'
       );

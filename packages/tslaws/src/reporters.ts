@@ -3,6 +3,7 @@ import type { CheckReport } from './check.ts';
 import { certificateLabel } from './certificates.ts';
 import { hintFor } from './hints.ts';
 import type { LawResult } from './types.ts';
+import { plural } from './plural.ts';
 
 /** The values of `tslaws check --reporter`. `text`, `json` and `ndjson` are rendered by the CLI itself. */
 export const reporterNames = ['text', 'json', 'junit', 'github', 'ndjson'] as const;
@@ -163,7 +164,7 @@ export function github(report: CheckReport): string {
   }
   const proved = report.results.filter((r) => r.status === 'proved').length;
   const failing = report.results.filter((r) => !isPassing(r)).length;
-  lines.push(`tslaws: ${report.results.length} laws, ${proved} proved, ${failing} failing`);
+  lines.push(`tslaws: ${plural(report.results.length, 'law')}, ${proved} proved, ${failing} failing`);
   return `${lines.join('\n')}\n`;
 }
 
