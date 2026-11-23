@@ -170,6 +170,25 @@ describe('github merge runs only what it acts on', () => {
       'the failing law reached no lock',
     );
   });
+
+  it('still fails a run that proves nothing when the project does not compile', async () => {
+    const p = project({ 'a.laws.ts': { first: true } });
+    writeFileSync(
+      join(p.dir, 'a.laws.ts'),
+      `${lawSource(p.marker, { first: true })}
+export const broken: number = 'not a number';
+`,
+    );
+    p.accept();
+    const { code, out, calls } = await merge(p).then(
+      (r) => r,
+      (error: Error) => ({ code: 1, out: error.message, calls: [] }),
+    );
+    assert.notEqual(code, 0, out);
+    assert.match(out, /does not compile/);
+    assert.deepEqual(p.ran(), [], 'no law ran');
+    assert.deepEqual(writes(calls), []);
+  });
 });
 
 describe('a partial check', () => {
@@ -214,43 +233,79 @@ describe('the two-job flow', () => {
       .update(text)
       .digest('hex');
 
-  it('runs only the changed laws in the laws job, and the merge job accepts what they proved', async () => {
-    const p = project({ 'a.laws.ts': { first: true, second: true } });
+  /** A project whose lock records `first`, with `added` laws new on the merged code; its laws job has run. */
+  async function lawsJob(added: string[]) {
+    const p = project({ 'a.laws.ts': { first: true } });
     p.accept();
-    writeFileSync(join(p.dir, 'a.laws.ts'), lawSource(p.marker, { first: true, second: true, third: true }));
+    writeFileSync(
+      join(p.dir, 'a.laws.ts'),
+      lawSource(p.marker, Object.fromEntries(['first', ...added].map((name) => [name, true]))),
+    );
     const results = join(p.dir, 'results.json');
-    const event = { ref: 'refs/heads/master', before: hex('a'), after: hex('c'), commits: [] };
-    writeFileSync(join(p.dir, 'event.json'), JSON.stringify(event));
+    writeFileSync(
+      join(p.dir, 'event.json'),
+      JSON.stringify({ ref: 'refs/heads/master', before: hex('a'), after: hex('c'), commits: [] }),
+    );
+    const lockText = readFileSync(p.options.lockFile, 'utf8');
+    const calls: { method: string; path: string }[] = [];
+    let out = '';
     const context = (flags: Record<string, string>, api: GithubContext['api']): GithubContext => ({
       cwd: p.dir,
       options: p.options,
       env: { GITHUB_EVENT_PATH: join(p.dir, 'event.json'), GITHUB_REPOSITORY: 'o/r', GITHUB_SHA: hex('c') },
       flags: new Map(Object.entries(flags)),
-      out: () => {},
-      err: () => {},
+      out: (t) => void (out += t),
+      err: (t) => void (out += t),
       api,
     });
     assert.equal(await githubCommand('merge', context({ 'results-out': results }, undefined)), 0);
-    assert.deepEqual(p.ran(), ['third'], 'the laws job proved only the new law');
+    const mergeJob = (): Promise<number> =>
+      githubCommand(
+        'merge',
+        context({ results }, async (method, path) => {
+          calls.push({ method, path });
+          if (method !== 'GET') return {};
+          if (path.includes('/contents/tsc-laws.lock')) return { sha: blobSha(lockText), content: '' };
+          if (/\/git\/ref\/heads\/[^/]+$/.test(path)) return { object: { sha: hex('c') } };
+          return [];
+        }),
+      );
+    const wroteLock = (): boolean =>
+      calls.some((c) => c.method === 'PUT' && c.path.includes('/contents/tsc-laws.lock'));
+    return { p, results, mergeJob, wroteLock, output: () => out };
+  }
 
-    const lockText = readFileSync(p.options.lockFile, 'utf8');
-    const calls: { method: string; path: string }[] = [];
-    const code = await githubCommand(
-      'merge',
-      context({ results }, async (method, path) => {
-        calls.push({ method, path });
-        if (method !== 'GET') return {};
-        if (path.includes('/contents/tsc-laws.lock')) return { sha: blobSha(lockText), content: '' };
-        if (/\/git\/ref\/heads\/[^/]+$/.test(path)) return { object: { sha: hex('c') } };
-        return [];
-      }),
-    );
-    assert.equal(code, 0);
+  it('runs only the changed laws in the laws job, and the merge job accepts what they proved', async () => {
+    const { p, mergeJob, wroteLock } = await lawsJob(['third']);
+    assert.deepEqual(p.ran(), ['third'], 'the laws job proved only the new law');
+    assert.equal(await mergeJob(), 0);
     assert.deepEqual(p.ran(), ['third'], 'the merge job ran nothing');
-    assert.ok(
-      calls.some((c) => c.method === 'PUT' && c.path.includes('/contents/tsc-laws.lock')),
-      'and wrote the lock',
-    );
+    assert.ok(wroteLock(), 'and wrote the lock');
+  });
+
+  it('holds a changed law the laws job reported nothing for, and says to run the workflow again', async () => {
+    const { results, mergeJob, wroteLock, output } = await lawsJob(['third']);
+    const file = JSON.parse(readFileSync(results, 'utf8')) as { projects: Record<string, { report?: unknown }> };
+    delete file.projects['']!.report;
+    writeFileSync(results, JSON.stringify(file));
+    assert.notEqual(await mergeJob(), 0);
+    assert.match(output(), /third[\s\S]*not accepted: changed after the laws job ran/);
+    assert.ok(!wroteLock(), 'nothing was accepted');
+  });
+
+  it('holds only the law a short report lacks, and accepts the one it has', async () => {
+    const { p, results, mergeJob, wroteLock, output } = await lawsJob(['third', 'fourth']);
+    assert.deepEqual(p.ran(), ['fourth', 'third']);
+    const file = JSON.parse(readFileSync(results, 'utf8')) as {
+      projects: Record<string, { report: { results: { name: string }[] } }>;
+    };
+    const report = file.projects['']!.report;
+    report.results = report.results.filter((r) => r.name !== 'fourth');
+    writeFileSync(results, JSON.stringify(file));
+    assert.notEqual(await mergeJob(), 0);
+    assert.match(output(), /fourth[\s\S]*not accepted: changed after the laws job ran/);
+    assert.match(output(), /third[\s\S]*accepted/);
+    assert.ok(wroteLock(), 'the law with a result was accepted');
   });
 
   it('runs nothing in the laws job when the lock records every law', async () => {

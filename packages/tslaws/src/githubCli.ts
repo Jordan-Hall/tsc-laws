@@ -25,10 +25,11 @@ import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
 import { exemptionsOf } from './check.ts';
 import { checkIsolated, readReport, type Expected } from './isolate.ts';
+import { useSandbox } from './sandbox.ts';
 import type { CheckReport } from './check.ts';
 import { extendsTarget, readConfig } from './coverage.ts';
 import { discoverFromFiles, discoverySignature, type DiscoveryInputs } from './projects.ts';
-import { readManifest } from './compile.ts';
+import { build, readManifest } from './compile.ts';
 import {
   acceptedFingerprints,
   inert,
@@ -329,8 +330,7 @@ interface Results {
 }
 
 /** The laws a project has, as this process sees them: a compile that runs none of the project. A report is held to it. */
-function expectedOf(unit: Unit): Expected {
-  const state = projectState(unit.options);
+function expectedOf(state: ProjectState): Expected {
   return {
     laws: new Set(state.laws.map((law) => lawKey(law.file, law.name))),
     lock: new Set(Object.keys(state.lock?.laws ?? {})),
@@ -372,30 +372,73 @@ async function runLaws(
   unit: Unit,
   mode: Results['mode'],
   sha: string,
+  state: ProjectState,
   only?: readonly string[],
 ): Promise<CheckReport> {
   const file = ctx.flags.get('results');
-  if (typeof file !== 'string') return runIsolated(unit, only);
-  const entry = Object.hasOwn(resultsOf(ctx, file, mode, sha).projects, unit.path)
-    ? resultsOf(ctx, file, mode, sha).projects[unit.path]
-    : undefined;
+  if (typeof file !== 'string') return runIsolated(unit, state, only);
+  return readReport(resultEntry(ctx, file, unit, mode, sha).report, expectedFor(state, only));
+}
+
+/**
+ * The merge job's report for the laws it has to prove. With a results file, a project the laws job reported nothing for
+ * has no report (undefined), and a report may lack a law: the caller holds every law without a result, so a results file
+ * that falls short fails closed per law instead of failing the whole run. Anything else wrong with it still throws.
+ */
+async function mergeLaws(
+  ctx: GithubContext,
+  unit: Unit,
+  sha: string,
+  state: ProjectState,
+  only: readonly string[],
+): Promise<CheckReport | undefined> {
+  const file = ctx.flags.get('results');
+  if (typeof file !== 'string') return runIsolated(unit, state, only);
+  const entry = resultEntry(ctx, file, unit, 'merge', sha);
+  if (entry.report === undefined) return undefined;
+  return readReport(entry.report, { ...expectedFor(state), required: new Set() });
+}
+
+/** One project's entry of the results file, once it is known to come from this commit and this lock. */
+function resultEntry(
+  ctx: GithubContext,
+  file: string,
+  unit: Unit,
+  mode: Results['mode'],
+  sha: string,
+): Results['projects'][string] {
+  const results = resultsOf(ctx, file, mode, sha);
+  const entry = Object.hasOwn(results.projects, unit.path) ? results.projects[unit.path] : undefined;
   if (entry === undefined) throw new Error(`${file} has no results for ${label(unit)}`);
   if (typeof entry.error === 'string') throw new Error(entry.error);
   if (entry.lockSha !== lockShaOf(unit))
     throw new Error(`${label(unit)}'s lock is not the one its laws were run against`);
-  return readReport(entry.report, expectedFor(unit, only));
+  return entry;
 }
 
 /** What a report must hold: every law, or just the ones a partial run was asked for. */
-const expectedFor = (unit: Unit, only?: readonly string[]): Expected => ({
-  ...expectedOf(unit),
+const expectedFor = (state: ProjectState, only?: readonly string[]): Expected => ({
+  ...expectedOf(state),
   ...(only === undefined ? {} : { required: new Set(only) }),
 });
 
 /** The laws of a project run in a child with no credentials: all of them, or only the laws with these keys. */
-function runIsolated(unit: Unit, only?: readonly string[]): Promise<CheckReport> {
+function runIsolated(unit: Unit, state: ProjectState, only?: readonly string[]): Promise<CheckReport> {
   const options = only === undefined ? unit.options : { ...unit.options, onlyKeys: [...only] };
-  return checkIsolated(options, true, expectedFor(unit, only));
+  return checkIsolated(options, true, expectedFor(state, only));
+}
+
+/**
+ * What a run that proves nothing still has to find out, as the run of every law used to: that the project builds, and
+ * that the sandbox can be enforced here. A failure is thrown, so the run fails as it did when every law ran.
+ */
+function assertRunnable(unit: Unit, state: ProjectState): void {
+  if (state.laws.length === 0) return;
+  useSandbox(unit.options);
+  const built = build(unit.options.compiler, unit.options.files, unit.options.cwd);
+  if (!built.ok)
+    throw new Error(`the project does not compile:
+${built.diagnostics}`);
 }
 
 /**
@@ -417,12 +460,13 @@ async function collect(ctx: GithubContext, mode: Results['mode'], file: string):
   for (const { unit } of active) {
     const entry: Results['projects'][string] = { lockSha: lockShaOf(unit) };
     try {
-      if (mode === 'report') entry.report = await runIsolated(unit);
+      const state = projectState(unit.options);
+      if (mode === 'report') entry.report = await runIsolated(unit, state);
       else {
         // A merge acts only on what the lock does not record, which it works out again from the same lock and files.
-        const state = projectState(unit.options);
         const only = lawsToProve(lockChanges(state.lock, state.laws, state.exempt, state.levels));
-        if (only.length > 0) entry.report = await runIsolated(unit, only);
+        if (only.length > 0) entry.report = await runIsolated(unit, state, only);
+        else assertRunnable(unit, state);
       }
     } catch (error) {
       entry.error = error instanceof Error ? error.message : String(error);
@@ -455,8 +499,8 @@ async function report(ctx: GithubContext): Promise<number> {
   const ran: { active: Active; checked: CheckReport | undefined; proposals: Proposal[]; failed?: string }[] = [];
   for (const a of active) {
     try {
-      const checked: CheckReport = await runLaws(ctx, a.unit, 'report', sha);
       const state = projectState(a.unit.options);
+      const checked: CheckReport = await runLaws(ctx, a.unit, 'report', sha, state);
       ran.push({
         active: a,
         checked,
@@ -1303,7 +1347,8 @@ async function merge(ctx: GithubContext): Promise<number> {
       state = projectState(unit.options);
       changes = lockChanges(state.lock, state.laws, state.exempt, state.levels);
       const toRun = lawsToProve(changes);
-      if (toRun.length > 0) checked = await runLaws(ctx, unit, 'merge', sha, toRun);
+      if (toRun.length > 0) checked = await mergeLaws(ctx, unit, sha, state, toRun);
+      else assertRunnable(unit, state);
     } catch (error) {
       if (!monorepo) throw error;
       stop(`tslaws: ${label(unit)} could not be checked: ${error instanceof Error ? error.message : String(error)}`);
@@ -1331,7 +1376,18 @@ async function merge(ctx: GithubContext): Promise<number> {
     const approvals = dispatched
       ? new Map(proposals.map((p): [string, string] => [p.fingerprint, actor]))
       : acceptedFingerprints(records, unit.path);
-    const decision = decide(proposals, config, approvals);
+    // A law that had to run and has no result (the laws job reported nothing for it) is held whatever `requirePassing` says.
+    const unproven = (p: Proposal): boolean => p.outcome === undefined && p.kind === 'law' && p.reason !== 'removed';
+    const decision = decide(
+      proposals.filter((p) => !unproven(p)),
+      config,
+      approvals,
+    );
+    for (const proposal of proposals.filter(unproven))
+      decision.held.push({
+        proposal,
+        why: 'changed after the laws job ran, or has no result there; run the workflow again',
+      });
     const wins = proposals.filter((p) => decision.accept.has(p.fingerprint));
     if (wins.length > 0) {
       const next = acceptChanges(state.lock, state.laws, state.exempt, state.levels, decision.accept);
