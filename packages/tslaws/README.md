@@ -90,7 +90,8 @@ Every exported function or class in the covered modules must be reached by a law
 law calls. The covered modules are the `cover` globs of `tslaws.json`
 (`{ "cover": ["src/**/*.ts", "!src/**/*.test.ts"] }`), or, without that file, every project module the laws import.
 Coverage follows ES `import`s as well as `require`, including the interop helpers a compiler wraps around them
-(`__importStar`, `__importDefault`, `__toESM`), so code you import with `import x from './y'` counts as reached. Mark
+(`__importStar`, `__importDefault`, `__toESM`), directory index imports (`./dir` -> `./dir/index.js`), barrel re-exports,
+and files transformed by `bundlerPlugins`, so code you import with `import x from './y'` counts as reached. Mark
 code that needs no law `@tslaws-exempt`; a person accepts the exemption into the lock.
 
 ## Levels
@@ -98,9 +99,16 @@ code that needs no law `@tslaws-exempt`; a person accepts the exemption into the
 A laws file's level comes from its name: `*.browser.laws.ts` runs in a real browser (Chrome, Edge or Chromium, or
 `--browser firefox|webkit`) against a live DOM, `*.e2e.laws.ts` drives your running app, and any other `*.laws.ts` runs in
 Node. Set `"levels": "imports"` in `tslaws.json` and the level comes from the file's imports instead (`tslaws/browser`,
-`tslaws/adapters/*`, `tslaws/e2e`). Browser laws are `tested`, never `proved`. Node laws run in a permission sandbox
-(Node 22.15 or later; `--no-sandbox` opts out), and an end-to-end law needs `--allow-e2e` because it cannot run inside it.
-`tslaws list` shows each laws file, its level and whether it is accepted.
+`tslaws/adapters/*`, `tslaws/e2e`). Browser laws run in parallel isolated `BrowserContext`s on a real local HTTP origin
+(top-level pages by default, or `--browser-mode iframe`, plus `--headed` for interactive debugging), execute `fast-check`
+in-browser to eliminate per-input IPC, and provide our own built-in Vitest-style browser API (no Vite required):
+chainable, auto-waiting Playwright-backed `page` locators (`page.getByRole`, `page.getByText`, `page.getByLabelText`,
+`page.getByPlaceholder`, `page.getByTestId`, `page.locator`, `.filter()`, `.first()`, `.nth()`, `page.viewport()`,
+`page.screenshot()`), trusted `userEvent` interactions (`userEvent.click`, `userEvent.fill`, `userEvent.type`,
+`userEvent.keyboard`, `userEvent.tab`, `userEvent.selectOptions`, `userEvent.check`, `userEvent.dragAndDrop`), `waitFor`,
+and `mock(urlPattern, response)` network interception. Browser laws are `tested`, never `proved`. Node laws run in a
+permission sandbox (Node 22.15 or later; `--no-sandbox` opts out), and an end-to-end law needs `--allow-e2e` because it
+cannot run inside it. `tslaws list` shows each laws file, its level and whether it is accepted.
 
 ## The lock
 
@@ -164,11 +172,19 @@ See [Bundler plugins](https://github.com/Jordan-Hall/tsc-laws/blob/main/docs/law
 
 ## The prover
 
-`tslaws` symbolically executes the compiled JavaScript of a law, inlining the project functions it calls, and asks Z3 for
-an input that returns `false`; only a failure it can replay in JavaScript is reported as `failed`. `int` is an exact whole
-number and `bigint` is exact with no bound. Arrays, loops and recursion unroll up to `--bound` (a `bounded` result), and
-`invariant(cond)` first in a loop body proves the loop for every iteration count. What does not lower stays `tested`, or a
-`law proved` is `open`, with the reason. `TSLAWS_DEBUG=1` keeps each query as an `.smt2` file under `.tslaws/out/smt`.
+`tslaws` symbolically executes the compiled JavaScript of a law, inlining the project functions it calls (including through
+directory imports and barrel re-exports), and asks Z3 for an input that returns `false`; only a failure it can replay in
+JavaScript is reported as `failed`. `int` is an exact whole number and `bigint` is exact with no bound. Built-in
+refinement types — `nat`, `posInt`, `nonZeroInt`, `intRange<Lo, Hi>`, `nonEmpty<T>`, and `asciiString` — narrow both
+generated property inputs and SMT assumptions at the type level. Arrays, loops and recursion unroll up to `--bound` (a
+`bounded` result); `invariant(cond)` first in a loop body proves the loop for every iteration count, `decreases(measure)`
+checks loop and recursion termination, `lemma(cond)` splits larger proofs into proved subgoals, and `requires(cond)` /
+`ensures(cond)` check caller preconditions and postconditions. What does not lower stays `tested`, or a `law proved` is
+`open`, with the reason. `TSLAWS_DEBUG=1` keeps each query as an `.smt2` file under `.tslaws/out/smt`.
+
+When native `z3` is installed on the PATH (or via `TSLAWS_Z3`), `tslaws` uses a persistent pooled native Z3 backend
+(opt out with `TSLAWS_Z3=wasm`) and caches proved SMT results on disk in `.tslaws/proof-cache.json` keyed by query hash
+and solver fingerprint so unchanged checks return in milliseconds.
 
 If the Z3 worker crashes (it throws, runs out of memory or exits), the query is retried twice on a fresh worker. If every
 try crashes, the law is an `error` whose message says `the Z3 solver crashed` and why. It is never quietly downgraded to
@@ -179,7 +195,7 @@ and says so.
 
 ```
 tslaws init [--force]
-tslaws check [files...] [--reporter ...] [--summary] [--watch] [--certify] [--require-certify] [--runs N] [--seed N] [--bound N] [--proposed] ...
+tslaws check [files...] [--reporter ...] [--summary] [--watch] [--certify] [--require-certify] [--runs N] [--seed N] [--bound N] [--browser-mode page|iframe] [--headed] [--proposed] ...
 tslaws accept [files...]
 tslaws delegate grant|revoke|status
 tslaws propose <file.ts>     tslaws promote <proposal>     tslaws list [--json]

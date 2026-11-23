@@ -46,7 +46,7 @@ Laws, migration and delegated accept: why laws make a port safer, and how a pers
 
 [tslaws-delegation-explainer.mp4](docs/media/tslaws-delegation-explainer.mp4)
 
-What is new in tslaws, as a 101-second animated fable: a law is proved or broken by a counterexample, proofs can carry certificates that cvc5 writes and Carcara checks (loops included, through their invariants), a lock catches edits to a law, a proposed law cannot accept itself, laws run in a sandbox, refinement types (`nat`, `posInt`, `intRange`, `nonEmpty`) and proof primitives (`lemma`, `requires`, `ensures`, `decreases`) narrow inputs and guide proofs, browser laws run in parallel top-level pages with real clicks, mocked routes and Vite middleware, and pooled native Z3 with an on-disk proof cache makes repeat checks fly:
+What is new in tslaws, as a 101-second animated fable: a law is proved or broken by a counterexample, proofs can carry certificates that cvc5 writes and Carcara checks (loops included, through their invariants), a lock catches edits to a law, a proposed law cannot accept itself, laws run in a sandbox, refinement types (`nat`, `posInt`, `intRange`, `nonEmpty`) and proof primitives (`lemma`, `requires`, `ensures`, `decreases`) narrow inputs and guide proofs, browser laws run in parallel top-level pages with native Vitest-style `page` locators, trusted `userEvent` interactions, and `mock()` route interception, and pooled native Z3 with an on-disk proof cache makes repeat checks fly:
 
 [![What is new in tslaws: a silent preview that plays here](docs/media/tslaws-v1.gif)](docs/media/tslaws-v1.mp4)
 
@@ -58,17 +58,22 @@ What it offers:
   TypeScript and compiled natively) parses `law`, enforces the rules of a specification in the checker (TS9101 to TS9106),
   and emits ordinary, type-checked functions. `law` stays a normal identifier
   everywhere else.
-- **Proof where possible, tests everywhere else.** Z3 proves laws over exact integers, bigints, strings, booleans and
-  records, bounded-checks arrays, loops and recursion, and proves loops for every iteration count when the code carries an
-  `invariant`. Whatever does not lower is property-tested with inputs generated from your types, shrunk to a minimal
-  counterexample. Every result says which it was.
+- **Proof where possible, tests everywhere else.** Z3 (pooled native Z3 when available, or WASM) proves laws over exact
+  integers, bigints, strings, booleans, records, and built-in refinement types (`nat`, `posInt`, `nonZeroInt`,
+  `intRange<Lo, Hi>`, `nonEmpty<T>`, `asciiString`), bounded-checks arrays, loops and recursion, proves loops for every
+  iteration count with `invariant`, splits larger proofs with `lemma`, checks contracts with `requires`/`ensures` and
+  termination with `decreases`, and caches unchanged proofs on disk. Whatever does not lower is property-tested with inputs
+  generated from your types, shrunk to a minimal counterexample. Every result says which it was.
 - **Proofs you can check.** `--certify` has cvc5 write a proof and Carcara check it; see the [certificate gallery](docs/certificates/README.md).
 - **Agents cannot weaken the laws.** A lock file hashes the laws and coverage exemptions; `tslaws accept` needs a person at
   a terminal. A coverage gate fails exported code that no law reaches.
 - **Built for the agent loop.** `tslaws init` scaffolds the rules and a Claude Code hook that blocks commits on failure;
   `--json` and `--summary` give compact output with a next-action hint per result; `--watch` re-checks on save.
-- **Browser laws.** A laws file that imports `tslaws/browser` runs in a real Chrome, Edge or Chromium against a live DOM,
-  with any framework or none; the file name (`*.browser.laws.ts`) decides by default, or the imports with `"levels": "imports"`. Inputs are still generated from your types and shrunk in Node.
+- **Browser laws.** A laws file that imports `tslaws/browser` runs in parallel isolated `BrowserContext`s on a real local
+  HTTP origin in Chrome, Edge, Chromium, Firefox, or WebKit — top-level pages by default (`--browser-mode page|iframe`,
+  `--headed`), with our own built-in Vitest-style `page` locators (`getByRole`, `getByText`, `getByLabelText`, `getByTestId`,
+  `.filter()`, `.first()`), Playwright-backed trusted `userEvent` interactions, `mock()` route interception, and in-browser
+  `fast-check` (no Vite required). The file name (`*.browser.laws.ts`) decides by default, or the imports with `"levels": "imports"`.
 - **A dashboard.** `tslaws ui` opens a dashboard: tree, filters, search, counterexamples, source, live reruns.
 - **Are the laws strong enough?** `tslaws mutate` changes your code in small ways and reports every change no law notices.
 - **Counterexamples stay fixed.** Failures are saved and replayed first on every later run.

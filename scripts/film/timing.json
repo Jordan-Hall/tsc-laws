@@ -157,8 +157,7 @@
             "gapMs": 360
           },
           {
-            "text": "With real clicks, mocked routes, and Vite built in.",
-            "say": "With real clicks, mocked routes, and Veet built in."
+            "text": "With built-in locators, real clicks, and mocked routes."
           }
         ]
       },

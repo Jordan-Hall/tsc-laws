@@ -5,8 +5,8 @@
 // optional Playwright traces on failure.
 import { existsSync, mkdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { delimiter, join } from 'node:path';
-import type { Browser, BrowserContext, BrowserType, Frame, Page, Route } from 'playwright-core';
+import { delimiter, dirname, join, resolve } from 'node:path';
+import type { Browser, BrowserContext, BrowserType, Frame, Locator as PwLocator, Page, Route } from 'playwright-core';
 import type * as fc from 'fast-check';
 import { bundleLawFile, closeBrowserServer, ensureBrowserServer } from './browserServer.ts';
 import { readConfig, type BrowserConfig } from './coverage.ts';
@@ -137,26 +137,76 @@ interface PageOutcome {
   error?: { name?: string; message: string; stack?: string };
 }
 
+type WirePattern = string | { __re: true; source: string; flags: string };
+
+type LocatorStep =
+  | { k: 'css'; selector: string }
+  | { k: 'role'; role: string; options?: Record<string, unknown> }
+  | { k: 'text'; text: WirePattern; exact?: boolean }
+  | { k: 'label'; text: WirePattern; exact?: boolean }
+  | { k: 'placeholder'; text: WirePattern; exact?: boolean }
+  | { k: 'testId'; testId: string }
+  | { k: 'altText'; text: WirePattern; exact?: boolean }
+  | { k: 'title'; text: WirePattern; exact?: boolean }
+  | { k: 'first' }
+  | { k: 'last' }
+  | { k: 'nth'; index: number }
+  | {
+      k: 'filter';
+      hasText?: WirePattern;
+      hasNotText?: WirePattern;
+      has?: LocatorStep[];
+      hasNot?: LocatorStep[];
+    };
+
 interface BridgeCommand {
   action:
     | 'click'
     | 'dblClick'
+    | 'tripleClick'
     | 'hover'
+    | 'unhover'
     | 'focus'
     | 'fill'
+    | 'clear'
     | 'type'
     | 'press'
     | 'keyboard'
+    | 'tab'
     | 'select'
+    | 'check'
+    | 'uncheck'
+    | 'dragAndDrop'
     | 'setViewport'
+    | 'screenshot'
+    | 'count'
+    | 'isVisible'
+    | 'isEnabled'
+    | 'isChecked'
+    | 'textContent'
+    | 'inputValue'
+    | 'getAttribute'
+    | 'waitFor'
+    | 'markElements'
     | 'mock'
     | 'resetMocks';
+  locator?: LocatorStep[];
+  targetLocator?: LocatorStep[];
   selector?: string;
   text?: string;
   key?: string;
+  name?: string;
   values?: string | string[];
+  shift?: boolean;
+  button?: 'left' | 'right' | 'middle';
+  force?: boolean;
   width?: number;
   height?: number;
+  path?: string;
+  fullPage?: boolean;
+  state?: 'visible' | 'hidden' | 'attached' | 'detached';
+  timeout?: number;
+  token?: string;
   urlPattern?: string;
   response?: {
     status?: number;
@@ -165,6 +215,151 @@ interface BridgeCommand {
     headers?: Record<string, string>;
     contentType?: string;
   };
+}
+
+function revivePattern(p: WirePattern): string | RegExp {
+  return typeof p === 'string' ? p : new RegExp(p.source, p.flags);
+}
+
+function reviveRoleOptions(options: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
+  if (options === undefined) return undefined;
+  const out: Record<string, unknown> = { ...options };
+  if (typeof out.name === 'object' && out.name !== null && '__re' in out.name) {
+    out.name = revivePattern(out.name as WirePattern);
+  }
+  return out;
+}
+
+/** Translates a serialized LocatorStep chain from `browserApi.ts` into a native Playwright Locator on `frame`. */
+function resolveLocator(frame: Frame, steps: readonly LocatorStep[]): PwLocator {
+  if (steps.length === 0) throw new Error('empty locator chain');
+  let current: Frame | PwLocator = frame;
+  for (const step of steps) {
+    switch (step.k) {
+      case 'css':
+        current = current.locator(step.selector);
+        break;
+      case 'role':
+        current = current.getByRole(
+          step.role as Parameters<Frame['getByRole']>[0],
+          reviveRoleOptions(step.options) as Parameters<Frame['getByRole']>[1],
+        );
+        break;
+      case 'text':
+        current = current.getByText(
+          revivePattern(step.text),
+          step.exact === undefined ? undefined : { exact: step.exact },
+        );
+        break;
+      case 'label':
+        current = current.getByLabel(
+          revivePattern(step.text),
+          step.exact === undefined ? undefined : { exact: step.exact },
+        );
+        break;
+      case 'placeholder':
+        current = current.getByPlaceholder(
+          revivePattern(step.text),
+          step.exact === undefined ? undefined : { exact: step.exact },
+        );
+        break;
+      case 'testId':
+        current = current.getByTestId(step.testId);
+        break;
+      case 'altText':
+        current = current.getByAltText(
+          revivePattern(step.text),
+          step.exact === undefined ? undefined : { exact: step.exact },
+        );
+        break;
+      case 'title':
+        current = current.getByTitle(
+          revivePattern(step.text),
+          step.exact === undefined ? undefined : { exact: step.exact },
+        );
+        break;
+      case 'first':
+        current = (current as PwLocator).first();
+        break;
+      case 'last':
+        current = (current as PwLocator).last();
+        break;
+      case 'nth':
+        current = (current as PwLocator).nth(step.index);
+        break;
+      case 'filter':
+        current = (current as PwLocator).filter({
+          ...(step.hasText === undefined ? {} : { hasText: revivePattern(step.hasText) }),
+          ...(step.hasNotText === undefined ? {} : { hasNotText: revivePattern(step.hasNotText) }),
+          ...(step.has === undefined ? {} : { has: resolveLocator(frame, step.has) }),
+          ...(step.hasNot === undefined ? {} : { hasNot: resolveLocator(frame, step.hasNot) }),
+        });
+        break;
+    }
+  }
+  return current as PwLocator;
+}
+
+const keyAliases: Record<string, string> = {
+  Space: ' ',
+  Esc: 'Escape',
+  Del: 'Delete',
+  Ctrl: 'Control',
+};
+
+/** Executes a Vitest-style `userEvent.keyboard` sequence (supporting `{Enter}`, `{Shift>}a{/Shift}`, and literal text). */
+async function runKeyboard(page: Page, input: string): Promise<void> {
+  const held: string[] = [];
+  let i = 0;
+  let literal = '';
+  const flushLiteral = async (): Promise<void> => {
+    if (literal === '') return;
+    await page.keyboard.type(literal);
+    literal = '';
+  };
+  try {
+    while (i < input.length) {
+      if (input[i] === '{' && input[i + 1] === '{') {
+        literal += '{';
+        i += 2;
+        continue;
+      }
+      if (input[i] === '}' && input[i + 1] === '}') {
+        literal += '}';
+        i += 2;
+        continue;
+      }
+      if (input[i] === '{') {
+        const close = input.indexOf('}', i + 1);
+        if (close !== -1) {
+          await flushLiteral();
+          const token = input.slice(i + 1, close);
+          if (token.startsWith('/')) {
+            const raw = token.slice(1);
+            const key = keyAliases[raw] ?? raw;
+            await page.keyboard.up(key);
+            const idx = held.lastIndexOf(key);
+            if (idx !== -1) held.splice(idx, 1);
+          } else if (token.endsWith('>')) {
+            const raw = token.slice(0, -1);
+            const key = keyAliases[raw] ?? raw;
+            held.push(key);
+            await page.keyboard.down(key);
+          } else {
+            const key = keyAliases[token] ?? token;
+            await page.keyboard.press(key);
+          }
+          i = close + 1;
+          continue;
+        }
+      }
+      literal += input[i]!;
+      i += 1;
+    }
+    await flushLiteral();
+  } finally {
+    for (const key of held.reverse()) await page.keyboard.up(key).catch(() => undefined);
+  }
 }
 
 /** Whether `plans` can execute fast-check directly inside the browser (no custom Node-only registered arbitraries). */
@@ -203,11 +398,12 @@ function canRunInBrowser(plans: Plan[] | undefined): boolean {
   return plans.every(ok);
 }
 
-/** Wires `window.__tslawsBridge` on `page` so browser laws can call trusted Playwright `user.*` and `mock()` helpers. */
+/** Wires `window.__tslawsBridge` on `page` so browser laws can drive Playwright locators, `page`, `userEvent`, and `mock()`. */
 async function installBridge(
   context: BrowserContext,
   page: Page,
   targetFrame: () => Frame,
+  cwd: string,
 ): Promise<() => Promise<void>> {
   const routes: { pattern: string; handler: (route: Route) => Promise<void> }[] = [];
   const clearMocks = async (): Promise<void> => {
@@ -215,39 +411,115 @@ async function installBridge(
       await context.unroute(r.pattern, r.handler).catch(() => undefined);
     }
   };
+  const locatorOf = (frame: Frame, command: BridgeCommand): PwLocator => {
+    if (command.locator !== undefined) return resolveLocator(frame, command.locator);
+    return frame.locator(command.selector!);
+  };
   await page.exposeBinding('__tslawsBridge', async (_source, command: BridgeCommand) => {
     const frame = targetFrame();
     switch (command.action) {
       case 'click':
-        await frame.locator(command.selector!).click();
+        await locatorOf(frame, command).click({
+          ...(command.button === undefined ? {} : { button: command.button }),
+          ...(command.force === undefined ? {} : { force: command.force }),
+        });
         return;
       case 'dblClick':
-        await frame.locator(command.selector!).dblclick();
+        await locatorOf(frame, command).dblclick({
+          ...(command.button === undefined ? {} : { button: command.button }),
+          ...(command.force === undefined ? {} : { force: command.force }),
+        });
+        return;
+      case 'tripleClick':
+        await locatorOf(frame, command).click({
+          clickCount: 3,
+          ...(command.button === undefined ? {} : { button: command.button }),
+          ...(command.force === undefined ? {} : { force: command.force }),
+        });
         return;
       case 'hover':
-        await frame.locator(command.selector!).hover();
+        await locatorOf(frame, command).hover(command.force === undefined ? undefined : { force: command.force });
+        return;
+      case 'unhover':
+        await page.mouse.move(0, 0);
         return;
       case 'focus':
-        await frame.locator(command.selector!).focus();
+        await locatorOf(frame, command).focus();
         return;
       case 'fill':
-        await frame.locator(command.selector!).fill(command.text ?? '');
+        await locatorOf(frame, command).fill(command.text ?? '');
+        return;
+      case 'clear':
+        await locatorOf(frame, command).clear();
         return;
       case 'type':
-        await frame.locator(command.selector!).pressSequentially(command.text ?? '');
+        await locatorOf(frame, command).pressSequentially(command.text ?? '');
         return;
       case 'press':
-        await page.keyboard.press(command.key ?? '');
+        if (command.locator !== undefined || command.selector !== undefined)
+          await locatorOf(frame, command).press(command.key ?? '');
+        else await page.keyboard.press(command.key ?? '');
         return;
       case 'keyboard':
-        await page.keyboard.type(command.text ?? '');
+        await runKeyboard(page, command.text ?? '');
+        return;
+      case 'tab':
+        await page.keyboard.press(command.shift === true ? 'Shift+Tab' : 'Tab');
         return;
       case 'select':
-        await frame.locator(command.selector!).selectOption(command.values ?? []);
+        await locatorOf(frame, command).selectOption(command.values ?? []);
         return;
+      case 'check':
+        await locatorOf(frame, command).check(command.force === undefined ? undefined : { force: command.force });
+        return;
+      case 'uncheck':
+        await locatorOf(frame, command).uncheck(command.force === undefined ? undefined : { force: command.force });
+        return;
+      case 'dragAndDrop': {
+        const source = locatorOf(frame, command);
+        const target = resolveLocator(frame, command.targetLocator!);
+        await source.dragTo(target);
+        return;
+      }
       case 'setViewport':
         await page.setViewportSize({ width: command.width ?? 1000, height: command.height ?? 720 });
         return;
+      case 'screenshot': {
+        const outPath = command.path === undefined ? undefined : resolve(cwd, command.path);
+        if (outPath !== undefined) mkdirSync(dirname(outPath), { recursive: true });
+        const buf =
+          command.locator !== undefined || command.selector !== undefined
+            ? await locatorOf(frame, command).screenshot({ path: outPath })
+            : await page.screenshot({ path: outPath, fullPage: command.fullPage === true });
+        return buf.toString('base64');
+      }
+      case 'count':
+        return await locatorOf(frame, command).count();
+      case 'isVisible':
+        return await locatorOf(frame, command).isVisible();
+      case 'isEnabled':
+        return await locatorOf(frame, command).isEnabled();
+      case 'isChecked':
+        return await locatorOf(frame, command).isChecked();
+      case 'textContent':
+        return await locatorOf(frame, command).textContent();
+      case 'inputValue':
+        return await locatorOf(frame, command).inputValue();
+      case 'getAttribute':
+        return await locatorOf(frame, command).getAttribute(command.name ?? '');
+      case 'waitFor':
+        await locatorOf(frame, command).waitFor({
+          ...(command.state === undefined ? {} : { state: command.state }),
+          ...(command.timeout === undefined ? {} : { timeout: command.timeout }),
+        });
+        return;
+      case 'markElements': {
+        const token = command.token ?? 'm';
+        return await locatorOf(frame, command).evaluateAll((els, tok) => {
+          for (let i = 0; i < els.length; i++) els[i]!.setAttribute('data-tslaws-found', `${tok}:${i}`);
+          return els.length;
+        }, token);
+      }
       case 'mock': {
         const pattern = command.urlPattern ?? '**/*';
         const resp = command.response ?? {};
@@ -307,10 +579,7 @@ export async function runBrowserLaw(law: BrowserLaw, options: CheckOptions): Pro
   const colorScheme = browserConfig.colorScheme;
   const traceOnFailure = browserConfig.traceOnFailure === true;
 
-  const [bundled, baseUrl] = await Promise.all([
-    bundleLawFile(law.jsFile, options.cwd),
-    ensureBrowserServer(options.cwd, browserConfig.vite),
-  ]);
+  const [bundled, baseUrl] = await Promise.all([bundleLawFile(law.jsFile, options.cwd), ensureBrowserServer()]);
   const browser = await launch(resolveEngine(options.browser), headless);
   const context = await browser.newContext({ viewport, ...(colorScheme === undefined ? {} : { colorScheme }) });
   if (traceOnFailure) await context.tracing.start({ screenshots: true, snapshots: true }).catch(() => undefined);
@@ -353,7 +622,7 @@ export async function runBrowserLaw(law: BrowserLaw, options: CheckOptions): Pro
   let clearMocks: (() => Promise<void>) | undefined;
   let failed = false;
   try {
-    clearMocks = await installBridge(context, page, () => activeFrame);
+    clearMocks = await installBridge(context, page, () => activeFrame, options.cwd);
     const pageUrl = `${baseUrl}/__tslaws/page?id=${encodeURIComponent(bundled.id)}${useInBrowserFc ? '&fc=1' : ''}`;
     if (isolation === 'iframe') {
       await page.goto(`${baseUrl}/__tslaws/host`, { waitUntil: 'load' });
