@@ -136,8 +136,49 @@
         ]
       },
       {
-        "id": "close",
+        "id": "refine",
         "frame": 3606,
+        "sentences": [
+          {
+            "text": "New refinement types narrow inputs at the type level.",
+            "gapMs": 360
+          },
+          {
+            "text": "And lemma, requires, ensures, and decreases guide bigger proofs."
+          }
+        ]
+      },
+      {
+        "id": "browser",
+        "frame": 4166,
+        "sentences": [
+          {
+            "text": "Browser laws now run in real top-level pages, in parallel.",
+            "gapMs": 360
+          },
+          {
+            "text": "With real clicks, mocked routes, and Vite built in.",
+            "say": "With real clicks, mocked routes, and Veet built in."
+          }
+        ]
+      },
+      {
+        "id": "speed",
+        "frame": 4686,
+        "sentences": [
+          {
+            "text": "Pooled native Z3 and a proof cache make every check fly.",
+            "say": "Pooled native Z three and a proof cache make every check fly.",
+            "gapMs": 360
+          },
+          {
+            "text": "Unchanged proofs return in milliseconds."
+          }
+        ]
+      },
+      {
+        "id": "close",
+        "frame": 5166,
         "sentences": [
           {
             "text": "Write a law.",
@@ -150,11 +191,11 @@
       },
       {
         "id": "end",
-        "frame": 4126,
+        "frame": 5686,
         "sentences": [
           {
-            "text": "tslaws, one point oh.",
-            "say": "T S laws. One point oh."
+            "text": "tslaws, one point two.",
+            "say": "T S laws. One point two."
           }
         ]
       }
@@ -164,7 +205,7 @@
   "size": [1920, 1080],
   "bpm": 90,
   "framesPerBeat": 40,
-  "frames": 4480,
+  "frames": 6040,
   "palette": {
     "desk": "#EBE1CD",
     "deskLine": "#D8CBB0",
@@ -243,7 +284,16 @@
       "counterexample",
       "[[3,3]]"
     ],
-    "end": ["tslaws 1.0.0", "npm i -D tslaws"]
+    "end": ["tslaws 1.2", "npm i -D tslaws"],
+    "refineLaw": [
+      "export law proved safeDiv(",
+      "  n: nat, d: posInt,",
+      ") {",
+      "  lemma(n >= 0 && d > 0);",
+      "  decreases(n);",
+      "  return div(n, d) >= 0;",
+      "}"
+    ]
   },
   "shots": [
     {
@@ -482,7 +532,7 @@
       "x": 16,
       "lens": 85,
       "fstop": 2.8,
-      "cam": [0.15, 1.0, 13.2],
+      "cam": [0.15, 1, 13.2],
       "look": [0.15, 0.5, 0],
       "drift": [0.05, 0, 0]
     },
@@ -506,7 +556,7 @@
       "x": 19.2,
       "lens": 35,
       "fstop": 4,
-      "cam": [0.1, 1.0, 4.2],
+      "cam": [0.1, 1, 4.2],
       "look": [0.1, 0.45, 0],
       "drift": [0.05, 0, 0]
     },
@@ -535,11 +585,83 @@
       "drift": [-0.03, 0, 0]
     },
     {
-      "id": "H-wrap",
+      "id": "J-refine",
       "frame": 3600,
-      "frames": 240,
+      "frames": 280,
       "station": 7,
       "x": 22.4,
+      "lens": 42,
+      "fstop": 3.2,
+      "cam": [0.22, 0.72, 4.9],
+      "look": [0.22, 0.52, 0],
+      "drift": [0.05, 0, 0]
+    },
+    {
+      "id": "J-proof",
+      "frame": 3880,
+      "frames": 280,
+      "station": 7,
+      "x": 22.4,
+      "lens": 42,
+      "fstop": 2.8,
+      "cam": [0.22, 0.72, 5.1],
+      "look": [0.22, 0.52, 0],
+      "drift": [0.03, 0, 0]
+    },
+    {
+      "id": "K-pages",
+      "frame": 4160,
+      "frames": 280,
+      "station": 8,
+      "x": 25.6,
+      "lens": 35,
+      "fstop": 3.5,
+      "cam": [0.3, 0.78, 4.9],
+      "look": [0.3, 0.48, 0],
+      "drift": [0.04, 0, 0]
+    },
+    {
+      "id": "K-interact",
+      "frame": 4440,
+      "frames": 240,
+      "station": 8,
+      "x": 25.6,
+      "lens": 40,
+      "fstop": 3.2,
+      "cam": [0.35, 0.75, 5.4],
+      "look": [0.35, 0.48, 0],
+      "drift": [-0.03, 0, 0]
+    },
+    {
+      "id": "L-speed",
+      "frame": 4680,
+      "frames": 240,
+      "station": 9,
+      "x": 28.8,
+      "lens": 38,
+      "fstop": 3.2,
+      "cam": [0.12, 0.78, 4.9],
+      "look": [0.12, 0.52, 0],
+      "drift": [0.04, 0, 0]
+    },
+    {
+      "id": "L-cache",
+      "frame": 4920,
+      "frames": 240,
+      "station": 9,
+      "x": 28.8,
+      "lens": 40,
+      "fstop": 2.8,
+      "cam": [0.12, 0.72, 5.2],
+      "look": [0.12, 0.52, 0],
+      "drift": [0.03, 0, 0]
+    },
+    {
+      "id": "H-wrap",
+      "frame": 5160,
+      "frames": 240,
+      "station": 10,
+      "x": 32,
       "lens": 35,
       "fstop": 4,
       "cam": [0.8, 0.9, 4.1],
@@ -548,10 +670,10 @@
     },
     {
       "id": "H-close",
-      "frame": 3840,
+      "frame": 5400,
       "frames": 240,
-      "station": 7,
-      "x": 22.4,
+      "station": 10,
+      "x": 32,
       "lens": 85,
       "fstop": 2.8,
       "cam": [0.8, 0.55, 10],
@@ -560,10 +682,10 @@
     },
     {
       "id": "I-end",
-      "frame": 4080,
+      "frame": 5640,
       "frames": 400,
-      "station": 8,
-      "x": 25.6,
+      "station": 11,
+      "x": 35.2,
       "lens": 35,
       "fstop": 4,
       "cam": [0.1, 0.75, 3.4],
@@ -585,8 +707,8 @@
     "hopC_take": 540,
     "hopC_land": 574,
     "machineOn": 568,
-    "hopL_take": 676,
-    "hopL_land": 700,
+    "hopL_take": 4692,
+    "hopL_land": 4724,
     "leverPull": 704,
     "slideStart": 812,
     "slideEnd": 905,
@@ -650,18 +772,43 @@
     "bonkG2": 3470,
     "running": 3500,
     "passG": 3540,
-    "hopH1_take": 3616,
-    "hopH1_land": 3648,
-    "hopH2_take": 3664,
-    "hopH2_land": 3696,
-    "hopH3_take": 3712,
-    "hopH3_land": 3744,
-    "tapH": 3990,
-    "endIn": 4090,
-    "endType": 4150,
-    "endTypeDone": 4214,
-    "endChime": 4216,
-    "hopL2_land": 782
+    "hopH1_take": 5176,
+    "hopH1_land": 5208,
+    "hopH2_take": 5224,
+    "hopH2_land": 5256,
+    "hopH3_take": 5272,
+    "hopH3_land": 5304,
+    "tapH": 5550,
+    "endIn": 5650,
+    "endType": 5710,
+    "endTypeDone": 5774,
+    "endChime": 5776,
+    "hopL2_land": 782,
+    "hopJ_take": 3612,
+    "hopJ_land": 3644,
+    "refCardIn": 3608,
+    "refTag0": 3668,
+    "refTag1": 3716,
+    "refTag2": 3764,
+    "refTag3": 3856,
+    "tapJ": 3980,
+    "refStamp": 4010,
+    "hopK_take": 4172,
+    "hopK_land": 4204,
+    "winIn0": 4188,
+    "winIn1": 4240,
+    "winIn2": 4292,
+    "browserClick": 4470,
+    "browserPass": 4540,
+    "cheerK_take": 4548,
+    "cheerK_land": 4580,
+    "poolSpin": 4748,
+    "cacheHit0": 4936,
+    "cacheHit1": 4980,
+    "cacheHit2": 5024,
+    "cacheDone": 5056,
+    "cheerL_take": 5060,
+    "cheerL_land": 5092
   },
   "moves": [
     {
@@ -814,13 +961,13 @@
     {
       "type": "place",
       "f": 2560,
-      "pos": [13.0, 0.3]
+      "pos": [13, 0.3]
     },
     {
       "type": "hop",
       "take": 2576,
       "land": 2606,
-      "from": [13.0, 0.3],
+      "from": [13, 0.3],
       "to": [14.05, 0.25],
       "h": 0.3
     },
@@ -837,14 +984,14 @@
       "take": 2654,
       "land": 2680,
       "from": [14.25, 0.25],
-      "to": [14.0, 0.3],
+      "to": [14, 0.3],
       "h": 0.3
     },
     {
       "type": "hop",
       "take": 2676,
       "land": 2692,
-      "from": [14.0, 0.3],
+      "from": [14, 0.3],
       "to": [14.25, 0.25],
       "h": 0.08
     },
@@ -853,38 +1000,38 @@
       "take": 2696,
       "land": 2722,
       "from": [14.25, 0.25],
-      "to": [14.0, 0.3],
+      "to": [14, 0.3],
       "h": 0.3
     },
     {
       "type": "place",
       "f": 2724,
-      "pos": [14.0, 0.3]
+      "pos": [14, 0.3]
     },
     {
       "type": "place",
       "f": 2880,
-      "pos": [14.0, 0.3]
+      "pos": [14, 0.3]
     },
     {
       "type": "place",
       "f": 3040,
-      "pos": [14.0, 0.3]
+      "pos": [14, 0.3]
     },
     {
       "type": "hop",
       "take": 3084,
       "land": 3116,
-      "from": [14.0, 0.3],
-      "to": [14.0, 0.3],
+      "from": [14, 0.3],
+      "to": [14, 0.3],
       "h": 0.55
     },
     {
       "type": "hop",
       "take": 3124,
       "land": 3152,
-      "from": [14.0, 0.3],
-      "to": [14.0, 0.3],
+      "from": [14, 0.3],
+      "to": [14, 0.3],
       "h": 0.45
     },
     {
@@ -935,41 +1082,96 @@
     {
       "type": "place",
       "f": 3600,
-      "pos": [21.85, 0.2]
+      "pos": [20.7, 0.35]
     },
     {
       "type": "hop",
-      "take": 3616,
-      "land": 3648,
-      "from": [21.85, 0.2],
-      "to": [21.85, 0.2],
+      "take": 3612,
+      "land": 3644,
+      "from": [20.7, 0.35],
+      "to": [21.15, 0.42],
+      "h": 0.35
+    },
+    {
+      "type": "place",
+      "f": 4160,
+      "pos": [23.8, 0.4]
+    },
+    {
+      "type": "hop",
+      "take": 4172,
+      "land": 4204,
+      "from": [23.8, 0.4],
+      "to": [24.2, 0.45],
+      "h": 0.35
+    },
+    {
+      "type": "hop",
+      "take": 4548,
+      "land": 4580,
+      "from": [24.2, 0.45],
+      "to": [24.2, 0.45],
+      "h": 0.45
+    },
+    {
+      "type": "place",
+      "f": 4680,
+      "pos": [27, 0.35]
+    },
+    {
+      "type": "hop",
+      "take": 4692,
+      "land": 4724,
+      "from": [27, 0.35],
+      "to": [27.45, 0.42],
+      "h": 0.35
+    },
+    {
+      "type": "hop",
+      "take": 5060,
+      "land": 5092,
+      "from": [27.45, 0.42],
+      "to": [27.45, 0.42],
+      "h": 0.45
+    },
+    {
+      "type": "place",
+      "f": 5160,
+      "pos": [31.45, 0.2]
+    },
+    {
+      "type": "hop",
+      "take": 5176,
+      "land": 5208,
+      "from": [31.45, 0.2],
+      "to": [31.45, 0.2],
       "h": 0.5
     },
     {
       "type": "hop",
-      "take": 3664,
-      "land": 3696,
-      "from": [21.85, 0.2],
-      "to": [21.85, 0.2],
+      "take": 5224,
+      "land": 5256,
+      "from": [31.45, 0.2],
+      "to": [31.45, 0.2],
       "h": 0.5
     },
     {
       "type": "hop",
-      "take": 3712,
-      "land": 3744,
-      "from": [21.85, 0.2],
-      "to": [21.85, 0.2],
+      "take": 5272,
+      "land": 5304,
+      "from": [31.45, 0.2],
+      "to": [31.45, 0.2],
       "h": 0.55
     },
     {
       "type": "place",
-      "f": 3840,
-      "pos": [21.85, 0.2]
+      "f": 5400,
+      "pos": [31.45, 0.2]
     },
     {
       "type": "place",
-      "f": 4080,
-      "pos": [24.55, 0.2]
+      "f": 5640,
+      "pos": [34.15, 0.2]
     }
   ],
   "gaze": [
@@ -1031,7 +1233,7 @@
     },
     {
       "f": 1720,
-      "at": [7.0, 0.2, 0.4]
+      "at": [7, 0.2, 0.4]
     },
     {
       "f": 1920,
@@ -1067,7 +1269,7 @@
     },
     {
       "f": 3040,
-      "at": [17.0, 0.5, 0]
+      "at": [17, 0.5, 0]
     },
     {
       "f": 3160,
@@ -1079,25 +1281,49 @@
     },
     {
       "f": 3600,
-      "at": [23.6, 0.4, -0.3]
+      "at": [22.8, 0.55, -0.2]
     },
     {
-      "f": 3840,
-      "at": [23.6, 0.4, 3]
+      "f": 3880,
+      "at": [23.5, 0.55, -0.2]
     },
     {
-      "f": 4080,
-      "at": [26.1, 0.55, -0.2]
+      "f": 4160,
+      "at": [26, 0.5, -0.2]
     },
     {
-      "f": 4300,
-      "at": [25.6, 0.5, 3]
+      "f": 4440,
+      "at": [26.1, 0.5, -0.2]
+    },
+    {
+      "f": 4680,
+      "at": [29.4, 0.55, -0.2]
+    },
+    {
+      "f": 4920,
+      "at": [29.6, 0.55, -0.2]
+    },
+    {
+      "f": 5160,
+      "at": [33.2, 0.4, -0.3]
+    },
+    {
+      "f": 5400,
+      "at": [33.2, 0.4, 3]
+    },
+    {
+      "f": 5640,
+      "at": [35.7, 0.55, -0.2]
+    },
+    {
+      "f": 5860,
+      "at": [35.2, 0.5, 3]
     }
   ],
   "acts": {
-    "taps": [214, 2250, 3990],
+    "taps": [214, 2250, 3980, 5550],
     "startles": [1206, 2476, 2650, 2692, 3400, 3470],
-    "cheers": [3616, 3084, 4216]
+    "cheers": [3084, 4548, 5060, 5176, 5776]
   },
   "hits": [
     {
@@ -1419,46 +1645,178 @@
       "frame": 3541
     },
     {
+      "event": "refCardIn",
+      "sound": "paper",
+      "picture": 3608,
+      "frame": 3609
+    },
+    {
+      "event": "hopJ_land",
+      "sound": "land",
+      "picture": 3644,
+      "frame": 3645
+    },
+    {
+      "event": "refTag0",
+      "sound": "tick",
+      "picture": 3668,
+      "frame": 3669
+    },
+    {
+      "event": "refTag1",
+      "sound": "tick",
+      "picture": 3716,
+      "frame": 3717
+    },
+    {
+      "event": "refTag2",
+      "sound": "tick",
+      "picture": 3764,
+      "frame": 3765
+    },
+    {
+      "event": "refTag3",
+      "sound": "tick",
+      "picture": 3856,
+      "frame": 3857
+    },
+    {
+      "event": "tapJ",
+      "sound": "tap",
+      "picture": 3980,
+      "frame": 3981
+    },
+    {
+      "event": "refStamp",
+      "sound": "stampCert",
+      "picture": 4010,
+      "frame": 4011
+    },
+    {
+      "event": "winIn0",
+      "sound": "paper",
+      "picture": 4188,
+      "frame": 4189
+    },
+    {
+      "event": "hopK_land",
+      "sound": "land",
+      "picture": 4204,
+      "frame": 4205
+    },
+    {
+      "event": "winIn1",
+      "sound": "paper",
+      "picture": 4240,
+      "frame": 4241
+    },
+    {
+      "event": "winIn2",
+      "sound": "paper",
+      "picture": 4292,
+      "frame": 4293
+    },
+    {
+      "event": "browserClick",
+      "sound": "click",
+      "picture": 4470,
+      "frame": 4471
+    },
+    {
+      "event": "browserPass",
+      "sound": "chime",
+      "picture": 4540,
+      "frame": 4541
+    },
+    {
+      "event": "cheerK_land",
+      "sound": "land",
+      "picture": 4580,
+      "frame": 4581
+    },
+    {
+      "event": "hopL_land",
+      "sound": "land",
+      "picture": 4724,
+      "frame": 4725
+    },
+    {
+      "event": "poolSpin",
+      "sound": "rise",
+      "picture": 4748,
+      "frame": 4749
+    },
+    {
+      "event": "cacheHit0",
+      "sound": "tick",
+      "picture": 4936,
+      "frame": 4937
+    },
+    {
+      "event": "cacheHit1",
+      "sound": "tick",
+      "picture": 4980,
+      "frame": 4981
+    },
+    {
+      "event": "cacheHit2",
+      "sound": "tick",
+      "picture": 5024,
+      "frame": 5025
+    },
+    {
+      "event": "cacheDone",
+      "sound": "chime",
+      "picture": 5056,
+      "frame": 5057
+    },
+    {
+      "event": "cheerL_land",
+      "sound": "land",
+      "picture": 5092,
+      "frame": 5093
+    },
+    {
       "event": "hopH1_land",
       "sound": "land",
-      "picture": 3648,
-      "frame": 3649
+      "picture": 5208,
+      "frame": 5209
     },
     {
       "event": "hopH2_land",
       "sound": "land",
-      "picture": 3696,
-      "frame": 3697
+      "picture": 5256,
+      "frame": 5257
     },
     {
       "event": "hopH3_land",
       "sound": "land",
-      "picture": 3744,
-      "frame": 3745
+      "picture": 5304,
+      "frame": 5305
     },
     {
       "event": "tapH",
       "sound": "gavel",
-      "picture": 3990,
-      "frame": 3991
+      "picture": 5550,
+      "frame": 5551
     },
     {
       "event": "endIn",
       "sound": "paper",
-      "picture": 4090,
-      "frame": 4091
+      "picture": 5650,
+      "frame": 5651
     },
     {
       "event": "endChime",
       "sound": "chime",
-      "picture": 4216,
-      "frame": 4217
+      "picture": 5776,
+      "frame": 5777
     }
   ],
   "music": {
     "bpm": 90,
     "key": "F major",
     "chords": ["F", "Dm", "Bb", "C"],
-    "outroFrame": 4300
+    "outroFrame": 5860
   }
 }
