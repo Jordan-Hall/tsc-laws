@@ -187,32 +187,35 @@ data, and fails when the committed files no longer match a fresh run.
 ### Badges for your project
 
 ```sh
-npx tslaws badge --out badges
+npx tslaws badge --certify
 ```
 
 `tslaws badge` checks the project (or reads the output of `tslaws check --json` from `--report FILE`, so a CI job that has
-already checked does not check twice), writes `badge-laws.json` and `badge-certificates.json` into the directory and prints
-the markdown that shows them:
+already checked does not check twice), writes `badge-laws.json` and `badge-certificates.json` into `badges/` (a directory you commit, so the badge URLs resolve) and
+prints the markdown that shows them. When a law is certified it also writes a certificates page, `badges/README.md`, that lists
+each law with its status and its proof files, which it copies to `badges/certificates/`. Both badges link to that page:
 
 ```text
 laws: 8 proved
 certificates: 8 verified
 wrote badges/badge-laws.json and badges/badge-certificates.json; commit them and add to your README:
 
-[![tslaws](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Facme%2Fwidgets%2Fmain%2Fbadges%2Fbadge-laws.json)](https://github.com/acme/widgets/blob/main/tsc-laws.lock)
-[![certificates](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Facme%2Fwidgets%2Fmain%2Fbadges%2Fbadge-certificates.json)](https://github.com/acme/widgets/blob/main/tsc-laws.lock)
+[![tslaws](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Facme%2Fwidgets%2Fmain%2Fbadges%2Fbadge-laws.json)](https://github.com/acme/widgets/blob/main/badges/README.md)
+[![certificates](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Facme%2Fwidgets%2Fmain%2Fbadges%2Fbadge-certificates.json)](https://github.com/acme/widgets/blob/main/badges/README.md)
+
+both badges link to badges/README.md, the certificates page written beside them
 ```
 
-| Flag                | Meaning                                                                                                                                                  |
-| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--out DIR`         | where to write the files; default `.tslaws/badges`. Git usually ignores `.tslaws`, so pick a directory you commit, such as `badges`                      |
-| `--report FILE`     | the output of `tslaws check --json` for one project, instead of a new check                                                                              |
-| `--repo OWNER/NAME` | the GitHub repository for the URLs; default `$GITHUB_REPOSITORY`, then the `origin` remote, else the placeholder `OWNER/REPO`                            |
-| `--branch NAME`     | the branch the files are served from; default `main`                                                                                                     |
-| `--link URL`        | where both badges link; default `tsc-laws.lock` on the branch, which records your certificates. Link a published gallery or any page of your own instead |
-| `--certify`         | check with certificates on, as in `tslaws check --certify`                                                                                               |
+| Flag                | Meaning                                                                                                                                  |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `--out DIR`         | where to write the files; default `badges`. Keep it out of `.gitignore`: the badge URLs read the committed files                         |
+| `--report FILE`     | the output of `tslaws check --json` for one project, instead of a new check                                                              |
+| `--repo OWNER/NAME` | the GitHub repository for the URLs; default `$GITHUB_REPOSITORY`, then the `origin` remote, else the placeholder `OWNER/REPO`            |
+| `--branch NAME`     | the branch the files are served from; default `main`                                                                                     |
+| `--link URL`        | where both badges link; default the certificates page in the output directory, or `tsc-laws.lock` on the branch when no law is certified |
+| `--certify`         | check with certificates on, as in `tslaws check --certify`, so the page has proofs to list                                               |
 
-The command writes only the two files and never touches the lock. In a monorepo, pick the project with `--project`.
+The command writes only the badge files, the page and its copies of the proofs, and never touches the lock. It does not delete files from an earlier run. In a monorepo, pick the project with `--project`.
 
 To keep the badges current, regenerate them on `main` and commit the change. This job needs `contents: write`, so give it to
 that job only:

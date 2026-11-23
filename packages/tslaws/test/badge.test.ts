@@ -1,11 +1,13 @@
 // `tslaws badge`: the endpoint badges, their colours, the markdown and the command that writes them.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { certificateName } from '../dist/certificates.js';
+import { lawKey } from '../dist/lock.js';
 import { badgeMarkdown, badgesOf, githubRepoOf, standingsOf } from '../dist/badge.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -75,25 +77,34 @@ describe('githubRepoOf and badgeMarkdown', () => {
     const raw = encodeURIComponent('https://raw.githubusercontent.com/acme/widgets/main/badges/badge-laws.json');
     assert.ok(markdown.includes(`https://img.shields.io/endpoint?url=${raw}`));
     assert.ok(markdown.includes('(https://github.com/acme/widgets/blob/main/tsc-laws.lock)'));
+    assert.ok(
+      badgeMarkdown({ repo: 'acme/widgets', branch: 'main', dir: 'badges', page: true }).includes(
+        '(https://github.com/acme/widgets/blob/main/badges/README.md)',
+      ),
+    );
     assert.ok(badgeMarkdown({ branch: 'main', dir: '' }).includes('OWNER%2FREPO%2Fmain%2Fbadge-certificates.json'));
   });
 });
 
+const result = (name: string, status: string, certified: boolean) => ({
+  file: 'a.laws.ts',
+  line: 1,
+  name,
+  status,
+  method: 'smt',
+  certificate: { status: certified ? 'certified' : 'uncertified' },
+});
+
+/** A project directory holding a report of these results. */
+function project(results: unknown[]): string {
+  const cwd = mkdtempSync(join(root, 'p-'));
+  writeFileSync(join(cwd, 'report.json'), JSON.stringify({ results }));
+  return cwd;
+}
+
 describe('tslaws badge', () => {
   it('writes both files into --out from a check report and prints the markdown', () => {
-    const cwd = mkdtempSync(join(root, 'p-'));
-    const result = (name: string, status: string, certified: boolean) => ({
-      file: 'a.laws.ts',
-      line: 1,
-      name,
-      status,
-      method: 'smt',
-      certificate: { status: certified ? 'certified' : 'uncertified' },
-    });
-    writeFileSync(
-      join(cwd, 'report.json'),
-      JSON.stringify({ results: [result('one', 'proved', true), result('two', 'tested', false)] }),
-    );
+    const cwd = project([result('one', 'proved', true), result('two', 'tested', false)]);
     const ran = spawnSync(
       process.execPath,
       [bin, 'badge', '--report', 'report.json', '--out', 'out', '--repo', 'acme/widgets'],
@@ -105,6 +116,46 @@ describe('tslaws badge', () => {
     assert.equal(laws.message, '1 of 2 proved');
     assert.equal(certificates.message, '1 of 2 verified');
     assert.ok(ran.stdout.includes('raw.githubusercontent.com%2Facme%2Fwidgets%2Fmain'), ran.stdout);
+  });
+
+  it('defaults to badges/, a directory a repository commits, and links the lock when nothing is certified', () => {
+    const cwd = project([result('one', 'proved', false)]);
+    const ran = spawnSync(process.execPath, [bin, 'badge', '--report', 'report.json', '--repo', 'acme/widgets'], {
+      cwd,
+      encoding: 'utf8',
+    });
+    assert.equal(ran.status, 0, ran.stderr);
+    assert.ok(existsSync(join(cwd, 'badges', 'badge-laws.json')));
+    assert.ok(!existsSync(join(cwd, 'badges', 'README.md')));
+    assert.ok(ran.stdout.includes('raw.githubusercontent.com%2Facme%2Fwidgets%2Fmain%2Fbadges%2Fbadge-laws.json'));
+    assert.ok(ran.stdout.includes('(https://github.com/acme/widgets/blob/main/tsc-laws.lock)'));
+  });
+
+  it('writes a certificates page with the proof files and links both badges to it, unless --link says otherwise', () => {
+    const cwd = project([result('one', 'proved', true), result('two', 'tested', false)]);
+    const name = certificateName(lawKey('a.laws.ts', 'one'));
+    mkdirSync(join(cwd, '.tslaws', 'certificates'), { recursive: true });
+    writeFileSync(join(cwd, '.tslaws', 'certificates', `${name}.smt2`), '(check-sat)\n');
+    writeFileSync(join(cwd, '.tslaws', 'certificates', `${name}.alethe`), '(assume a0 true)\n');
+    const args = [bin, 'badge', '--report', 'report.json', '--repo', 'acme/widgets'];
+    const ran = spawnSync(process.execPath, args, { cwd, encoding: 'utf8' });
+    assert.equal(ran.status, 0, ran.stderr);
+    const page = readFileSync(join(cwd, 'badges', 'README.md'), 'utf8');
+    assert.ok(page.includes('1 of 2 laws are certified'));
+    assert.ok(
+      page.includes(
+        `| one | a.laws.ts:1 | proved | certified | [smt2](certificates/${name}.smt2), [alethe](certificates/${name}.alethe) |`,
+      ),
+    );
+    assert.ok(page.includes('| two | a.laws.ts:1 | tested | not certified | - |'));
+    assert.equal(readFileSync(join(cwd, 'badges', 'certificates', `${name}.alethe`), 'utf8'), '(assume a0 true)\n');
+    assert.ok(ran.stdout.includes('(https://github.com/acme/widgets/blob/main/badges/README.md)'), ran.stdout);
+    const linked = spawnSync(process.execPath, [...args, '--link', 'https://example.org/proofs'], {
+      cwd,
+      encoding: 'utf8',
+    });
+    assert.ok(linked.stdout.includes('(https://example.org/proofs)'));
+    assert.ok(!linked.stdout.includes('badges/README.md)'));
   });
 
   it('refuses a report that is not one project check', () => {

@@ -35,7 +35,16 @@ import {
   personOnly,
   revokeFor,
 } from './delegation.ts';
-import { badgeFiles, badgeMarkdown, badgesOf, gitFacts, repoRelative, standingsOf, writeBadges } from './badge.ts';
+import {
+  badgeFiles,
+  badgeMarkdown,
+  badgesOf,
+  gitFacts,
+  repoRelative,
+  standingsOf,
+  writeBadges,
+  writeCertificatesPage,
+} from './badge.ts';
 import { certificateLabel } from './certificates.ts';
 import { fileOfKey, lockFormat, lockOf, mergeScoped, readLock, scopeOf, writeLockValue } from './lock.ts';
 import { lockLevels } from './lawKinds.ts';
@@ -58,7 +67,7 @@ tslaws propose <file.ts> [--from PATH]   write a proposal into .tslaws/proposals
 tslaws promote <proposal> [--to PATH] [--yes]   move a proposal from .tslaws/proposals/ into the tree at a path you confirm (people only: needs a terminal; run accept afterwards). It prints the imports and helper code it would add and asks first, and refuses an import of a file outside the project, under .tslaws/, node_modules or .git, or git-ignored; --yes adds it without asking (it is still printed; it never lets promote run without a terminal). In-tree *.proposed.laws.ts files (the usual proposals) promote with --all or by name
 tslaws list [--json]   the laws files and proposals of the project: the level each runs at (from its name, or its imports with levels: imports) and whether it is accepted, unaccepted or proposed (reads files and the lock; runs nothing)
 tslaws github report|command|merge|verify   accept laws on GitHub: flag and run each proposal on a pull request, record /tslaws accept comments, and write tsc-laws.lock on merge or on demand (workflow_dispatch) (CI only; see "github" in tslaws.json)
-tslaws badge [files...] [--out DIR] [--report FILE] [--repo OWNER/NAME] [--branch NAME] [--link URL] [--certify]   write the shields.io endpoint badges "laws: N proved" and "certificates: N verified" (badge-laws.json and badge-certificates.json) into DIR (default .tslaws/badges) from a check, or from the check --json output in FILE, and print the markdown that shows them. The URLs name the GitHub repository from --repo, $GITHUB_REPOSITORY or the origin remote (else OWNER/REPO), and both badges link to --link (default: tsc-laws.lock on the branch, default main). Commit the files; see docs/certificates.md
+tslaws badge [files...] [--out DIR] [--report FILE] [--repo OWNER/NAME] [--branch NAME] [--link URL] [--certify]   write the shields.io endpoint badges "laws: N proved" and "certificates: N verified" (badge-laws.json and badge-certificates.json) into DIR (default badges) from a check, or from the check --json output in FILE, and print the markdown that shows them. When a law is certified it also writes DIR/README.md, a page of the laws, their status and their proof files (copied to DIR/certificates). The URLs name the GitHub repository from --repo, $GITHUB_REPOSITORY or the origin remote (else OWNER/REPO), and both badges link to --link (default: that page, or tsc-laws.lock on the branch when no law is certified; the branch defaults to main). Commit the files; see docs/certificates.md
 tslaws mcp [--compiler PATH]   serve check, check_proposed, explain and propose as Model Context Protocol tools on stdio (cannot accept, promote or touch the lock)
 ${migrateUsage}
 ${securityUsage}
@@ -562,18 +571,22 @@ export async function badgeCommand(
     }
     results = (await check({ ...options(cwd, flags, chosen), partial: files.length > 0 }, true)).results;
   }
-  const dir = text('out') ?? join('.tslaws', 'badges');
-  const badges = badgesOf(standingsOf(results, readLock(join(cwd, 'tsc-laws.lock'))));
+  const dir = text('out') ?? 'badges';
+  const lock = readLock(join(cwd, 'tsc-laws.lock'));
+  const badges = badgesOf(standingsOf(results, lock));
   writeBadges(resolve(cwd, dir), badges);
+  const page = writeCertificatesPage(cwd, resolve(cwd, dir), results, lock);
   const git = gitFacts(cwd);
   const repo = repoFlag ?? ctx.env.GITHUB_REPOSITORY ?? git.repo;
   const where = repoRelative(cwd, dir, git.top);
-  const markdown = badgeMarkdown({ repo, branch: text('branch') ?? 'main', dir: where, link: text('link') });
+  const markdown = badgeMarkdown({ repo, branch: text('branch') ?? 'main', dir: where, link: text('link'), page });
   out(`${badges.laws.label}: ${badges.laws.message}\n${badges.certificates.label}: ${badges.certificates.message}\n`);
   out(
     `wrote ${where}/${badgeFiles.laws} and ${where}/${badgeFiles.certificates}; commit them and add to your README:\n\n`,
   );
   out(`${markdown}\n`);
+  if (page && text('link') === undefined)
+    out(`\nboth badges link to ${where}/README.md, the certificates page written beside them\n`);
   if (repo === undefined) out('\nreplace OWNER/REPO: no GitHub remote was found (name it with --repo OWNER/NAME)\n');
   return 0;
 }
