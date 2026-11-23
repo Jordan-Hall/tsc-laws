@@ -1,1 +1,1 @@
-{ "cover": ["src/**/*.ts", "!src/**/*.laws.ts"], "certify": true }
+{ "cover": ["src/**/*.ts", "!src/**/*.laws.ts"], "certify": true, "proofTimeoutMs": 30000 }
