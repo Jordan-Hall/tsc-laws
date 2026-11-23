@@ -99,6 +99,14 @@ describe('how many slots there are', () => {
     assert.equal(jobs(), 5);
   });
 
+  it('drops the config source of the project before when the next one sets none', () => {
+    delete process.env.TSLAWS_JOBS;
+    configureJobs({ config: 1000 });
+    assert.equal(jobs(), 1000);
+    configureJobs({ config: undefined });
+    assert.ok(jobs() >= 1 && jobs() <= 8, `${jobs()} is the default again`);
+  });
+
   it('is a key of tslaws.json that is validated and left out of the seal', () => {
     assert.equal(parseConfig({ jobs: 3 }).jobs, 3);
     assert.throws(() => parseConfig({ jobs: 0 }), /"jobs" must be an integer of at least 1/);

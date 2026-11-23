@@ -28,11 +28,15 @@ export function resolveJobs(input: JobSources & { env?: string; cores: number; f
 let sources: JobSources = {};
 let cached: number | undefined;
 
-/** Sets where the number of slots comes from (the command line flag, `jobs` of tslaws.json); undefined leaves a source as it was. */
+/**
+ * Sets where the number of slots comes from (the command line flag, `jobs` of tslaws.json). An absent `flag` leaves the
+ * flag as it was; a `config` key replaces the config source even when it is undefined, so one project's `jobs` never
+ * carries over to the next project checked in the same process.
+ */
 export function configureJobs(next: JobSources = {}): void {
   sources = {
     flag: next.flag ?? sources.flag,
-    config: next.config ?? sources.config,
+    config: 'config' in next ? next.config : sources.config,
   };
   cached = undefined;
 }
