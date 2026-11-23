@@ -4,6 +4,6 @@
 import { availableParallelism } from 'node:os';
 
 /** How many test files run at once; the same number as `--test-concurrency` in the test script. */
-const files = 4;
+const files = 3;
 
 process.env.TSLAWS_JOBS ??= String(Math.max(1, Math.min(8, Math.floor(availableParallelism() / files))));
