@@ -63,7 +63,10 @@ export function transformSource(file: string, extension: string): string {
   }).code;
 }
 
-let transforms: Transforms = { source: transformSource, plugin: transformPluginFile };
+let transforms: Transforms = {
+  source: transformSource,
+  plugin: transformPluginFile,
+};
 
 /** Replaces how this thread transforms files; used by the sandboxed law process, which cannot run the real ones. */
 export function useTransforms(next: Transforms): void {
@@ -118,7 +121,13 @@ export function installLawRuntime(runtime: LawRuntime): void {
   projects.set(outDirOf(runtime.cwd), runtime);
   if (hooked) return;
   hooked = true;
-  installPluginHooks({ ownerOf, beside, twin: twinOf, transform: (...args) => transforms.plugin(...args) });
+  installPluginHooks({
+    ownerOf,
+    beside,
+    twin: twinOf,
+    twinOfSpecifier,
+    transform: (...args) => transforms.plugin(...args),
+  });
   const internals = Module as unknown as Internals;
   const original = internals._resolveFilename;
   internals._resolveFilename = function (request, parent, ...rest) {
@@ -130,7 +139,9 @@ export function installLawRuntime(runtime: LawRuntime): void {
     try {
       found = original.call(this, request, parent, ...rest);
     } catch (error) {
-      const other = bare ? resolveThroughTypeScript(request, parent) : beside(request, parent);
+      const other = bare
+        ? resolveThroughTypeScript(request, parent)
+        : (beside(request, parent) ?? twinOfSpecifier(request, parent?.filename));
       if (other === undefined) throw error;
       found = other;
     }
@@ -173,6 +184,30 @@ function twinOf(file: string, importer: string | undefined): string | undefined 
   if (file.startsWith(root + sep)) return undefined;
   const twin = resolve(root, relative(owner.cwd, file)).replace(/\.[cm]?tsx?$/, '.js');
   return existsSync(twin) ? twin : undefined;
+}
+
+const jsToTs: Record<string, string[]> = {
+  '.js': ['.ts', '.tsx'],
+  '.jsx': ['.tsx'],
+  '.mjs': ['.mts'],
+  '.cjs': ['.cts'],
+};
+
+/**
+ * The twin for a NodeNext-style specifier a plugin's output keeps (`./i18n.js` for `i18n.ts`): Node finds no `.js` file
+ * beside the source, so the specifier names the source it stands for, and that source's compiled copy is used.
+ */
+function twinOfSpecifier(request: string, importer: string | undefined): string | undefined {
+  if (importer === undefined || !request.startsWith('.')) return undefined;
+  const named = resolve(dirname(importer), request);
+  const extension = extname(named);
+  for (const replacement of jsToTs[extension] ?? []) {
+    const source = named.slice(0, -extension.length) + replacement;
+    if (!existsSync(source)) continue;
+    const twin = twinOf(source, importer);
+    if (twin !== undefined) return twin;
+  }
+  return undefined;
 }
 
 /**

@@ -13,6 +13,8 @@ export interface PluginHookHost {
   beside(request: string, parent: { filename: string }): string | undefined;
   /** The build's compiled copy of a project `.ts` file that a file in a project format imports, if it has one. */
   twin(file: string, importer: string | undefined): string | undefined;
+  /** The same for a `./x.js` specifier that stands for `x.ts` (what Node cannot resolve beside the source). */
+  twinOfSpecifier(request: string, importer: string | undefined): string | undefined;
   /** The source Node can run for a file in a project format (see `transformPluginFile` in pluginHost.ts). */
   transform(file: string, cwd: string, plugins: readonly string[], format: 'cjs' | 'esm'): string;
 }
@@ -37,7 +39,10 @@ export function installPluginHooks(host: PluginHookHost): boolean {
       try {
         resolved = nextResolve(specifier, context);
       } catch (error) {
-        const file = parent === undefined ? undefined : host.beside(specifier, { filename: parent });
+        const file =
+          parent === undefined
+            ? undefined
+            : (host.beside(specifier, { filename: parent }) ?? host.twinOfSpecifier(specifier, parent));
         if (file === undefined) throw error;
         return { url: pathToFileURL(file).href, shortCircuit: true };
       }
@@ -56,7 +61,11 @@ export function installPluginHooks(host: PluginHookHost): boolean {
         owner?.bundlerPlugins ?? [],
         commonjs ? 'cjs' : 'esm',
       );
-      return { format: commonjs ? 'commonjs' : 'module', source, shortCircuit: true };
+      return {
+        format: commonjs ? 'commonjs' : 'module',
+        source,
+        shortCircuit: true,
+      };
     },
   });
   installed = true;

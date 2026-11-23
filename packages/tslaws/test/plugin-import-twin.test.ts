@@ -20,23 +20,26 @@ after(() => {
 });
 
 /** A fake format: `.view` files hold a message, and the module it becomes imports `../i18n` like a real template would. */
-const plugin = [
-  "import { readFileSync } from 'node:fs';",
-  'export default () => ({',
-  "  name: 'fake-view',",
-  '  setup(build) {',
-  '    build.onLoad({ filter: /[.]view$/ }, (args) => ({',
-  "      contents: `import { translate } from '../i18n';\nexport default () => translate(${JSON.stringify(readFileSync(args.path, 'utf8').trim())});\n`,",
-  "      loader: 'js',",
-  '    }));',
-  '  },',
-  '});',
-  '',
-].join('\n');
+const pluginFor = (specifier: string): string =>
+  [
+    "import { readFileSync } from 'node:fs';",
+    'export default () => ({',
+    "  name: 'fake-view',",
+    '  setup(build) {',
+    '    build.onLoad({ filter: /[.]view$/ }, (args) => ({',
+    "      contents: `import { translate } from '__SPECIFIER__';\nexport default () => translate(${JSON.stringify(readFileSync(args.path, 'utf8').trim())});\n`,",
+    "      loader: 'js',",
+    '    }));',
+    '  },',
+    '});',
+    '',
+  ]
+    .join('\n')
+    .replace('__SPECIFIER__', specifier);
 
 const files: Record<string, string> = {
   'tslaws.json': JSON.stringify({ bundlerPlugins: ['./tools/plugin.mjs'] }),
-  'tools/plugin.mjs': plugin,
+  'tools/plugin.mjs': '',
   'src/globals.d.ts': "declare module '*.view' { const render: () => string; export default render; }\n",
   'src/i18n/index.ts': [
     'export const state = { calls: 0 };',
@@ -67,9 +70,12 @@ const files: Record<string, string> = {
   ].join('\n'),
 };
 
-function project(name: string): string {
+function project(name: string, specifier: string): string {
   const dir = join(root, name);
-  for (const [file, text] of Object.entries(files)) {
+  for (const [file, text] of Object.entries({
+    ...files,
+    'tools/plugin.mjs': pluginFor(specifier),
+  })) {
     mkdirSync(dirname(join(dir, file)), { recursive: true });
     writeFileSync(join(dir, file), text);
   }
@@ -101,14 +107,19 @@ const byName = (results: LawResult[], name: string): LawResult => {
 };
 
 describe('a plugin-loaded file that imports a compiled .ts module', () => {
-  for (const sandbox of [true, false])
-    it(`reaches the compiled twin, one instance for the law and the template (sandbox: ${sandbox})`, async () => {
-      const cwd = project(sandbox ? 'sandboxed' : 'plain');
-      const { results } = await check(options(cwd, sandbox), true);
-      for (const name of [
-        'the template renders through the i18n module',
-        'the law and the template share one i18n instance',
-      ])
-        assert.equal(byName(results, name).status, 'tested', JSON.stringify(byName(results, name)));
-    });
+  // The specifier a template keeps: the directory (`../i18n`), or NodeNext style with the `.js` the compiler writes.
+  for (const [specifier, label] of [
+    ['../i18n', 'extensionless'],
+    ['../i18n/index.js', 'js'],
+  ] as const)
+    for (const sandbox of [true, false])
+      it(`reaches the compiled twin, one instance for the law and the template (${label}, sandbox: ${sandbox})`, async () => {
+        const cwd = project(`${label}-${sandbox ? 'sandboxed' : 'plain'}`, specifier);
+        const { results } = await check(options(cwd, sandbox), true);
+        for (const name of [
+          'the template renders through the i18n module',
+          'the law and the template share one i18n instance',
+        ])
+          assert.equal(byName(results, name).status, 'tested', JSON.stringify(byName(results, name)));
+      });
 });
