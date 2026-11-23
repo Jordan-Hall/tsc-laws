@@ -2,6 +2,13 @@
 
 The upstream tsc-ts changelog is CHANGELOG.md. Releases of tsc-laws are tagged `laws-v<version>` (see RELEASING-LAWS.md).
 
+## [1.3.0](https://github.com/Jordan-Hall/tsc-laws/compare/laws-v1.2.0...laws-v1.3.0) (2026-11-23)
+
+
+### Features
+
+* **github:** accept merge --results-out on merge_group ahead of push ([#114](https://github.com/Jordan-Hall/tsc-laws/issues/114)) ([f768074](https://github.com/Jordan-Hall/tsc-laws/commit/f76807412c307bd6e671e0e0e503d2d6d6998f60))
+
 ## [1.2.0](https://github.com/Jordan-Hall/tsc-laws/compare/laws-v1.1.0...laws-v1.2.0) (2026-11-23)
 
 
