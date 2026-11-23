@@ -63,7 +63,10 @@ export function transformSource(file: string, extension: string): string {
   }).code;
 }
 
-let transforms: Transforms = { source: transformSource, plugin: transformPluginFile };
+let transforms: Transforms = {
+  source: transformSource,
+  plugin: transformPluginFile,
+};
 
 /** Replaces how this thread transforms files; used by the sandboxed law process, which cannot run the real ones. */
 export function useTransforms(next: Transforms): void {
@@ -118,7 +121,13 @@ export function installLawRuntime(runtime: LawRuntime): void {
   projects.set(outDirOf(runtime.cwd), runtime);
   if (hooked) return;
   hooked = true;
-  installPluginHooks({ ownerOf, beside, transform: (...args) => transforms.plugin(...args) });
+  installPluginHooks({
+    ownerOf,
+    beside,
+    twin: twinOf,
+    twinOfSpecifier,
+    transform: (...args) => transforms.plugin(...args),
+  });
   const internals = Module as unknown as Internals;
   const original = internals._resolveFilename;
   internals._resolveFilename = function (request, parent, ...rest) {
@@ -126,13 +135,17 @@ export function installLawRuntime(runtime: LawRuntime): void {
     // An alias that shares its name with an installed package must run what the type checker saw, not the package.
     const mapped = bare && namedInPaths(request, parent) ? resolveThroughTypeScript(request, parent) : undefined;
     if (mapped !== undefined) return mapped;
+    let found: string;
     try {
-      return original.call(this, request, parent, ...rest);
+      found = original.call(this, request, parent, ...rest);
     } catch (error) {
-      const found = bare ? resolveThroughTypeScript(request, parent) : beside(request, parent);
-      if (found === undefined) throw error;
-      return found;
+      const other = bare
+        ? resolveThroughTypeScript(request, parent)
+        : (beside(request, parent) ?? twinOfSpecifier(request, parent?.filename));
+      if (other === undefined) throw error;
+      found = other;
     }
+    return twinOf(found, parent?.filename) ?? found;
   };
   // Node loads an unknown extension as JavaScript. A project format (`.tsrx`) goes through its `bundlerPlugins` instead.
   const plain = internals._extensions['.js']!;
@@ -153,6 +166,48 @@ function ownerOf(file: string): LawRuntime | undefined {
   const all = [...projects.values()];
   const holding = all.filter((p) => file.startsWith(p.cwd + sep)).sort((a, b) => b.cwd.length - a.cwd.length);
   return holding[0] ?? all.at(-1);
+}
+
+/**
+ * The compiled copy of a project `.ts` file that a file in a project format (`.tsrx`) imports. The plugin's output keeps
+ * its imports as written, so `../i18n` finds the source, which the sandbox does not serve and which would be a second
+ * instance beside the one the law gets. The build's copy is the same module the law's own imports reach, and it is
+ * already in the reviewed set (the build's tree). Nothing else is remapped: undefined when `importer` is not such a
+ * file, `file` is not a source the build compiled, or no copy exists.
+ */
+function twinOf(file: string, importer: string | undefined): string | undefined {
+  if (importer === undefined || !pluginExtensionNeeded(extname(importer))) return undefined;
+  if (!/\.[cm]?tsx?$/.test(file) || /\.d\.[cm]?ts$/.test(file)) return undefined;
+  const owner = ownerOf(importer);
+  if (owner === undefined || !file.startsWith(owner.cwd + sep)) return undefined;
+  const root = compiledRoot(owner);
+  if (file.startsWith(root + sep)) return undefined;
+  const twin = resolve(root, relative(owner.cwd, file)).replace(/\.[cm]?tsx?$/, '.js');
+  return existsSync(twin) ? twin : undefined;
+}
+
+const jsToTs: Record<string, string[]> = {
+  '.js': ['.ts', '.tsx'],
+  '.jsx': ['.tsx'],
+  '.mjs': ['.mts'],
+  '.cjs': ['.cts'],
+};
+
+/**
+ * The twin for a NodeNext-style specifier a plugin's output keeps (`./i18n.js` for `i18n.ts`): Node finds no `.js` file
+ * beside the source, so the specifier names the source it stands for, and that source's compiled copy is used.
+ */
+function twinOfSpecifier(request: string, importer: string | undefined): string | undefined {
+  if (importer === undefined || !request.startsWith('.')) return undefined;
+  const named = resolve(dirname(importer), request);
+  const extension = extname(named);
+  for (const replacement of jsToTs[extension] ?? []) {
+    const source = named.slice(0, -extension.length) + replacement;
+    if (!existsSync(source)) continue;
+    const twin = twinOf(source, importer);
+    if (twin !== undefined) return twin;
+  }
+  return undefined;
 }
 
 /**
