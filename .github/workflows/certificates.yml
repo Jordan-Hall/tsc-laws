@@ -21,6 +21,7 @@ on:
       - 'packages/tslaws/test/chc.test.ts'
       - '.github/actions/proof-tools/**'
       - 'scripts/ci/certificates-*'
+      - 'scripts/ci/certificates-*/**'
       - '.github/workflows/certificates.yml'
   workflow_dispatch:
 
