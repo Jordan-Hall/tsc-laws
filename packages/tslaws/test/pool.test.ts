@@ -302,7 +302,7 @@ describe('the worker pool', () => {
   });
 });
 
-describe('the law processes of several projects', () => {
+describe('the law processes of several projects', { skip: compiler === undefined ? 'set TSC_LAWS_BIN' : false }, () => {
   function project(name: string, laws: number): CheckOptions {
     const cwd = join(root, name);
     mkdirSync(join(cwd, 'src'), { recursive: true });

@@ -713,7 +713,7 @@ export law asks(n: number) { return typeof (h as any).${call} === 'function'; }
   );
 });
 
-describe('reads outside the project', () => {
+describe('reads outside the project', { skip: compiler === undefined ? 'set TSC_LAWS_BIN' : false }, () => {
   before(() => {
     base = apart;
   });

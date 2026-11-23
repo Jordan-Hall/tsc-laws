@@ -6,6 +6,7 @@ import { dirname, join } from 'node:path';
 import { after, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { check } from '../dist/check.js';
+import { readManifest } from '../dist/compile.js';
 import { parseConfig } from '../dist/coverage.js';
 import type { CheckOptions } from '../dist/types.js';
 
@@ -205,4 +206,17 @@ describe('tsconfig resolution', () => {
       assert.ok(existsSync(join(out, 'app', 'tslaws-runtime.json')), 'runtime file beside the project output');
     },
   );
+});
+
+describe('no compiler resolved', () => {
+  it('says so instead of failing inside the compiler lookup', () => {
+    const cwd = join(root, 'no-compiler');
+    mkdirSync(cwd, { recursive: true });
+    writeFileSync(join(cwd, 'a.laws.ts'), 'export law holds(n: number) { return n === n; }\n');
+    // A caller outside the CLI can pass no compiler; the keyword syntax is the one that needs it.
+    assert.throws(
+      () => readManifest(undefined as unknown as string, ['a.laws.ts'], cwd),
+      /no tsc-laws compiler found .*TSC_LAWS_BIN/,
+    );
+  });
 });

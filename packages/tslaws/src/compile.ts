@@ -47,6 +47,8 @@ function launch(
 
 /** The compiler finds its lib files in TSC_TS_LIB_DIR; without it, use the TypeScript 7 libs scriptc ships. */
 function compilerEnv(cwd: string, compiler: string): NodeJS.ProcessEnv {
+  // A caller outside the CLI (the API, a test) can reach here with no compiler resolved; say so, not a TypeError from dirname.
+  if (typeof compiler !== 'string') throw new Error(noCompiler('none'));
   if (process.env.TSC_TS_LIB_DIR !== undefined) return process.env;
   // The npm compiler package keeps the lib files beside the executable.
   const beside = dirname(compiler);
@@ -63,11 +65,13 @@ function compilerEnv(cwd: string, compiler: string): NodeJS.ProcessEnv {
   }
 }
 
+const noCompiler = (compiler: string): string =>
+  `no tsc-laws compiler found (${compiler}): install the tslaws-compiler package for this platform, or set TSC_LAWS_BIN / --compiler to the compiler executable`;
+
 /** Lists the laws of `files` with the problems that stop them running. */
 /** Says what to do when the compiler cannot start, in particular when none was found at all. */
 function cannotRun(compiler: string, error: Error): string {
-  if ((error as NodeJS.ErrnoException).code === 'ENOENT')
-    return `no tsc-laws compiler found (${compiler}): install the tslaws-compiler package for this platform, or set TSC_LAWS_BIN / --compiler to the compiler executable`;
+  if ((error as NodeJS.ErrnoException).code === 'ENOENT') return noCompiler(compiler);
   return `cannot run ${compiler}: ${error.message}`;
 }
 
