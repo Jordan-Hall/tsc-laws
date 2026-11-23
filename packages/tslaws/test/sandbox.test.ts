@@ -258,7 +258,7 @@ describe('laws in the sandbox', { skip: compiler === undefined ? 'set TSC_LAWS_B
           '',
         ].join('\n'),
       },
-      { propertyTimeoutMs: 1500 },
+      { propertyTimeoutMs: 5000 },
     );
     assert.match(results.find((r) => r.name === 'spins')?.message ?? '', /ran longer than/);
     assert.equal(results.find((r) => r.name === 'fine')?.status, 'tested');

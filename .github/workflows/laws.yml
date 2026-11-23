@@ -39,7 +39,22 @@ jobs:
           version: 0.16.0
       - run: npm ci
       - run: npm run fetch:upstream
+      # The native compiler is rebuilt only when what it is built from changes: its sources, the committed profiles, the
+      # lockfile (which pins scriptc) and the toolchain. Only the executable is kept, not the LLVM IR beside it.
+      - name: Toolchain of the native build
+        id: toolchain
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = Windows ]; then version="zig-$(zig version)"; else version="$(clang --version | head -n 1)"; fi
+          echo "id=$(echo "$version" | sed 's/[^A-Za-z0-9._-]/-/g')" >> "$GITHUB_OUTPUT"
+      - name: Native build cache
+        id: native
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: packages/tsc-ts/dist/tsc
+          key: native-${{ runner.os }}-${{ runner.arch }}-${{ steps.toolchain.outputs.id }}-${{ hashFiles('package-lock.json', 'packages/tsc-ts/package.json', 'packages/tsc-ts/tsconfig.json', 'packages/tsc-ts/src/**', 'packages/tsc-ts/native/**', 'packages/tsc-ts/scripts/**', 'packages/tsc-ts/profiles/**') }}
       - run: npm run build:native -w tsc-ts
+        if: steps.native.outputs.cache-hit != 'true'
       - name: Name the Windows build tsc.exe
         if: runner.os == 'Windows'
         run: cp packages/tsc-ts/dist/tsc packages/tsc-ts/dist/tsc.exe

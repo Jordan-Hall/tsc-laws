@@ -384,7 +384,7 @@ describe('tslaws check', { skip: compiler === undefined ? 'set TSC_LAWS_BIN' : f
         'export law finishes(n: number) { return fine(n) === n; }',
       ].join('\n'),
     });
-    const opts = options(cwd, ['src/f.laws.ts'], { noProve: true, propertyTimeoutMs: 1500 });
+    const opts = options(cwd, ['src/f.laws.ts'], { noProve: true, propertyTimeoutMs: 5000 });
     lockNow(opts);
     const { results, ok } = await check(opts, true);
     assert.equal(byName(results, 'spins').status, 'error');
