@@ -104,9 +104,10 @@ Node. Set `"levels": "imports"` in `tslaws.json` and the level comes from the fi
 in-browser to eliminate per-input IPC, and provide our own built-in Vitest-style browser API (no Vite required):
 chainable, auto-waiting Playwright-backed `page` locators (`page.getByRole`, `page.getByText`, `page.getByLabelText`,
 `page.getByPlaceholder`, `page.getByTestId`, `page.locator`, `.filter()`, `.first()`, `.nth()`, `page.viewport()`,
-`page.screenshot()`), trusted `userEvent` interactions (`userEvent.click`, `userEvent.fill`, `userEvent.type`,
-`userEvent.keyboard`, `userEvent.tab`, `userEvent.selectOptions`, `userEvent.check`, `userEvent.dragAndDrop`), `waitFor`,
-and `mock(urlPattern, response)` network interception. Browser laws are `tested`, never `proved`. Node laws run in a
+`page.screenshot()`), auto-retrying `expectElement(locator)` assertions (`.toBeVisible()`, `.toHaveTextContent()`,
+`.toHaveValue()`, `.toBeChecked()`, `.toHaveAttribute()`, `.toHaveCount()`, `.not.*`), trusted `userEvent` interactions
+(`userEvent.click`, `userEvent.fill`, `userEvent.type`, `userEvent.keyboard`, `userEvent.tab`, `userEvent.selectOptions`,
+`userEvent.check`, `userEvent.dragAndDrop`), `waitFor`, and `mock(urlPattern, response)` network interception. Browser laws are `tested`, never `proved`. Node laws run in a
 permission sandbox (Node 22.15 or later; `--no-sandbox` opts out), and an end-to-end law needs `--allow-e2e` because it
 cannot run inside it. `tslaws list` shows each laws file, its level and whether it is accepted.
 
@@ -174,12 +175,15 @@ See [Bundler plugins](https://github.com/Jordan-Hall/tsc-laws/blob/main/docs/law
 
 `tslaws` symbolically executes the compiled JavaScript of a law, inlining the project functions it calls (including through
 directory imports and barrel re-exports), and asks Z3 for an input that returns `false`; only a failure it can replay in
-JavaScript is reported as `failed`. `int` is an exact whole number and `bigint` is exact with no bound. Built-in
-refinement types — `nat`, `posInt`, `nonZeroInt`, `intRange<Lo, Hi>`, `nonEmpty<T>`, and `asciiString` — narrow both
-generated property inputs and SMT assumptions at the type level. Arrays, loops and recursion unroll up to `--bound` (a
-`bounded` result); `invariant(cond)` first in a loop body proves the loop for every iteration count, `decreases(measure)`
-checks loop and recursion termination, `lemma(cond)` splits larger proofs into proved subgoals, and `requires(cond)` /
-`ensures(cond)` check caller preconditions and postconditions. What does not lower stays `tested`, or a `law proved` is
+JavaScript is reported as `failed`. `int` is an exact whole number and `bigint` is exact with no bound. Built-in refinement types — `nat`, `posInt`, `nonZeroInt`, `uint8`, `uint16`, `uint32`, `int32`, `intRange<Lo, Hi>` (and
+user aliases like `type Port = intRange<1, 65535>`), `nonEmpty<T>`, `nonEmptyString`, `asciiString`, and `finite` —
+narrow both generated property inputs and SMT assumptions at the type level. Arrays, loops and recursion unroll up to
+`--bound` (a `bounded` result); `invariant(cond)` first in a loop body proves the loop for every iteration count,
+`decreases(measure)` checks loop and recursion termination, `induct(n, k => P(k))` proves natural-number claims by
+induction, `calc(a, b, c)` and `lemma(cond)` split larger proofs into proved subgoals, `requires(cond)` / `ensures(cond)`
+check caller preconditions and postconditions, `unreachable()` proves dead branches impossible, and
+`implies`/`iff`/`distinct` lower directly to SMT. Automatic vacuity detection ensures unsatisfiable `assume()`
+preconditions are caught as `open` rather than falsely proved. What does not lower stays `tested`, or a `law proved` is
 `open`, with the reason. `TSLAWS_DEBUG=1` keeps each query as an `.smt2` file under `.tslaws/out/smt`.
 
 When native `z3` is installed on the PATH (or via `TSLAWS_Z3`), `tslaws` uses a persistent pooled native Z3 backend

@@ -595,6 +595,141 @@ export async function clearMocks(): Promise<void> {
   await bridge()({ action: 'resetMocks' });
 }
 
+export interface ElementAssertionMatchers {
+  /** Auto-retries until the element is visible. */
+  toBeVisible(): Promise<true>;
+  /** Auto-retries until the element is hidden or absent. */
+  toBeHidden(): Promise<true>;
+  /** Auto-retries until at least one matching element exists in the document. */
+  toBeInTheDocument(): Promise<true>;
+  /** Auto-retries until the element is enabled. */
+  toBeEnabled(): Promise<true>;
+  /** Auto-retries until the element is disabled. */
+  toBeDisabled(): Promise<true>;
+  /** Auto-retries until the checkbox/radio is checked. */
+  toBeChecked(): Promise<true>;
+  /** Auto-retries until `textContent` matches `expected` (substring or RegExp). */
+  toHaveTextContent(expected: string | RegExp): Promise<true>;
+  /** Auto-retries until the form control's value matches `expected`. */
+  toHaveValue(expected: string | RegExp): Promise<true>;
+  /** Auto-retries until attribute `name` exists (and matches `expected` when given). */
+  toHaveAttribute(name: string, expected?: string | RegExp): Promise<true>;
+  /** Auto-retries until exactly `count` elements match. */
+  toHaveCount(count: number): Promise<true>;
+}
+
+export interface ElementAssertions extends ElementAssertionMatchers {
+  /** Negated auto-retrying assertions (like Vitest Browser Mode's `expect.element(loc).not`). */
+  readonly not: ElementAssertionMatchers;
+}
+
+function matchesText(actual: string | null, expected: string | RegExp): boolean {
+  if (actual === null) return false;
+  return typeof expected === 'string' ? actual.includes(expected) : expected.test(actual);
+}
+
+function toLocator(target: InteractionTarget): Locator {
+  if (target instanceof Locator) return target;
+  if (typeof target === 'string') return page.locator(target);
+  return page.elementLocator(target);
+}
+
+/**
+ * Auto-retrying Playwright-backed DOM assertions matching Vitest Browser Mode's `expect.element(locator)`:
+ * polls until the condition holds (up to `timeout`, default 5000 ms), returning `true` or throwing a descriptive error.
+ */
+export function expectElement(
+  target: InteractionTarget,
+  options: { timeout?: number; interval?: number } = {},
+): ElementAssertions {
+  const loc = toLocator(target);
+  const timeout = options.timeout ?? 5000;
+  const interval = options.interval ?? 50;
+
+  const makeMatchers = (negate: boolean): ElementAssertionMatchers => {
+    const check = async (description: string, probe: () => Promise<{ ok: boolean; detail: string }>): Promise<true> => {
+      let lastDetail = '';
+      try {
+        await waitFor(
+          async () => {
+            const { ok, detail } = await probe();
+            lastDetail = detail;
+            return negate ? !ok : ok;
+          },
+          { timeout, interval },
+        );
+        return true;
+      } catch {
+        const prefix = negate ? 'expected element NOT ' : 'expected element ';
+        throw new Error(`${prefix}${description} (timed out after ${timeout}ms; last observed: ${lastDetail})`);
+      }
+    };
+    return {
+      toBeVisible: () =>
+        check('to be visible', async () => {
+          const v = await loc.isVisible();
+          return { ok: v, detail: `visible=${v}` };
+        }),
+      toBeHidden: () =>
+        check('to be hidden', async () => {
+          const v = await loc.isVisible();
+          return { ok: !v, detail: `visible=${v}` };
+        }),
+      toBeInTheDocument: () =>
+        check('to be in the document', async () => {
+          const c = await loc.count();
+          return { ok: c > 0, detail: `count=${c}` };
+        }),
+      toBeEnabled: () =>
+        check('to be enabled', async () => {
+          const e = await loc.isEnabled();
+          return { ok: e, detail: `enabled=${e}` };
+        }),
+      toBeDisabled: () =>
+        check('to be disabled', async () => {
+          const e = await loc.isEnabled();
+          return { ok: !e, detail: `enabled=${e}` };
+        }),
+      toBeChecked: () =>
+        check('to be checked', async () => {
+          const c = await loc.isChecked();
+          return { ok: c, detail: `checked=${c}` };
+        }),
+      toHaveTextContent: (expected) =>
+        check(`to have text content ${String(expected)}`, async () => {
+          const actual = await loc.textContent();
+          return { ok: matchesText(actual, expected), detail: JSON.stringify(actual) };
+        }),
+      toHaveValue: (expected) =>
+        check(`to have value ${String(expected)}`, async () => {
+          const actual = await loc.inputValue();
+          const ok = typeof expected === 'string' ? actual === expected : expected.test(actual);
+          return { ok, detail: JSON.stringify(actual) };
+        }),
+      toHaveAttribute: (name, expected) =>
+        check(`to have attribute "${name}"${expected === undefined ? '' : `=${String(expected)}`}`, async () => {
+          const actual = await loc.getAttribute(name);
+          const ok =
+            actual !== null &&
+            (expected === undefined
+              ? true
+              : typeof expected === 'string'
+                ? actual === expected
+                : expected.test(actual));
+          return { ok, detail: JSON.stringify(actual) };
+        }),
+      toHaveCount: (count) =>
+        check(`to have count ${count}`, async () => {
+          const actual = await loc.count();
+          return { ok: actual === count, detail: `count=${actual}` };
+        }),
+    };
+  };
+
+  const pos = makeMatchers(false);
+  return { ...pos, not: makeMatchers(true) };
+}
+
 export interface A11yViolation {
   id: string;
   impact: string | null;

@@ -1,0 +1,1051 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>tslaws 1.2 — Launch Keynote</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        background: #07090f;
+        overflow: hidden;
+      }
+      canvas {
+        display: block;
+        width: 1920px;
+        height: 1080px;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="c" width="1920" height="1080"></canvas>
+    <script>
+      const W = 1920;
+      const H = 1080;
+      const canvas = document.getElementById('c');
+      const g = canvas.getContext('2d');
+      const SANS = '"Segoe UI Variable Display", "Segoe UI", "Inter", "Helvetica Neue", Arial, sans-serif';
+      const MONO = '"Cascadia Code", "Cascadia Mono", Consolas, "SF Mono", monospace';
+
+      // ---------- math & easing ----------
+      const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+      const mix = (a, b, s) => a + (b - a) * s;
+      const easeOut = (t) => 1 - Math.pow(1 - clamp(t), 3);
+      const easeOutExpo = (t) => (t <= 0 ? 0 : t >= 1 ? 1 : 1 - Math.pow(2, -10 * t));
+      const spring = (dt, omega = 13, zeta = 0.78) => {
+        if (dt <= 0) return 0;
+        const wd = omega * Math.sqrt(1 - zeta * zeta);
+        return 1 - Math.exp(-zeta * omega * dt) * (Math.cos(wd * dt) + ((zeta * omega) / wd) * Math.sin(wd * dt));
+      };
+      const fadeIO = (t, t0, t1, fi = 0.35, fo = 0.3) => {
+        const a = clamp((t - t0) / fi);
+        const b = clamp((t1 - t) / fo);
+        return Math.min(easeOut(a), easeOut(b));
+      };
+
+      // ---------- palette ----------
+      const P = {
+        bg: '#07090F',
+        card: 'rgba(15, 20, 32, 0.88)',
+        cardBorder: 'rgba(148, 163, 184, 0.16)',
+        cardHi: 'rgba(255, 255, 255, 0.08)',
+        fg: '#F8FAFC',
+        muted: '#94A3B8',
+        dim: '#64748B',
+        emerald: '#10B981',
+        emeraldBright: '#34D399',
+        indigo: '#6366F1',
+        indigoBright: '#818CF8',
+        cyan: '#06B6D4',
+        cyanBright: '#22D3EE',
+        amber: '#F59E0B',
+        amberBright: '#FBBF24',
+        rose: '#F43F5E',
+        roseBright: '#FB7185',
+      };
+
+      // ---------- drawing primitives ----------
+      function rrect(x, y, w, h, r) {
+        g.beginPath();
+        g.moveTo(x + r, y);
+        g.arcTo(x + w, y, x + w, y + h, r);
+        g.arcTo(x + w, y + h, x, y + h, r);
+        g.arcTo(x, y + h, x, y, r);
+        g.arcTo(x, y, x + w, y, r);
+        g.closePath();
+      }
+
+      function drawBackdrop(t, accent1, accent2) {
+        g.fillStyle = P.bg;
+        g.fillRect(0, 0, W, H);
+
+        // Subtle animated aurora blobs
+        const gx1 = W * (0.24 + 0.06 * Math.sin(t * 0.45));
+        const gy1 = H * (0.22 + 0.05 * Math.cos(t * 0.37));
+        const grad1 = g.createRadialGradient(gx1, gy1, 40, gx1, gy1, 780);
+        grad1.addColorStop(0, accent1);
+        grad1.addColorStop(1, 'rgba(7,9,15,0)');
+        g.fillStyle = grad1;
+        g.fillRect(0, 0, W, H);
+
+        const gx2 = W * (0.78 + 0.05 * Math.cos(t * 0.4));
+        const gy2 = H * (0.78 + 0.05 * Math.sin(t * 0.5));
+        const grad2 = g.createRadialGradient(gx2, gy2, 40, gx2, gy2, 720);
+        grad2.addColorStop(0, accent2);
+        grad2.addColorStop(1, 'rgba(7,9,15,0)');
+        g.fillStyle = grad2;
+        g.fillRect(0, 0, W, H);
+
+        // Architectural micro-grid
+        g.save();
+        g.strokeStyle = 'rgba(148, 163, 184, 0.045)';
+        g.lineWidth = 1;
+        const step = 64;
+        for (let x = 0; x <= W; x += step) {
+          g.beginPath();
+          g.moveTo(x, 0);
+          g.lineTo(x, H);
+          g.stroke();
+        }
+        for (let y = 0; y <= H; y += step) {
+          g.beginPath();
+          g.moveTo(0, y);
+          g.lineTo(W, y);
+          g.stroke();
+        }
+        g.restore();
+      }
+
+      function drawGlassCard(x, y, w, h, r = 24, borderColor = P.cardBorder, glowColor = null) {
+        g.save();
+        if (glowColor) {
+          g.shadowColor = glowColor;
+          g.shadowBlur = 42;
+        }
+        rrect(x, y, w, h, r);
+        g.fillStyle = P.card;
+        g.fill();
+        g.shadowBlur = 0;
+        g.strokeStyle = borderColor;
+        g.lineWidth = 1.5;
+        g.stroke();
+
+        // Top specular highlight
+        const hi = g.createLinearGradient(x, y, x + w, y);
+        hi.addColorStop(0, 'rgba(255,255,255,0)');
+        hi.addColorStop(0.5, 'rgba(255,255,255,0.18)');
+        hi.addColorStop(1, 'rgba(255,255,255,0)');
+        g.strokeStyle = hi;
+        g.lineWidth = 1.5;
+        g.beginPath();
+        g.moveTo(x + r, y + 1);
+        g.lineTo(x + w - r, y + 1);
+        g.stroke();
+        g.restore();
+      }
+
+      function drawPill(x, y, text, fg, bg, border, font = `700 22px ${MONO}`, padX = 20, h = 44) {
+        g.save();
+        g.font = font;
+        const w = g.measureText(text).width + padX * 2;
+        rrect(x, y, w, h, h / 2);
+        g.fillStyle = bg;
+        g.fill();
+        g.strokeStyle = border;
+        g.lineWidth = 1.5;
+        g.stroke();
+        g.fillStyle = fg;
+        g.textAlign = 'center';
+        g.textBaseline = 'middle';
+        g.fillText(text, x + w / 2, y + h / 2 + 1);
+        g.restore();
+        return w;
+      }
+
+      function drawPillCentered(cx, cy, text, fg, bg, border, font = `700 22px ${MONO}`, padX = 22, h = 44) {
+        g.save();
+        g.font = font;
+        const w = g.measureText(text).width + padX * 2;
+        g.restore();
+        return drawPill(cx - w / 2, cy - h / 2, text, fg, bg, border, font, padX, h);
+      }
+
+      const KW = new Set([
+        'export',
+        'law',
+        'const',
+        'return',
+        'await',
+        'async',
+        'if',
+        'type',
+        'assume',
+        'lemma',
+        'requires',
+        'ensures',
+        'decreases',
+        'induct',
+        'calc',
+        'implies',
+        'iff',
+        'distinct',
+        'unreachable',
+        'invariant',
+      ]);
+      const TYPES = new Set([
+        'nat',
+        'posInt',
+        'nonZeroInt',
+        'intRange',
+        'uint8',
+        'uint16',
+        'uint32',
+        'int32',
+        'nonEmpty',
+        'nonEmptyString',
+        'asciiString',
+        'finite',
+        'int',
+        'number',
+        'string',
+        'Port',
+      ]);
+      function drawSyntaxLines(lines, x0, y0, size, lineH, maxChars = 99999) {
+        g.save();
+        g.font = `500 ${size}px ${MONO}`;
+        g.textBaseline = 'alphabetic';
+        g.textAlign = 'left';
+        let left = maxChars;
+        for (let li = 0; li < lines.length; li++) {
+          const line = lines[li];
+          const y = y0 + li * lineH;
+          let x = x0;
+          const toks = line.match(/\/\/.*$|'[^']*'|`[^`]*`|"[^"]*"|\s+|[A-Za-z_][\w]*|\d+|[^\sA-Za-z_\d]/g) ?? [];
+          for (const tok of toks) {
+            if (left <= 0) break;
+            const part = tok.slice(0, left);
+            left -= part.length;
+            if (tok.startsWith('//')) g.fillStyle = P.dim;
+            else if (tok.startsWith("'") || tok.startsWith('"') || tok.startsWith('`')) g.fillStyle = P.amberBright;
+            else if (KW.has(tok)) g.fillStyle = P.indigoBright;
+            else if (TYPES.has(tok)) g.fillStyle = P.cyanBright;
+            else if (tok === 'proved') g.fillStyle = P.emeraldBright;
+            else if (/^\d+$/.test(tok)) g.fillStyle = P.amberBright;
+            else if (tok === 'page' || tok === 'userEvent' || tok === 'expectElement' || tok === 'mock')
+              g.fillStyle = P.emeraldBright;
+            else g.fillStyle = P.fg;
+            g.fillText(part, x, y);
+            x += g.measureText(part).width;
+          }
+          left -= 1;
+        }
+        g.restore();
+      }
+
+      function drawHeader(eyebrow, title, accentColor, dt) {
+        const s1 = spring(dt, 14, 0.85);
+        const s2 = spring(dt - 0.1, 13, 0.85);
+        g.save();
+        g.globalAlpha *= clamp(s1);
+        drawPill(
+          110,
+          74 - (1 - s1) * 18,
+          eyebrow,
+          accentColor,
+          'rgba(255,255,255,0.05)',
+          accentColor + '66',
+          `700 20px ${MONO}`,
+          18,
+          38,
+        );
+        g.globalAlpha = clamp(s2);
+        g.fillStyle = P.fg;
+        g.font = `800 58px ${SANS}`;
+        g.textAlign = 'left';
+        g.textBaseline = 'alphabetic';
+        g.fillText(title, 110, 186 - (1 - s2) * 20);
+        g.restore();
+      }
+
+      function drawProgressBar(t, total) {
+        const u = clamp(t / total);
+        g.fillStyle = 'rgba(148,163,184,0.12)';
+        g.fillRect(0, H - 5, W, 5);
+        const gr = g.createLinearGradient(0, 0, W * u, 0);
+        gr.addColorStop(0, P.indigo);
+        gr.addColorStop(0.5, P.cyan);
+        gr.addColorStop(1, P.emerald);
+        g.fillStyle = gr;
+        g.fillRect(0, H - 5, W * u, 5);
+      }
+
+      // ---------- SCENE 1: HERO (0..8.2s) ----------
+      function sceneHero(t) {
+        const dt = t;
+        const alpha = fadeIO(t, 0, 8.2, 0.35, 0.4);
+        drawBackdrop(t, 'rgba(99, 102, 241, 0.24)', 'rgba(16, 185, 129, 0.20)');
+        g.save();
+        g.globalAlpha = alpha;
+
+        const badgeS = spring(dt - 0.15, 12, 0.78);
+        drawPillCentered(
+          W / 2,
+          255 + (1 - badgeS) * 24,
+          'INTRODUCING TSLAWS 1.2',
+          P.emeraldBright,
+          'rgba(16,185,129,0.14)',
+          'rgba(52,211,153,0.45)',
+          `700 24px ${MONO}`,
+          28,
+          50,
+        );
+
+        const titleS = spring(dt - 0.35, 11, 0.82);
+        g.save();
+        g.globalAlpha *= clamp(titleS);
+        g.textAlign = 'center';
+        g.textBaseline = 'alphabetic';
+        g.fillStyle = P.fg;
+        g.font = `800 94px ${SANS}`;
+        g.fillText('The best of formal verification.', W / 2, 412 + (1 - titleS) * 30);
+
+        const grad = g.createLinearGradient(W / 2 - 360, 0, W / 2 + 360, 0);
+        grad.addColorStop(0, P.indigoBright);
+        grad.addColorStop(0.5, P.cyanBright);
+        grad.addColorStop(1, P.emeraldBright);
+        g.fillStyle = grad;
+        g.fillText('Pure TypeScript.', W / 2, 522 + (1 - titleS) * 36);
+        g.restore();
+
+        // Language comparison pills converging toward the center
+        const langs = [
+          { name: 'Bend 2', feat: 'induction', col: P.indigoBright },
+          { name: 'Dafny', feat: 'calc · lemma', col: P.cyanBright },
+          { name: 'Verus', feat: 'requires · ensures', col: P.emeraldBright },
+          { name: 'LiquidHaskell', feat: 'refinement types', col: P.amberBright },
+          { name: 'Lean 4', feat: 'implies · iff', col: P.indigoBright },
+          { name: 'Ada / SPARK', feat: 'uint8 · int32', col: P.cyanBright },
+          { name: 'Kani', feat: 'vacuity checks', col: P.roseBright },
+          { name: 'Vitest Browser', feat: 'page · userEvent', col: P.emeraldBright },
+        ];
+        const cols = 4;
+        const cw = 370;
+        const ch = 104;
+        const gapX = 28;
+        const gapY = 24;
+        const startX = (W - (cols * cw + (cols - 1) * gapX)) / 2;
+        const startY = 626;
+        langs.forEach((l, i) => {
+          const colIdx = i % cols;
+          const rowIdx = Math.floor(i / cols);
+          const delay = 0.85 + i * 0.11;
+          const s = spring(dt - delay, 14, 0.82);
+          if (s <= 0.01) return;
+          const x = startX + colIdx * (cw + gapX);
+          const y = startY + rowIdx * (ch + gapY) + (1 - s) * 32;
+          g.save();
+          g.globalAlpha *= clamp(s);
+          drawGlassCard(x, y, cw, ch, 18, l.col + '44');
+          g.fillStyle = l.col;
+          g.beginPath();
+          g.arc(x + 28, y + 36, 6, 0, Math.PI * 2);
+          g.fill();
+          g.fillStyle = P.fg;
+          g.font = `700 28px ${SANS}`;
+          g.textAlign = 'left';
+          g.textBaseline = 'middle';
+          g.fillText(l.name, x + 46, y + 36);
+          g.fillStyle = P.muted;
+          g.font = `500 21px ${MONO}`;
+          g.fillText(l.feat, x + 28, y + 74);
+          g.restore();
+        });
+
+        g.restore();
+      }
+
+      // ---------- SCENE 2: REFINEMENT TYPES & VACUITY SAFETY (8.2..23.2s) ----------
+      function sceneRefine(t) {
+        const dt = t - 8.2;
+        const alpha = fadeIO(t, 8.2, 23.2, 0.3, 0.35);
+        drawBackdrop(t, 'rgba(6, 182, 212, 0.22)', 'rgba(16, 185, 129, 0.18)');
+        g.save();
+        g.globalAlpha = alpha;
+
+        drawHeader(
+          '01 · REFINEMENT TYPES & VACUITY SAFETY',
+          'Narrow inputs at the type level. Zero vacuous proofs.',
+          P.cyanBright,
+          dt,
+        );
+
+        // Top badge ribbon (cleanly aligned inside 110..1810)
+        const tags = [
+          ['nat', 'n>=0'],
+          ['posInt', 'n>=1'],
+          ['uint8', '0..255'],
+          ['int32', '±2³¹'],
+          ['intRange<Lo,Hi>', 'Lo..Hi'],
+          ['nonEmpty<T>', 'len>=1'],
+          ['nonEmptyString', 'len>=1'],
+          ['finite', 'no NaN'],
+        ];
+        let bx = 110;
+        tags.forEach(([name, desc], i) => {
+          const s = spring(dt - 0.5 - i * 0.12, 14, 0.8);
+          if (s <= 0.01) return;
+          g.save();
+          g.globalAlpha *= clamp(s);
+          const label = `${name} ${desc}`;
+          const w = drawPill(
+            bx,
+            232 + (1 - s) * 16,
+            label,
+            P.cyanBright,
+            'rgba(6,182,212,0.10)',
+            'rgba(34,211,238,0.35)',
+            `600 17px ${MONO}`,
+            12,
+            38,
+          );
+          bx += w + 10;
+          g.restore();
+        });
+
+        // Left card: Clean refined law -> PROVED
+        const leftS = spring(dt - 0.9, 12, 0.84);
+        g.save();
+        g.globalAlpha *= clamp(leftS);
+        const lx = 110;
+        const ly = 308 + (1 - leftS) * 28;
+        drawGlassCard(lx, ly, 830, 640, 24, 'rgba(16,185,129,0.35)', 'rgba(16,185,129,0.14)');
+        g.fillStyle = P.emeraldBright;
+        g.font = `700 22px ${MONO}`;
+        g.textAlign = 'left';
+        g.fillText('src/network.laws.ts', lx + 36, ly + 48);
+        const chars1 = Math.floor(clamp((dt - 1.1) / 3.0) * 320);
+        drawSyntaxLines(
+          [
+            'type Port = intRange<1, 65535>;',
+            '',
+            'export law proved packetSafe(',
+            '  port: Port,',
+            '  ttl: uint8,',
+            '  host: nonEmptyString,',
+            ') {',
+            '  return port >= 1 && ttl <= 255',
+            '      && host.length >= 1;',
+            '}',
+          ],
+          lx + 36,
+          ly + 114,
+          27,
+          46,
+          chars1,
+        );
+        if (dt >= 7.8) {
+          const ps = spring(dt - 7.8, 14, 0.72);
+          g.save();
+          g.globalAlpha *= clamp(ps);
+          drawPill(
+            lx + 36,
+            ly + 560 + (1 - ps) * 14,
+            'PROVED · NO ASSUME() NEEDED · Z3 + CVC5',
+            P.emeraldBright,
+            'rgba(16,185,129,0.18)',
+            P.emeraldBright,
+            `700 21px ${MONO}`,
+            22,
+            48,
+          );
+          g.restore();
+        }
+        g.restore();
+
+        // Right card: Automatic vacuity detection -> CAUGHT OPEN!
+        const rightS = spring(dt - 8.4, 12, 0.82);
+        g.save();
+        g.globalAlpha *= clamp(rightS);
+        const rx = 980;
+        const ry = 308 + (1 - rightS) * 28;
+        const caught = dt >= 10.6;
+        drawGlassCard(
+          rx,
+          ry,
+          830,
+          640,
+          24,
+          caught ? 'rgba(244,63,94,0.45)' : P.cardBorder,
+          caught ? 'rgba(244,63,94,0.16)' : null,
+        );
+        g.fillStyle = P.roseBright;
+        g.font = `700 22px ${MONO}`;
+        g.textAlign = 'left';
+        g.fillText('AUTOMATIC VACUITY GUARD (KANI / DAFNY)', rx + 36, ry + 48);
+        drawSyntaxLines(
+          [
+            '// Impossible precondition:',
+            'export law proved brokenGuard(x: int) {',
+            '  assume(x > 10 && x < 5);',
+            '  return false;',
+            '}',
+            '',
+            '// Before: Z3 saw unsat => false PROVED',
+            '// Now:    satisfiability check on assume()',
+          ],
+          rx + 36,
+          ry + 114,
+          26,
+          46,
+          Math.floor(clamp((dt - 8.6) / 2.0) * 320),
+        );
+        if (caught) {
+          const cs = spring(dt - 10.6, 14, 0.72);
+          g.save();
+          g.globalAlpha *= clamp(cs);
+          drawGlassCard(rx + 36, ry + 486, 758, 124, 16, 'rgba(244,63,94,0.5)');
+          g.fillStyle = P.roseBright;
+          g.font = `800 24px ${MONO}`;
+          g.fillText('OPEN  brokenGuard [smt · vacuity]', rx + 60, ry + 532);
+          g.fillStyle = P.fg;
+          g.font = `500 22px ${SANS}`;
+          g.fillText('assumptions are unsatisfiable — zero inputs satisfy assume()', rx + 60, ry + 576);
+          g.restore();
+        }
+        g.restore();
+
+        g.restore();
+      }
+
+      // ---------- SCENE 3: PROOF PRIMITIVES (23.2..35.6s) ----------
+      function sceneProofs(t) {
+        const dt = t - 23.2;
+        const alpha = fadeIO(t, 23.2, 35.6, 0.3, 0.35);
+        drawBackdrop(t, 'rgba(99, 102, 241, 0.24)', 'rgba(245, 158, 11, 0.16)');
+        g.save();
+        g.globalAlpha = alpha;
+
+        drawHeader(
+          '02 · PROOF & CONTRACT PRIMITIVES',
+          'Induction, equational chains, contracts & termination.',
+          P.indigoBright,
+          dt,
+        );
+
+        // Left card: induct + calc + unreachable (cleanly wrapped inside 920px width!)
+        const sL = spring(dt - 0.3, 12, 0.84);
+        g.save();
+        g.globalAlpha *= clamp(sL);
+        const lx = 110;
+        const ly = 248 + (1 - sL) * 24;
+        drawGlassCard(lx, ly, 920, 720, 24, 'rgba(129,140,248,0.35)', 'rgba(99,102,241,0.14)');
+        g.fillStyle = P.indigoBright;
+        g.font = `700 21px ${MONO}`;
+        g.fillText('BEND 2 INDUCTION · LEAN / DAFNY CALC · VERUS UNREACHABLE', lx + 36, ly + 46);
+        drawSyntaxLines(
+          [
+            '// Natural-number induction (base + step)',
+            'export law proved evenSum(n: intRange<0, 1000000>) {',
+            '  return induct(n, (k) => 2 * k + 2 === 2 * (k + 1));',
+            '}',
+            '',
+            '// Chained equational subgoals (calc)',
+            'export law proved squareSum(',
+            '  x: intRange<-100, 100>, y: intRange<-100, 100>,',
+            ') {',
+            '  return calc((x + y) * (x + y),',
+            '              x * x + x * y + y * x + y * y,',
+            '              x * x + 2 * x * y + y * y);',
+            '}',
+            '',
+            '// Dead-branch proof & logical combinators',
+            'if (n < 0) unreachable();',
+            'return implies(distinct(a, b), iff(a < b, b > a));',
+          ],
+          lx + 36,
+          ly + 98,
+          21,
+          35,
+          Math.floor(clamp((dt - 0.5) / 3.2) * 700),
+        );
+        g.restore();
+
+        // Right column: 5 live verification checklist cards lighting up sequentially
+        const items = [
+          {
+            badge: 'induct(n, P)',
+            desc: 'Proves P(0) and P(k) ==> P(k + 1) unboundedly',
+            col: P.indigoBright,
+            at: 1.8,
+          },
+          {
+            badge: 'calc(a, b, c) · lemma()',
+            desc: 'Splits hard proofs into independent SMT subgoals',
+            col: P.cyanBright,
+            at: 3.8,
+          },
+          {
+            badge: 'requires() · ensures()',
+            desc: 'Verifies caller preconditions & function postconditions',
+            col: P.emeraldBright,
+            at: 5.8,
+          },
+          {
+            badge: 'decreases(measure)',
+            desc: 'Proves total correctness — loops & recursion terminate',
+            col: P.amberBright,
+            at: 7.8,
+          },
+          {
+            badge: 'unreachable() · implies · iff',
+            desc: 'Proves dead branches impossible & lowers logic cleanly',
+            col: P.emeraldBright,
+            at: 9.8,
+          },
+        ];
+        items.forEach((it, idx) => {
+          const s = spring(dt - 0.5 - idx * 0.12, 13, 0.84);
+          if (s <= 0.01) return;
+          const rx = 1066;
+          const ry = 248 + idx * 148 + (1 - s) * 20;
+          const lit = dt >= it.at;
+          g.save();
+          g.globalAlpha *= clamp(s);
+          drawGlassCard(rx, ry, 744, 128, 18, lit ? it.col + '88' : P.cardBorder, lit ? it.col + '22' : null);
+          g.fillStyle = lit ? it.col : P.muted;
+          g.font = `700 25px ${MONO}`;
+          g.textAlign = 'left';
+          g.fillText(it.badge, rx + 28, ry + 48);
+          g.fillStyle = P.fg;
+          g.font = `500 22px ${SANS}`;
+          g.fillText(it.desc, rx + 28, ry + 90);
+          if (lit) {
+            const cs = spring(dt - it.at, 16, 0.72);
+            g.save();
+            g.globalAlpha *= clamp(cs);
+            drawPill(
+              rx + 592,
+              ry + 20,
+              'PROVED ✓',
+              P.emeraldBright,
+              'rgba(16,185,129,0.16)',
+              P.emeraldBright,
+              `700 18px ${MONO}`,
+              14,
+              34,
+            );
+            g.restore();
+          }
+          g.restore();
+        });
+
+        g.restore();
+      }
+
+      // ---------- SCENE 4: NATIVE VITEST-STYLE BROWSER RUNNER — ZERO VITE (35.6..54.0s) ----------
+      function sceneBrowser(t) {
+        const dt = t - 35.6;
+        const alpha = fadeIO(t, 35.6, 54.0, 0.3, 0.35);
+        drawBackdrop(t, 'rgba(16, 185, 129, 0.22)', 'rgba(6, 182, 212, 0.20)');
+        g.save();
+        g.globalAlpha = alpha;
+
+        drawHeader(
+          '03 · NATIVE BROWSER RUNNER (ZERO VITE)',
+          'Vitest-style page locators, trusted clicks & parallel pages.',
+          P.emeraldBright,
+          dt,
+        );
+
+        // Top code strip
+        const codeS = spring(dt - 0.3, 13, 0.85);
+        g.save();
+        g.globalAlpha *= clamp(codeS);
+        drawGlassCard(110, 232 + (1 - codeS) * 18, 1700, 234, 20, 'rgba(52,211,153,0.32)');
+        drawSyntaxLines(
+          [
+            "const save = page.getByRole('listitem').filter({ hasText: 'Beta' }).getByRole('button', { name: 'Save' });",
+            "await mock('**/api/save', { json: { ok: true } });",
+            'await userEvent.click(save);   // real Playwright click: event.isTrusted === true',
+            "await expectElement(page.getByRole('status')).toHaveTextContent('Saved');",
+          ],
+          144,
+          290,
+          24,
+          46,
+          Math.floor(clamp((dt - 0.5) / 4.2) * 380),
+        );
+        g.restore();
+
+        // Three parallel top-level BrowserContext windows
+        const wins = [
+          {
+            title: 'Context 1 · Top-Level Page',
+            url: 'http://127.0.0.1:4173/__tslaws/page',
+            accent: P.cyanBright,
+            rows: ['window.top === window.self ✓', 'localStorage & History API ✓', 'No Vite · Pure esbuild + plugins'],
+            badge: 'page.getByRole()',
+            delay: 1.0,
+          },
+          {
+            title: 'Context 2 · Trusted Input',
+            url: 'http://127.0.0.1:4173/__tslaws/page',
+            accent: P.amberBright,
+            rows: ['Playwright hit-tested click', 'event.isTrusted === true', 'userEvent.keyboard("{Enter}")'],
+            badge: 'Save',
+            delay: 1.4,
+          },
+          {
+            title: 'Context 3 · Mock & Auto-Retry',
+            url: 'http://127.0.0.1:4173/__tslaws/page',
+            accent: P.emeraldBright,
+            rows: [
+              'POST /api/save → 200 OK (mock)',
+              'expectElement(...).toHaveTextContent()',
+              'In-browser fast-check · 0 IPC',
+            ],
+            badge: 'Saved ✓',
+            delay: 1.8,
+          },
+        ];
+        const clicked = dt >= 9.6;
+        const passed = dt >= 14.0;
+
+        wins.forEach((w, idx) => {
+          const s = spring(dt - w.delay, 13, 0.82);
+          if (s <= 0.01) return;
+          const wx = 110 + idx * 580;
+          const wy = 500 + (1 - s) * 32;
+          const ww = 540;
+          const wh = 468;
+          g.save();
+          g.globalAlpha *= clamp(s);
+          drawGlassCard(
+            wx,
+            wy,
+            ww,
+            wh,
+            22,
+            passed ? 'rgba(52,211,153,0.55)' : w.accent + '55',
+            passed ? 'rgba(16,185,129,0.16)' : null,
+          );
+
+          // Dark browser chrome bar
+          g.fillStyle = 'rgba(255,255,255,0.04)';
+          rrect(wx + 2, wy + 2, ww - 4, 58, 20);
+          g.fill();
+          [P.rose, P.amber, P.emerald].forEach((dot, di) => {
+            g.fillStyle = dot;
+            g.beginPath();
+            g.arc(wx + 28 + di * 22, wy + 31, 6, 0, Math.PI * 2);
+            g.fill();
+          });
+          rrect(wx + 102, wy + 15, ww - 122, 32, 10);
+          g.fillStyle = 'rgba(7,9,15,0.75)';
+          g.fill();
+          g.fillStyle = P.muted;
+          g.font = `500 16px ${MONO}`;
+          g.textAlign = 'left';
+          g.textBaseline = 'middle';
+          g.fillText(w.url, wx + 116, wy + 31);
+
+          // Title + rows
+          g.fillStyle = P.fg;
+          g.font = `700 28px ${SANS}`;
+          g.textBaseline = 'alphabetic';
+          g.fillText(w.title, wx + 28, wy + 112);
+
+          g.font = `500 21px ${MONO}`;
+          w.rows.forEach((row, ri) => {
+            g.fillStyle = ri === 0 ? w.accent : P.muted;
+            g.fillText(row, wx + 28, wy + 168 + ri * 46);
+          });
+
+          // Interactive element on Context 2
+          if (idx === 1) {
+            const pulse = clicked ? clamp((dt - 9.6) / 0.6) : 0;
+            const btnBg = clicked ? 'rgba(16,185,129,0.22)' : 'rgba(245,158,11,0.18)';
+            const btnBd = clicked ? P.emeraldBright : P.amberBright;
+            drawPill(
+              wx + 28,
+              wy + 334,
+              clicked ? 'isTrusted: true ✓' : 'Save',
+              btnBd,
+              btnBg,
+              btnBd,
+              `700 22px ${MONO}`,
+              26,
+              52,
+            );
+            if (clicked && pulse < 1) {
+              g.strokeStyle = `rgba(52,211,153,${1 - pulse})`;
+              g.lineWidth = 3;
+              g.beginPath();
+              g.arc(wx + 120, wy + 360, 18 + pulse * 55, 0, Math.PI * 2);
+              g.stroke();
+            }
+          } else if (idx === 2) {
+            const showMock = dt >= 11.8;
+            if (showMock) {
+              drawPill(
+                wx + 28,
+                wy + 334,
+                'status: "Saved" ✓',
+                P.emeraldBright,
+                'rgba(16,185,129,0.18)',
+                P.emeraldBright,
+                `700 21px ${MONO}`,
+                22,
+                52,
+              );
+            }
+          } else {
+            drawPill(
+              wx + 28,
+              wy + 334,
+              '--browser-mode page|iframe',
+              P.cyanBright,
+              'rgba(6,182,212,0.14)',
+              P.cyanBright + '88',
+              `600 18px ${MONO}`,
+              18,
+              48,
+            );
+          }
+
+          if (passed) {
+            const ps = spring(dt - 14.0, 15, 0.72);
+            g.save();
+            g.globalAlpha *= clamp(ps);
+            drawPill(
+              wx + ww - 188,
+              wy + wh - 66,
+              'TESTED ✓',
+              P.emeraldBright,
+              'rgba(16,185,129,0.20)',
+              P.emeraldBright,
+              `800 19px ${MONO}`,
+              18,
+              40,
+            );
+            g.restore();
+          }
+          g.restore();
+        });
+
+        g.restore();
+      }
+
+      // ---------- SCENE 5: POOLED NATIVE Z3 & PROOF CACHE (54.0..64.4s) ----------
+      function sceneSpeed(t) {
+        const dt = t - 54.0;
+        const alpha = fadeIO(t, 54.0, 64.4, 0.3, 0.35);
+        drawBackdrop(t, 'rgba(245, 158, 11, 0.20)', 'rgba(16, 185, 129, 0.24)');
+        g.save();
+        g.globalAlpha = alpha;
+
+        drawHeader(
+          '04 · SOLVER & BUILD PERFORMANCE',
+          'Pooled native Z3, DAG sharing & sub-millisecond cache.',
+          P.amberBright,
+          dt,
+        );
+
+        // Left card: Animated Speed Comparison Chart
+        const sL = spring(dt - 0.3, 12, 0.84);
+        g.save();
+        g.globalAlpha *= clamp(sL);
+        drawGlassCard(110, 250 + (1 - sL) * 24, 860, 700, 24, 'rgba(245,158,11,0.30)');
+        g.fillStyle = P.amberBright;
+        g.font = `700 22px ${MONO}`;
+        g.textAlign = 'left';
+        g.fillText('CHECK LATENCY PER LAW (LOWER IS FASTER)', 148, 304);
+
+        const bars = [
+          { label: 'WASM Z3 (cold per-query)', ms: '185 ms', frac: 1.0, col: P.dim, delay: 1.0 },
+          { label: 'Pooled Native Z3 (z3 -in -smt2)', ms: '4.2 ms', frac: 0.16, col: P.cyanBright, delay: 1.8 },
+          { label: 'On-Disk Proof Cache (.tslaws/)', ms: '0.4 ms', frac: 0.04, col: P.emeraldBright, delay: 2.6 },
+        ];
+        bars.forEach((b, i) => {
+          const by = 370 + i * 165;
+          const grow = easeOutExpo(clamp((dt - b.delay) / 1.2));
+          g.fillStyle = P.fg;
+          g.font = `700 26px ${SANS}`;
+          g.fillText(b.label, 148, by);
+          g.fillStyle = b.col;
+          g.font = `800 28px ${MONO}`;
+          g.textAlign = 'right';
+          g.fillText(b.ms, 932, by);
+          g.textAlign = 'left';
+
+          // Track
+          rrect(148, by + 22, 784, 46, 12);
+          g.fillStyle = 'rgba(255,255,255,0.05)';
+          g.fill();
+          // Fill
+          const fw = Math.max(28, 784 * b.frac * grow);
+          rrect(148, by + 22, fw, 46, 12);
+          g.fillStyle = b.col;
+          g.fill();
+        });
+
+        // Footer highlights
+        drawPill(
+          148,
+          866,
+          'DAG (let ...) CHC sharing',
+          P.indigoBright,
+          'rgba(99,102,241,0.14)',
+          P.indigoBright + '66',
+          `600 19px ${MONO}`,
+          16,
+          40,
+        );
+        drawPill(
+          488,
+          866,
+          'Stat-validated caches',
+          P.cyanBright,
+          'rgba(6,182,212,0.14)',
+          P.cyanBright + '66',
+          `600 19px ${MONO}`,
+          16,
+          40,
+        );
+        g.restore();
+
+        // Right card: Live terminal check output
+        const sR = spring(dt - 0.5, 12, 0.84);
+        g.save();
+        g.globalAlpha *= clamp(sR);
+        drawGlassCard(1010, 250 + (1 - sR) * 24, 800, 700, 24, 'rgba(16,185,129,0.35)', 'rgba(16,185,129,0.14)');
+        g.fillStyle = P.emeraldBright;
+        g.font = `700 22px ${MONO}`;
+        g.fillText('$ npx tslaws check', 1048, 304);
+
+        const rows = [
+          { name: 'clampWithinBounds', tag: 'CACHE HIT', ms: '0.4 ms', col: P.emeraldBright, at: 4.2 },
+          { name: 'evenSum (induct)', tag: 'NATIVE Z3', ms: '3.9 ms', col: P.cyanBright, at: 5.0 },
+          { name: 'packetSafe (uint8)', tag: 'CACHE HIT', ms: '0.3 ms', col: P.emeraldBright, at: 5.8 },
+          { name: 'directoryImports', tag: 'PROVED', ms: '2.1 ms', col: P.emeraldBright, at: 6.5 },
+          { name: 'checkoutFlow (page)', tag: 'TESTED', ms: '140 ms', col: P.amberBright, at: 7.2 },
+        ];
+        rows.forEach((r, i) => {
+          const ry = 350 + i * 102;
+          const shown = dt >= r.at;
+          const rs = shown ? spring(dt - r.at, 15, 0.8) : 0;
+          g.save();
+          g.globalAlpha *= shown ? clamp(rs) : 0.18;
+          rrect(1048, ry, 724, 82, 14);
+          g.fillStyle = shown ? 'rgba(16,185,129,0.08)' : 'rgba(255,255,255,0.03)';
+          g.fill();
+          g.strokeStyle = shown ? r.col + '55' : 'rgba(148,163,184,0.10)';
+          g.lineWidth = 1.2;
+          g.stroke();
+          g.fillStyle = P.fg;
+          g.font = `600 24px ${MONO}`;
+          g.textAlign = 'left';
+          g.textBaseline = 'middle';
+          g.fillText(r.name, 1072, ry + 41);
+          if (shown) {
+            drawPill(1446, ry + 21, r.tag, r.col, r.col + '22', r.col + '88', `700 17px ${MONO}`, 14, 38);
+            g.fillStyle = P.muted;
+            g.font = `600 22px ${MONO}`;
+            g.textAlign = 'right';
+            g.fillText(r.ms, 1748, ry + 41);
+          }
+          g.restore();
+        });
+        g.restore();
+
+        g.restore();
+      }
+
+      // ---------- SCENE 6: CLOSING CTA (64.4..70.5s) ----------
+      function sceneCta(t) {
+        const dt = t - 64.4;
+        const alpha = fadeIO(t, 64.4, 70.5, 0.35, 0.45);
+        drawBackdrop(t, 'rgba(99, 102, 241, 0.28)', 'rgba(16, 185, 129, 0.26)');
+        g.save();
+        g.globalAlpha = alpha;
+
+        const s1 = spring(dt - 0.15, 11, 0.8);
+        g.save();
+        g.globalAlpha *= clamp(s1);
+        g.textAlign = 'center';
+        g.textBaseline = 'alphabetic';
+        const grad = g.createLinearGradient(W / 2 - 280, 0, W / 2 + 280, 0);
+        grad.addColorStop(0, P.fg);
+        grad.addColorStop(0.55, P.cyanBright);
+        grad.addColorStop(1, P.emeraldBright);
+        g.fillStyle = grad;
+        g.font = `800 128px ${SANS}`;
+        g.fillText('tslaws 1.2', W / 2, 420 + (1 - s1) * 32);
+
+        g.fillStyle = P.muted;
+        g.font = `600 42px ${SANS}`;
+        g.fillText('Write a law. Let it be proved.', W / 2, 504 + (1 - s1) * 26);
+        g.restore();
+
+        // Command pill with animated typing
+        const s2 = spring(dt - 0.7, 13, 0.82);
+        g.save();
+        g.globalAlpha *= clamp(s2);
+        const cmd = 'npm i -D tslaws';
+        const typed = cmd.slice(0, Math.floor(clamp((dt - 0.9) / 0.8) * cmd.length));
+        drawGlassCard(W / 2 - 330, 586 + (1 - s2) * 24, 660, 104, 22, 'rgba(52,211,153,0.55)', 'rgba(16,185,129,0.22)');
+        g.fillStyle = P.emeraldBright;
+        g.font = `700 44px ${MONO}`;
+        g.textAlign = 'left';
+        g.textBaseline = 'middle';
+        g.fillText('$ ', W / 2 - 275, 638 + (1 - s2) * 24);
+        g.fillStyle = P.fg;
+        g.fillText(typed, W / 2 - 222, 638 + (1 - s2) * 24);
+        const caretOn = Math.floor(t * 2.5) % 2 === 0;
+        if (caretOn) {
+          const tw = g.measureText(typed).width;
+          g.fillStyle = P.emeraldBright;
+          g.fillRect(W / 2 - 216 + tw, 612 + (1 - s2) * 24, 14, 50);
+        }
+        g.restore();
+
+        // Footer capabilities strip
+        const s3 = spring(dt - 1.5, 13, 0.85);
+        g.save();
+        g.globalAlpha *= clamp(s3);
+        g.fillStyle = P.muted;
+        g.font = `600 24px ${MONO}`;
+        g.textAlign = 'center';
+        g.fillText(
+          'Z3 + cvc5/Carcara Proofs  ·  Refinement Types & Induction  ·  Native Browser Runner (Zero Vite)',
+          W / 2,
+          792,
+        );
+        g.restore();
+
+        g.restore();
+      }
+
+      window.renderAt = (t) => {
+        if (t < 8.2) sceneHero(t);
+        else if (t < 23.2) sceneRefine(t);
+        else if (t < 35.6) sceneProofs(t);
+        else if (t < 54.0) sceneBrowser(t);
+        else if (t < 64.4) sceneSpeed(t);
+        else sceneCta(t);
+        drawProgressBar(t, 70.5);
+      };
+
+      window.grab = (t, quality = 0.96) => {
+        window.renderAt(t);
+        return canvas.toDataURL('image/jpeg', quality).slice(23);
+      };
+
+      document.fonts.ready.then(() => {
+        window.renderAt(0);
+        window.__ready = true;
+      });
+    </script>
+  </body>
+</html>

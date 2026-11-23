@@ -28,11 +28,29 @@ export type intRange<Lo extends number, Hi extends number> = int & {
   readonly __tslawsMax: Hi;
 };
 
+/** An unsigned 8-bit integer (`0..255`, like Ada/SPARK & Rust `u8`). */
+export type uint8 = intRange<0, 255>;
+
+/** An unsigned 16-bit integer (`0..65535`, like Ada/SPARK & Rust `u16`). */
+export type uint16 = intRange<0, 65535>;
+
+/** An unsigned 32-bit integer (`0..4294967295`, like Ada/SPARK & Rust `u32`). */
+export type uint32 = intRange<0, 4294967295>;
+
+/** A signed 32-bit integer (`-2147483648..2147483647`, like Ada/SPARK & Rust `i32`). */
+export type int32 = intRange<-2147483648, 2147483647>;
+
 /** A non-empty array (`xs.length >= 1`). Generated non-empty and proved with `xs.length >= 1`. */
 export type nonEmpty<T> = T[] & { readonly __tslawsNonEmpty: true };
 
+/** A non-empty string (`s.length >= 1`). Generated non-empty and proved with `(str.len s) >= 1`. */
+export type nonEmptyString = string & { readonly __tslawsNonEmptyString: true };
+
 /** An ASCII string (characters U+0000..U+007F). Generated and proved over ASCII. */
 export type asciiString = string & { readonly __tslawsAscii: true };
+
+/** A finite IEEE-754 number (never `NaN`, `Infinity`, or `-Infinity`). */
+export type finite = number & { readonly __tslawsFinite: true };
 
 /** Thrown by `assume`; the runner skips the input. */
 export class LawDiscard extends Error {
@@ -87,6 +105,55 @@ export function ensures(condition: boolean): asserts condition {
 export function decreases(measure: number): void {
   if (typeof measure !== 'number' || measure < 0 || !Number.isFinite(measure))
     throw new Error('termination measure must be a non-negative finite number');
+}
+
+/** Logical implication (`premise ==> conclusion`, as in Dafny/Lean/SPARK): holds when `premise` is false or `conclusion` is true. */
+export function implies(premise: boolean, conclusion: boolean): boolean {
+  return !premise || conclusion;
+}
+
+/** Logical biconditional (`a <==> b`, as in Dafny/Lean): holds when `a` and `b` have the same truth value. */
+export function iff(a: boolean, b: boolean): boolean {
+  return Boolean(a) === Boolean(b);
+}
+
+/** True when all arguments are pairwise distinct (`!==`), lowered directly to SMT-LIB `(distinct ...)`. */
+export function distinct(...values: unknown[]): boolean {
+  for (let i = 0; i < values.length; i += 1) {
+    for (let j = i + 1; j < values.length; j += 1) {
+      if (values[i] === values[j]) return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * Asserts that this branch is mathematically unreachable for every input (like Verus/Rust/Dafny `assert false`).
+ * Throws at runtime; the prover fails with a concrete counterexample if any input can reach it.
+ */
+export function unreachable(reason = 'unreachable branch reached'): never {
+  throw new Error(reason);
+}
+
+/**
+ * Calculational equational proof chain (like Dafny/Lean `calc`): proves each adjacent step `steps[i] === steps[i + 1]`
+ * as its own SMT subgoal and chains them transitively so multi-step algebraic proofs succeed without solver blowup.
+ */
+export function calc(...steps: unknown[]): boolean {
+  for (let i = 0; i + 1 < steps.length; i += 1) {
+    if (steps[i] !== steps[i + 1]) return false;
+  }
+  return true;
+}
+
+/**
+ * Natural-number mathematical induction (like Bend 2 / Lean 4): proves `predicate(k)` holds for every `k >= 0`
+ * unboundedly by proving the base case `predicate(0)` and the inductive step `predicate(k) ==> predicate(k + 1)`.
+ * At runtime, checks `predicate(n)`.
+ */
+export function induct(n: number, predicate: (k: number) => boolean): boolean {
+  if (n < 0 || !Number.isInteger(n)) return false;
+  return predicate(n);
 }
 
 /**

@@ -255,10 +255,12 @@ export class Executor {
   private havocked = 0;
   readonly assumptions: string[] = [];
   readonly obligations: string[] = [];
-  /** Intermediate proof steps from `lemma(...)`: each is proved under prior assumptions before being assumed. */
+  /** Intermediate proof steps from `lemma(...)` / `calc(...)` / `induct(...)`: each is proved under prior assumptions. */
   readonly subgoals: { assumptions: string[]; goal: string }[] = [];
-  /** Assumptions introduced by `lemma(...)` (omitted when sending the whole query to an independent certifier). */
+  /** Assumptions introduced by `lemma(...)` / `calc(...)` (omitted when sending the whole query to an independent certifier). */
   readonly lemmaAssumptions = new Set<string>();
+  /** True when `induct()` discharged the claim via base + inductive step subgoals. */
+  usedInduction = false;
   /** Active call frames for checking recursive `decreases(...)` termination measures. */
   private readonly callFrames: Frame[] = [];
   readonly bounded: string[] = [];
@@ -2107,6 +2109,12 @@ export class Executor {
           if (name === 'requires') return this.requiresCall(node, f, pc);
           if (name === 'ensures') return this.ensuresCall(node, f, pc);
           if (name === 'decreases') return this.decreasesCall(node, f, pc);
+          if (name === 'implies') return this.impliesCall(node, f, pc);
+          if (name === 'iff') return this.iffCall(node, f, pc);
+          if (name === 'distinct') return this.distinctCall(node, f, pc);
+          if (name === 'unreachable') return this.unreachableCall(f, pc);
+          if (name === 'calc') return this.calcCall(node, f, pc);
+          if (name === 'induct') return this.inductCall(node, f, pc);
         }
       }
       return this.method(callee.expression, name, node.arguments, f, pc, statement);
@@ -2117,6 +2125,12 @@ export class Executor {
       if (callee.text === 'requires') return this.requiresCall(node, f, pc);
       if (callee.text === 'ensures') return this.ensuresCall(node, f, pc);
       if (callee.text === 'decreases') return this.decreasesCall(node, f, pc);
+      if (callee.text === 'implies') return this.impliesCall(node, f, pc);
+      if (callee.text === 'iff') return this.iffCall(node, f, pc);
+      if (callee.text === 'distinct') return this.distinctCall(node, f, pc);
+      if (callee.text === 'unreachable') return this.unreachableCall(f, pc);
+      if (callee.text === 'calc') return this.calcCall(node, f, pc);
+      if (callee.text === 'induct') return this.inductCall(node, f, pc);
       if (callee.text === 'Number' && node.arguments.length === 1) {
         const v = this.ev(node.arguments[0]!, f, pc);
         if (v.k === 'int' || v.k === 'fp') return v;
@@ -2169,6 +2183,97 @@ export class Executor {
     if (f.depth === 0) this.assume(f, pc, c);
     else this.oblige(f, pc, c);
     return { k: 'undef' };
+  }
+
+  private impliesCall(node: ts.CallExpression, f: Frame, pc: string): Value {
+    if (node.arguments.length !== 2) throw new Unsupported('implies takes (premise, conclusion)');
+    const p = this.asBool(this.ev(node.arguments[0]!, f, pc));
+    if (p === 'false') return T;
+    const q = this.asBool(this.ev(node.arguments[1]!, f, and(pc, p)));
+    return bool(this.implies(p, q));
+  }
+
+  private iffCall(node: ts.CallExpression, f: Frame, pc: string): Value {
+    if (node.arguments.length !== 2) throw new Unsupported('iff takes two boolean conditions');
+    const a = this.asBool(this.ev(node.arguments[0]!, f, pc));
+    const b = this.asBool(this.ev(node.arguments[1]!, f, pc));
+    if (a === b) return T;
+    return bool(`(= ${a} ${b})`);
+  }
+
+  private distinctCall(node: ts.CallExpression, f: Frame, pc: string): Value {
+    const vals = node.arguments.map((a) => this.ev(a, f, pc));
+    if (vals.length <= 1) return T;
+    const checks: string[] = [];
+    for (let i = 0; i < vals.length; i += 1) {
+      for (let j = i + 1; j < vals.length; j += 1) {
+        checks.push(not(this.strictEquals(vals[i]!, vals[j]!).t));
+      }
+    }
+    return bool(and(...checks));
+  }
+
+  private unreachableCall(f: Frame, pc: string): Value {
+    this.oblige(f, pc, 'false');
+    f.done = or(f.done, pc);
+    return { k: 'undef' };
+  }
+
+  private calcCall(node: ts.CallExpression, f: Frame, pc: string): Value {
+    if (node.arguments.length < 2) return T;
+    const vals = node.arguments.map((a) => this.ev(a, f, pc));
+    const guard = this.guard(f, pc);
+    for (let i = 0; i + 1 < vals.length; i += 1) {
+      const eq = this.strictEquals(vals[i]!, vals[i + 1]!).t;
+      if (eq !== 'true' && guard !== 'false') {
+        const fact = guard === 'true' ? eq : `(=> ${guard} ${eq})`;
+        this.subgoals.push({ assumptions: [...this.assumptions], goal: fact });
+        this.lemmaAssumptions.add(fact);
+        this.assumptions.push(fact);
+      }
+    }
+    return this.strictEquals(vals[0]!, vals[vals.length - 1]!);
+  }
+
+  private inductCall(node: ts.CallExpression, f: Frame, pc: string): Value {
+    if (node.arguments.length !== 2) throw new Unsupported('induct takes (n, (k) => predicate)');
+    const nVal = this.ev(node.arguments[0]!, f, pc);
+    if (nVal.k !== 'int') throw new Unsupported('induct() requires an integer argument');
+    const fn = this.callback(node.arguments[1]!);
+    if (fn.parameters.length !== 1) throw new Unsupported('induct() predicate takes exactly one parameter (k)');
+    const guard = this.guard(f, pc);
+    this.oblige(f, pc, this.le(intLit(0n), nVal).t);
+    // Base case: P(0) (capture obligations inside P(0) into the base subgoal)
+    const baseOblStart = this.obligations.length;
+    const base = this.asBool(this.applyCallback(fn, [intLit(0n)], f, pc));
+    const baseObls = this.obligations.splice(baseOblStart);
+    const baseGoal = and(base, ...baseObls);
+    if (baseGoal !== 'true' && guard !== 'false') {
+      this.subgoals.push({
+        assumptions: [...this.assumptions],
+        goal: guard === 'true' ? baseGoal : `(=> ${guard} ${baseGoal})`,
+      });
+    }
+    // Inductive step: for all k with 0 <= k < n, P(k) ==> P(k + 1)
+    const kName = `__ind_${++this.havocked}`;
+    this.freshDecls.push(`(declare-const ${kName} Int)`);
+    const kVal: Int = { k: 'int', t: kName };
+    const kNext: Int = { k: 'int', t: `(+ ${kName} 1)` };
+    const ihOblStart = this.obligations.length;
+    const ih = this.asBool(this.applyCallback(fn, [kVal], f, pc));
+    this.obligations.splice(ihOblStart);
+    const stepOblStart = this.obligations.length;
+    const step = this.asBool(this.applyCallback(fn, [kNext], f, pc));
+    const stepObls = this.obligations.splice(stepOblStart);
+    const stepGoal = and(step, ...stepObls);
+    if (stepGoal !== 'true' && guard !== 'false') {
+      this.subgoals.push({
+        assumptions: [...this.assumptions, `(<= 0 ${kName})`, `(< ${kName} ${nVal.t})`, ih],
+        goal: guard === 'true' ? stepGoal : `(=> ${guard} ${stepGoal})`,
+      });
+    }
+    this.usedInduction = true;
+    return T;
   }
 
   private ensuresCall(node: ts.CallExpression, f: Frame, pc: string): Value {

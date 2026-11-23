@@ -218,6 +218,36 @@ describe('next-gen browser runner', { skip: !hasBrowser() ? 'needs Chrome, Edge 
     assert.equal(report.ok, true);
   });
 
+  it('supports auto-retrying expectElement assertions (Vitest expect.element parity)', async () => {
+    const opts = project('expect-element', {
+      'src/expect.browser.laws.ts': [
+        "import { law, type intRange } from 'tslaws';",
+        "import { expectElement, mount, page, userEvent } from 'tslaws/browser';",
+        "law('expectElement auto-retries until async DOM updates settle', async (n: intRange<1, 4>) => {",
+        '  mount(`<button type="button">Save</button><p role="status" hidden></p>`);',
+        '  const btn = document.querySelector("button")!;',
+        '  const status = document.querySelector("[role=status]") as HTMLElement;',
+        '  btn.addEventListener("click", () => {',
+        '    setTimeout(() => { status.hidden = false; status.textContent = `Saved #${n}`; }, 35);',
+        '  });',
+        '  await expectElement(page.getByRole("button", { name: "Save" })).toBeVisible();',
+        '  await expectElement(page.getByRole("button")).not.toBeDisabled();',
+        '  await expectElement(page.getByRole("status")).toBeHidden();',
+        '  await userEvent.click(page.getByRole("button", { name: "Save" }));',
+        '  await expectElement(page.getByRole("status")).toBeVisible();',
+        '  await expectElement(page.getByRole("status")).toHaveTextContent(`Saved #${n}`);',
+        '  return true;',
+        '});',
+        '',
+      ].join('\n'),
+    });
+    const report = await check(opts, true);
+    assert.equal(report.compileDiagnostics, '');
+    const r = byName(report.results, 'expectElement auto-retries until async DOM updates settle');
+    assert.equal(r.status, 'tested', JSON.stringify(r));
+    assert.equal(report.ok, true);
+  });
+
   it('shrinks failing in-browser property tests and captures a screenshot', async () => {
     const opts = project('inbrowser-fail', {
       'src/fail.browser.laws.ts': [

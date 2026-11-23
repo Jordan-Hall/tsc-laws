@@ -34,6 +34,12 @@ UNCOVERED sub (src/math.ts) [coverage]
 
 ## Watch
 
+What is new in **tslaws 1.2** — a 70-second launch keynote (refinement types, vacuity checks, `induct`/`calc`/`lemma`/`requires`/`ensures`/`decreases`/`unreachable`, native Vitest-style browser runner with zero Vite, and pooled native Z3 + proof cache):
+
+[![What is new in tslaws 1.2: a silent preview that plays here](docs/media/tslaws-1.2-launch.gif)](docs/media/tslaws-1.2-launch.mp4)
+
+The preview above plays here without sound. [tslaws-1.2-launch.mp4](docs/media/tslaws-1.2-launch.mp4) is the full 1080p60 keynote with narration and sound.
+
 What tslaws is, in two minutes (laws, proofs, tests, the coverage gate and the lock):
 
 <video src="https://github.com/Jordan-Hall/tsc-laws/raw/main/docs/media/tslaws-explained.mp4" controls muted width="480"></video>
@@ -59,11 +65,14 @@ What it offers:
   and emits ordinary, type-checked functions. `law` stays a normal identifier
   everywhere else.
 - **Proof where possible, tests everywhere else.** Z3 (pooled native Z3 when available, or WASM) proves laws over exact
-  integers, bigints, strings, booleans, records, and built-in refinement types (`nat`, `posInt`, `nonZeroInt`,
-  `intRange<Lo, Hi>`, `nonEmpty<T>`, `asciiString`), bounded-checks arrays, loops and recursion, proves loops for every
-  iteration count with `invariant`, splits larger proofs with `lemma`, checks contracts with `requires`/`ensures` and
-  termination with `decreases`, and caches unchanged proofs on disk. Whatever does not lower is property-tested with inputs
-  generated from your types, shrunk to a minimal counterexample. Every result says which it was.
+  integers, bigints, strings, booleans, records, and built-in refinement types (`nat`, `posInt`, `nonZeroInt`, `uint8`,
+  `uint16`, `uint32`, `int32`, `intRange<Lo, Hi>`, `nonEmpty<T>`, `nonEmptyString`, `asciiString`, `finite`),
+  bounded-checks arrays, loops and recursion, proves loops for every iteration count with `invariant`, proves unbounded
+  claims with natural-number `induct`, chains equational proofs with `calc` and `lemma`, checks contracts with
+  `requires`/`ensures`, termination with `decreases`, dead branches with `unreachable`, logical connectives
+  (`implies`/`iff`/`distinct`), catches vacuous `assume()` preconditions automatically, and caches unchanged proofs on
+  disk. Whatever does not lower is property-tested with inputs generated from your types, shrunk to a minimal
+  counterexample. Every result says which it was.
 - **Proofs you can check.** `--certify` has cvc5 write a proof and Carcara check it; see the [certificate gallery](docs/certificates/README.md).
 - **Agents cannot weaken the laws.** A lock file hashes the laws and coverage exemptions; `tslaws accept` needs a person at
   a terminal. A coverage gate fails exported code that no law reaches.
@@ -72,8 +81,9 @@ What it offers:
 - **Browser laws.** A laws file that imports `tslaws/browser` runs in parallel isolated `BrowserContext`s on a real local
   HTTP origin in Chrome, Edge, Chromium, Firefox, or WebKit — top-level pages by default (`--browser-mode page|iframe`,
   `--headed`), with our own built-in Vitest-style `page` locators (`getByRole`, `getByText`, `getByLabelText`, `getByTestId`,
-  `.filter()`, `.first()`), Playwright-backed trusted `userEvent` interactions, `mock()` route interception, and in-browser
-  `fast-check` (no Vite required). The file name (`*.browser.laws.ts`) decides by default, or the imports with `"levels": "imports"`.
+  `.filter()`, `.first()`), auto-retrying `expectElement()` assertions, Playwright-backed trusted `userEvent` interactions,
+  `mock()` route interception, and in-browser `fast-check` (no Vite required). The file name (`*.browser.laws.ts`) decides
+  by default, or the imports with `"levels": "imports"`.
 - **A dashboard.** `tslaws ui` opens a dashboard: tree, filters, search, counterexamples, source, live reruns.
 - **Are the laws strong enough?** `tslaws mutate` changes your code in small ways and reports every change no law notices.
 - **Counterexamples stay fixed.** Failures are saved and replayed first on every later run.

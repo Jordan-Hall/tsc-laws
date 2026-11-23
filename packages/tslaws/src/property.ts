@@ -43,17 +43,18 @@ export function dtsPath(outDir: string, file: string): string {
 export function shapeOf(checker: ts.TypeChecker, type: ts.Type): Shape {
   const aliasName = (type.aliasSymbol ?? type.getSymbol())?.getName();
   if (type.flags & (ts.TypeFlags.Intersection | ts.TypeFlags.Number)) {
+    const bounds = readIntRangeBounds(checker, type);
+    if (bounds !== undefined) return { intRange: bounds };
     if (aliasName === 'int') return 'int';
     if (aliasName === 'nat') return 'nat';
     if (aliasName === 'posInt') return 'posInt';
     if (aliasName === 'nonZeroInt') return 'nonZeroInt';
-    if (aliasName === 'intRange') {
-      const bounds = readIntRangeBounds(checker, type);
-      if (bounds !== undefined) return { intRange: bounds };
-    }
+    if (aliasName === 'finite') return 'number';
   }
-  if (aliasName === 'asciiString' && type.flags & (ts.TypeFlags.Intersection | ts.TypeFlags.String))
-    return 'asciiString';
+  if (type.flags & (ts.TypeFlags.Intersection | ts.TypeFlags.String)) {
+    if (aliasName === 'asciiString') return 'asciiString';
+    if (aliasName === 'nonEmptyString') return 'nonEmptyString';
+  }
   if (aliasName === 'nonEmpty') {
     const elemType = readNonEmptyElement(checker, type);
     const element = elemType === undefined ? undefined : shapeOf(checker, elemType);
