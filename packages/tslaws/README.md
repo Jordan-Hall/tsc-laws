@@ -37,7 +37,8 @@ export law sortOrders(xs: int[]) {
 }
 ```
 
-`law` is syntax of the `tsc-laws` compiler, which `tslaws` installs. A law is a function declaration the compiler
+`law` is syntax of the `tsc-laws` compiler, a fork of [tsc-ts](https://github.com/vercel-labs/tsc-ts) that `tslaws`
+installs. A law is a function declaration the compiler
 type-checks like any other. It holds for an input when it returns anything but `false` and does not throw. `assume(cond)`
 skips inputs a law does not cover. Everywhere except at the start of a statement, `law` is still an ordinary identifier.
 
@@ -205,4 +206,5 @@ checks with its own config and lock (`--project`, `--filter`, `--changed`).
 - [tslaws in a monorepo](https://github.com/Jordan-Hall/tsc-laws/blob/main/docs/monorepo.md)
 - [Security laws](https://github.com/Jordan-Hall/tsc-laws/blob/main/docs/security-laws.md)
 - [Editor law syntax](https://github.com/Jordan-Hall/tsc-laws/blob/main/docs/editor-law-syntax.md)
+- [Build from source](https://github.com/Jordan-Hall/tsc-laws#readme): clone the repository and follow its build steps
 - [Changelog](https://github.com/Jordan-Hall/tsc-laws/blob/main/CHANGELOG-LAWS.md)
