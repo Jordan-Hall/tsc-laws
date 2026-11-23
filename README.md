@@ -42,9 +42,9 @@ Laws, migration and delegated accept: why laws make a port safer, and how a pers
 
 What is new in v1, as a 75-second animated fable: a law is proved or broken by a counterexample, proofs can carry certificates that cvc5 writes and Carcara checks (loops included, through their invariants), a lock catches edits to a law, a proposed law cannot accept itself, and laws run in a sandbox:
 
-<video src="https://github.com/Jordan-Hall/tsc-laws/raw/main/docs/media/tslaws-v1.mp4" controls muted width="480"></video>
+[![What is new in tslaws v1: a silent preview that plays here](docs/media/tslaws-v1.gif)](docs/media/tslaws-v1.mp4)
 
-[tslaws-v1.mp4](docs/media/tslaws-v1.mp4)
+The preview above plays here without sound. [tslaws-v1.mp4](docs/media/tslaws-v1.mp4) is the same video with the voice.
 
 What it offers:
 
