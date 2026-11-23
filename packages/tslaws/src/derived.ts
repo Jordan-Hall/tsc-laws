@@ -17,10 +17,13 @@ interface Stored {
 export interface DerivedStore {
   law(law: ManifestLaw, compute: () => LawTypes): LawTypes;
   coverage(compute: () => CoverageReport): CoverageReport;
+  /** Writes any new entries to disk once, instead of rewriting derived.json on every law. */
+  flush(): void;
 }
 
 export function derivedStore(cwd: string, key: string | undefined): DerivedStore {
-  if (key === undefined) return { law: (_law, compute) => compute(), coverage: (compute) => compute() };
+  if (key === undefined)
+    return { law: (_law, compute) => compute(), coverage: (compute) => compute(), flush: () => undefined };
   const path = join(cwd, '.tslaws', 'derived.json');
   let stored: Stored = { key, laws: {} };
   try {
@@ -29,7 +32,10 @@ export function derivedStore(cwd: string, key: string | undefined): DerivedStore
   } catch {
     // Nothing kept yet.
   }
-  const save = (): void => {
+  let dirty = false;
+  const flush = (): void => {
+    if (!dirty) return;
+    dirty = false;
     try {
       mkdirSync(join(cwd, '.tslaws'), { recursive: true });
       writeFileSync(path, JSON.stringify(stored));
@@ -49,15 +55,16 @@ export function derivedStore(cwd: string, key: string | undefined): DerivedStore
         };
       const types = compute();
       stored.laws[id] = { plans: types.plans, shapes: types.shapes.map((shape) => shape ?? null) };
-      save();
+      dirty = true;
       return types;
     },
     coverage(compute) {
       if (stored.coverage !== undefined) return stored.coverage;
       const report = compute();
       stored.coverage = report;
-      save();
+      dirty = true;
       return report;
     },
+    flush,
   };
 }

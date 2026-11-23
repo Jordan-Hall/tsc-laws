@@ -10,6 +10,30 @@ export { fc };
  */
 export type int = number & { readonly __tslawsInt: true };
 
+/** A non-negative exact integer (`n >= 0`). Generated and proved in `[0, MAX_SAFE_INTEGER]`. */
+export type nat = int & { readonly __tslawsNat: true };
+
+/** A strictly positive exact integer (`n >= 1`). Generated and proved in `[1, MAX_SAFE_INTEGER]`. */
+export type posInt = int & { readonly __tslawsPosInt: true };
+
+/** A non-zero exact integer (`n !== 0`). Generated and proved with `n !== 0`. */
+export type nonZeroInt = int & { readonly __tslawsNonZeroInt: true };
+
+/**
+ * An exact integer bounded between `Lo` and `Hi` inclusive (like a LiquidHaskell refinement type): fast-check generates
+ * directly inside `[Lo, Hi]` without wasted `assume()` skips, and Z3 assumes `Lo <= x <= Hi` automatically.
+ */
+export type intRange<Lo extends number, Hi extends number> = int & {
+  readonly __tslawsMin: Lo;
+  readonly __tslawsMax: Hi;
+};
+
+/** A non-empty array (`xs.length >= 1`). Generated non-empty and proved with `xs.length >= 1`. */
+export type nonEmpty<T> = T[] & { readonly __tslawsNonEmpty: true };
+
+/** An ASCII string (characters U+0000..U+007F). Generated and proved over ASCII. */
+export type asciiString = string & { readonly __tslawsAscii: true };
+
 /** Thrown by `assume`; the runner skips the input. */
 export class LawDiscard extends Error {
   constructor() {
@@ -30,6 +54,39 @@ export function assume(condition: boolean): asserts condition {
  */
 export function invariant(condition: boolean): void {
   if (!condition) throw new Error('loop invariant violated');
+}
+
+/**
+ * Intermediate proof step (like Dafny `assert`): throws at runtime if false; in the prover, checked first as its own
+ * SMT subgoal and then assumed for the rest of the law, helping Z3 discharge multi-step proofs.
+ */
+export function lemma(condition: boolean): asserts condition {
+  if (!condition) throw new Error('lemma failed');
+}
+
+/**
+ * Function precondition (like Dafny/Verus `requires`): throws at runtime if false. Inside a called function, the prover
+ * verifies that every caller satisfies it; at the top level of a law it acts as an assumption.
+ */
+export function requires(condition: boolean): asserts condition {
+  if (!condition) throw new Error('precondition violated');
+}
+
+/**
+ * Function postcondition (like Dafny/Verus `ensures`): throws at runtime if false; in the prover, verified as an
+ * obligation before the function returns.
+ */
+export function ensures(condition: boolean): asserts condition {
+  if (!condition) throw new Error('postcondition violated');
+}
+
+/**
+ * Termination measure for a loop (with `invariant`) or recursive function (like Dafny/Verus `decreases`): must be a
+ * non-negative integer that strictly decreases on every iteration or recursive call.
+ */
+export function decreases(measure: number): void {
+  if (typeof measure !== 'number' || measure < 0 || !Number.isFinite(measure))
+    throw new Error('termination measure must be a non-negative finite number');
 }
 
 /**

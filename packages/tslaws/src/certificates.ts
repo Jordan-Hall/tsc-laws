@@ -7,7 +7,7 @@
 // keeps the status it had. `"certify": "require"` turns anything short of `certified` into an error.
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { certificationProblem, type HornCertification } from './chc.ts';
@@ -200,6 +200,19 @@ const aletheRareRules: Readonly<Record<string, string>> = {
   ].join('\n'),
 };
 
+/** Cached RARE rule database per cvc5 binary (path + args + stat), so `-o rare-db` runs once per binary instead of once per law. */
+const rareDbCache = new Map<string, Map<string, string>>();
+
+function rareCacheKey(cvc5: { file: string; args: string[] }): string {
+  const target = cvc5.args[0] ?? cvc5.file;
+  try {
+    const st = statSync(target);
+    return `${cvc5.file}\0${cvc5.args.join('\0')}\0${st.size}:${st.mtimeMs}`;
+  } catch {
+    return `${cvc5.file}\0${cvc5.args.join('\0')}`;
+  }
+}
+
 /**
  * The RARE rule declarations for `names`, in the form Carcara reads. cvc5 itself prints its database of rewrite rules, so
  * the rules a proof may lean on come from the same binary that wrote the proof and never from a file beside the proof;
@@ -210,36 +223,45 @@ export async function rareDeclarations(
   work: string,
   budget: number,
 ): Promise<{ text: string } | { status: 'uncertified' | 'unavailable'; reason: string }> {
+  // If every requested rule is already covered by the built-in sound overrides, no cvc5 dump is needed.
+  if (names.every((name) => aletheRareRules[name] !== undefined)) {
+    return { text: `${names.map((name) => aletheRareRules[name]!).join('\n')}\n` };
+  }
   const cvc5 = toolCommand('TSLAWS_CVC5', 'cvc5');
-  const input = join(work, 'rare.smt2');
-  writeFileSync(input, '(check-sat)\n');
-  const printed = await run(
-    cvc5.file,
-    [
-      ...cvc5.args,
-      '-o',
-      'rare-db',
-      '--force-logic=ALL',
-      '--produce-proofs',
-      '--proof-granularity=dsl-rewrite',
-      '--proof-format-mode=alethe',
-      input,
-    ],
-    budget,
-  );
-  if (printed === undefined) return { status: 'unavailable', reason: cvc5Missing };
-  if (printed === 'timeout')
-    return { status: 'uncertified', reason: `cvc5 did not print its rewrite rules within ${budget} ms` };
-  const blocks = new Map<string, string>();
-  let current: { name: string; lines: string[] } | undefined;
-  for (const line of printed.stdout.split(/\r?\n/)) {
-    const start = /^\(declare-rule\s+(\S+)/.exec(line);
-    if (start !== null) current = { name: start[1]!, lines: [] };
-    if (current !== undefined) current.lines.push(line);
-    if (current !== undefined && line === ')') {
-      blocks.set(current.name, current.lines.join('\n').replace('(declare-rule ', '(declare-rare-rule '));
-      current = undefined;
+  const cacheKey = rareCacheKey(cvc5);
+  let blocks = rareDbCache.get(cacheKey);
+  if (blocks === undefined) {
+    const input = join(work, 'rare.smt2');
+    writeFileSync(input, '(check-sat)\n');
+    const printed = await run(
+      cvc5.file,
+      [
+        ...cvc5.args,
+        '-o',
+        'rare-db',
+        '--force-logic=ALL',
+        '--produce-proofs',
+        '--proof-granularity=dsl-rewrite',
+        '--proof-format-mode=alethe',
+        input,
+      ],
+      budget,
+    );
+    if (printed === undefined) return { status: 'unavailable', reason: cvc5Missing };
+    if (printed === 'timeout')
+      return { status: 'uncertified', reason: `cvc5 did not print its rewrite rules within ${budget} ms` };
+    blocks = new Map<string, string>();
+    let current: { name: string; lines: string[] } | undefined;
+    for (const line of printed.stdout.split(/\r?\n/)) {
+      const start = /^\(declare-rule\s+(\S+)/.exec(line);
+      if (start !== null) current = { name: start[1]!, lines: [] };
+      if (current !== undefined) current.lines.push(line);
+      if (current !== undefined && line === ')') {
+        blocks.set(current.name, current.lines.join('\n').replace('(declare-rule ', '(declare-rare-rule '));
+        current = undefined;
+      }
     }
+    if (blocks.size > 0) rareDbCache.set(cacheKey, blocks);
   }
   const missing = names.filter((name) => !blocks.has(name) && aletheRareRules[name] === undefined);
   if (missing.length > 0)

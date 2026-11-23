@@ -110,6 +110,49 @@ export function resolveRelativeJs(fromFile: string, specifier: string): string {
   return `${base}.js`;
 }
 
+/** Stat-validated cache of parsed compiled `.js` source files, shared across `Executor` attempts and `smt.ts`. */
+const parsedJsCache = new Map<string, { size: number; mtimeMs: number; source: ts.SourceFile }>();
+
+/** Reads and parses a compiled `.js` file, reusing the AST while its size and modification time are unchanged. */
+export function readParsedJs(file: string): ts.SourceFile {
+  let st: { size: number; mtimeMs: number };
+  try {
+    st = statSync(file);
+  } catch {
+    throw new Unsupported(`cannot read module ${file}`);
+  }
+  const cached = parsedJsCache.get(file);
+  if (cached !== undefined && cached.size === st.size && cached.mtimeMs === st.mtimeMs) return cached.source;
+  let text: string;
+  try {
+    text = readFileSync(file, 'utf8');
+  } catch {
+    throw new Unsupported(`cannot read module ${file}`);
+  }
+  const source = ts.createSourceFile(file, text, ts.ScriptTarget.ES2022, true, ts.ScriptKind.JS);
+  if (parsedJsCache.size > 1000) parsedJsCache.clear();
+  parsedJsCache.set(file, { size: st.size, mtimeMs: st.mtimeMs, source });
+  return source;
+}
+
+const fileIndexCache = new Map<string, { size: number; mtimeMs: number; index: FileIndex }>();
+
+function cachedFileIndex(file: string, build: (source: ts.SourceFile) => FileIndex): FileIndex {
+  let st: { size: number; mtimeMs: number };
+  try {
+    st = statSync(file);
+  } catch {
+    throw new Unsupported(`cannot read module ${file}`);
+  }
+  const cached = fileIndexCache.get(file);
+  if (cached !== undefined && cached.size === st.size && cached.mtimeMs === st.mtimeMs) return cached.index;
+  const source = readParsedJs(file);
+  const index = build(source);
+  if (fileIndexCache.size > 1000) fileIndexCache.clear();
+  fileIndexCache.set(file, { size: st.size, mtimeMs: st.mtimeMs, index });
+  return index;
+}
+
 /** Extracts the relative path from `require('./x')` or an interop wrapper like `__importStar(require('./x'))`. */
 function relativeRequire(expression: ts.Expression): string | undefined {
   let call = expression;
@@ -137,20 +180,24 @@ class Frame {
   brk = 'false';
   cnt = 'false';
   ret: Value | undefined;
+  fnKey: string | undefined;
+  decreases: Int | Big | undefined;
   readonly file: string;
   readonly depth: number;
-  constructor(file: string, depth: number) {
+  constructor(file: string, depth: number, fnKey?: string) {
     this.file = file;
     this.depth = depth;
+    this.fnKey = fnKey;
   }
 
   fork(): Frame {
-    const f = new Frame(this.file, this.depth);
+    const f = new Frame(this.file, this.depth, this.fnKey);
     f.env = new Map(this.env);
     f.done = this.done;
     f.brk = this.brk;
     f.cnt = this.cnt;
     f.ret = this.ret;
+    f.decreases = this.decreases;
     return f;
   }
 }
@@ -208,6 +255,12 @@ export class Executor {
   private havocked = 0;
   readonly assumptions: string[] = [];
   readonly obligations: string[] = [];
+  /** Intermediate proof steps from `lemma(...)`: each is proved under prior assumptions before being assumed. */
+  readonly subgoals: { assumptions: string[]; goal: string }[] = [];
+  /** Assumptions introduced by `lemma(...)` (omitted when sending the whole query to an independent certifier). */
+  readonly lemmaAssumptions = new Set<string>();
+  /** Active call frames for checking recursive `decreases(...)` termination measures. */
+  private readonly callFrames: Frame[] = [];
   readonly bounded: string[] = [];
   /** Advice for the reader when a proof fails on an obligation (a divisor that may be 0). */
   readonly hints: string[] = [];
@@ -239,38 +292,35 @@ export class Executor {
   index(file: string): FileIndex {
     const known = this.files.get(file);
     if (known !== undefined) return known;
-    let text: string;
-    try {
-      text = readFileSync(file, 'utf8');
-    } catch {
-      throw new Unsupported(`cannot read module ${file}`);
-    }
-    const source = ts.createSourceFile(file, text, ts.ScriptTarget.ES2022, true, ts.ScriptKind.JS);
-    const index: FileIndex = {
-      functions: new Map(),
-      imports: new Map(),
-      constants: new Map(),
-      reexports: new Map(),
-      stars: [],
-    };
-    this.files.set(file, index);
-    for (const statement of source.statements) {
-      if (ts.isFunctionDeclaration(statement) && statement.name !== undefined && statement.body !== undefined)
-        index.functions.set(statement.name.text, statement);
-      if (!ts.isVariableStatement(statement)) continue;
-      for (const declaration of statement.declarationList.declarations) {
-        const init = declaration.initializer;
-        if (!ts.isIdentifier(declaration.name) || init === undefined) continue;
-        if (ts.isArrowFunction(init) || ts.isFunctionExpression(init)) index.functions.set(declaration.name.text, init);
-        else {
-          const specifier = relativeRequire(init);
-          if (specifier !== undefined) index.imports.set(declaration.name.text, resolveRelativeJs(file, specifier));
-          else if ((declaration.parent.flags & ts.NodeFlags.Const) !== 0)
-            index.constants.set(declaration.name.text, init);
+    const index = cachedFileIndex(file, (source) => {
+      const built: FileIndex = {
+        functions: new Map(),
+        imports: new Map(),
+        constants: new Map(),
+        reexports: new Map(),
+        stars: [],
+      };
+      for (const statement of source.statements) {
+        if (ts.isFunctionDeclaration(statement) && statement.name !== undefined && statement.body !== undefined)
+          built.functions.set(statement.name.text, statement);
+        if (!ts.isVariableStatement(statement)) continue;
+        for (const declaration of statement.declarationList.declarations) {
+          const init = declaration.initializer;
+          if (!ts.isIdentifier(declaration.name) || init === undefined) continue;
+          if (ts.isArrowFunction(init) || ts.isFunctionExpression(init))
+            built.functions.set(declaration.name.text, init);
+          else {
+            const specifier = relativeRequire(init);
+            if (specifier !== undefined) built.imports.set(declaration.name.text, resolveRelativeJs(file, specifier));
+            else if ((declaration.parent.flags & ts.NodeFlags.Const) !== 0)
+              built.constants.set(declaration.name.text, init);
+          }
         }
       }
-    }
-    this.indexExports(source, file, index);
+      this.indexExports(source, file, built);
+      return built;
+    });
+    this.files.set(file, index);
     return index;
   }
 
@@ -759,7 +809,7 @@ export class Executor {
   ): void {
     const invariants = this.invariantsOf(body);
     if (invariants !== undefined) {
-      this.invariantLoop(condition, incrementor, invariants.rest, invariants.exprs, f, pc);
+      this.invariantLoop(condition, incrementor, invariants.rest, invariants.exprs, invariants.decreases, f, pc);
       return;
     }
     if (this.infer) {
@@ -785,19 +835,27 @@ export class Executor {
 
   // ---- loops with invariants: a proof for every number of iterations -------------------------------------------
 
-  /** The `invariant(...)` calls leading a loop body, and the statements after them. */
-  private invariantsOf(body: ts.Statement): { exprs: ts.Expression[]; rest: ts.Statement[] } | undefined {
+  /** The `invariant(...)` and `decreases(...)` calls leading a loop body, and the statements after them. */
+  private invariantsOf(
+    body: ts.Statement,
+  ): { exprs: ts.Expression[]; decreases: ts.Expression[]; rest: ts.Statement[] } | undefined {
     const statements = ts.isBlock(body) ? body.statements : [body];
     const exprs: ts.Expression[] = [];
+    const decreases: ts.Expression[] = [];
     let i = 0;
     for (; i < statements.length; i += 1) {
       const s = statements[i]!;
       if (!ts.isExpressionStatement(s) || !ts.isCallExpression(s.expression)) break;
       const callee = this.calleeOf(s.expression);
-      if (callee?.name !== 'invariant' || s.expression.arguments.length !== 1) break;
-      exprs.push(s.expression.arguments[0]!);
+      if (callee?.name === 'invariant' && s.expression.arguments.length === 1) {
+        exprs.push(s.expression.arguments[0]!);
+      } else if (callee?.name === 'decreases' && s.expression.arguments.length === 1) {
+        decreases.push(s.expression.arguments[0]!);
+      } else {
+        break;
+      }
     }
-    return exprs.length === 0 ? undefined : { exprs, rest: statements.slice(i) };
+    return exprs.length === 0 ? undefined : { exprs, decreases, rest: statements.slice(i) };
   }
 
   private calleeOf(node: ts.CallExpression): { owner: string | undefined; name: string } | undefined {
@@ -926,6 +984,7 @@ export class Executor {
     incrementor: ts.Expression | undefined,
     rest: readonly ts.Statement[],
     exprs: readonly ts.Expression[],
+    decreasesExprs: readonly ts.Expression[],
     f: Frame,
     pc: string,
   ): void {
@@ -951,6 +1010,14 @@ export class Executor {
     }
     const [holds, c] = this.evaluatedWhere(exprs, condition, run, this.guard(f, pc));
     const inside = and(pc, holds, c);
+    // Termination measures (`decreases(...)`): must be >= 0 at loop entry of every iteration and strictly decrease.
+    const measuresBefore: (Int | Big)[] = [];
+    for (const d of decreasesExprs) {
+      const v = this.ev(d, run, inside);
+      if (v.k !== 'int' && v.k !== 'big') throw new Unsupported('decreases() measure must be an integer');
+      this.oblige(run, inside, `(<= 0 ${v.t})`);
+      measuresBefore.push(v);
+    }
     this.execList(rest, run, inside);
     run.cnt = 'false';
     if (incrementor !== undefined) this.ev(incrementor, run, inside, true);
@@ -960,6 +1027,12 @@ export class Executor {
       if (run.env.get(name)?.k !== kind) throw new Unsupported(`${name} changes kind inside a loop with an invariant`);
     }
     this.oblige(run, inside, this.invariantTerm(exprs, run, this.guard(run, inside)));
+    for (let idx = 0; idx < decreasesExprs.length; idx += 1) {
+      const after = this.ev(decreasesExprs[idx]!, run, this.guard(run, inside));
+      const before = measuresBefore[idx]!;
+      if (after.k !== before.k) throw new Unsupported('decreases() measure changed kind in loop');
+      this.oblige(run, inside, `(< ${after.t} ${before.t})`);
+    }
 
     // After the loop: any state satisfying the invariant in which the condition is false, or the state of an iteration
     // that started from such a state and left through a return or break. Which of the two is not known: a fresh choice.
@@ -2030,12 +2103,20 @@ export class Executor {
         if (moduleFile !== undefined) return this.callProject(moduleFile, name, node.arguments, f, pc);
         if (owner === 'tslaws_1' || /tslaws/.test(owner)) {
           if (name === 'assume') return this.assumeCall(node, f, pc);
+          if (name === 'lemma') return this.lemmaCall(node, f, pc);
+          if (name === 'requires') return this.requiresCall(node, f, pc);
+          if (name === 'ensures') return this.ensuresCall(node, f, pc);
+          if (name === 'decreases') return this.decreasesCall(node, f, pc);
         }
       }
       return this.method(callee.expression, name, node.arguments, f, pc, statement);
     }
     if (ts.isIdentifier(callee)) {
       if (callee.text === 'assume') return this.assumeCall(node, f, pc);
+      if (callee.text === 'lemma') return this.lemmaCall(node, f, pc);
+      if (callee.text === 'requires') return this.requiresCall(node, f, pc);
+      if (callee.text === 'ensures') return this.ensuresCall(node, f, pc);
+      if (callee.text === 'decreases') return this.decreasesCall(node, f, pc);
       if (callee.text === 'Number' && node.arguments.length === 1) {
         const v = this.ev(node.arguments[0]!, f, pc);
         if (v.k === 'int' || v.k === 'fp') return v;
@@ -2068,6 +2149,55 @@ export class Executor {
     return { k: 'undef' };
   }
 
+  private lemmaCall(node: ts.CallExpression, f: Frame, pc: string): Value {
+    if (node.arguments.length !== 1) throw new Unsupported('lemma takes one condition');
+    const c = this.asBool(this.ev(node.arguments[0]!, f, pc));
+    const guard = this.guard(f, pc);
+    if (c !== 'true' && guard !== 'false') {
+      const fact = guard === 'true' ? c : `(=> ${guard} ${c})`;
+      // Record as an independent subgoal to be proved BEFORE being assumed for subsequent statements.
+      this.subgoals.push({ assumptions: [...this.assumptions], goal: fact });
+      this.lemmaAssumptions.add(fact);
+      this.assumptions.push(fact);
+    }
+    return { k: 'undef' };
+  }
+
+  private requiresCall(node: ts.CallExpression, f: Frame, pc: string): Value {
+    if (node.arguments.length !== 1) throw new Unsupported('requires takes one condition');
+    const c = this.asBool(this.ev(node.arguments[0]!, f, pc));
+    if (f.depth === 0) this.assume(f, pc, c);
+    else this.oblige(f, pc, c);
+    return { k: 'undef' };
+  }
+
+  private ensuresCall(node: ts.CallExpression, f: Frame, pc: string): Value {
+    if (node.arguments.length !== 1) throw new Unsupported('ensures takes one condition');
+    this.oblige(f, pc, this.asBool(this.ev(node.arguments[0]!, f, pc)));
+    return { k: 'undef' };
+  }
+
+  private decreasesCall(node: ts.CallExpression, f: Frame, pc: string): Value {
+    if (node.arguments.length !== 1) throw new Unsupported('decreases takes one measure');
+    const v = this.ev(node.arguments[0]!, f, pc);
+    if (v.k !== 'int' && v.k !== 'big') throw new Unsupported('decreases() measure must be an integer');
+    this.oblige(f, pc, `(<= 0 ${v.t})`);
+    // If this is a recursive call of the same function, verify strict decrease against the nearest caller frame.
+    if (f.fnKey !== undefined) {
+      for (let i = this.callFrames.length - 2; i >= 0; i -= 1) {
+        const caller = this.callFrames[i]!;
+        if (caller.fnKey === f.fnKey && caller.decreases !== undefined) {
+          if (caller.decreases.k !== v.k)
+            throw new Unsupported('decreases() measure changed kind across recursive call');
+          this.oblige(f, pc, `(< ${v.t} ${caller.decreases.t})`);
+          break;
+        }
+      }
+    }
+    f.decreases = v;
+    return { k: 'undef' };
+  }
+
   private resolveFunction(
     file: string,
     name: string,
@@ -2097,9 +2227,15 @@ export class Executor {
       this.cut(f, pc, 'true', `recursion is cut at depth ${this.bound}`);
       return { k: 'undef' };
     }
-    const inner = new Frame(targetFile, f.depth + 1);
+    const fnKey = `${targetFile}\0${name}`;
+    const inner = new Frame(targetFile, f.depth + 1, fnKey);
     this.bindParams(inner, fn, values);
-    this.body(fn, inner, this.guard(f, pc));
+    this.callFrames.push(inner);
+    try {
+      this.body(fn, inner, this.guard(f, pc));
+    } finally {
+      this.callFrames.pop();
+    }
     if (inner.ret === undefined) return { k: 'undef' };
     return inner.ret;
   }

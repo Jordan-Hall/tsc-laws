@@ -55,7 +55,7 @@ import { plural } from './plural.ts';
 import { configureJobs } from './pool.ts';
 
 const usage = `tslaws init [--force]       scaffold tslaws.json, .gitignore, AGENTS.md, Claude Code hooks and a starter law (never writes the lock)
-tslaws check [files...] [--reporter text|json|junit|github|ndjson] [--law NAME[,NAME]] [--json] [--summary] [--watch] [--runs N] [--seed N] [--no-prove] [--certify] [--require-certify] [--no-regressions] [--no-sandbox] [--allow-e2e] [--bound N] [--proof-timeout MS] [--property-timeout MS] [--jobs N] [--proposed] [--compiler PATH] [--browser chromium|firefox|webkit]
+tslaws check [files...] [--reporter text|json|junit|github|ndjson] [--law NAME[,NAME]] [--json] [--summary] [--watch] [--runs N] [--seed N] [--no-prove] [--certify] [--require-certify] [--no-regressions] [--no-sandbox] [--allow-e2e] [--bound N] [--proof-timeout MS] [--property-timeout MS] [--jobs N] [--proposed] [--compiler PATH] [--browser chromium|firefox|webkit] [--browser-mode page|iframe] [--headed]
 tslaws ui [files...] [--port N] [--no-open] [--tab]   open a dashboard of the laws in its own desktop window (--tab: a browser tab): tree, filters, search, source, live reruns on save
 tslaws mutate [files...] [--max N] [--seed N] [--runs N] [--bound N] [--proof-timeout MS] [--property-timeout MS] [--jobs N] [--browser ENGINE] [--no-sandbox] [--allow-e2e] [--json]   mutation-test the laws: mutate covered code, report mutants no law kills
 tslaws regressions [list|clear]   show or delete the stored counterexamples (.tslaws/regressions); check replays them first, --no-regressions skips them
@@ -118,6 +118,7 @@ function parse(args: string[]): Parsed {
     'property-timeout',
     'jobs',
     'browser',
+    'browser-mode',
     'port',
     'reporter',
     'law',
@@ -273,6 +274,15 @@ function options(cwd: string, flags: Map<string, string | true>, chosen: string[
     browser: flags.has('browser')
       ? (resolveEngine(String(flags.get('browser'))) as CheckOptions['browser'])
       : undefined,
+    browserIsolation: flags.has('browser-mode')
+      ? (() => {
+          const mode = String(flags.get('browser-mode'));
+          if (mode !== 'page' && mode !== 'iframe')
+            throw new Error(`unknown --browser-mode '${mode}': use page or iframe`);
+          return mode;
+        })()
+      : undefined,
+    headed: flags.has('headed') ? true : undefined,
   };
 }
 

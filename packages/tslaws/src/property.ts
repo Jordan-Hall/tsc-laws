@@ -3,7 +3,7 @@ import { readdirSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import type * as fc from 'fast-check';
 import ts from 'typescript';
-import { GeneratorFactory } from './generators.ts';
+import { GeneratorFactory, readIntRangeBounds, readNonEmptyElement } from './generators.ts';
 import { lawEnv } from './coverage.ts';
 import { arbitraryOf, UnsupportedType, type Plan } from './plan.ts';
 import { type PropertyOutcome } from './propertyRun.ts';
@@ -39,13 +39,26 @@ export function dtsPath(outDir: string, file: string): string {
   return join(outDir, file.replace(/\.(ts|tsx|mts|cts)$/, '.d.ts'));
 }
 
-/** What the prover models of `type`: numbers, `int`s, bigints, strings, booleans, arrays and records of them. */
+/** What the prover models of `type`: numbers, `int`s (and refinements), bigints, strings, booleans, arrays and records. */
 export function shapeOf(checker: ts.TypeChecker, type: ts.Type): Shape {
-  if (
-    (type.aliasSymbol ?? type.getSymbol())?.getName() === 'int' &&
-    type.flags & (ts.TypeFlags.Intersection | ts.TypeFlags.Number)
-  )
-    return 'int';
+  const aliasName = (type.aliasSymbol ?? type.getSymbol())?.getName();
+  if (type.flags & (ts.TypeFlags.Intersection | ts.TypeFlags.Number)) {
+    if (aliasName === 'int') return 'int';
+    if (aliasName === 'nat') return 'nat';
+    if (aliasName === 'posInt') return 'posInt';
+    if (aliasName === 'nonZeroInt') return 'nonZeroInt';
+    if (aliasName === 'intRange') {
+      const bounds = readIntRangeBounds(checker, type);
+      if (bounds !== undefined) return { intRange: bounds };
+    }
+  }
+  if (aliasName === 'asciiString' && type.flags & (ts.TypeFlags.Intersection | ts.TypeFlags.String))
+    return 'asciiString';
+  if (aliasName === 'nonEmpty') {
+    const elemType = readNonEmptyElement(checker, type);
+    const element = elemType === undefined ? undefined : shapeOf(checker, elemType);
+    return element === undefined ? undefined : { array: element, minLength: 1 };
+  }
   if (type.flags & ts.TypeFlags.Number) return 'number';
   if (type.flags & ts.TypeFlags.BigInt) return 'bigint';
   if (type.flags & ts.TypeFlags.String) return 'string';
@@ -124,9 +137,10 @@ export async function runLawGuarded(
   law: ManifestLaw,
   options: CheckOptions,
   plans: Plan[],
+  buildKey?: string,
 ): Promise<PropertyOutcome | 'timeout'> {
   // The worker task is a slot of the budget (the law's own, when it runs under one).
-  return budget.run(() => runInWorker(outDir, law, options, plans));
+  return budget.run(() => runInWorker(outDir, law, options, plans, buildKey));
 }
 
 async function runInWorker(
@@ -134,6 +148,7 @@ async function runInWorker(
   law: ManifestLaw,
   options: CheckOptions,
   plans: Plan[],
+  buildKey?: string,
 ): Promise<PropertyOutcome | 'timeout'> {
   const current = await workers.acquire();
   return new Promise((resolve, reject) => {
@@ -156,6 +171,7 @@ async function runInWorker(
       plans,
       options: { ...options, onEvent: undefined },
       env: lawEnv(options.cwd, 'node'),
+      buildKey,
     });
   });
 }

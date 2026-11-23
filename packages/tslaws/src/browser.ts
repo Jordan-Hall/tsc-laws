@@ -1,17 +1,17 @@
-// Runs laws in a real browser. Node generates the inputs (from the declared types, with shrinking, like any law), and
-// each input is sent to a page where the compiled law and the code it checks run against a live DOM.
-import { existsSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
+// Runs browser laws in a real browser over a local HTTP ESM origin (see browserServer.ts) with parallel BrowserContext
+// isolation: top-level `page` mode by default (`window.top === window.self`, isolated cookies/localStorage/IndexedDB)
+// or opt-in `iframe` mode (Vitest style). Supports in-browser fast-check execution (zero per-input IPC), trusted
+// Playwright interactions (`user.*`) and network mocking (`mock()`) via `exposeBinding`, headed debugging, and
+// optional Playwright traces on failure.
+import { existsSync, mkdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { delimiter, join, relative as pathRelative, resolve, sep } from 'node:path';
-import { build as bundleWith, type Plugin } from 'esbuild';
-import { explainBundleError, loadBundlerPlugins } from './bundlerPlugins.ts';
-import { lawEnv, readConfig } from './coverage.ts';
-import { compiledDirOf } from './lawRuntime.ts';
-import { importMetaEnvGlobal } from './runtimeEnv.ts';
-import type { Browser, BrowserType, Page } from 'playwright-core';
+import { delimiter, join } from 'node:path';
+import type { Browser, BrowserContext, BrowserType, Frame, Page, Route } from 'playwright-core';
 import type * as fc from 'fast-check';
+import { bundleLawFile, closeBrowserServer, ensureBrowserServer } from './browserServer.ts';
+import { readConfig, type BrowserConfig } from './coverage.ts';
 import { toWire } from './generators.ts';
+import type { Plan } from './plan.ts';
 import { runProperty, summarise, type PropertyOutcome } from './property.ts';
 import type { CheckOptions } from './types.ts';
 
@@ -93,15 +93,16 @@ export function engineExecutable(engine: BrowserEngine, env: NodeJS.ProcessEnv =
   return path;
 }
 
-const browsers = new Map<BrowserEngine, Promise<Browser>>();
+const browsers = new Map<string, Promise<Browser>>();
 
-export function launch(engine: BrowserEngine): Promise<Browser> {
-  let open = browsers.get(engine);
+export function launch(engine: BrowserEngine, headless = true): Promise<Browser> {
+  const key = `${engine}:${headless ? 'headless' : 'headed'}`;
+  let open = browsers.get(key);
   if (open === undefined) {
     const type = engineType(engine);
-    open = (async () => type.launch({ executablePath: engineExecutable(engine), headless: true }))();
-    open.catch(() => browsers.delete(engine));
-    browsers.set(engine, open);
+    open = (async () => type.launch({ executablePath: engineExecutable(engine), headless }))();
+    open.catch(() => browsers.delete(key));
+    browsers.set(key, open);
   }
   return open;
 }
@@ -116,150 +117,7 @@ export async function closeBrowser(): Promise<void> {
       // Already gone.
     }
   }
-}
-
-// Runs inside the page: the law, a clean DOM before and after, and a result that survives structured cloning.
-const harness = `
-window.__runLaw = async (name, args, keep, pause) => {
-  const clean = () => {
-    for (const undo of (window.__tslawsCleanup || []).splice(0)) { try { undo(); } catch (e) {} }
-    document.body.innerHTML = '';
-  };
-  // Functions cannot cross into the page: generated ones arrive as { $tslawsFn: samples } and are rebuilt here.
-  const revive = (v) => {
-    if (Array.isArray(v)) return v.map(revive);
-    if (v && typeof v === 'object') {
-      if (Array.isArray(v.$tslawsFn)) {
-        const samples = v.$tslawsFn;
-        return (...a) => {
-          let key = '';
-          try { key = JSON.stringify(a) || ''; } catch (e) {}
-          let h = 5381;
-          for (let i = 0; i < key.length; i++) h = (Math.imul(h, 33) + key.charCodeAt(i)) | 0;
-          return samples[(h >>> 0) % samples.length];
-        };
-      }
-      return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, revive(x)]));
-    }
-    return v;
-  };
-  clean();
-  try {
-    const result = await window.__lawModule[name](...revive(args));
-    return { ok: result !== false };
-  } catch (error) {
-    return { error: { name: error && error.name, message: error && error.message ? error.message : String(error) } };
-  } finally {
-    if (pause > 0) {
-      window.__shown = true;
-      await new Promise((done) => setTimeout(done, pause));
-      window.__shown = false;
-    }
-    if (!keep) clean();
-  }
-};`;
-
-// Bare imports resolve from the project's own node_modules first (a JSX runtime, a UI library, axe-core), then the
-// usual way. axe-core is an optional peer dependency: without a copy the import stays for the page to fail on (a11y()
-// turns that into a clear message), so projects without it still bundle.
-function projectModulesPlugin(cwd: string): Plugin {
-  return {
-    name: 'tslaws-project-modules',
-    setup(build) {
-      build.onResolve({ filter: /^[^./]/ }, async (args) => {
-        if (args.pluginData === 'tslaws' || args.kind === 'entry-point' || /^[a-zA-Z]:/.test(args.path))
-          return undefined;
-        const found = await build.resolve(args.path, { kind: args.kind, resolveDir: cwd, pluginData: 'tslaws' });
-        if (found.errors.length === 0)
-          return { path: found.path, external: found.external, sideEffects: found.sideEffects };
-        return args.path === 'axe-core' ? { path: 'axe-core', external: true } : undefined;
-      });
-    },
-  };
-}
-
-// The compiler writes only what it compiles to .tslaws/out, so a relative import of any other source file (a `.tsrx`
-// template, a stylesheet, an image) would look for it there. Such an import resolves to the file beside the source.
-function sourceFilesPlugin(cwd: string): Plugin {
-  const out = join(cwd, '.tslaws', 'out');
-  // The project's own output may sit below `out` (when sources outside it were compiled too); paths map from there.
-  const project = compiledDirOf(cwd);
-  return {
-    name: 'tslaws-source-files',
-    setup(build) {
-      build.onResolve({ filter: /^\.\.?\// }, (args) => {
-        if (args.resolveDir !== out && !args.resolveDir.startsWith(out + sep)) return undefined;
-        const inOut = resolve(args.resolveDir, args.path);
-        if (existsSync(inOut)) return undefined;
-        const source = join(cwd, pathRelative(project, inOut));
-        return existsSync(source) && !source.endsWith('.js') ? { path: source } : undefined;
-      });
-    },
-  };
-}
-
-const assetExtensions = [
-  '.png',
-  '.jpg',
-  '.jpeg',
-  '.gif',
-  '.webp',
-  '.avif',
-  '.svg',
-  '.ico',
-  '.woff',
-  '.woff2',
-  '.ttf',
-  '.otf',
-  '.eot',
-];
-
-/**
- * esbuild reads the nearest tsconfig.json by itself (paths, baseUrl, extends); this carries the tslaws.json setting over:
- * a named file, or none for `"tsconfig": false`.
- */
-function bundlerTsconfig(cwd: string): { tsconfig: string } | { tsconfigRaw: string } | object {
-  const setting = readConfig(cwd).tsconfig;
-  if (setting === false) return { tsconfigRaw: '{}' };
-  return setting === undefined ? {} : { tsconfig: resolve(cwd, setting) };
-}
-
-/** The project's `bundlerPlugins` from tslaws.json come first, so they can claim a format before the built-in resolver. */
-async function bundleOf(jsFile: string, cwd: string): Promise<{ js: string; css: string }> {
-  const projectPlugins = await loadBundlerPlugins(cwd, readConfig(cwd).bundlerPlugins);
-  try {
-    const result = await bundleWith({
-      plugins: [...projectPlugins, sourceFilesPlugin(cwd), projectModulesPlugin(cwd)],
-      entryPoints: [jsFile],
-      bundle: true,
-      write: false,
-      // Stylesheets a law imports come out as a separate .css file, which needs an output directory to be named.
-      outdir: join(cwd, '.tslaws', 'bundle'),
-      // Images and fonts become data URLs, so a url() in the CSS or an import in the JavaScript needs no file server.
-      loader: Object.fromEntries(assetExtensions.map((extension) => [extension, 'dataurl' as const])),
-      format: 'iife',
-      globalName: '__lawModule',
-      platform: 'browser',
-      target: 'es2022',
-      absWorkingDir: cwd,
-      ...bundlerTsconfig(cwd),
-      logLevel: 'silent',
-      // A dependency's `import.meta.env` reads the same global the compiled laws do; the page sets it before the bundle.
-      define: {
-        'process.env.NODE_ENV': '"development"',
-        global: 'globalThis',
-        'import.meta.env': `globalThis.${importMetaEnvGlobal}`,
-      },
-    });
-    const emitted = (extension: string): string =>
-      result.outputFiles
-        .filter((file) => file.path.endsWith(extension))
-        .map((file) => file.text)
-        .join('\n');
-    return { js: emitted('.js'), css: emitted('.css') };
-  } catch (error) {
-    throw explainBundleError(error as Error);
-  }
+  await closeBrowserServer();
 }
 
 export interface BrowserLaw {
@@ -269,22 +127,160 @@ export interface BrowserLaw {
   symbol?: string;
   jsFile: string;
   generators: fc.Arbitrary<unknown>[];
+  /** Serialized generator plans for zero-IPC in-browser fast-check execution. */
+  plans?: Plan[];
 }
 
 interface PageOutcome {
   ok?: boolean;
-  error?: { name?: string; message: string };
+  discarded?: boolean;
+  error?: { name?: string; message: string; stack?: string };
+}
+
+interface BridgeCommand {
+  action:
+    | 'click'
+    | 'dblClick'
+    | 'hover'
+    | 'focus'
+    | 'fill'
+    | 'type'
+    | 'press'
+    | 'keyboard'
+    | 'select'
+    | 'setViewport'
+    | 'mock'
+    | 'resetMocks';
+  selector?: string;
+  text?: string;
+  key?: string;
+  values?: string | string[];
+  width?: number;
+  height?: number;
+  urlPattern?: string;
+  response?: {
+    status?: number;
+    body?: string;
+    json?: unknown;
+    headers?: Record<string, string>;
+    contentType?: string;
+  };
+}
+
+/** Whether `plans` can execute fast-check directly inside the browser (no custom Node-only registered arbitraries). */
+function canRunInBrowser(plans: Plan[] | undefined): boolean {
+  if (plans === undefined) return false;
+  const ok = (p: Plan): boolean => {
+    switch (p.k) {
+      case 'named':
+        // Built-in refinement / primitive named types live in plan.ts; custom user arbitraries may only exist in Node.
+        return (
+          p.name === 'int' ||
+          p.name === 'nat' ||
+          p.name === 'posInt' ||
+          p.name === 'nonZeroInt' ||
+          p.name === 'asciiString' ||
+          p.security === true
+        );
+      case 'array':
+      case 'nonEmpty':
+      case 'dict':
+        return ok(p.of);
+      case 'fn':
+        return ok(p.returns);
+      case 'union':
+        return p.of.every(ok);
+      case 'template':
+        return p.parts.every(ok);
+      case 'tuple':
+        return p.required.every(ok) && p.optional.every(ok);
+      case 'record':
+        return Object.values(p.fields).every(ok);
+      default:
+        return true;
+    }
+  };
+  return plans.every(ok);
+}
+
+/** Wires `window.__tslawsBridge` on `page` so browser laws can call trusted Playwright `user.*` and `mock()` helpers. */
+async function installBridge(
+  context: BrowserContext,
+  page: Page,
+  targetFrame: () => Frame,
+): Promise<() => Promise<void>> {
+  const routes: { pattern: string; handler: (route: Route) => Promise<void> }[] = [];
+  const clearMocks = async (): Promise<void> => {
+    for (const r of routes.splice(0)) {
+      await context.unroute(r.pattern, r.handler).catch(() => undefined);
+    }
+  };
+  await page.exposeBinding('__tslawsBridge', async (_source, command: BridgeCommand) => {
+    const frame = targetFrame();
+    switch (command.action) {
+      case 'click':
+        await frame.locator(command.selector!).click();
+        return;
+      case 'dblClick':
+        await frame.locator(command.selector!).dblclick();
+        return;
+      case 'hover':
+        await frame.locator(command.selector!).hover();
+        return;
+      case 'focus':
+        await frame.locator(command.selector!).focus();
+        return;
+      case 'fill':
+        await frame.locator(command.selector!).fill(command.text ?? '');
+        return;
+      case 'type':
+        await frame.locator(command.selector!).pressSequentially(command.text ?? '');
+        return;
+      case 'press':
+        await page.keyboard.press(command.key ?? '');
+        return;
+      case 'keyboard':
+        await page.keyboard.type(command.text ?? '');
+        return;
+      case 'select':
+        await frame.locator(command.selector!).selectOption(command.values ?? []);
+        return;
+      case 'setViewport':
+        await page.setViewportSize({ width: command.width ?? 1000, height: command.height ?? 720 });
+        return;
+      case 'mock': {
+        const pattern = command.urlPattern ?? '**/*';
+        const resp = command.response ?? {};
+        const handler = async (route: Route): Promise<void> => {
+          await route.fulfill({
+            status: resp.status ?? 200,
+            headers: resp.headers,
+            contentType: resp.contentType ?? (resp.json !== undefined ? 'application/json' : undefined),
+            body: resp.json !== undefined ? JSON.stringify(resp.json) : (resp.body ?? ''),
+          });
+        };
+        routes.push({ pattern, handler });
+        await context.route(pattern, handler);
+        return;
+      }
+      case 'resetMocks':
+        await clearMocks();
+        return;
+    }
+  });
+  return clearMocks;
 }
 
 /** Runs the counterexample once more, leaves the DOM as it is, and photographs the page. Best effort. */
 async function capture(
   page: Page,
+  frame: Frame,
   law: BrowserLaw,
   args: unknown[],
   options: CheckOptions,
 ): Promise<string | undefined> {
   try {
-    await page.evaluate(
+    await frame.evaluate(
       ([name, input]) =>
         (window as unknown as { __runLaw: (n: string, a: unknown[], keep: boolean) => Promise<unknown> }).__runLaw(
           name as string,
@@ -302,27 +298,48 @@ async function capture(
   }
 }
 
-/** Property-tests one law in a page; `'timeout'` when it does not finish within `options.propertyTimeoutMs`. */
+/** Property-tests one browser law on a real HTTP origin with configurable `page` (default) or `iframe` isolation. */
 export async function runBrowserLaw(law: BrowserLaw, options: CheckOptions): Promise<PropertyOutcome | 'timeout'> {
-  const { js: code, css } = await bundleOf(law.jsFile, options.cwd);
-  const page: Page = await (await launch(resolveEngine(options.browser))).newPage();
-  // A watcher needs only the first few runs to linger; the rest should not eat the time limit.
+  const browserConfig: BrowserConfig = readConfig(options.cwd).browser ?? {};
+  const isolation = options.browserIsolation ?? browserConfig.isolation ?? 'page';
+  const headless = options.headed === true ? false : (browserConfig.headless ?? true);
+  const viewport = browserConfig.viewport ?? { width: 1000, height: 720 };
+  const colorScheme = browserConfig.colorScheme;
+  const traceOnFailure = browserConfig.traceOnFailure === true;
+
+  const [bundled, baseUrl] = await Promise.all([
+    bundleLawFile(law.jsFile, options.cwd),
+    ensureBrowserServer(options.cwd, browserConfig.vite),
+  ]);
+  const browser = await launch(resolveEngine(options.browser), headless);
+  const context = await browser.newContext({ viewport, ...(colorScheme === undefined ? {} : { colorScheme }) });
+  if (traceOnFailure) await context.tracing.start({ screenshots: true, snapshots: true }).catch(() => undefined);
+  const page = await context.newPage();
+
+  const useInBrowserFc =
+    browserConfig.inBrowser !== false &&
+    options.onEvent === undefined &&
+    !(options.browserPauseMs !== undefined && options.browserPauseMs > 0) &&
+    canRunInBrowser(law.plans);
+
+  let activeFrame: Frame = page.mainFrame();
   let calls = 0;
   let timedOut = false;
   const timer = setTimeout(() => {
     timedOut = true;
-    void page.close();
+    void context.close().catch(() => undefined);
   }, options.propertyTimeoutMs ?? 30000);
+
   const pageErrors: string[] = [];
   page.on('pageerror', (error) => pageErrors.push(error.message));
-  // While someone watches, photograph the page a few times a second.
+
+  // While someone watches (`tslaws ui`), photograph the page a few times a second.
   let framing = false;
   const frames = options.onEvent
     ? setInterval(() => {
         if (framing || page.isClosed()) return;
         framing = true;
-        // Only while the law has left the page as it wants it seen, not between runs when it is empty.
-        page
+        activeFrame
           .evaluate(() => (window as unknown as { __shown?: boolean }).__shown === true)
           .then((shown) => (shown ? page.screenshot({ type: 'jpeg', quality: 55, timeout: 2000 }) : undefined))
           .then((jpeg) =>
@@ -332,17 +349,60 @@ export async function runBrowserLaw(law: BrowserLaw, options: CheckOptions): Pro
           .finally(() => (framing = false));
       }, 120)
     : undefined;
+
+  let clearMocks: (() => Promise<void>) | undefined;
+  let failed = false;
   try {
-    await page.setContent('<!doctype html><html><head><meta charset="utf-8"></head><body></body></html>');
-    // The stylesheet goes in before the script runs, as a linked one would.
-    if (css !== '') await page.addStyleTag({ content: css });
-    await page.addScriptTag({
-      content: `globalThis.${importMetaEnvGlobal} = ${JSON.stringify(lawEnv(options.cwd, 'browser'))};`,
-    });
-    await page.addScriptTag({ content: code });
-    await page.addScriptTag({ content: harness });
+    clearMocks = await installBridge(context, page, () => activeFrame);
+    const pageUrl = `${baseUrl}/__tslaws/page?id=${encodeURIComponent(bundled.id)}${useInBrowserFc ? '&fc=1' : ''}`;
+    if (isolation === 'iframe') {
+      await page.goto(`${baseUrl}/__tslaws/host`, { waitUntil: 'load' });
+      await page.evaluate(
+        (src) => (window as unknown as { __tslawsMountFrame: (s: string) => Promise<void> }).__tslawsMountFrame(src),
+        pageUrl,
+      );
+      const child = page.frame({ name: 'tslaws-law-frame' });
+      if (child === null) throw new Error('failed to mount isolated browser iframe');
+      activeFrame = child;
+      // Forward bridge calls from the iframe window to the top-level exposed binding.
+      await activeFrame.evaluate(() => {
+        (window as unknown as { __tslawsBridge?: unknown }).__tslawsBridge = (
+          window.parent as unknown as { __tslawsBridge?: unknown }
+        ).__tslawsBridge;
+      });
+    } else {
+      await page.goto(pageUrl, { waitUntil: 'load' });
+      activeFrame = page.mainFrame();
+    }
+
+    if (useInBrowserFc) {
+      const outcome = (await activeFrame.evaluate(
+        (spec) =>
+          (
+            window as unknown as {
+              __runPropertyInBrowser: (s: unknown) => Promise<PropertyOutcome & { rawCounterexample?: unknown[] }>;
+            }
+          ).__runPropertyInBrowser(spec),
+        {
+          symbol: law.symbol ?? law.name,
+          plans: law.plans,
+          runs: options.runs,
+          seed: options.seed,
+          regressionExamples: options.regressionExamples,
+        },
+      )) as PropertyOutcome & { rawCounterexample?: unknown[] };
+      if (timedOut) return 'timeout';
+      const rawCounterexample = outcome.rawCounterexample;
+      delete outcome.rawCounterexample;
+      if (outcome.failed && rawCounterexample !== undefined && !page.isClosed()) {
+        failed = true;
+        outcome.screenshot = await capture(page, activeFrame, law, rawCounterexample, options);
+      }
+      return outcome;
+    }
+
     const call = async (...args: unknown[]): Promise<unknown> => {
-      const outcome = (await page.evaluate(
+      const outcome = (await activeFrame.evaluate(
         ([name, input, pause]) =>
           (
             window as unknown as {
@@ -351,19 +411,26 @@ export async function runBrowserLaw(law: BrowserLaw, options: CheckOptions): Pro
           ).__runLaw(name as string, input as unknown[], false, pause as number),
         [law.symbol ?? law.name, toWire(args), calls++ < 12 ? (options.browserPauseMs ?? 0) : 0] as const,
       )) as PageOutcome;
+      if (outcome.discarded === true) {
+        const discard = new Error('law input discarded');
+        discard.name = 'LawDiscard';
+        throw discard;
+      }
       if (outcome.error !== undefined) {
         const error = new Error(outcome.error.message);
         error.name = outcome.error.name ?? 'Error';
+        if (outcome.error.stack !== undefined) error.stack = outcome.error.stack;
         throw error;
       }
       return outcome.ok;
     };
     const details = await runProperty(call, law.generators, options);
-    // Closing the page fails the call in flight, which the property reports as a failure of the law.
     if (timedOut) return 'timeout';
     const outcome = summarise(details, options);
-    if (details.failed && details.counterexample !== null && !page.isClosed())
-      outcome.screenshot = await capture(page, law, details.counterexample, options);
+    if (details.failed && details.counterexample !== null && !page.isClosed()) {
+      failed = true;
+      outcome.screenshot = await capture(page, activeFrame, law, details.counterexample, options);
+    }
     return outcome;
   } catch (error) {
     if (timedOut) return 'timeout';
@@ -372,6 +439,18 @@ export async function runBrowserLaw(law: BrowserLaw, options: CheckOptions): Pro
   } finally {
     clearTimeout(timer);
     if (frames !== undefined) clearInterval(frames);
-    if (!page.isClosed()) await page.close();
+    if (traceOnFailure) {
+      if (failed) {
+        const traceDir = join(options.cwd, '.tslaws', 'traces');
+        mkdirSync(traceDir, { recursive: true });
+        await context.tracing
+          .stop({ path: join(traceDir, `${law.name.replace(/[^\w-]/g, '_')}.zip`) })
+          .catch(() => undefined);
+      } else {
+        await context.tracing.stop().catch(() => undefined);
+      }
+    }
+    await clearMocks?.().catch(() => undefined);
+    await context.close().catch(() => undefined);
   }
 }

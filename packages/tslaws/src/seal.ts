@@ -33,7 +33,7 @@ const digest = (data: string | Buffer): string => createHash('sha256').update(da
 
 /** The code as its tokens joined by one space: no comments or layout, every literal exact. */
 function tokensOf(text: string, fileName: string): string {
-  const source = ts.createSourceFile(fileName, text, ts.ScriptTarget.Latest, true);
+  const source = ts.createSourceFile(fileName, text, ts.ScriptTarget.Latest, false);
   const tokens: string[] = [];
   const visit = (node: ts.Node): void => {
     if (node.kind >= ts.SyntaxKind.FirstJSDocNode && node.kind <= ts.SyntaxKind.LastJSDocNode) return;
@@ -47,14 +47,51 @@ function tokensOf(text: string, fileName: string): string {
 
 const scripts = /\.(?:[cm]?[jt]sx?)$/;
 
+/** Stat-validated cache for file digests and module specifiers so unchanged files aren't re-parsed across checks. */
+const digestCache = new Map<string, { size: number; mtimeMs: number; digest: string }>();
+const specifierCache = new Map<string, { size: number; mtimeMs: number; specifiers: string[] }>();
+
 /** The line endings of a checkout must not matter, so text is read with `\n`. */
 const readText = (path: string): string => readFileSync(path, 'utf8').replaceAll('\r\n', '\n');
 
 /** A file's digest: the tokens of a script, the text of any other text file, the bytes of a binary one. */
 function digestOf(path: string): string {
-  if (scripts.test(path)) return digest(tokensOf(readText(path), path));
-  const bytes = readFileSync(path);
-  return digest(bytes.includes(0) ? bytes : bytes.toString('utf8').replaceAll('\r\n', '\n'));
+  let st: { size: number; mtimeMs: number } | undefined;
+  try {
+    st = statSync(path);
+    const cached = digestCache.get(path);
+    if (cached !== undefined && cached.size === st.size && cached.mtimeMs === st.mtimeMs) return cached.digest;
+  } catch {
+    // Fall through to readFileSync which throws if unreadable.
+  }
+  let result: string;
+  if (scripts.test(path)) result = digest(tokensOf(readText(path), path));
+  else {
+    const bytes = readFileSync(path);
+    result = digest(bytes.includes(0) ? bytes : bytes.toString('utf8').replaceAll('\r\n', '\n'));
+  }
+  if (st !== undefined) {
+    if (digestCache.size > 4000) digestCache.clear();
+    digestCache.set(path, { size: st.size, mtimeMs: st.mtimeMs, digest: result });
+  }
+  return result;
+}
+
+function cachedSpecifiers(path: string): string[] {
+  let st: { size: number; mtimeMs: number } | undefined;
+  try {
+    st = statSync(path);
+    const cached = specifierCache.get(path);
+    if (cached !== undefined && cached.size === st.size && cached.mtimeMs === st.mtimeMs) return cached.specifiers;
+  } catch {
+    // Fall through.
+  }
+  const specifiers = moduleSpecifiers(readText(path), path).map((s) => s.value);
+  if (st !== undefined) {
+    if (specifierCache.size > 4000) specifierCache.clear();
+    specifierCache.set(path, { size: st.size, mtimeMs: st.mtimeMs, specifiers });
+  }
+  return specifiers;
 }
 
 const builtins = new Set(builtinModules);
@@ -149,7 +186,7 @@ class Linker {
     if (installed !== undefined && installed !== 'linked') externals.push(registry(installed, specifier));
     const found = ts.resolveModuleName(specifier, from, this.options, ts.sys).resolvedModule;
     const typesOnly =
-      builtin && found !== undefined && /[\/]node_modules[\/]@types[\/]/.test(realOf(found.resolvedFileName));
+      builtin && found !== undefined && /[/]node_modules[/]@types[/]/.test(realOf(found.resolvedFileName));
     if (found !== undefined && existsSync(found.resolvedFileName) && !typesOnly) {
       const real = realOf(found.resolvedFileName);
       if (underNodeModules.test(real)) {
@@ -330,9 +367,7 @@ class Sealer {
       try {
         found = {
           digest: digestOf(path),
-          links: scripts.test(path)
-            ? moduleSpecifiers(readText(path), path).map((s) => this.linker.link(s.value, path))
-            : [],
+          links: scripts.test(path) ? cachedSpecifiers(path).map((s) => this.linker.link(s, path)) : [],
         };
       } catch {
         return undefined;
