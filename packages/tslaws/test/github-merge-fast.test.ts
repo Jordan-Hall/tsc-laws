@@ -210,7 +210,7 @@ describe('a partial check', () => {
 describe('the two-job flow', () => {
   const blobSha = (text: string): string =>
     createHash('sha1')
-      .update(`blob ${Buffer.byteLength(text)} `)
+      .update(`blob ${Buffer.byteLength(text)}${String.fromCharCode(0)}`)
       .update(text)
       .digest('hex');
 
