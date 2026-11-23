@@ -50,7 +50,7 @@ import {
   type Proposal,
 } from './github.ts';
 import { lockLevels } from './lawKinds.ts';
-import { acceptChanges, lawKey, lockChanges, readLock, writeLockValue, type Lock } from './lock.ts';
+import { acceptChanges, lawKey, lockChanges, readLock, writeLockValue, type Lock, type LockChange } from './lock.ts';
 import { escapeGithubData, escapeGithubProperty } from './reporters.ts';
 import type { CheckOptions, ManifestLaw } from './types.ts';
 import { plural } from './plural.ts';
@@ -367,9 +367,15 @@ function resultsOf(ctx: GithubContext, file: string, mode: Results['mode'], sha:
  * The report of one project's laws: from the results file when `--results` names one, else from a run in a child with no
  * credentials. Either way it is validated as data before anything acts on it.
  */
-async function runLaws(ctx: GithubContext, unit: Unit, mode: Results['mode'], sha: string): Promise<CheckReport> {
+async function runLaws(
+  ctx: GithubContext,
+  unit: Unit,
+  mode: Results['mode'],
+  sha: string,
+  only?: readonly string[],
+): Promise<CheckReport> {
   const file = ctx.flags.get('results');
-  if (typeof file !== 'string') return checkIsolated(unit.options, true, expectedOf(unit));
+  if (typeof file !== 'string') return runIsolated(unit, only);
   const entry = Object.hasOwn(resultsOf(ctx, file, mode, sha).projects, unit.path)
     ? resultsOf(ctx, file, mode, sha).projects[unit.path]
     : undefined;
@@ -377,7 +383,27 @@ async function runLaws(ctx: GithubContext, unit: Unit, mode: Results['mode'], sh
   if (typeof entry.error === 'string') throw new Error(entry.error);
   if (entry.lockSha !== lockShaOf(unit))
     throw new Error(`${label(unit)}'s lock is not the one its laws were run against`);
-  return readReport(entry.report, expectedOf(unit));
+  return readReport(entry.report, expectedFor(unit, only));
+}
+
+/** What a report must hold: every law, or just the ones a partial run was asked for. */
+const expectedFor = (unit: Unit, only?: readonly string[]): Expected => ({
+  ...expectedOf(unit),
+  ...(only === undefined ? {} : { required: new Set(only) }),
+});
+
+/** The laws of a project run in a child with no credentials: all of them, or only the laws with these keys. */
+function runIsolated(unit: Unit, only?: readonly string[]): Promise<CheckReport> {
+  const options = only === undefined ? unit.options : { ...unit.options, onlyKeys: [...only] };
+  return checkIsolated(options, true, expectedFor(unit, only));
+}
+
+/**
+ * The laws a merge has to run in a project: the ones the lock does not record as they are. A removal or an exemption runs
+ * nothing, and a law the lock records is neither proposed nor accepted by a merge, so proving it again would change nothing.
+ */
+function lawsToProve(changes: LockChange[]): string[] {
+  return changes.filter((c) => c.kind === 'law' && c.reason !== 'removed').map((c) => c.key);
 }
 
 /** `--results-out <file>`: run the laws of every project and write the reports, doing nothing else. Needs no token. */
@@ -391,7 +417,13 @@ async function collect(ctx: GithubContext, mode: Results['mode'], file: string):
   for (const { unit } of active) {
     const entry: Results['projects'][string] = { lockSha: lockShaOf(unit) };
     try {
-      entry.report = await checkIsolated(unit.options, true, expectedOf(unit));
+      if (mode === 'report') entry.report = await runIsolated(unit);
+      else {
+        // A merge acts only on what the lock does not record, which it works out again from the same lock and files.
+        const state = projectState(unit.options);
+        const only = lawsToProve(lockChanges(state.lock, state.laws, state.exempt, state.levels));
+        if (only.length > 0) entry.report = await runIsolated(unit, only);
+      }
     } catch (error) {
       entry.error = error instanceof Error ? error.message : String(error);
     }
@@ -1261,19 +1293,25 @@ async function merge(ctx: GithubContext): Promise<number> {
       }
       writeFileSync(lockFile, Buffer.from(headLock.content, 'base64'));
     }
-    let checked: CheckReport;
+    // What the lock does not record yet is all a merge acts on, and the files alone tell what that is. A project the
+    // lock already records runs nothing, and otherwise only the laws that changed run: a law the lock records is
+    // neither proposed nor accepted here, so proving it again would change nothing.
+    let checked: CheckReport | undefined;
     let state: ProjectState;
+    let changes: LockChange[];
     try {
-      checked = await runLaws(ctx, unit, 'merge', sha);
       state = projectState(unit.options);
+      changes = lockChanges(state.lock, state.laws, state.exempt, state.levels);
+      const toRun = lawsToProve(changes);
+      if (toRun.length > 0) checked = await runLaws(ctx, unit, 'merge', sha, toRun);
     } catch (error) {
       if (!monorepo) throw error;
       stop(`tslaws: ${label(unit)} could not be checked: ${error instanceof Error ? error.message : String(error)}`);
       continue;
     }
-    const proposals = proposalsOf(lockChanges(state.lock, state.laws, state.exempt, state.levels), checked, unit.path);
+    const proposals = proposalsOf(changes, checked, unit.path);
     if (proposals.length === 0) {
-      ctx.out(`tslaws: ${monorepo ? `${label(unit)}: ` : ''}the lock already records every law\n`);
+      ctx.out(`tslaws: ${monorepo ? `${label(unit)}: ` : ''}the lock already records every law; no law ran\n`);
       continue;
     }
     // Each record's author is checked again now, against this project's own approvers: someone who lost write access,
