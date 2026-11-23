@@ -40,7 +40,7 @@ Laws, migration and delegated accept: why laws make a port safer, and how a pers
 
 [tslaws-delegation-explainer.mp4](docs/media/tslaws-delegation-explainer.mp4)
 
-What is new in v1: monorepos, `--changed`, proof certificates checked by Carcara, loop invariants and a lock that binds each certificate to its problem (4 minutes):
+What is new in v1: monorepos, `--changed`, proof certificates checked by Carcara (loops included), invariants cross-checked by Eldarica and Golem, and a lock that binds each certificate to its problem (under 4 minutes):
 
 <video src="https://github.com/Jordan-Hall/tsc-laws/raw/main/docs/media/tslaws-v1.mp4" controls muted width="480"></video>
 

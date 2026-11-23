@@ -20,6 +20,7 @@ import { derivedStore } from './derived.ts';
 import { jobs } from './pool.ts';
 import { hostConfig, LawLoadError, Sandbox, useSandbox, warnE2e, warmSandbox } from './sandbox.ts';
 import {
+  bindingOf,
   certificateFailure,
   hashOf,
   noCertificate,
@@ -159,7 +160,7 @@ export async function certificatesToAccept(
   // failed candidate never costs the lock a certificate that is still current.
   for (const [key, record] of Object.entries(held ?? {})) {
     if (accepted[key] !== undefined) continue;
-    if (now.get(key) === record?.law && problems.get(key)?.has(record.problemHash)) accepted[key] = record;
+    if (now.get(key) === record?.law && problems.get(key)?.has(bindingOf(record)!)) accepted[key] = record;
     else drop(key, 'the law or its proof problem changed since it was certified');
   }
   if (toolsMissing)

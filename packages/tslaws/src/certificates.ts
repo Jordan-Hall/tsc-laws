@@ -10,6 +10,7 @@ import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { certificationProblem, type HornCertification } from './chc.ts';
 import { cvc5Text, toolCommand } from './solvers.ts';
 
 /** `certify` in tslaws.json: off (absent or false), on, or `"require"`, where a law without a certificate is an error. */
@@ -24,6 +25,11 @@ export interface Certificate {
   reason?: string;
   /** SHA-256 of the SMT-LIB problem both tools read. */
   problemHash?: string;
+  /**
+   * For a proof by loop invariants: SHA-256 of the Horn text the invariants are for. The problem holds the invariants
+   * Z3 found, which can differ from run to run, so the law is bound to this text (which the code alone yields) instead.
+   */
+  systemHash?: string;
   /** SHA-256 of the Alethe proof. */
   proofHash?: string;
   /** SHA-256 of the checker's verdict bound to the problem and proof it checked. */
@@ -146,6 +152,8 @@ export interface CertifyOptions {
   timeoutMs: number;
   /** Where to keep the problem and proof (`<name>.smt2`, `<name>.alethe`); without it they are removed after the check. */
   keep?: { dir: string; name: string; root: string };
+  /** Set when the query is a loop proof made by `certificationProblem`: the text it came from, kept beside the proof. */
+  horn?: HornCertification;
 }
 
 /** The hash that binds a checker's verdict to the problem and the proof it checked. */
@@ -345,12 +353,17 @@ export async function certify(query: string, options: CertifyOptions): Promise<C
       problemHash,
       proofHash,
       checkerHash: checkerHashOf(verdict, problemHash, proofHash),
+      ...(options.horn === undefined ? {} : { systemHash: hashOf(options.horn.horn) }),
     };
     if (options.keep !== undefined) {
       const { dir, name, root } = options.keep;
       mkdirSync(dir, { recursive: true });
       writeFileSync(join(dir, `${name}.smt2`), problem);
       writeFileSync(join(dir, `${name}.alethe`), `${proof}\n`);
+      if (options.horn !== undefined) {
+        writeFileSync(join(dir, `${name}.horn`), options.horn.horn);
+        writeFileSync(join(dir, `${name}.inv`), options.horn.invariants);
+      }
       certificate.proofFile = join(dir, `${name}.alethe`)
         .slice(root.length + 1)
         .replaceAll('\\', '/');
@@ -362,6 +375,22 @@ export async function certify(query: string, options: CertifyOptions): Promise<C
 }
 
 /**
+ * Certifies a proof by loop invariants. The invariants Z3's Spacer found are put back into the clauses
+ * (`certificationProblem`), and the problem that results is an ordinary query, refuted by cvc5 and checked by Carcara
+ * like any other: a certificate says that the invariants hold at entry, are kept by every pass of the body, and imply the
+ * law, and Spacer needs no more trust than a guess does.
+ */
+export async function certifyHorn(certification: HornCertification, options: CertifyOptions): Promise<Certificate> {
+  const query = certificationProblem(certification.horn, certification.invariants);
+  if (query === undefined)
+    return {
+      status: 'uncertified',
+      reason: 'the loop invariants could not be put back into the clauses to be checked',
+    };
+  return certify(query, { ...options, horn: certification });
+}
+
+/**
  * One certified law as the lock records it. `law` is the law's lock hash, so a later edit voids the record, and
  * `problemHash` is the hash of the exact SMT-LIB problem that was proved, so a change to code the law calls (which the
  * law's own hash does not cover) voids it too: a record is made only from a proof this run produced.
@@ -369,9 +398,15 @@ export async function certify(query: string, options: CertifyOptions): Promise<C
 export interface CertificateRecord {
   law: string;
   problemHash: string;
+  /** For a proof by loop invariants: the hash of the Horn text, which is what the code determines (see `Certificate`). */
+  systemHash?: string;
   proofHash: string;
   checkerHash: string;
 }
+
+/** What binds a record to the code: the Horn text for a loop proof, the problem itself for any other. */
+export const bindingOf = (hashes: { problemHash?: string; systemHash?: string }): string | undefined =>
+  hashes.systemHash ?? hashes.problemHash;
 
 /** The file name a law's problem and proof are kept under, beside `.tslaws/certificates/`. */
 export function certificateName(key: string): string {
@@ -437,12 +472,25 @@ export async function verifyRecord(
   if (typeof r !== 'object' || r === null || !isHash(r.problemHash) || !isHash(r.proofHash) || !isHash(r.checkerHash))
     return 'the record is malformed';
   if (r.law !== lawNow) return 'the law changed since it was certified';
-  if (!problems.has(r.problemHash)) return 'the record is for a different proof problem than the law yields now';
+  if (r.systemHash !== undefined && !isHash(r.systemHash)) return 'the record is malformed';
+  if (!problems.has(bindingOf(r)!)) return 'the record is for a different proof problem than the law yields now';
   const name = certificateName(key);
   const problemFile = join(certificatesDir(cwd), `${name}.smt2`);
   const proofFile = join(certificatesDir(cwd), `${name}.alethe`);
   if (!existsSync(problemFile) || !existsSync(proofFile)) return 'the saved problem or proof is missing';
-  if (hashOf(readFileSync(problemFile, 'utf8')) !== r.problemHash) return 'the saved problem does not match the record';
+  const savedProblem = readFileSync(problemFile, 'utf8');
+  if (hashOf(savedProblem) !== r.problemHash) return 'the saved problem does not match the record';
+  if (r.systemHash !== undefined) {
+    // A loop proof: the saved problem must be what the invariants make of the Horn text the code yields, and nothing else.
+    const hornFile = join(certificatesDir(cwd), `${name}.horn`);
+    const invariantFile = join(certificatesDir(cwd), `${name}.inv`);
+    if (!existsSync(hornFile) || !existsSync(invariantFile)) return 'the saved clauses or invariants are missing';
+    const horn = readFileSync(hornFile, 'utf8');
+    if (hashOf(horn) !== r.systemHash) return 'the saved clauses do not match the record';
+    const query = certificationProblem(horn, readFileSync(invariantFile, 'utf8'));
+    if (query === undefined || problemText(query) !== savedProblem)
+      return 'the saved invariants do not turn the clauses into the saved problem';
+  }
   if (hashOf(readFileSync(proofFile, 'utf8')) !== r.proofHash) return 'the saved proof does not match the record';
   const checked = await recheck(problemFile, proofFile, timeoutMs);
   if (checked.status !== 'certified') return checked.reason;
@@ -457,6 +505,7 @@ export function recordOf(lawHash: string, certificate: Certificate): Certificate
   return {
     law: lawHash,
     problemHash: certificate.problemHash!,
+    ...(certificate.systemHash === undefined ? {} : { systemHash: certificate.systemHash }),
     proofHash: certificate.proofHash!,
     checkerHash: certificate.checkerHash!,
   };
@@ -470,5 +519,5 @@ export const noCertificate: Certificate = { status: 'uncertified', reason: 'no c
  * that did not certify it, has nothing to compare.
  */
 export function staleRecord(record: CertificateRecord | undefined, certificate: Certificate): boolean {
-  return record !== undefined && (certificate.status !== 'certified' || certificate.problemHash !== record.problemHash);
+  return record !== undefined && (certificate.status !== 'certified' || bindingOf(certificate) !== bindingOf(record));
 }

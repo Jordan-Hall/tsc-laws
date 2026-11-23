@@ -20,6 +20,32 @@ It does not cover:
   ones that can be certified, subject to what cvc5 can prove in Alethe: if cvc5 prints no proof, the law is
   `uncertified (cvc5 gave no Alethe proof (...))`.
 
+## Laws about loops
+
+A loop with no written `invariant(...)` is proved by finding one: Z3's Spacer engine solves the loop's Horn clauses and
+returns an invariant `Inv`, and Z3 checks that answer again (see [Laws](laws.md)). Spacer is not asked to be right; the
+certificate checks the invariant instead of trusting it:
+
+1. `tslaws` puts the invariant in place of `Inv` in every clause (entry, one pass of the body, and the loop's exit
+   implying the law, with the obligations of the body) and joins them in one problem that asks whether some clause fails
+   for some values. That problem has no quantifier and no unknown predicate.
+2. cvc5 answers `unsat` and writes an Alethe proof of it, and Carcara checks the proof, as for any other law.
+
+`unsat` means every clause holds for every value, so `Inv` is true on entry, kept by every pass and enough for the law. That
+holds for any `Inv`, so nothing depends on how Spacer found it. The result reads `certificate: certified` beside the
+`loop 1 invariant over (...)` line. The Horn clauses are the translation from your code, which a certificate never covers,
+and the same limits as above apply (integers and booleans only, and no `mod`).
+
+The invariant can differ from run to run, so the record cannot bind to the problem as the other laws do. It binds to the
+Horn text instead, which the code alone yields, and `tslaws accept` rebuilds that text from the compiled code. The lock
+record carries a `systemHash` for it. `.tslaws/certificates/` keeps two more files for such a law, the clauses (`.horn`) and
+the invariants (`.inv`). Accept checks that the clauses hash as the record says and are the ones the law yields now, then
+puts the saved invariants into the saved clauses itself and requires the result to be exactly the saved problem, so the
+invariants cannot be swapped for others that make a different problem. Then Carcara checks the proof of that problem again.
+
+Eldarica and Golem, when installed, still confirm the invariant independently; that is a cross-check of the proof search and
+no part of the certificate.
+
 ## Turning it on
 
 ```json
@@ -112,6 +138,7 @@ Records already in the lock are kept only while their law and problem still matc
     "laws/math.laws.ts::addition commutes": {
       "law": "<law hash>",
       "problemHash": "<sha-256 of the SMT-LIB problem>",
+      "systemHash": "<sha-256 of the Horn clauses, for a law proved with loop invariants only>",
       "proofHash": "<sha-256 of the Alethe proof>",
       "checkerHash": "<sha-256 of Carcara's verdict, bound to the problem and proof>"
     }

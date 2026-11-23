@@ -1,8 +1,9 @@
 name: certificates
 
-# Runs the real cvc5 and Carcara against the proof certificates of tslaws: cvc5 writes an Alethe proof of an `unsat`
-# query and Carcara checks it. The tools are pinned (cvc5 by release and sha256, Carcara by commit), so a change in
-# their options or output shows up here and not in a user's CI.
+# Runs every proof tool tslaws can use, the real ones: cvc5 writes an Alethe proof of an `unsat` query and Carcara checks
+# it (straight-line laws and the invariants of loops alike), and Eldarica and Golem confirm the loop invariants Z3 finds.
+# The tools are pinned (by release and sha256, or by commit), so a change in their options or output shows up here and not
+# in a user's CI. The job ends by holding tslaws to its own laws with all of them present.
 on:
   push:
     branches: [main, laws]
@@ -13,7 +14,12 @@ on:
       - 'packages/tslaws/src/smt.ts'
       - 'packages/tslaws/src/lock.ts'
       - 'packages/tslaws/src/check.ts'
+      - 'packages/tslaws/src/chc.ts'
+      - 'packages/tslaws/laws/**'
       - 'packages/tslaws/test/certificates.test.ts'
+      - 'packages/tslaws/test/certificates.problems.json'
+      - 'packages/tslaws/test/chc.test.ts'
+      - '.github/actions/proof-tools/**'
       - 'scripts/ci/certificates-*'
       - '.github/workflows/certificates.yml'
   workflow_dispatch:
@@ -21,15 +27,9 @@ on:
 permissions:
   contents: read
 
-env:
-  CVC5_RELEASE: cvc5-1.4.2
-  CVC5_ASSET: cvc5-Linux-x86_64-static.zip
-  CVC5_SHA256: 7eb18f8c814c36a46c5a7d003983e9cfbc4b0a9828d6dd596239291bd4cc61d8
-  CARCARA_REV: 20bf49c5ce31089ac83118574c888669355aaae1
-
 jobs:
   certificates:
-    name: cvc5 and Carcara
+    name: cvc5, Carcara, Eldarica and Golem
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
@@ -38,41 +38,19 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      - name: Install cvc5
-        run: |
-          mkdir -p "$HOME/cvc5" "$RUNNER_TEMP/cvc5-download"
-          curl -fsSL -o "$RUNNER_TEMP/cvc5-download/$CVC5_ASSET" \
-            "https://github.com/cvc5/cvc5/releases/download/$CVC5_RELEASE/$CVC5_ASSET"
-          echo "$CVC5_SHA256  $RUNNER_TEMP/cvc5-download/$CVC5_ASSET" | sha256sum -c -
-          unzip -q "$RUNNER_TEMP/cvc5-download/$CVC5_ASSET" -d "$HOME/cvc5"
-          echo "TSLAWS_CVC5=$(echo "$HOME"/cvc5/*/bin/cvc5)" >> "$GITHUB_ENV"
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
-        id: carcara-cache
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            ~/.carcara
-          key: carcara-${{ runner.os }}-${{ env.CARCARA_REV }}
-      - name: Install Carcara
-        if: steps.carcara-cache.outputs.cache-hit != 'true'
-        run: cargo install --locked --git https://github.com/ufmg-smite/carcara --rev "$CARCARA_REV" --root "$HOME/.carcara" carcara
-      - run: echo "TSLAWS_CARCARA=$HOME/.carcara/bin/carcara" >> "$GITHUB_ENV"
-      - name: Show the tools
-        run: |
-          "$TSLAWS_CVC5" --version | head -2
-          "$TSLAWS_CARCARA" --version
+      # cvc5, Carcara, Eldarica and Golem, pinned; the action sets the TSLAWS_* variables the steps below use.
+      - uses: ./.github/actions/proof-tools
       - run: npm ci --ignore-scripts
       - run: npm run build -w tslaws
       # The same sample problems the test certifies, with the tools' full output, to see why a certificate fails.
       - name: Try the tools by hand
         if: always()
         run: node scripts/ci/certificates-smoke.mjs
-      - name: Certify with the real tools
+      - name: Certify and cross-check with the real tools
         working-directory: packages/tslaws
         env:
           TSLAWS_REQUIRE_CERT_TOOLS: '1'
-        run: node --test test/certificates.test.ts
+        run: node --test test/certificates.test.ts test/chc.test.ts
       # A certified check, end to end, with the real tools: check, accept (the lock keeps the certificates), check, and check with
       # certificates required. It prints what the report and the lock look like. `accept` needs a terminal and refuses CI,
       # so it runs under `script` (a pseudo-terminal) with the CI variable removed; nothing else changes.
@@ -95,3 +73,17 @@ jobs:
           echo "exit status $status"
           echo '--- tsc-laws.lock'
           cat tsc-laws.lock
+      # The loops are certified too: Z3 finds the invariant, cvc5 refutes the clauses with it put in, Carcara checks that.
+      - name: The loop laws are certified
+        working-directory: scripts/ci/certificates-demo
+        run: |
+          node "$GITHUB_WORKSPACE/packages/tslaws/bin/tslaws.js" check > loops.txt || true
+          cat loops.txt
+          for name in 'counting up reaches n' 'the largest is never negative'; do
+            grep -A3 "PROVED   $name" loops.txt | grep -q 'certificate: certified'               || { echo "::error::the loop law '$name' is not certified"; exit 1; }
+          done
+      # tslaws held to its own laws with every tool present: the proofs are certified and the loop invariants cross-checked by
+      # the other solvers. Nothing here may fail or be tampered with.
+      - name: tslaws checks its own laws
+        working-directory: packages/tslaws
+        run: node bin/tslaws.js check laws/core.laws.ts --certify --summary
