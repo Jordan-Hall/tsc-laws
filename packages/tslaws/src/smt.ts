@@ -25,7 +25,14 @@ import {
   type Certificate,
   type CertifyMode,
 } from './certificates.ts';
-import { hornText, runExternalSolvers, solveHorn, type HornCertification, type HornSystem } from './chc.ts';
+import {
+  hornText,
+  runExternalSolvers,
+  SolverCrash,
+  solveHorn,
+  type HornCertification,
+  type HornSystem,
+} from './chc.ts';
 import { lawKey } from './lock.ts';
 import { SolverUnavailable, secondOpinion, type SolverName } from './solvers.ts';
 import { Executor, SpuriousModel, Unsupported, and, not, type SeqElement, type Value } from './symbolic.ts';
@@ -315,11 +322,31 @@ function startWorker(): Worker {
 }
 
 // Each Z3 instance holds a large WebAssembly heap; more than four at once run out of memory on the bigger queries.
-const solvers = new WorkerPool(startWorker, () => Math.min(4, jobs()));
+let spawnWorker = startWorker;
+const solvers = new WorkerPool(
+  () => spawnWorker(),
+  () => Math.min(4, jobs()),
+);
+
+/**
+ * Starts the Z3 workers with `start` from now on and ends the idle ones, which were started the old way; the returned
+ * function puts the first way back. For tests that make a worker crash.
+ */
+export function startSolverWorkersWith(start: () => Worker): () => void {
+  const before = spawnWorker;
+  spawnWorker = start;
+  solvers.close();
+  return () => {
+    spawnWorker = before;
+    solvers.close();
+  };
+}
 
 /**
  * Runs the query, and runs it again in a fresh worker when the solver itself fell over (a WebAssembly allocation that
- * fails on a machine short of memory). A query that merely ran too long is not retried: it would only run long again.
+ * fails on a machine short of memory). Idle workers are ended first, so the retry has their memory. A query that merely
+ * ran too long is not retried: it would only run long again. A crash that outlasts the retries throws `SolverCrash`,
+ * never `Unsupported`, so a proof cannot take it for a solver that gave up.
  */
 export async function solve(query: string, values: string, timeoutMs: number): Promise<{ out: string; vals: string }> {
   for (let attempt = 0; ; attempt += 1) {
@@ -327,12 +354,17 @@ export async function solve(query: string, values: string, timeoutMs: number): P
       // A solve is a slot of the budget (the law's own, when it runs under one).
       return await budget.run(() => solveOnce(query, values, timeoutMs));
     } catch (error) {
-      if (attempt >= 2 || !(error instanceof Unsupported) || !error.message.startsWith('the solver crashed'))
-        throw error;
+      if (!(error instanceof SolverCrash)) throw error;
+      if (attempt >= crashRetries)
+        throw new SolverCrash(`${error.message} (the query was tried on ${plural(attempt + 1, 'fresh worker')})`);
+      solvers.close();
       await new Promise((done) => setTimeout(done, 400 * (attempt + 1)));
     }
   }
 }
+
+/** How many times a query is run again after the solver crashed. */
+const crashRetries = 2;
 
 /** One try: gives up on the whole worker after the timeout plus a grace period. */
 async function solveOnce(query: string, values: string, timeoutMs: number): Promise<{ out: string; vals: string }> {
@@ -343,6 +375,7 @@ async function solveOnce(query: string, values: string, timeoutMs: number): Prom
       clearTimeout(timer);
       current.off('message', onMessage);
       current.off('error', onError);
+      current.off('exit', onExit);
     };
     const kill = (): void => {
       solvers.discard(current);
@@ -357,7 +390,7 @@ async function solveOnce(query: string, values: string, timeoutMs: number): Prom
       drop();
       if (reply.error !== undefined) {
         kill();
-        reject(new Unsupported(`the solver crashed: ${reply.error}`));
+        reject(new SolverCrash(`the Z3 solver crashed: ${reply.error}`));
       } else {
         solvers.release(current);
         resolve({ out: reply.out ?? '', vals: reply.vals ?? '' });
@@ -366,10 +399,17 @@ async function solveOnce(query: string, values: string, timeoutMs: number): Prom
     const onError = (error: Error): void => {
       drop();
       kill();
-      reject(new Unsupported(`the solver crashed: ${error.message}`));
+      reject(new SolverCrash(`the Z3 solver crashed: ${error.message}`));
+    };
+    // A worker that ends without a word (an abort inside WebAssembly) would otherwise be waited for until the timeout.
+    const onExit = (code: number): void => {
+      drop();
+      kill();
+      reject(new SolverCrash(`the Z3 solver crashed: its worker exited with code ${code}`));
     };
     current.on('message', onMessage);
     current.on('error', onError);
+    current.on('exit', onExit);
     current.postMessage({ id, query, values });
   });
 }
@@ -429,6 +469,8 @@ export async function proveLaw(input: ProveInput): Promise<ProofResult> {
     }
   } catch (error) {
     if (error instanceof Unsupported) return { kind: 'unsupported', reason: error.message };
+    // Not `unsupported`: that would let a law that was merely not proved because Z3 fell over pass as tested.
+    if (error instanceof SolverCrash) return { kind: 'error', message: error.message };
     if (error instanceof SolverUnavailable) return { kind: 'error', message: error.message };
     throw error;
   }
@@ -595,6 +637,7 @@ async function attemptWith(
       input.timeoutMs,
     );
     if (verdict.kind === 'disagree') return { kind: 'unsupported', reason: verdict.reason };
+    if (verdict.kind === 'crash') throw new SolverCrash(verdict.reason);
     if (verdict.kind !== 'safe') return undefined;
     const assumptions = [...assumptionsFor(input.shapes, intLimit), ...verdict.invariants, ...verdict.notes];
     const certificate = await hornCertificate(input, verdict.certification);

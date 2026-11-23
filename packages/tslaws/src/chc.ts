@@ -59,6 +59,12 @@ export interface HornCertification {
   invariants: string;
 }
 
+/**
+ * The Z3 worker fell over: it threw, ran out of memory or exited, as opposed to answering `unknown` or running out of
+ * time. A proof must not read it as "no verdict", because that would quietly fall back to the bounded proof.
+ */
+export class SolverCrash extends Error {}
+
 export type ChcVerdict =
   /** A verified invariant for every loop; `notes` says which other solvers confirmed it or could not. */
   | { kind: 'safe'; invariants: string[]; notes: string[]; certification: HornCertification }
@@ -67,7 +73,9 @@ export type ChcVerdict =
   /** No answer, or an answer that did not verify. */
   | { kind: 'unknown'; reason: string }
   /** Spacer and another solver gave opposite answers. */
-  | { kind: 'disagree'; reason: string };
+  | { kind: 'disagree'; reason: string }
+  /** The Z3 worker crashed, on every try: nothing is known, and it is not a give-up. */
+  | { kind: 'crash'; reason: string };
 
 const unknown = (reason: string): ChcVerdict => ({ kind: 'unknown', reason });
 
@@ -246,7 +254,8 @@ async function verified(
 
 /**
  * Looks for an invariant for every loop in `system`, verifies it, and has the installed CHC solvers confirm it.
- * Never throws: anything that goes wrong is an `unknown` verdict, and the caller falls back to unrolling.
+ * Never throws: anything that goes wrong is an `unknown` verdict, and the caller falls back to unrolling. A crash of the
+ * Z3 worker is the exception to that fallback: it is a `crash` verdict, which the caller reports instead.
  */
 export async function solveHorn(system: HornSystem, engine: Engine, timeoutMs: number): Promise<ChcVerdict> {
   const query = hornText(system, timeoutMs);
@@ -279,6 +288,7 @@ export async function solveHorn(system: HornSystem, engine: Engine, timeoutMs: n
     };
     return { kind: 'safe', invariants, notes, certification };
   } catch (error) {
+    if (error instanceof SolverCrash) return { kind: 'crash', reason: error.message };
     return unknown((error as Error).message);
   }
 }
