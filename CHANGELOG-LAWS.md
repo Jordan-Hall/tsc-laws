@@ -2,6 +2,26 @@
 
 The upstream tsc-ts changelog is CHANGELOG.md. Releases of tsc-laws are tagged `laws-v<version>` (see RELEASING-LAWS.md).
 
+## [1.1.0](https://github.com/Jordan-Hall/tsc-laws/compare/laws-v1.0.0...laws-v1.1.0) (2026-11-23)
+
+
+### Features
+
+* README badges and a tslaws badge command ([#100](https://github.com/Jordan-Hall/tsc-laws/issues/100)) ([6a2ab0c](https://github.com/Jordan-Hall/tsc-laws/commit/6a2ab0c16e9dc5a52f4cabed815777a07c1cab6d))
+
+
+### Fixes
+
+* **node-laws:** drop plugin-loaded files from the module cache between runs ([#98](https://github.com/Jordan-Hall/tsc-laws/issues/98)) ([8df497d](https://github.com/Jordan-Hall/tsc-laws/commit/8df497d7c396176aaeb0ad9f05989311185bb705))
+* **node-laws:** resolve a plugin-loaded file's .ts imports to the compiled twin ([#94](https://github.com/Jordan-Hall/tsc-laws/issues/94)) ([885e992](https://github.com/Jordan-Hall/tsc-laws/commit/885e9926d87b7ae01b75c74015de56cbb4b16bf1))
+* **solver:** report a Z3 worker crash instead of quietly proving within bounds ([#99](https://github.com/Jordan-Hall/tsc-laws/issues/99)) ([c79490d](https://github.com/Jordan-Hall/tsc-laws/commit/c79490dc68802354f3d6b6a21971923a5ad46432))
+* **tslaws:** skip compiler-only tests without TSC_LAWS_BIN, name the missing compiler ([#101](https://github.com/Jordan-Hall/tsc-laws/issues/101)) ([8d6ad28](https://github.com/Jordan-Hall/tsc-laws/commit/8d6ad284a6cf1a0ef8645bd864904d86923bec72))
+
+
+### Performance
+
+* **github:** merge runs only the laws the lock does not record ([#92](https://github.com/Jordan-Hall/tsc-laws/issues/92)) ([21f9008](https://github.com/Jordan-Hall/tsc-laws/commit/21f9008f4ee1c841a002ebb6f934bac208d1cb04))
+
 ## [1.0.0](https://github.com/Jordan-Hall/tsc-laws/compare/laws-v0.10.0...laws-v1.0.0) (2026-11-23)
 
 
