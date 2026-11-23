@@ -73,6 +73,26 @@ export function useTransforms(next: Transforms): void {
   transforms = next;
 }
 
+/** The project files a `bundlerPlugins` hook loaded in this thread: they sit outside the output directory. */
+const pluginLoaded = new Set<string>();
+
+/** Runs the plugin transform and remembers the file, so the next run can drop it from the module cache. */
+function transformPlugin(...args: Parameters<Transforms['plugin']>): string {
+  pluginLoaded.add(args[0]);
+  return transforms.plugin(...args);
+}
+
+/**
+ * Drops from `cache` what a run must load again: every file under `outDir` (the build may have recompiled it) and every
+ * file the plugin hooks loaded. A template keeps the modules it imported; left cached it would share them with no one
+ * once the law's own copies are fresh.
+ */
+export function evictLoaded(cache: Record<string, unknown>, outDir: string): void {
+  for (const file of Object.keys(cache)) if (file.startsWith(outDir)) delete cache[file];
+  for (const file of pluginLoaded) delete cache[file];
+  pluginLoaded.clear();
+}
+
 /** The runtime a project registered, as the last build left it. */
 export function runtimeOf(cwd: string): LawRuntime | undefined {
   return projects.get(outDirOf(cwd));
@@ -126,7 +146,7 @@ export function installLawRuntime(runtime: LawRuntime): void {
     beside,
     twin: twinOf,
     twinOfSpecifier,
-    transform: (...args) => transforms.plugin(...args),
+    transform: transformPlugin,
   });
   const internals = Module as unknown as Internals;
   const original = internals._resolveFilename;
@@ -153,7 +173,7 @@ export function installLawRuntime(runtime: LawRuntime): void {
     const extension = extname(file).toLowerCase();
     if (!pluginExtensionNeeded(extension)) return plain.call(this, module, file);
     const owner = ownerOf(file);
-    module._compile(transforms.plugin(file, owner?.cwd ?? process.cwd(), owner?.bundlerPlugins ?? [], 'cjs'), file);
+    module._compile(transformPlugin(file, owner?.cwd ?? process.cwd(), owner?.bundlerPlugins ?? [], 'cjs'), file);
   };
   for (const extension of ['.ts', '.tsx', '.mts', '.cts'])
     internals._extensions[extension] = (module, file) => {

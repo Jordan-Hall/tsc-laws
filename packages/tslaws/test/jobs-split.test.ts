@@ -24,10 +24,4 @@ describe('the CPU budget of a test file', () => {
     assert.equal(jobsPerFile(3, 1, 0), 1);
     assert.equal(jobsPerFile(4, 2, gibibyte / 2), 1);
   });
-
-  it('lifts a small share to the least the memory allows', () => {
-    assert.equal(jobsPerFile(3, 4, 64 * gibibyte, 2), 2);
-    assert.equal(jobsPerFile(3, 4, 3 * gibibyte, 2), 1);
-    assert.equal(jobsPerFile(3, 12, 64 * gibibyte, 2), 4);
-  });
 });

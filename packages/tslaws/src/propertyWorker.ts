@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { parentPort } from 'node:worker_threads';
-import { installLawRuntime, runtimeFile, type LawRuntime } from './lawRuntime.ts';
+import { evictLoaded, installLawRuntime, runtimeFile, type LawRuntime } from './lawRuntime.ts';
 import { arbitraryOf, type Plan } from './plan.ts';
 import { jsPath, runLaw, summarise } from './propertyRun.ts';
 import { installLoaderHooks, setImportMetaEnv, type ImportMetaEnv } from './runtimeEnv.ts';
@@ -24,8 +24,8 @@ parentPort!.on(
       const generators = plans.map(arbitraryOf);
       // The build left the project's module resolution beside the output (aliases from its tsconfig, TypeScript sources).
       installLawRuntime(JSON.parse(readFileSync(join(outDir, runtimeFile), 'utf8')) as LawRuntime);
-      // The worker outlives a check, and the code may have been recompiled since the last one.
-      for (const loaded of Object.keys(require.cache)) if (loaded.startsWith(outDir)) delete require.cache[loaded];
+      // The worker outlives a check, and the code may have been recompiled since the last one. Files a plugin loaded go too.
+      evictLoaded(require.cache, outDir);
       const fn = (require(jsPath(outDir, law.file)) as Record<string, (...args: unknown[]) => unknown>)[
         law.symbol ?? law.name
       ]!;
