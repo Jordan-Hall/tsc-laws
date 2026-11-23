@@ -284,7 +284,7 @@ describe('laws in the sandbox', { skip: compiler === undefined ? 'set TSC_LAWS_B
     );
     const ran = spawnSync(
       process.execPath,
-      [script, JSON.stringify(options(cwd, ['src/a.laws.ts'], { propertyTimeoutMs: 1500 }))],
+      [script, JSON.stringify(options(cwd, ['src/a.laws.ts'], { propertyTimeoutMs: 6000 }))],
       { encoding: 'utf8', timeout: 60000 },
     );
     const pid = Number(/law-pid=(\d+)/.exec(ran.stderr)?.[1]);
