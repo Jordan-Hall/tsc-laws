@@ -35,6 +35,16 @@ import {
   personOnly,
   revokeFor,
 } from './delegation.ts';
+import {
+  badgeFiles,
+  badgeMarkdown,
+  badgesOf,
+  gitFacts,
+  repoRelative,
+  standingsOf,
+  writeBadges,
+  writeCertificatesPage,
+} from './badge.ts';
 import { certificateLabel } from './certificates.ts';
 import { fileOfKey, lockFormat, lockOf, mergeScoped, readLock, scopeOf, writeLockValue } from './lock.ts';
 import { lockLevels } from './lawKinds.ts';
@@ -57,6 +67,7 @@ tslaws propose <file.ts> [--from PATH]   write a proposal into .tslaws/proposals
 tslaws promote <proposal> [--to PATH] [--yes]   move a proposal from .tslaws/proposals/ into the tree at a path you confirm (people only: needs a terminal; run accept afterwards). It prints the imports and helper code it would add and asks first, and refuses an import of a file outside the project, under .tslaws/, node_modules or .git, or git-ignored; --yes adds it without asking (it is still printed; it never lets promote run without a terminal). In-tree *.proposed.laws.ts files (the usual proposals) promote with --all or by name
 tslaws list [--json]   the laws files and proposals of the project: the level each runs at (from its name, or its imports with levels: imports) and whether it is accepted, unaccepted or proposed (reads files and the lock; runs nothing)
 tslaws github report|command|merge|verify   accept laws on GitHub: flag and run each proposal on a pull request, record /tslaws accept comments, and write tsc-laws.lock on merge or on demand (workflow_dispatch) (CI only; see "github" in tslaws.json)
+tslaws badge [files...] [--out DIR] [--report FILE] [--repo OWNER/NAME] [--branch NAME] [--link URL] [--certify]   write the shields.io endpoint badges "laws: N proved" and "certificates: N verified" (badge-laws.json and badge-certificates.json) into DIR (default badges) from a check, or from the check --json output in FILE, and print the markdown that shows them. When a law is certified it also writes DIR/README.md, a page of the laws, their status and their proof files (copied to DIR/certificates). The URLs name the GitHub repository from --repo, $GITHUB_REPOSITORY or the origin remote (else OWNER/REPO), and both badges link to --link (default: that page, or tsc-laws.lock on the branch when no law is certified; the branch defaults to main). Commit the files; see docs/certificates.md
 tslaws mcp [--compiler PATH]   serve check, check_proposed, explain and propose as Model Context Protocol tools on stdio (cannot accept, promote or touch the lock)
 ${migrateUsage}
 ${securityUsage}
@@ -119,6 +130,10 @@ function parse(args: string[]): Parsed {
     'pr',
     'config-from',
     'results',
+    'report',
+    'repo',
+    'branch',
+    'link',
     'results-out',
     'head-sha',
     'rerun-workflow',
@@ -155,6 +170,7 @@ function parse(args: string[]): Parsed {
         arg === 'promote' ||
         arg === 'propose' ||
         arg === 'list' ||
+        arg === 'badge' ||
         arg === 'migrate' ||
         arg === 'delegate' ||
         arg === 'github' ||
@@ -507,6 +523,71 @@ function delegateCommand(
     return 1;
   }
   out(`accept is lent to agents for ${granted.root} until ${granted.expires}\n`);
+  return 0;
+}
+
+/**
+ * `tslaws badge [--out DIR]`: the two endpoint badges of the project, from a check run now or from the `check --json`
+ * output in `--report`. Writes only the two files and prints the markdown; never touches the lock.
+ */
+export async function badgeCommand(
+  cwd: string,
+  flags: Map<string, string | true>,
+  files: string[],
+  ctx: CommandContext,
+  run: Run = direct,
+): Promise<number> {
+  const err = ctx.err ?? stderrWrite;
+  const out = ctx.out ?? run.out;
+  for (const name of ['out', 'report', 'repo', 'branch', 'link']) {
+    if (flags.get(name) === true || flags.get(name) === '') {
+      err(`--${name} takes a value\n`);
+      return 1;
+    }
+  }
+  const text = (name: string): string | undefined => {
+    const value = flags.get(name);
+    return typeof value === 'string' ? value : undefined;
+  };
+  const repoFlag = text('repo');
+  if (repoFlag !== undefined && !/^[\w.-]+\/[\w.-]+$/.test(repoFlag)) {
+    err('--repo takes OWNER/NAME\n');
+    return 1;
+  }
+  const report = text('report');
+  let results: LawResult[];
+  if (report !== undefined) {
+    const given = JSON.parse(readFileSync(resolve(cwd, report), 'utf8')) as Partial<CheckReport>;
+    if (!Array.isArray(given.results)) {
+      err(`${report} is not the output of \`tslaws check --json\` for one project (it has no results)\n`);
+      return 1;
+    }
+    results = given.results;
+  } else {
+    const chosen = lawFiles(cwd, flags, files, run.skip);
+    if (chosen.length === 0) {
+      err('no laws files found (looking for *.laws.ts)\n');
+      return 1;
+    }
+    results = (await check({ ...options(cwd, flags, chosen), partial: files.length > 0 }, true)).results;
+  }
+  const dir = text('out') ?? 'badges';
+  const lock = readLock(join(cwd, 'tsc-laws.lock'));
+  const badges = badgesOf(standingsOf(results, lock));
+  writeBadges(resolve(cwd, dir), badges);
+  const page = writeCertificatesPage(cwd, resolve(cwd, dir), results, lock);
+  const git = gitFacts(cwd);
+  const repo = repoFlag ?? ctx.env.GITHUB_REPOSITORY ?? git.repo;
+  const where = repoRelative(cwd, dir, git.top);
+  const markdown = badgeMarkdown({ repo, branch: text('branch') ?? 'main', dir: where, link: text('link'), page });
+  out(`${badges.laws.label}: ${badges.laws.message}\n${badges.certificates.label}: ${badges.certificates.message}\n`);
+  out(
+    `wrote ${where}/${badgeFiles.laws} and ${where}/${badgeFiles.certificates}; commit them and add to your README:\n\n`,
+  );
+  out(`${markdown}\n`);
+  if (page && text('link') === undefined)
+    out(`\nboth badges link to ${where}/README.md, the certificates page written beside them\n`);
+  if (repo === undefined) out('\nreplace OWNER/REPO: no GitHub remote was found (name it with --repo OWNER/NAME)\n');
   return 0;
 }
 
@@ -908,6 +989,8 @@ async function runOne(
     });
   }
 
+  if (command === 'badge')
+    return badgeCommand(cwd, flags, files, { isTTY: process.stdin.isTTY === true, env: process.env }, run);
   if (command === 'accept')
     return acceptCommand(cwd, flags, files, { isTTY: process.stdin.isTTY === true, env: process.env, skip: run.skip });
   if (command === 'delegate')

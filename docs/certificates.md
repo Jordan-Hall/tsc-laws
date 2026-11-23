@@ -165,3 +165,88 @@ proof the second solver did not confirm (`uncertified: no certificate produced` 
 ```
 
 Use `--certify` without `--require-certify` to see which laws certify without failing the build on the ones that cannot.
+
+## Badges
+
+Two [shields.io endpoint](https://shields.io/badges/endpoint-badge) badges show where a project stands: `laws: N proved` and
+`certificates: N verified`. An endpoint badge reads a small JSON file from a URL, so a file committed to the repository and
+served by `raw.githubusercontent.com` is enough. You do not need GitHub Pages.
+
+[![tslaws](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FJordan-Hall%2Ftsc-laws%2Fmain%2Fdocs%2Fcertificates%2Fbadge-laws.json)](certificates/README.md)
+[![certificates](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FJordan-Hall%2Ftsc-laws%2Fmain%2Fdocs%2Fcertificates%2Fbadge-certificates.json)](certificates/README.md)
+
+- `laws` counts the laws Z3 proved. It is green when every law is proved and yellow otherwise (`7 of 8 proved`), and for a
+  project with no laws.
+- `certificates` counts the laws a checker accepted a proof of: from the run, or from a certificate in the lock that is still
+  for its law. It is green when every law is certified and yellow otherwise (`7 of 8 verified`).
+
+This repository's own badges link to the [certificate gallery](certificates/README.md). The `certificates` workflow writes
+their JSON (`docs/certificates/badge-laws.json` and `badge-certificates.json`) with the rest of the gallery, from the same
+data, and fails when the committed files no longer match a fresh run.
+
+### Badges for your project
+
+```sh
+npx tslaws badge --certify
+```
+
+`tslaws badge` checks the project (or reads the output of `tslaws check --json` from `--report FILE`, so a CI job that has
+already checked does not check twice), writes `badge-laws.json` and `badge-certificates.json` into `badges/` (a directory you commit, so the badge URLs resolve) and
+prints the markdown that shows them. When a law is certified it also writes a certificates page, `badges/README.md`, that lists
+each law with its status and its proof files, which it copies to `badges/certificates/`. Both badges link to that page:
+
+```text
+laws: 8 proved
+certificates: 8 verified
+wrote badges/badge-laws.json and badges/badge-certificates.json; commit them and add to your README:
+
+[![tslaws](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Facme%2Fwidgets%2Fmain%2Fbadges%2Fbadge-laws.json)](https://github.com/acme/widgets/blob/main/badges/README.md)
+[![certificates](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Facme%2Fwidgets%2Fmain%2Fbadges%2Fbadge-certificates.json)](https://github.com/acme/widgets/blob/main/badges/README.md)
+
+both badges link to badges/README.md, the certificates page written beside them
+```
+
+| Flag                | Meaning                                                                                                                                  |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `--out DIR`         | where to write the files; default `badges`. Keep it out of `.gitignore`: the badge URLs read the committed files                         |
+| `--report FILE`     | the output of `tslaws check --json` for one project, instead of a new check                                                              |
+| `--repo OWNER/NAME` | the GitHub repository for the URLs; default `$GITHUB_REPOSITORY`, then the `origin` remote, else the placeholder `OWNER/REPO`            |
+| `--branch NAME`     | the branch the files are served from; default `main`                                                                                     |
+| `--link URL`        | where both badges link; default the certificates page in the output directory, or `tsc-laws.lock` on the branch when no law is certified |
+| `--certify`         | check with certificates on, as in `tslaws check --certify`, so the page has proofs to list                                               |
+
+The command writes only the badge files, the page and its copies of the proofs, and never touches the lock. It does not delete files from an earlier run. In a monorepo, pick the project with `--project`.
+
+To keep the badges current, regenerate them on `main` and commit the change. This job needs `contents: write`, so give it to
+that job only:
+
+```yaml
+name: badges
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  badges:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - run: npm ci
+      - run: npx tslaws check --certify --json > report.json || true
+      - run: npx tslaws badge --report report.json --out badges
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add badges
+          git diff --cached --quiet || (git commit -m "chore: update badges" && git push)
+```
+
+The check step ends with `|| true` so that a failing law still updates the badge instead of leaving the old one. Failing laws
+stay failing in the build job that runs `tslaws check`. A branch with required reviews or status checks refuses the push; push to
+a branch of its own (and pass `--branch`), or run the job with a token that may push.
