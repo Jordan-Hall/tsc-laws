@@ -111,6 +111,11 @@ reason "changed after the laws job ran" and accepts nothing for it: run the work
 - In a monorepo, choose the projects to run by what changed, not by which projects succeeded last time. A project that
   holds a proposal fails every run, so a "last successful run" base is the first commit and every project runs.
 - Keep the `laws` job's cache for `node_modules`. The `merge` job must not use one.
+- With a GitHub merge queue, run the token-free `laws` job on `merge_group` (`tslaws github merge --results-out <file>`)
+  and upload the results file as an artifact named by the SHA (for example `tslaws-results-${{ github.sha }}`, where
+  `github.sha` equals `github.event.merge_group.head_sha`). On the later `push` to `branch`, download that artifact by
+  `${{ github.sha }}` (falling back to running the laws if none was uploaded) and pass it to `tslaws github merge --results <file>`
+  so the lock is written as soon as the merge lands.
 
 ## On demand
 

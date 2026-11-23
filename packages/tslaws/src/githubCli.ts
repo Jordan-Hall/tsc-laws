@@ -5,7 +5,8 @@
 //            waits for an accept. Advisory: it runs the pull request's code, so it decides nothing about the lock.
 //   command  issue_comment: reads `/tslaws accept|reject ...`, checks the commenter may accept, and records the
 //            fingerprints accepted in a comment of the bot's. Reads the pull request's files as data; runs none of it.
-//   merge    push to the configured branch, or workflow_dispatch by someone with admin or maintain access: runs the
+//   merge    push to the configured branch, or workflow_dispatch by someone with admin or maintain access (plus
+//            merge_group with --results-out to run the laws ahead of the push): runs the
 //            laws on the branch's code, accepts what passes (and, in comment mode, what was accepted for that exact
 //            version) and commits tsc-laws.lock through the API as the bot. The only place the workflow writes the
 //            lock. While a project's "local" is true (the default) a person may also change its lock by hand, through
@@ -51,7 +52,16 @@ import {
   type Proposal,
 } from './github.ts';
 import { lockLevels } from './lawKinds.ts';
-import { acceptChanges, lawKey, lockChanges, readLock, writeLockValue, type Lock, type LockChange } from './lock.ts';
+import {
+  acceptChanges,
+  lawKey,
+  lockChanges,
+  parseLock,
+  readLock,
+  writeLockValue,
+  type Lock,
+  type LockChange,
+} from './lock.ts';
 import { escapeGithubData, escapeGithubProperty } from './reporters.ts';
 import type { CheckOptions, ManifestLaw } from './types.ts';
 import { plural } from './plural.ts';
@@ -449,22 +459,85 @@ function lawsToProve(changes: LockChange[]): string[] {
   return changes.filter((c) => c.kind === 'law' && c.reason !== 'removed').map((c) => c.key);
 }
 
+/** Reads a project's lock at a git commit (for example `merge_group.base_sha`), when that commit is present locally. */
+function gitLockAt(
+  cwd: string,
+  lockPath: string,
+  baseSha: string | undefined,
+): { found: true; lock: Lock | undefined } | { found: false } {
+  if (typeof baseSha !== 'string' || !/^[0-9a-f]{40}$/.test(baseSha) || /^0+$/.test(baseSha)) return { found: false };
+  try {
+    execFileSync('git', ['-C', cwd, 'cat-file', '-e', `${baseSha}^{commit}`], { stdio: 'ignore' });
+  } catch {
+    return { found: false };
+  }
+  try {
+    const bytes = execFileSync('git', ['-C', cwd, 'show', `${baseSha}:${lockPath}`], {
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
+    return { found: true, lock: parseLock(bytes.toString('utf8')) };
+  } catch {
+    return { found: true, lock: undefined };
+  }
+}
+
 /** `--results-out <file>`: run the laws of every project and write the reports, doing nothing else. Needs no token. */
 async function collect(ctx: GithubContext, mode: Results['mode'], file: string): Promise<number> {
   const { active } = plan(ctx, unitsOf(ctx), (u) => u.cwd);
   const ev = event(ctx.env);
+  const eventName = ctx.env.GITHUB_EVENT_NAME;
+  if (
+    mode === 'merge' &&
+    eventName !== undefined &&
+    eventName !== 'push' &&
+    eventName !== 'workflow_dispatch' &&
+    eventName !== 'merge_group'
+  ) {
+    ctx.err('tslaws: merge --results-out runs on push, workflow_dispatch and merge_group only\n');
+    return 1;
+  }
+  const mergeGroup =
+    mode === 'merge' && eventName === 'merge_group'
+      ? (ev.merge_group as { head_sha?: string; base_sha?: string; base_ref?: string } | undefined)
+      : undefined;
+  let targets = active;
+  if (mergeGroup !== undefined && typeof mergeGroup.base_ref === 'string' && mergeGroup.base_ref !== '') {
+    if (active.length === 0) return 0;
+    targets = active.filter((a) => mergeGroup.base_ref === `refs/heads/${a.config.branch}`);
+    if (targets.length === 0) {
+      const branches = [...new Set(active.map((a) => `refs/heads/${a.config.branch}`))];
+      ctx.err(
+        `tslaws: ${mergeGroup.base_ref} is not ${branches.join(' or ') || 'a branch any project writes'}; the lock is written only there\n`,
+      );
+      return 1;
+    }
+  }
   const sha = String(
-    mode === 'report' ? (ev.pull_request?.head?.sha ?? ctx.env.GITHUB_SHA) : (ev.after ?? ctx.env.GITHUB_SHA),
+    mode === 'report'
+      ? (ev.pull_request?.head?.sha ?? ctx.env.GITHUB_SHA)
+      : (mergeGroup?.head_sha ?? ev.after ?? ctx.env.GITHUB_SHA),
   );
   const projects: Results['projects'] = {};
-  for (const { unit } of active) {
+  for (const { unit } of targets) {
     const entry: Results['projects'][string] = { lockSha: lockShaOf(unit) };
     try {
       const state = projectState(unit.options);
       if (mode === 'report') entry.report = await runIsolated(unit, state);
       else {
         // A merge acts only on what the lock does not record, which it works out again from the same lock and files.
-        const only = lawsToProve(lockChanges(state.lock, state.laws, state.exempt, state.levels));
+        // On merge_group, also compare against the queue's base lock when its commit is present locally so any law
+        // changed relative to the queue's base runs ahead of the push.
+        const base = mergeGroup
+          ? gitLockAt(ctx.cwd, joinRepo(unit.path, 'tsc-laws.lock'), mergeGroup.base_sha)
+          : { found: false as const };
+        const only = base.found
+          ? [
+              ...new Set([
+                ...lawsToProve(lockChanges(base.lock, state.laws, state.exempt, state.levels)),
+                ...lawsToProve(lockChanges(state.lock, state.laws, state.exempt, state.levels)),
+              ]),
+            ]
+          : lawsToProve(lockChanges(state.lock, state.laws, state.exempt, state.levels));
         if (only.length > 0) entry.report = await runIsolated(unit, state, only);
         else assertRunnable(unit, state);
       }
@@ -475,7 +548,7 @@ async function collect(ctx: GithubContext, mode: Results['mode'], file: string):
   }
   writeFileSync(file, JSON.stringify({ version: 1, mode, sha, projects } satisfies Results));
   ctx.out(
-    `tslaws: ran the laws of ${active.length} project${active.length === 1 ? '' : 's'}; results are in ${file}\n`,
+    `tslaws: ran the laws of ${targets.length} project${targets.length === 1 ? '' : 's'}; results are in ${file}\n`,
   );
   return 0;
 }
@@ -1070,7 +1143,11 @@ async function merge(ctx: GithubContext): Promise<number> {
   }
   const eventName = ctx.env.GITHUB_EVENT_NAME;
   if (eventName !== undefined && eventName !== 'push' && eventName !== 'workflow_dispatch') {
-    ctx.err('tslaws: merge runs on push and workflow_dispatch only\n');
+    ctx.err(
+      eventName === 'merge_group'
+        ? 'tslaws: merge runs on push and workflow_dispatch only; use --results-out on merge_group to run the laws ahead of the push\n'
+        : 'tslaws: merge runs on push and workflow_dispatch only\n',
+    );
     return 1;
   }
   // On demand there is no push and no pull request, so whoever started the run is the authority, and only someone

@@ -1,6 +1,7 @@
 // The laws of a GitHub run never reach a token: `report` and `merge` run them in a child process with an allowlisted
 // environment, and with `--results-out` / `--results` in a different job from the one that holds the token.
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { after, afterEach, beforeEach, describe, it } from 'node:test';
@@ -406,5 +407,196 @@ describe('the laws in one job and the token in another', () => {
     const changed = await run('merge', dir, { results });
     assert.notEqual(changed.code, 0);
     assert.match(changed.out, /lock is not the one/);
+  });
+});
+
+describe('merge_group ahead of push', () => {
+  async function runEvent(
+    dir: string,
+    eventObj: Record<string, unknown>,
+    flags: Record<string, string> = {},
+    extraEnv: Record<string, string> = {},
+  ) {
+    writeFileSync(join(dir, 'event.json'), JSON.stringify(eventObj));
+    const calls: { method: string; path: string }[] = [];
+    let out = '';
+    const code = await githubCommand('merge', {
+      cwd: dir,
+      options: {
+        cwd: dir,
+        files: ['a.laws.ts'],
+        compiler: process.env.TSC_LAWS_BIN ?? 'builtin',
+        lockFile: join(dir, 'tsc-laws.lock'),
+        runs: 5,
+        noProve: true,
+        bound: 8,
+        proofTimeoutMs: 1000,
+        noRegressions: true,
+        sandbox: false,
+      },
+      env: {
+        GITHUB_EVENT_PATH: join(dir, 'event.json'),
+        GITHUB_REPOSITORY: 'o/r',
+        GITHUB_TOKEN: '',
+        ...extraEnv,
+      },
+      flags: new Map(Object.entries(flags)),
+      out: (t) => void (out += t),
+      err: (t) => void (out += t),
+      api: async (method, path) => {
+        calls.push({ method, path });
+        if (method !== 'GET') return {};
+        if (path.includes('/contents/tsc-laws.lock')) throw new Error('GitHub GET: 404 not found');
+        if (/\/git\/ref\/heads\/[^/]+$/.test(path)) return { object: { sha: hex('d') } };
+        return [];
+      },
+    });
+    return { code, out, calls };
+  }
+
+  it('accepts merge --results-out on merge_group and hands the results to the later push', async () => {
+    const { dir, probe } = project();
+    const results = join(dir, 'results.json');
+    const headSha = hex('d');
+    const collected = await runEvent(
+      dir,
+      {
+        action: 'checks_requested',
+        merge_group: {
+          head_sha: headSha,
+          head_ref: 'refs/heads/gh-readonly-queue/master/pr-1',
+          base_sha: hex('a'),
+          base_ref: 'refs/heads/master',
+        },
+      },
+      { 'results-out': results },
+      { GITHUB_EVENT_NAME: 'merge_group', GITHUB_SHA: headSha, GITHUB_REF: 'refs/heads/gh-readonly-queue/master/pr-1' },
+    );
+    assert.equal(collected.code, 0, collected.out);
+    assertTokenFree(probe);
+    assert.equal(collected.calls.length, 0, 'collecting on merge_group needs no GitHub API');
+    const written = JSON.parse(readFileSync(results, 'utf8')) as { mode: string; sha: string };
+    assert.equal(written.mode, 'merge');
+    assert.equal(written.sha, headSha);
+    rmSync(probe);
+
+    // A push for a different commit rejects the merge_group results file.
+    const wrong = await run('merge', dir, { results }, { GITHUB_EVENT_NAME: 'push', GITHUB_SHA: hex('f') }, hex('f'));
+    assert.notEqual(wrong.code, 0);
+    assert.match(wrong.out, /made for commit/);
+
+    // Later push lands the exact same commit; merge --results commits the lock without re-running laws.
+    const applied = await run('merge', dir, { results }, { GITHUB_EVENT_NAME: 'push', GITHUB_SHA: headSha }, headSha);
+    assert.equal(applied.code, 0, applied.out);
+    assert.ok(!existsSync(probe), 'the laws did not run again on push');
+    assert.ok(
+      applied.calls.some((c) => c.method === 'PUT' && c.path.includes('/contents/tsc-laws.lock')),
+      'the lock was written on push',
+    );
+  });
+
+  it('compares against the queue base lock at merge_group.base_sha when present in git', async () => {
+    const { dir, probe } = project();
+    rmSync(join(dir, '.git'), { recursive: true, force: true });
+    const git = (...args: string[]) =>
+      execFileSync('git', ['-C', dir, ...args], {
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          GIT_AUTHOR_NAME: 't',
+          GIT_AUTHOR_EMAIL: 't@t',
+          GIT_COMMITTER_NAME: 't',
+          GIT_COMMITTER_EMAIL: 't@t',
+        },
+      }).trim();
+    git('init', '-b', 'master');
+    // Base commit: empty lock, no law recorded yet.
+    writeFileSync(join(dir, 'tsc-laws.lock'), JSON.stringify({ version: 2, laws: {}, exempt: [] }, null, 2));
+    git('add', '.');
+    git('commit', '-m', 'base');
+    const baseSha = git('rev-parse', 'HEAD');
+
+    // Queued commit alters tsc-laws.lock so the working tree lock alone claims the law is already accepted.
+    const { projectState } = await import('../dist/githubCli.js');
+    const { acceptChanges, lockChanges, writeLockValue } = await import('../dist/lock.js');
+    const st = projectState({
+      cwd: dir,
+      files: ['a.laws.ts'],
+      compiler: process.env.TSC_LAWS_BIN ?? 'builtin',
+      lockFile: join(dir, 'tsc-laws.lock'),
+      runs: 5,
+      noProve: true,
+      bound: 8,
+      proofTimeoutMs: 1000,
+      noRegressions: true,
+      sandbox: false,
+    });
+    const allFp = new Set(lockChanges(st.lock, st.laws, st.exempt, st.levels).map((c) => c.fingerprint));
+    writeLockValue(join(dir, 'tsc-laws.lock'), acceptChanges(st.lock, st.laws, st.exempt, st.levels, allFp));
+    git('add', 'tsc-laws.lock');
+    git('commit', '-m', 'queued');
+    const headSha = git('rev-parse', 'HEAD');
+
+    const results = join(dir, 'results.json');
+    const collected = await runEvent(
+      dir,
+      {
+        action: 'checks_requested',
+        merge_group: {
+          head_sha: headSha,
+          head_ref: 'refs/heads/gh-readonly-queue/master/pr-2',
+          base_sha: baseSha,
+          base_ref: 'refs/heads/master',
+        },
+      },
+      { 'results-out': results },
+      { GITHUB_EVENT_NAME: 'merge_group', GITHUB_SHA: headSha },
+    );
+    assert.equal(collected.code, 0, collected.out);
+    assert.ok(existsSync(probe), 'law still ran against the queue base lock');
+    const parsed = JSON.parse(readFileSync(results, 'utf8')) as {
+      sha: string;
+      projects: Record<string, { report?: { results: { name: string }[] } }>;
+    };
+    assert.equal(parsed.sha, headSha);
+    assert.equal(
+      parsed.projects['']?.report?.results.some((r) => r.name === 'probe'),
+      true,
+    );
+  });
+
+  it('refuses merge without --results-out on merge_group, wrong base_ref, and other events', async () => {
+    const { dir } = project();
+    const results = join(dir, 'results.json');
+    const direct = await runEvent(
+      dir,
+      {
+        ref: 'refs/heads/master',
+        merge_group: { head_sha: hex('d'), base_sha: hex('a'), base_ref: 'refs/heads/master' },
+      },
+      {},
+      { GITHUB_EVENT_NAME: 'merge_group', GITHUB_SHA: hex('d'), GITHUB_REF: 'refs/heads/master', GITHUB_TOKEN: secret },
+    );
+    assert.equal(direct.code, 1);
+    assert.match(direct.out, /push and workflow_dispatch only/);
+    assert.match(direct.out, /--results-out/);
+
+    const wrongBranch = await runEvent(
+      dir,
+      { merge_group: { head_sha: hex('d'), base_sha: hex('a'), base_ref: 'refs/heads/other' } },
+      { 'results-out': results },
+      { GITHUB_EVENT_NAME: 'merge_group', GITHUB_SHA: hex('d') },
+    );
+    assert.equal(wrongBranch.code, 1);
+    assert.match(wrongBranch.out, /is not refs\/heads\/master/);
+
+    const badEvent = await runEvent(
+      dir,
+      {},
+      { 'results-out': results },
+      { GITHUB_EVENT_NAME: 'schedule', GITHUB_SHA: hex('d') },
+    );
+    assert.equal(badEvent.code, 1);
+    assert.match(badEvent.out, /push, workflow_dispatch and merge_group only/);
   });
 });
