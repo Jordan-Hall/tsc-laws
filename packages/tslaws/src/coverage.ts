@@ -65,6 +65,8 @@ export interface CoverageConfig {
   propertyTimeoutMs?: number;
   proofTimeoutMs?: number;
   bound?: number;
+  /** The most laws, proofs and solvers that run at once (the CPU budget); `--jobs` and `TSLAWS_JOBS` beat it. Not sealed: it is the machine's, not the project's. */
+  jobs?: number;
   /** Accepting laws on GitHub: see github.ts. When present, `tslaws accept` refuses to run unless `github.local` is true (the default). */
   github?: unknown;
   /** `tslaws security deps`: the severity that fails the check, offline mode, the cache; see security/deps/config.ts. */
@@ -86,6 +88,7 @@ const configKeys = [
   'env',
   'github',
   'security',
+  'jobs',
   ...settingKeys,
 ];
 /** Keys that steer inheritance and discovery rather than a run; `readConfig` acts on them and drops them. */
@@ -142,7 +145,7 @@ function checkFile(raw: unknown, source: string): Record<string, unknown> {
   if (projects !== undefined) fail(projects);
   if (object.standalone !== undefined && typeof object.standalone !== 'boolean')
     fail(`"standalone" must be true or false, got ${JSON.stringify(object.standalone)}`);
-  for (const key of settingKeys) {
+  for (const key of [...settingKeys, 'jobs'] as const) {
     const value = object[key];
     if (value !== undefined && (typeof value !== 'number' || !Number.isInteger(value) || value < 1))
       fail(`"${key}" must be an integer of at least 1, got ${JSON.stringify(value)}`);

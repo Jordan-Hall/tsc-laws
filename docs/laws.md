@@ -970,9 +970,9 @@ tslaws list [--json]
 tslaws propose <file.ts> [--from PATH]
 tslaws promote <proposal> [--to PATH] [--yes]
 tslaws regressions [list|clear]
-tslaws mutate [files...] [--max N] [--seed N] [--runs N] [--bound N] [--proof-timeout MS] [--property-timeout MS] [--no-sandbox] [--allow-e2e] [--json]
+tslaws mutate [files...] [--max N] [--seed N] [--runs N] [--bound N] [--proof-timeout MS] [--property-timeout MS] [--jobs N] [--no-sandbox] [--allow-e2e] [--json]
 tslaws check [files...] [--json] [--summary] [--watch] [--runs N] [--seed N] [--no-prove] [--no-regressions] [--no-sandbox] [--allow-e2e] [--bound N]
-             [--proof-timeout MS] [--proposed] [--compiler PATH] [--reporter text|json|junit|github|ndjson] [--law NAME[,NAME]]
+             [--proof-timeout MS] [--jobs N] [--proposed] [--compiler PATH] [--reporter text|json|junit|github|ndjson] [--law NAME[,NAME]]
 ```
 
 Naming files (`tslaws check src/a.laws.ts`, `tslaws accept src/a.laws.ts`) limits the run to them. The lock is compared only for
@@ -1314,11 +1314,25 @@ first failing law; raise the timeouts when it timed out.
 | `bound`             | Longest array, loop count, recursion depth | 4                 |
 | `proofTimeoutMs`    | Time limit of one proof                    | 5000              |
 | `propertyTimeoutMs` | Time limit of one law's property test      | 30000             |
+| `jobs`              | Most things that run at once (see below)   | cores - 1, max 8  |
 
 Each is an integer of at least 1; another type, a smaller value or an unknown top-level key is an error naming the key.
 Precedence is the command line flag (`--runs`, `--bound`, `--proof-timeout`, `--property-timeout`), then `tslaws.json`, then
 the built-in default. It applies to `check`, `ui`, `mutate` and `mcp`. End-to-end laws keep the `runs` and `timeoutMs` of the
 `e2e` section unless a flag is given.
+
+### CPU budget
+
+A check shares one budget of slots among everything heavy: a law run, a proof, a spawned solver or certificate checker, a
+property worker and a sandboxed law process. By default it is the cores less one (so the machine stays usable), at most 8,
+and no more than one slot per GiB of free memory, since each Z3 instance holds a large heap. `--jobs N` sets it, then the
+`TSLAWS_JOBS` environment variable, then `"jobs"` in `tslaws.json`, then the default; a number you give is used as it is. `jobs`
+is not sealed by the lock, because it describes the machine and changes no law's result.
+
+Work a law starts runs on the slot the law already holds, so a proof under a law never waits for a second slot and a budget of
+1 cannot deadlock. A solver race (the CHC solvers) asks for one extra slot per additional solver and never waits for it: with
+none free the solvers run one after another. The law processes of every project in a monorepo share the same cap, and one
+that sits idle for a few seconds ends. Spawned solvers run at below normal priority.
 
 ### Solvers
 

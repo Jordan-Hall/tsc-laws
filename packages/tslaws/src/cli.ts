@@ -42,11 +42,12 @@ import type { CheckOptions, LawEvent, LawResult } from './types.ts';
 
 import { securityUsage } from './security/cli.ts';
 import { plural } from './plural.ts';
+import { configureJobs } from './pool.ts';
 
 const usage = `tslaws init [--force]       scaffold tslaws.json, .gitignore, AGENTS.md, Claude Code hooks and a starter law (never writes the lock)
-tslaws check [files...] [--reporter text|json|junit|github|ndjson] [--law NAME[,NAME]] [--json] [--summary] [--watch] [--runs N] [--seed N] [--no-prove] [--certify] [--require-certify] [--no-regressions] [--no-sandbox] [--allow-e2e] [--bound N] [--proof-timeout MS] [--property-timeout MS] [--proposed] [--compiler PATH] [--browser chromium|firefox|webkit]
+tslaws check [files...] [--reporter text|json|junit|github|ndjson] [--law NAME[,NAME]] [--json] [--summary] [--watch] [--runs N] [--seed N] [--no-prove] [--certify] [--require-certify] [--no-regressions] [--no-sandbox] [--allow-e2e] [--bound N] [--proof-timeout MS] [--property-timeout MS] [--jobs N] [--proposed] [--compiler PATH] [--browser chromium|firefox|webkit]
 tslaws ui [files...] [--port N] [--no-open] [--tab]   open a dashboard of the laws in its own desktop window (--tab: a browser tab): tree, filters, search, source, live reruns on save
-tslaws mutate [files...] [--max N] [--seed N] [--runs N] [--bound N] [--proof-timeout MS] [--property-timeout MS] [--browser ENGINE] [--no-sandbox] [--allow-e2e] [--json]   mutation-test the laws: mutate covered code, report mutants no law kills
+tslaws mutate [files...] [--max N] [--seed N] [--runs N] [--bound N] [--proof-timeout MS] [--property-timeout MS] [--jobs N] [--browser ENGINE] [--no-sandbox] [--allow-e2e] [--json]   mutation-test the laws: mutate covered code, report mutants no law kills
 tslaws regressions [list|clear]   show or delete the stored counterexamples (.tslaws/regressions); check replays them first, --no-regressions skips them
 tslaws accept [files...]     record the current laws in tsc-laws.lock (people only: needs a terminal, or a live delegation; never under CI)
 tslaws delegate grant [--for 1h|8h|1d|7d] [--root DIR]   lend accept to an agent for a limited time (people only; default 8h, max 7d)
@@ -104,6 +105,7 @@ function parse(args: string[]): Parsed {
     'bound',
     'proof-timeout',
     'property-timeout',
+    'jobs',
     'browser',
     'port',
     'reporter',
@@ -758,6 +760,15 @@ export async function main(args: string[]): Promise<number> {
   }
   const { command, flags, files, projects, filters } = parse(args);
   const cwd = process.cwd();
+  if (flags.has('jobs')) {
+    const given = Number(flags.get('jobs'));
+    if (!Number.isInteger(given) || given < 1) {
+      stderrWrite(`--jobs must be an integer of at least 1, got ${JSON.stringify(flags.get('jobs'))}
+`);
+      return 1;
+    }
+    configureJobs({ flag: given });
+  }
   const changed = flags.has('changed') ? String(flags.get('changed')) : undefined;
   // `init --project .` scaffolds right here, in a root that has projects or not.
   const here = command === 'init' && projects.some((p) => p === '.' || p === './');
