@@ -34,11 +34,11 @@ UNCOVERED sub (src/math.ts) [coverage]
 
 ## Watch
 
-What is new in **tslaws 1.2** — a 70-second launch keynote (refinement types, vacuity checks, `induct`/`calc`/`lemma`/`requires`/`ensures`/`decreases`/`unreachable`, native Vitest-style browser runner with zero Vite, and pooled native Z3 + proof cache):
+What is new in **tslaws 1.2** — a 3D Blender & live-footage launch film covering refinement types, vacuity detection, `induct`/`calc`/`lemma`/`requires`/`ensures`/`decreases`/`unreachable`, standard TypeScript `law()` syntax, the native parallel browser runner (`page`, `userEvent`, `expectElement`, `mock`), and pooled native Z3 with an on-disk proof cache:
 
 [![What is new in tslaws 1.2: a silent preview that plays here](docs/media/tslaws-1.2-launch.gif)](docs/media/tslaws-1.2-launch.mp4)
 
-The preview above plays here without sound. [tslaws-1.2-launch.mp4](docs/media/tslaws-1.2-launch.mp4) is the full 1080p60 keynote with narration and sound.
+The preview above plays here without sound. [tslaws-1.2-launch.mp4](docs/media/tslaws-1.2-launch.mp4) is the full 1080p film with narration, live footage, and sound.
 
 What tslaws is, in two minutes (laws, proofs, tests, the coverage gate and the lock):
 
@@ -52,7 +52,7 @@ Laws, migration and delegated accept: why laws make a port safer, and how a pers
 
 [tslaws-delegation-explainer.mp4](docs/media/tslaws-delegation-explainer.mp4)
 
-What is new in tslaws, as a 101-second animated fable: a law is proved or broken by a counterexample, proofs can carry certificates that cvc5 writes and Carcara checks (loops included, through their invariants), a lock catches edits to a law, a proposed law cannot accept itself, laws run in a sandbox, refinement types (`nat`, `posInt`, `intRange`, `nonEmpty`) and proof primitives (`lemma`, `requires`, `ensures`, `decreases`) narrow inputs and guide proofs, browser laws run in parallel top-level pages with native Vitest-style `page` locators, trusted `userEvent` interactions, and `mock()` route interception, and pooled native Z3 with an on-disk proof cache makes repeat checks fly:
+What is new in tslaws, as a 101-second animated fable: a law is proved or broken by a counterexample, proofs can carry certificates that cvc5 writes and Carcara checks (loops included, through their invariants), a lock catches edits to a law, a proposed law cannot accept itself, laws run in a sandbox, refinement types (`nat`, `posInt`, `intRange`, `nonEmpty`) and proof primitives (`lemma`, `requires`, `ensures`, `decreases`) narrow inputs and guide proofs, browser laws run in parallel top-level pages with native `page` locators, trusted `userEvent` interactions, and `mock()` route interception, and pooled native Z3 with an on-disk proof cache makes repeat checks fly:
 
 [![What is new in tslaws: a silent preview that plays here](docs/media/tslaws-v1.gif)](docs/media/tslaws-v1.mp4)
 
@@ -60,10 +60,11 @@ The preview above plays here without sound. [tslaws-v1.mp4](docs/media/tslaws-v1
 
 What it offers:
 
-- **`law` as syntax.** A fork of [tsc-ts](https://github.com/vercel-labs/tsc-ts) (the TypeScript 7 compiler, ported to
-  TypeScript and compiled natively) parses `law`, enforces the rules of a specification in the checker (TS9101 to TS9106),
-  and emits ordinary, type-checked functions. `law` stays a normal identifier
-  everywhere else.
+- **Plain TypeScript or `law` syntax.** Write laws in standard TypeScript with `law('name', (x: int) => ...)` and
+  `law.proved(...)` (works with every stock TypeScript editor, linter, and bundler), or use the `law` keyword via our
+  fork of [tsc-ts](https://github.com/vercel-labs/tsc-ts) (the TypeScript 7 compiler, ported to TypeScript and compiled
+  natively), which parses `law`, enforces the rules of a specification in the checker (TS9101 to TS9106), and emits
+  ordinary, type-checked functions. `law` stays a normal identifier everywhere else.
 - **Proof where possible, tests everywhere else.** Z3 (pooled native Z3 when available, or WASM) proves laws over exact
   integers, bigints, strings, booleans, records, and built-in refinement types (`nat`, `posInt`, `nonZeroInt`, `uint8`,
   `uint16`, `uint32`, `int32`, `intRange<Lo, Hi>`, `nonEmpty<T>`, `nonEmptyString`, `asciiString`, `finite`),
@@ -80,9 +81,9 @@ What it offers:
   `--json` and `--summary` give compact output with a next-action hint per result; `--watch` re-checks on save.
 - **Browser laws.** A laws file that imports `tslaws/browser` runs in parallel isolated `BrowserContext`s on a real local
   HTTP origin in Chrome, Edge, Chromium, Firefox, or WebKit — top-level pages by default (`--browser-mode page|iframe`,
-  `--headed`), with our own built-in Vitest-style `page` locators (`getByRole`, `getByText`, `getByLabelText`, `getByTestId`,
+  `--headed`), with built-in `page` locators (`getByRole`, `getByText`, `getByLabelText`, `getByTestId`,
   `.filter()`, `.first()`), auto-retrying `expectElement()` assertions, Playwright-backed trusted `userEvent` interactions,
-  `mock()` route interception, and in-browser `fast-check` (no Vite required). The file name (`*.browser.laws.ts`) decides
+  `mock()` route interception, and in-browser `fast-check`. The file name (`*.browser.laws.ts`) decides
   by default, or the imports with `"levels": "imports"`.
 - **A dashboard.** `tslaws ui` opens a dashboard: tree, filters, search, counterexamples, source, live reruns.
 - **Are the laws strong enough?** `tslaws mutate` changes your code in small ways and reports every change no law notices.

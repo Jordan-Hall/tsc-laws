@@ -1,118 +1,82 @@
 {
-  "fps": 60,
-  "size": [1920, 1080],
-  "bpm": 112,
-  "durationSec": 70.5,
+  "fps": 24,
+  "width": 1920,
+  "height": 1080,
+  "bpm": 96,
+  "scenes": [
+    { "id": "hero", "startSec": 0.0, "endSec": 9.5 },
+    { "id": "refine", "startSec": 9.5, "endSec": 24.8 },
+    { "id": "proofs", "startSec": 24.8, "endSec": 41.5 },
+    { "id": "browser", "startSec": 41.5, "endSec": 56.5 },
+    { "id": "speed", "startSec": 56.5, "endSec": 67.6 },
+    { "id": "cta", "startSec": 67.6, "endSec": 76.0 }
+  ],
   "voice": {
-    "voice": "am_michael",
-    "speed": 0.98,
+    "voice": "af_heart",
+    "speed": 0.93,
     "lines": [
       {
         "id": "hero",
-        "startSec": 0.3,
+        "startSec": 0.8,
         "sentences": [
-          {
-            "text": "tslaws 1.2 brings the best of formal verification languages straight into TypeScript.",
-            "say": "T S laws one point two brings the best of formal verification languages straight into TypeScript."
-          }
+          { "text": "tslaws 1.2.", "say": "T S laws one point two.", "gapMs": 420 },
+          { "text": "Mathematical proofs and real browser laws — in plain TypeScript." }
         ]
       },
       {
         "id": "refine",
-        "startSec": 8.5,
+        "startSec": 10.1,
         "sentences": [
           {
-            "text": "Built-in refinement types like nat, uint8, intRange, and nonEmpty narrow both generators and proofs.",
-            "say": "Built-in refinement types like nat, u int eight, int range, and non empty narrow both generators and proofs.",
-            "gapMs": 320
+            "text": "Narrow inputs right in the types: nat, uint8, intRange, nonEmptyString, and finite.",
+            "say": "Narrow inputs right in the types: nat, u int eight, int range, non empty string, and finite.",
+            "gapMs": 420
           },
           {
-            "text": "And automatic vacuity checks catch impossible assumptions before they ever pass."
+            "text": "And if an assume statement contradicts itself, the prover catches the vacuous law instead of passing it."
           }
         ]
       },
       {
         "id": "proofs",
-        "startSec": 23.5,
+        "startSec": 25.4,
         "sentences": [
           {
-            "text": "Prove unbounded claims with natural-number induction, chain steps with calc and lemma, and verify contracts with requires, ensures, decreases, and unreachable.",
-            "say": "Prove unbounded claims with natural-number induction, chain steps with calc and lemma, and verify contracts with requires, ensures, decreases, and unreachable."
+            "text": "Prove unbounded claims with natural-number induction.",
+            "gapMs": 380
+          },
+          {
+            "text": "Chain hard steps with calc and lemma, verify contracts with requires and ensures, check termination with decreases, and prove dead branches unreachable."
           }
         ]
       },
       {
         "id": "browser",
-        "startSec": 35.9,
+        "startSec": 42.1,
         "sentences": [
           {
-            "text": "Browser laws now run in parallel top-level pages on a real HTTP origin, with zero Vite dependency.",
-            "say": "Browser laws now run in parallel top-level pages on a real H T T P origin, with zero Veet dependency.",
-            "gapMs": 320
-          },
-          {
-            "text": "Chain native Playwright locators, drive real clicks with userEvent, mock routes, and assert with expectElement.",
-            "say": "Chain native Playwright locators, drive real clicks with user event, mock routes, and assert with expect element."
+            "text": "Browser laws run in parallel top-level pages on a real local origin — with chainable page locators, trusted user events, auto-retrying element assertions, and mocked network routes."
           }
         ]
       },
       {
         "id": "speed",
-        "startSec": 54.3,
+        "startSec": 57.1,
         "sentences": [
           {
-            "text": "Under the hood, pooled native Z3, DAG let-sharing, and an on-disk proof cache return unchanged proofs in under a millisecond.",
-            "say": "Under the hood, pooled native Z three, D A G let-sharing, and an on-disk proof cache return unchanged proofs in under a millisecond."
+            "text": "Under the hood, pooled native Z3 workers, shared solver expressions, and an on-disk proof cache return unchanged checks in milliseconds.",
+            "say": "Under the hood, pooled native Z three workers, shared solver expressions, and an on-disk proof cache return unchanged checks in milliseconds."
           }
         ]
       },
       {
         "id": "cta",
-        "startSec": 64.8,
+        "startSec": 68.1,
         "sentences": [
-          {
-            "text": "tslaws 1.2. Write a law. Let it be proved.",
-            "say": "T S laws one point two. Write a law. Let it be proved."
-          }
+          { "text": "Plain TypeScript or law syntax — proved for every input.", "gapMs": 360 },
+          { "text": "Install tslaws today.", "say": "Install T S laws today." }
         ]
       }
     ]
-  },
-  "scenes": [
-    { "id": "hero", "start": 0.0, "end": 8.2 },
-    { "id": "refine", "start": 8.2, "end": 23.2 },
-    { "id": "proofs", "start": 23.2, "end": 35.6 },
-    { "id": "browser", "start": 35.6, "end": 54.0 },
-    { "id": "speed", "start": 54.0, "end": 64.4 },
-    { "id": "cta", "start": 64.4, "end": 70.5 }
-  ],
-  "hits": [
-    { "sec": 0.2, "sound": "whoosh" },
-    { "sec": 1.7, "sound": "chime" },
-    { "sec": 8.2, "sound": "whoosh" },
-    { "sec": 9.1, "sound": "tick" },
-    { "sec": 9.6, "sound": "tick" },
-    { "sec": 10.1, "sound": "tick" },
-    { "sec": 10.6, "sound": "tick" },
-    { "sec": 16.0, "sound": "chime" },
-    { "sec": 18.8, "sound": "alert" },
-    { "sec": 23.2, "sound": "whoosh" },
-    { "sec": 25.0, "sound": "tick" },
-    { "sec": 27.0, "sound": "tick" },
-    { "sec": 29.0, "sound": "tick" },
-    { "sec": 31.0, "sound": "tick" },
-    { "sec": 33.0, "sound": "chime" },
-    { "sec": 35.6, "sound": "whoosh" },
-    { "sec": 37.0, "sound": "tick" },
-    { "sec": 45.2, "sound": "click" },
-    { "sec": 47.4, "sound": "tick" },
-    { "sec": 49.6, "sound": "chime" },
-    { "sec": 54.0, "sound": "whoosh" },
-    { "sec": 55.6, "sound": "rise" },
-    { "sec": 58.6, "sound": "tick" },
-    { "sec": 59.4, "sound": "tick" },
-    { "sec": 60.2, "sound": "chime" },
-    { "sec": 64.4, "sound": "whoosh" },
-    { "sec": 66.2, "sound": "chime" }
-  ]
+  }
 }

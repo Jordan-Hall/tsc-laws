@@ -111,7 +111,7 @@ describe('next-gen browser runner', { skip: !hasBrowser() ? 'needs Chrome, Edge 
     assert.equal(report.ok, true);
   });
 
-  it('supports opt-in Vitest-style iframe isolation mode', async () => {
+  it('supports opt-in iframe isolation mode', async () => {
     const opts = project(
       'iframe-mode',
       {
@@ -167,8 +167,8 @@ describe('next-gen browser runner', { skip: !hasBrowser() ? 'needs Chrome, Edge 
     assert.equal(report.ok, true);
   });
 
-  it('provides native Vitest-Browser-style page locators, chaining, userEvent, viewport and screenshots', async () => {
-    const opts = project('vitest-browser-api', {
+  it('provides native page locators, chaining, userEvent, viewport and screenshots', async () => {
+    const opts = project('native-browser-api', {
       'src/locators.browser.laws.ts': [
         "import { law, type intRange } from 'tslaws';",
         "import { mount, page, userEvent, waitFor } from 'tslaws/browser';",
@@ -218,7 +218,7 @@ describe('next-gen browser runner', { skip: !hasBrowser() ? 'needs Chrome, Edge 
     assert.equal(report.ok, true);
   });
 
-  it('supports auto-retrying expectElement assertions (Vitest expect.element parity)', async () => {
+  it('supports auto-retrying expectElement assertions', async () => {
     const opts = project('expect-element', {
       'src/expect.browser.laws.ts': [
         "import { law, type intRange } from 'tslaws';",

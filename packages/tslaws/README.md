@@ -42,6 +42,10 @@ installs. A law is a function declaration the compiler
 type-checks like any other. It holds for an input when it returns anything but `false` and does not throw. `assume(cond)`
 skips inputs a law does not cover. Everywhere except at the start of a statement, `law` is still an ordinary identifier.
 
+Prefer plain TypeScript with no custom syntax? Import `law` from `tslaws` and write `law('name', (x: int) => ...)` or
+`law.proved('name', ...)` — every feature (refinement types, `induct`, `calc`, contracts, browser laws, and proofs) works
+identically with stock TypeScript editors, linters, and bundlers.
+
 ## Output
 
 ```
@@ -101,7 +105,7 @@ A laws file's level comes from its name: `*.browser.laws.ts` runs in a real brow
 Node. Set `"levels": "imports"` in `tslaws.json` and the level comes from the file's imports instead (`tslaws/browser`,
 `tslaws/adapters/*`, `tslaws/e2e`). Browser laws run in parallel isolated `BrowserContext`s on a real local HTTP origin
 (top-level pages by default, or `--browser-mode iframe`, plus `--headed` for interactive debugging), execute `fast-check`
-in-browser to eliminate per-input IPC, and provide our own built-in Vitest-style browser API (no Vite required):
+in-browser to eliminate per-input IPC, and provide a built-in real-browser testing API:
 chainable, auto-waiting Playwright-backed `page` locators (`page.getByRole`, `page.getByText`, `page.getByLabelText`,
 `page.getByPlaceholder`, `page.getByTestId`, `page.locator`, `.filter()`, `.first()`, `.nth()`, `page.viewport()`,
 `page.screenshot()`), auto-retrying `expectElement(locator)` assertions (`.toBeVisible()`, `.toHaveTextContent()`,
