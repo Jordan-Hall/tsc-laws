@@ -20,10 +20,11 @@ export const checkDefaults: RunDefaults = { runs: 200, bound: 4, proofTimeoutMs:
  *   - `$schema`: an editor hint.
  *   - `github`: who may accept and how a pull request is reviewed (github.ts); it changes no law's run.
  *   - `security`: the severity, cache and offline mode of `tslaws security deps`; it reads packages, it runs no law.
+ *   - `jobs`: how many things run at once on this machine; it changes no law's result.
  *   - `levels`: the lock records each laws file's level in its own section and compares it, and a lock that records
  *     levels while the project no longer resolves any is tampered (see `compareLock`).
  */
-export const unsealedKeys: readonly string[] = ['$schema', 'github', 'security', 'levels'];
+export const unsealedKeys: readonly string[] = ['$schema', 'github', 'security', 'levels', 'jobs'];
 
 /**
  * The whole effective tslaws.json (every `extends` followed) except `unsealedKeys`, with defaults filled in so that

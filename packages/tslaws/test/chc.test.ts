@@ -5,7 +5,6 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { after, afterEach, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import './serial-solver.ts';
 import { check } from '../dist/check.js';
 import {
   certificationProblem,
