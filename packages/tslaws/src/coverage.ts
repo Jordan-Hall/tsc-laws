@@ -403,6 +403,33 @@ export function coverFiles(cwd: string, globs: string[]): string[] {
   return found.sort();
 }
 
+/** The interop helpers a compiler wraps around `require` for an ES module import: tsc's, tslib's and esbuild's. */
+const interopHelpers = new Set(['__importStar', '__importDefault', '__toESM']);
+
+/**
+ * The relative path in `require('./x')`, or in that call wrapped, possibly more than once, in an interop helper such as
+ * `__importStar(require('./x'))`. Undefined for anything else.
+ */
+function relativeRequire(expression: ts.Expression): string | undefined {
+  let call = expression;
+  while (ts.isCallExpression(call) && call.arguments.length >= 1) {
+    const callee = call.expression;
+    const name = ts.isIdentifier(callee) ? callee.text : ts.isPropertyAccessExpression(callee) ? callee.name.text : '';
+    if (!interopHelpers.has(name)) break;
+    call = call.arguments[0]!;
+  }
+  if (
+    ts.isCallExpression(call) &&
+    ts.isIdentifier(call.expression) &&
+    call.expression.text === 'require' &&
+    call.arguments.length === 1 &&
+    ts.isStringLiteral(call.arguments[0]!) &&
+    call.arguments[0].text.startsWith('.')
+  )
+    return call.arguments[0].text;
+  return undefined;
+}
+
 function parseModule(jsFile: string, modules: Map<string, Module>): Module | undefined {
   const known = modules.get(jsFile);
   if (known !== undefined) return known;
@@ -424,15 +451,10 @@ function parseModule(jsFile: string, modules: Map<string, Module>): Module | und
       const init = declaration.initializer;
       if (ts.isArrowFunction(init) || ts.isFunctionExpression(init) || ts.isClassExpression(init))
         module.nodes.set(declaration.name.text, { name: declaration.name.text, body: init, exempt: exempt(statement) });
-      else if (
-        ts.isCallExpression(init) &&
-        ts.isIdentifier(init.expression) &&
-        init.expression.text === 'require' &&
-        init.arguments.length === 1 &&
-        ts.isStringLiteral(init.arguments[0]!) &&
-        init.arguments[0].text.startsWith('.')
-      ) {
-        const base = resolve(dirname(jsFile), init.arguments[0].text);
+      else {
+        const specifier = relativeRequire(init);
+        if (specifier === undefined) continue;
+        const base = resolve(dirname(jsFile), specifier);
         module.imports.set(declaration.name.text, /\.[cm]?js$/.test(base) ? base : `${base}.js`);
       }
     }
