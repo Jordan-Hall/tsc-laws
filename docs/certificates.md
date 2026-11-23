@@ -1,12 +1,34 @@
 # Proof certificates
 
+## What is a certificate?
+
+tslaws proves a law with a solver. A certificate is the solver's proof written to a file, and a separate, independent
+checker ([Carcara](https://github.com/ufmg-smite/carcara)) re-checks every step of it. You don't have to trust tslaws or the
+solver: anyone can re-run the check. A law can only get a certificate if the proof format can express it. Today that means
+whole numbers and true/false logic, so a law about decimal numbers is proved but has no certificate.
+
+Every law falls into one of four groups, and the [certificate gallery](certificates/README.md) and the page `tslaws badge`
+writes sort the laws into them:
+
+- **Proved and independently checked**: a solver proved it and Carcara accepted the proof.
+- **Proved, but the proof can't be checked independently yet**: a solver proved it, but no certificate was made, or the
+  check did not pass. Turn certificates on (`--certify`) to find out which.
+- **Tested, not proved**: the law ran on random inputs (the page gives how many) and found no counterexample. That is evidence,
+  not a proof, so there is nothing to certify.
+- **Can't be certified, and why**: the law is proved, but the proof format cannot express it. A law about decimal
+  (floating-point) numbers is the usual case: the proof checker only handles whole numbers and true/false logic today, so use
+  `int` or `bigint` to get a certificate.
+
+## How it works
+
 Z3 says a law is proved when the negated law is `unsat`. That answer is a claim, and you trust Z3 to be right. A
 certificate lets a second program check it: cvc5 proves the same query again and writes the proof in the
 [Alethe](https://verit.loria.fr/documentation/alethe-spec.pdf) format, and [Carcara](https://github.com/ufmg-smite/carcara),
 a small independent proof checker, checks that proof step by step.
 
-The [certificate gallery](certificates/README.md) shows real ones: each law of the demo project with its source, lock hashes,
-loop invariants, a proof excerpt, the full problem and proof files, and the Carcara command that checks them.
+The [certificate gallery](certificates/README.md) shows real ones: a plain summary of the demo project's laws, then each law with
+its source, lock hashes, loop invariants, a proof excerpt, the full problem and proof files, and the Carcara command that
+checks them.
 
 ## What it guarantees
 
@@ -168,17 +190,24 @@ Use `--certify` without `--require-certify` to see which laws certify without fa
 
 ## Badges
 
-Two [shields.io endpoint](https://shields.io/badges/endpoint-badge) badges show where a project stands: `laws: N proved` and
-`certificates: N verified`. An endpoint badge reads a small JSON file from a URL, so a file committed to the repository and
+Two [shields.io endpoint](https://shields.io/badges/endpoint-badge) badges show where a project stands. Each message breaks the
+laws down by category and never reads "N of M": `laws: 7 proved · 1 tested` and `certificates: 7 certified · 1 not certifiable`. An endpoint badge reads a small JSON file from a URL, so a file committed to the repository and
 served by `raw.githubusercontent.com` is enough. You do not need GitHub Pages.
 
 [![tslaws](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FJordan-Hall%2Ftsc-laws%2Fmain%2Fdocs%2Fcertificates%2Fbadge-laws.json)](certificates/README.md)
 [![certificates](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FJordan-Hall%2Ftsc-laws%2Fmain%2Fdocs%2Fcertificates%2Fbadge-certificates.json)](certificates/README.md)
 
-- `laws` counts the laws Z3 proved. It is green when every law is proved and yellow otherwise (`7 of 8 proved`), and for a
-  project with no laws.
-- `certificates` counts the laws a checker accepted a proof of: from the run, or from a certificate in the lock that is still
-  for its law. It is green when every law is certified and yellow otherwise (`7 of 8 verified`).
+- `laws` counts the laws by what the check concluded: `proved`, `bounded`, `tested`, `open` and `failed`, in that order,
+  leaving out the empty ones (`7 proved · 1 tested`). It is green, red when a law failed, and yellow when a law is open (and
+  for a project with no laws).
+- `certificates` counts the laws by their certificate: `certified` (a checker accepted a proof of it, from the run or from a
+  certificate in the lock that is still for its law), `not certifiable`, `not certified`, `certificate failed` and `failed`
+  (`7 certified · 1 not certifiable`). **Not certifiable** is a law the proof format cannot express (floating point,
+  strings) or that has no proof to check (it was only tested or checked within a bound). **Not certified** is a law that could
+  be, but no certificate was made (certificates were off, or cvc5 or Carcara was not found). **Certificate failed** is a
+  certificate that was tried and did not pass. It is green when nothing failed and every law that can be certified is, so a law
+  that simply cannot be certified does not turn it yellow. It is yellow when a law that could be certified is missing its
+  certificate or its certificate failed, and red when a law failed.
 
 This repository's own badges link to the [certificate gallery](certificates/README.md). The `certificates` workflow writes
 their JSON (`docs/certificates/badge-laws.json` and `badge-certificates.json`) with the rest of the gallery, from the same
@@ -192,12 +221,12 @@ npx tslaws badge --certify
 
 `tslaws badge` checks the project (or reads the output of `tslaws check --json` from `--report FILE`, so a CI job that has
 already checked does not check twice), writes `badge-laws.json` and `badge-certificates.json` into `badges/` (a directory you commit, so the badge URLs resolve) and
-prints the markdown that shows them. When a law is certified it also writes a certificates page, `badges/README.md`, that lists
-each law with its status and its proof files, which it copies to `badges/certificates/`. Both badges link to that page:
+prints the markdown that shows them. When a law is certified it also writes a certificates page, `badges/README.md`, that explains what a certificate is,
+sorts the laws into the four groups above and lists each law with its status and its proof files, which it copies to `badges/certificates/`. Both badges link to that page:
 
 ```text
-laws: 8 proved
-certificates: 8 verified
+laws: 7 proved · 1 tested
+certificates: 7 certified · 1 not certifiable
 wrote badges/badge-laws.json and badges/badge-certificates.json; commit them and add to your README:
 
 [![tslaws](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Facme%2Fwidgets%2Fmain%2Fbadges%2Fbadge-laws.json)](https://github.com/acme/widgets/blob/main/badges/README.md)

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
   "label": "certificates",
-  "message": "7 of 8 verified",
-  "color": "yellow"
+  "message": "7 certified · 1 not certifiable",
+  "color": "brightgreen"
 }
