@@ -6,13 +6,17 @@
 [![tslaws](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FJordan-Hall%2Ftsc-laws%2Fmain%2Fdocs%2Fcertificates%2Fbadge-laws.json)](https://github.com/Jordan-Hall/tsc-laws/blob/main/docs/certificates/README.md)
 [![certificates](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FJordan-Hall%2Ftsc-laws%2Fmain%2Fdocs%2Fcertificates%2Fbadge-certificates.json)](https://github.com/Jordan-Hall/tsc-laws/blob/main/docs/certificates/README.md)
 
+Laws for TypeScript. A person writes `law` declarations, an agent writes the code, and one command says whether the code
+satisfies every law and whether any exported code is left unchecked.
+
+## Install and quick start
+
 ```sh
 npm i -D tslaws   # also installs the compiler for your platform (tslaws-compiler-<platform>)
-npx tslaws init
+npx tslaws init   # tslaws.json, agent rules in AGENTS.md, a Claude Code hook, a starter law; never writes the lock
+npx tslaws accept # a person, at a terminal: records the laws in tsc-laws.lock
+npx tslaws check  # exit 0 only when everything holds
 ```
-
-Laws for TypeScript, checked the way Bend 2 checks its `LAWS.bend`: a person writes the laws, an agent writes the code,
-and one command says whether the code satisfies every law and whether any code is left unchecked.
 
 ```ts
 // src/math.laws.ts
@@ -33,212 +37,181 @@ export law sortOrders(xs: int[]) {
 }
 ```
 
-`law` is syntax of the `tsc-laws` compiler (a fork of [tsc-ts](https://github.com/vercel-labs/tsc-ts)). A law is a function
-declaration the compiler type-checks like any other. It holds for an input when it returns anything but `false` and does not
-throw. `assume(cond)` skips inputs a law does not cover. Everywhere except at the start of a statement, `law` is still an
-ordinary identifier.
+`law` is syntax of the `tsc-laws` compiler, which `tslaws` installs. A law is a function declaration the compiler
+type-checks like any other. It holds for an input when it returns anything but `false` and does not throw. `assume(cond)`
+skips inputs a law does not cover. Everywhere except at the start of a statement, `law` is still an ordinary identifier.
+
+## Output
 
 ```
 $ tslaws check
-PROVED   clampWithinBounds (src/math.laws.ts:5) [smt]
-         assuming: number parameters exclude NaN and ±Infinity
-BOUNDED  sortOrders (src/math.laws.ts:11) [smt]
-         holds within bounds: int values stay within ±2^26; arrays hold at most 4 elements; loops run at most 4 times
-FAILED   sortKeepsLength (src/math.laws.ts:17) [property]
-         returned false
-         counterexample: [[3,3]]
-         reproduce with --seed 1090953994
+PROVED    clampWithinBounds (src/math.laws.ts:5) [smt]
+          assuming: number parameters exclude NaN and ±Infinity
+BOUNDED   sortOrders (src/math.laws.ts:11) [smt]
+          holds within bounds: int values stay within ±2^26; arrays hold at most 4 elements; loops run at most 4 times
+          hint: Proved only within bounds (...). Passing; no action needed unless a person wants a full proof.
+FAILED    sortKeepsLength (src/math.laws.ts:17) [property]
+          returned false
+          counterexample: [[3,3]]
+          reproduce with --seed 1090953994
+          hint: The code breaks this law. The counterexample is [[3,3]]. Fix the code, not the law, then rerun. ...
 UNCOVERED sub (src/math.ts) [coverage]
-         no law reaches this exported function; add a law, or a person can mark it @tslaws-exempt and accept
+          no law reaches this exported function; add a law, or a person can mark it @tslaws-exempt and accept
+          hint: No law reaches this exported code. Ask a person for a law, ...
+
+4 laws: 1 proved, 1 bounded, 0 tested, 0 open, 1 failed, 0 tampered, 0 errors
 ```
 
-## What "checked against the laws" means
+Each result is `STATUS name (file:line) [method]`, then its detail lines. Every result that is not `proved` ends with a
+`hint:`, the next action for an agent. The last line counts the results. `--summary` prints only the results that do not
+pass, and `--reporter text|json|junit|github|ndjson` (or `--json`) picks another format: `junit` is JUnit XML, `github`
+prints workflow annotations and appends a table to `GITHUB_STEP_SUMMARY`, and `ndjson` streams one JSON event per line for
+editors.
 
-Two things, both required for exit status 0:
+| Status      | Meaning                                                                                                                                        |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `proved`    | Z3 shows no input makes the law return `false`, with no bound involved.                                                                        |
+| `bounded`   | Proved for every input within stated bounds: array length (`--bound`, default 4), loop iterations, recursion depth, `int` values within ±2^26. |
+| `tested`    | Property tests found no counterexample in `--runs` inputs (default 200); the code does not lower to the prover. Not a proof.                   |
+| `open`      | Declared `law proved …` but not proved for every input (a bounded proof does not count). Fails the check.                                      |
+| `failed`    | A counterexample, shrunk to a minimal input, with the seed to reproduce it.                                                                    |
+| `uncovered` | Exported code no law reaches. Fails the check.                                                                                                 |
+| `tampered`  | A law changed, was added or removed since `tsc-laws.lock` was accepted, or a coverage exemption is not in it. Fails the check.                 |
+| `error`     | The law cannot run: not exported, a parameter has no type, no generator for a type, a load failure, or a Z3 crash (see below).                 |
 
-1. **Every law holds for the code.** The implementation, not a copy of it, is what runs and what is proved.
-2. **No code escapes the laws.** Every exported function or class in the covered modules is reached by a law, directly or
-   through the functions the law calls. Covered modules are the `cover` globs of `tslaws.json`
-   (`{ "cover": ["src/**/*.ts", "!src/**/*.test.ts"] }`), or, without that file, every project module the laws import.
+`tslaws check` exits 0 only when every law is `proved`, `bounded` or `tested`, nothing is `uncovered`, the files compile
+and the lock matches. Inputs are generated from each parameter's type; register a generator for a type the runner cannot
+derive with `arbitrary('UserId', fc.string(...))` (`arbitrary` and `fc` come from `tslaws`).
 
-## Statuses
+## Coverage
 
-| Status      | Meaning                                                                                                                                             |
-| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `proved`    | Z3 shows no input makes the law return `false`, with no bound involved.                                                                             |
-| `bounded`   | Z3 shows it for every input within stated bounds: array length (`--bound`, default 4), loop iterations, recursion depth, `int` values within ±2^26. |
-| `tested`    | `fast-check` found no counterexample in `--runs` inputs (default 200); the code does not lower to the prover. Not a proof.                          |
-| `open`      | Declared `law proved …` but not proved for every input (a bounded proof does not count), or `assume` discards nearly every input. Fails the check.  |
-| `failed`    | A counterexample, shrunk to a minimal input, with the seed to reproduce it.                                                                         |
-| `uncovered` | Exported code no law reaches. Fails the check.                                                                                                      |
-| `tampered`  | A law changed, was added or removed since `tsc-laws.lock` was accepted, or a coverage exemption is not in it. Fails the check.                      |
-| `error`     | The law cannot run: not exported, a parameter has no type, no generator for a type, load failure.                                                   |
+Every exported function or class in the covered modules must be reached by a law, directly or through the functions the
+law calls. The covered modules are the `cover` globs of `tslaws.json`
+(`{ "cover": ["src/**/*.ts", "!src/**/*.test.ts"] }`), or, without that file, every project module the laws import.
+Coverage follows ES `import`s as well as `require`, including the interop helpers a compiler wraps around them
+(`__importStar`, `__importDefault`, `__toESM`), so code you import with `import x from './y'` counts as reached. Mark
+code that needs no law `@tslaws-exempt`; a person accepts the exemption into the lock.
 
-A `proved` or `bounded` result also lists the domain assumptions its proof rests on, for the parameter types of that law
-only: `number` parameters exclude NaN and ±Infinity, `int` parameters stay within ±(2^53 − 1), and `string` parameters use
-only characters up to U+FFFF with a length cap. They show as `assuming: …` in text output, as `assumptions` in JSON and
-ndjson, and in the step-summary Detail cell and the `::notice` of a `bounded` result. A law whose parameters need none
-(`boolean`, `bigint`) prints as before.
+## Levels
 
-`tslaws check` exits 0 only when every law is `proved`, `bounded` or `tested`, nothing is `uncovered`, the files compile, and
-the lock matches.
+A laws file's level comes from its name: `*.browser.laws.ts` runs in a real browser (Chrome, Edge or Chromium, or
+`--browser firefox|webkit`) against a live DOM, `*.e2e.laws.ts` drives your running app, and any other `*.laws.ts` runs in
+Node. Set `"levels": "imports"` in `tslaws.json` and the level comes from the file's imports instead (`tslaws/browser`,
+`tslaws/adapters/*`, `tslaws/e2e`). Browser laws are `tested`, never `proved`. Node laws run in a permission sandbox
+(Node 22.15 or later; `--no-sandbox` opts out), and an end-to-end law needs `--allow-e2e` because it cannot run inside it.
+`tslaws list` shows each laws file, its level and whether it is accepted.
 
-## Inputs come from types
+## The lock
 
-The compiler emits declarations and `tslaws` reads each parameter's type from them, so the full type system drives input
-generation: primitives and literals, unions, enums, template literals, arrays, tuples, interfaces and type literals (optional
-properties included), index signatures, `Date`, and type parameters through their constraints. Parameters typed `number` are
-finite doubles (no NaN, no infinities). Register a generator for a type the runner cannot derive, by its name:
+`tsc-laws.lock` holds a hash of every law and the list of coverage exemptions. A law's hash covers its declaration, the
+helpers and generators it reaches, every module its file imports, and the effective `tslaws.json` apart from `github`,
+`security` and `levels`, so weakening a helper reads as tampering too. Comments and layout do not.
 
-```ts
-import { arbitrary, fc } from 'tslaws';
-arbitrary('UserId', fc.string({ minLength: 8, maxLength: 8 }));
+- A change, an added law, a removed law or a new `@tslaws-exempt` fails the check until a person runs `tslaws accept`. It
+  refuses to run without a terminal, under `CI`, or with `TSLAWS_AGENT` set, unless a person lent it with
+  `tslaws delegate grant [--for 1h|8h|1d|7d]` (revoke with `delegate revoke`; never under `CI`).
+- Agents propose laws in `*.proposed.laws.ts` files (or with `tslaws propose` or the MCP tool) and try them with
+  `tslaws check --proposed`. A person moves one into the tree with `tslaws promote`, then accepts.
+- `tslaws mcp` serves check, explain, list and propose to agents over MCP. It cannot accept or touch the lock.
+- `hooks/claude-hook.mjs` is a Claude Code hook that blocks `git commit` while the check fails; `tslaws init` wires it up.
+
+## Certificates
+
+```sh
+npx tslaws check --certify           # or "certify": true in tslaws.json
+npx tslaws check --require-certify   # a proof that cvc5 and Carcara cannot certify fails the check
 ```
+
+For a law Z3 proved, cvc5 writes a proof and Carcara checks it, so a proof is more than a solver's say-so. Loops are
+certified through their `invariant`s. Install `cvc5` and `carcara` on the PATH (or set `TSLAWS_CVC5` and `TSLAWS_CARCARA`);
+without them a certificate is `unavailable`, which fails the check only with `--require-certify`. Real certificates, with
+the command that checks each, are in the
+[certificate gallery](https://github.com/Jordan-Hall/tsc-laws/blob/main/docs/certificates/README.md).
+
+### Badges
+
+```sh
+npx tslaws badge --certify
+```
+
+`tslaws badge [files...] [--out DIR] [--report FILE] [--repo OWNER/NAME] [--branch NAME] [--link URL] [--certify]` checks
+the project (or reads a `check --json` report from `--report`), writes the shields.io endpoint files `badge-laws.json` and
+`badge-certificates.json` into `badges/` (default; commit them), and prints the markdown that shows them. When a law is
+certified it also writes `badges/README.md`, a page of your laws, their status and proof files, which the badges link to.
+See [Proof certificates](https://github.com/Jordan-Hall/tsc-laws/blob/main/docs/certificates.md#badges).
+
+## GitHub integration
+
+`tslaws github report|command|merge|verify` accepts laws on GitHub (CI only; configure the `github` section of
+`tslaws.json`). A pull request that adds, changes or removes a law is a proposal: `report` runs each one and comments with
+what it would be if accepted, `command` records `/tslaws accept` comments, and `merge` writes `tsc-laws.lock` on your
+branch after the merge, or on demand from `workflow_dispatch`.
+
+The merge fast path: `merge` compares the laws on the merged code with the lock first, and runs only the laws the lock
+does not record (new laws, edited laws, and laws whose dependencies changed). When the lock already records every law,
+which is the usual merge, no law runs and nothing is written. Nothing from the pull request counts as proof; the merge
+re-proves each law it runs. See
+[Accepting laws on GitHub](https://github.com/Jordan-Hall/tsc-laws/blob/main/docs/github.md).
+
+## Bundler plugins
+
+`tslaws.json` `bundlerPlugins` lists esbuild plugin modules (paths relative to the file) that teach tslaws source formats
+Node and the browser bundler cannot read, such as `.tsrx`, `.svelte` or `.vue`. Browser laws bundle through them. Node
+laws use them too: project source that imports such a file loads it through the plugin, and a relative import from that
+file to a project `.ts` module resolves to the compiled twin in `.tslaws/out`, the same copy the law's own imports get.
+See [Bundler plugins](https://github.com/Jordan-Hall/tsc-laws/blob/main/docs/laws.md#bundler-plugins).
+
+## When Z3 crashes
+
+If the Z3 worker crashes (it throws, runs out of memory or exits), tslaws retries the query on a fresh worker twice. If
+every try crashes, the law is an `error` whose message says `the Z3 solver crashed` and why. It is never quietly
+downgraded to a bounded proof or a test. A solver that gives up or runs out of time behaves as before: the law falls back
+to a bounded proof or to tests, and says so.
 
 ## The prover
 
-`tslaws` symbolically executes the compiled JavaScript of a law, inlining the project functions it calls, and asks Z3 for an
-input that returns `false` or breaks an obligation. A model is replayed in JavaScript, and only a reproduced failure is
-reported as `failed`.
+`tslaws` symbolically executes the compiled JavaScript of a law, inlining the project functions it calls, and asks Z3 for
+an input that returns `false`. A model is replayed in JavaScript, and only a reproduced failure is reported as `failed`.
 
-- **Numbers are IEEE doubles** (SMT-LIB floating point), so rounding, overflow and `-0` are real, and `(a + b) + c ===
-  a + (b + c)` is refuted. Z3 cannot decide most double arithmetic, so those laws stay `tested`; commutative `+` and `*` are
-  normalised so `a + b === b + a` is proved.
-- **`int` is exact.** `import type { int } from 'tslaws'` marks a whole number (`number & brand`, an ordinary number at
-  runtime). Integer arithmetic carries the obligation that results stay within ±(2^53 − 1); when the full range fails only on
-  that obligation, the proof is retried with `int` values in ±2^26 and reported `bounded`. `bigint` is exact with no bound.
-- **Arrays, loops, recursion** are unrolled up to `--bound` (default 4), making the result `bounded`. Supported: `length`,
-  indexing, literals and spread, `push`, `map`, `filter`, `every`, `some`, `reduce`, `includes`, `indexOf`, `slice(n)`,
-  `concat`, `reverse`, `sort(comparator)` (a stable sorting network), `[...new Set(xs)]`, `for`, `while`, `for…of`, `break`,
-  `continue`. Mutation is allowed only on arrays no second name can reach.
-- **Strings** are unbounded SMT strings restricted to the BMP: `+`, templates, `length`, `charAt`, indexing, `slice`,
-  `substring`, `includes`, `startsWith`, `endsWith`, `indexOf`, comparisons.
-- **Records** of any of these, and `typeof`, `Math.abs/min/max/floor/ceil/trunc`, ternaries, `const`/`let`, `assume`.
-- **`forall(xs, (x, i) => cond)` and `exists(...)`** (from `tslaws`) quantify over arrays in `assume`, law results and
-  `invariant`s. The prover lowers them over the array slots, so a claim that uses them is `bounded` by `--bound`.
+- Numbers are IEEE doubles, so rounding and overflow are real; `int` (`import type { int } from 'tslaws'`) is an exact
+  whole number, and `bigint` is exact with no bound.
+- Arrays, loops and recursion unroll up to `--bound`, which makes the result `bounded`. `invariant(cond)` first in a loop
+  body proves the loop for every iteration count, with no bound.
+- Strings, records, `forall` and `exists` over arrays are supported. Anything else leaves the law `tested`, or a
+  `law proved` `open`, with the reason.
 
-- **Loop invariants give proofs for every number of iterations.** Put `invariant(cond)` first in a loop body (`import {
-  invariant } from 'tslaws'`; it throws at runtime when false, so property tests check it on every iteration). The prover
-  proves the invariant on entry, assumes it at the top of an arbitrary iteration, proves it again at the end, and gives the
-  code after the loop an arbitrary state where the invariant holds and the condition is false. No unrolling, so no bound:
-
-  ```ts
-  export function sumTo(n: int): int {
-    let s = 0,
-      i = 0;
-    while (i < n) {
-      invariant(0 <= i && i <= n);
-      invariant(2 * s === i * (i - 1));
-      s += i;
-      i += 1;
-    }
-    return s as int;
-  }
-  // law proved: 2 * sumTo(n) === n * (n - 1), for every n >= 0
-  ```
-
-  Invariants live in the implementation, so the agent writes them; the laws stay the person's. Restrictions: the loop may
-  change numbers, booleans and strings but only read arrays and records, and may not `return`, `break` or `continue`.
-  This is partial correctness (a loop that never ends is not flagged).
-
-Anything else leaves the law `tested`, or a `law proved` `open`, with the reason. Z3 runs in a worker thread that is terminated if a query outlives its timeout, so a hard query cannot hang the check; property tests run in a worker too, and a law that outlives `--property-timeout` (default 30000 ms) is reported `error`: the law or the code it calls may not terminate. `TSLAWS_DEBUG=1` keeps each query as an
-`.smt2` file under `.tslaws/out/smt` to replay in `z3`.
-
-## Browser laws
-
-A laws file that imports `tslaws/browser` (directly or through a helper module of yours) runs in a real browser (Chrome, Edge or Chromium; `TSLAWS_BROWSER` names another
-executable). Node generates and shrinks the inputs; each one is sent to a page where the compiled law and your code run
-against a live DOM. The law may be `async`. `tslaws/browser` has `mount`, `settle`, `click`, `type` and `fire`, and works with
-any framework or none: `mount(el => render(el))` accepts whatever renders into an element and may return its unmount.
-`a11y` and `accessible` audit a mounted component with the optional `axe-core` peer dependency, and `--browser firefox|webkit` picks another engine (`npx playwright install firefox`).
-`mountComponent` with the React, Angular, DOM and custom-element adapters tests one component in isolation with props generated from its props type (function-typed props included), plus `spy`, `rendersSame` and Testing Library style queries.
-Browser laws are `tested`, never `proved`. See [docs/laws.md](../../docs/laws.md#browser-laws).
-
-A laws file that imports `tslaws/e2e` instead is an end-to-end law (a file that reaches both is an error; by default the level comes from the name, `.browser.laws.ts` or `.e2e.laws.ts`, and `"levels": "imports"` in `tslaws.json` makes the imports decide instead): it runs in Node and drives your whole running app through a real browser (`page()`, `open`, `newPage`, `route`, `settle`, `accessible`). Configure `e2e.server` in `tslaws.json` and the runner starts and stops your dev server. See [End-to-end laws](../../docs/laws.md#end-to-end-laws).
-
-- **Frameworks:** `tslaws.json` `compilerOptions` (`jsx`, `jsxFactory`, `jsxFragmentFactory`, `jsxImportSource`, `experimentalDecorators`,
-  `emitDecoratorMetadata`, `useDefineForClassFields`, `lib`, `types`, `strict`, ...) and `.tsx` sources let React, Angular and any DOM
-  library be tested. See [docs/laws.md](../../docs/laws.md#frameworks).
-- **Stateful laws:** a law over `ops: Op[]` (a union type) can use `runModel` or `runModelAsync` to apply the operations to the
-  real thing and to a simple model and compare them after every step. Failing sequences shrink to the shortest one. See
-  [docs/laws.md](../../docs/laws.md#stateful-laws).
-
-## Dashboard
-
-`tslaws ui [files...] [--port N] [--no-open]` serves a local dashboard (127.0.0.1 only): a tree of files and laws,
-live progress, a live view of the browser page during browser laws, status filters, search, a report with a copyable reproduce command, the law's source, and live reruns on save.
-Laws are timed (the five slowest are listed), the last 20 runs show as a row of coloured squares, laws that flip between passing and failing are marked `flaky`, and any single law can be rerun.
-See [docs/laws.md](../../docs/laws.md#the-dashboard).
-
-`tslaws mutate [files...] [--max N] [--seed N] [--json]` mutation-tests the laws: it mutates the covered code, re-runs the laws against each mutant, and lists the survivors no law caught. It handles `.tsx`/`.jsx` and projects with a lock, and takes the run flags of `check`. See [docs/laws.md](../../docs/laws.md#mutation-testing).
-
-- **Other source formats:** `tslaws.json` `bundlerPlugins` lists esbuild plugin modules (paths relative to the file) that teach the browser bundler formats like `.tsrx`. See [docs/laws.md](../../docs/laws.md#bundler-plugins).
-- **Bundler-style source:** `import.meta.env` works in laws, in the code they reach and in browser pages (`tslaws.json` `env` adds or overrides entries), and a TypeScript dependency may import its own files without extensions. See [docs/laws.md](../../docs/laws.md#source-written-for-a-bundler).
-- **Settings:** `tslaws.json` `runs`, `bound`, `proofTimeoutMs` and `propertyTimeoutMs` set the run defaults; a command line flag beats them. `"solvers": ["z3", "cvc5"]` makes cvc5 confirm every Z3 proof (set `TSLAWS_CVC5` to its path, or put it on the PATH). See [docs/laws.md](../../docs/laws.md#settings).
-
-## Agents cannot move the goalposts
-
-`tsc-laws.lock` holds a hash of every law and the list of coverage exemptions. A law's hash covers its declaration, the helpers,
-generators and top-level code of its file that it reaches, every module the file imports (a registry package by name and
-version), and the whole effective `tslaws.json` apart from `github`, `security` and `levels`, so weakening a helper or setting
-`runs: 1` reads as tampering too; comments, layout and edits no law reaches do not. A change, an added law, a removed
-law or a new `@tslaws-exempt` fails the check until a person runs `tslaws accept`, which refuses to run without a terminal,
-under `CI`, or with `TSLAWS_AGENT` set, unless a person has lent it for a limited time with `tslaws delegate grant`. Agents propose laws in `*.proposed.laws.ts` files (or optionally in `.tslaws/proposals/`, outside the tree and git-ignored; `tslaws propose` or the MCP tool) and try them with `tslaws check
---proposed` (no lock, no coverage gate); a person moves one into the tree with `tslaws promote` and accepts. Every laws file in the tree must be in the lock. A project that accepts laws on GitHub (a `github` section in `tslaws.json`) still lets a person run `tslaws accept` by hand, and a maintainer can run the workflow on demand; set `github.local` to false to leave the lock to the workflow alone. See [docs/github.md](../../docs/github.md).
-
-`hooks/claude-hook.mjs` is a Claude Code hook that blocks `git commit` and sends an agent back to work when the check fails;
-`hooks/claude-settings.example.json` wires it up and `hooks/AGENTS.snippet.md` tells the agent the rules.
+Z3 and the property tests each run in a worker with a timeout (`--proof-timeout`, `--property-timeout`), so a hard query
+cannot hang the check. `TSLAWS_DEBUG=1` keeps each query as an `.smt2` file under `.tslaws/out/smt`.
 
 ## Commands
 
 ```
 tslaws init [--force]
+tslaws check [files...] [--reporter ...] [--summary] [--watch] [--certify] [--require-certify] [--runs N] [--seed N] [--bound N] [--proposed] ...
 tslaws accept [files...]
-tslaws delegate grant [--for 1h|8h|1d|7d] [--root DIR]
-tslaws delegate revoke [--root DIR]
-tslaws delegate status
-tslaws check [files...] [--json] [--summary] [--watch] [--runs N] [--seed N] [--no-prove] [--bound N]
-             [--proof-timeout MS] [--property-timeout MS] [--proposed] [--compiler PATH]
+tslaws delegate grant|revoke|status
+tslaws propose <file.ts>     tslaws promote <proposal>     tslaws list [--json]
+tslaws badge [files...] [--certify]
+tslaws github report|command|merge|verify
+tslaws ui [files...] [--port N] [--no-open] [--tab]
+tslaws mutate [files...] [--max N] [--seed N] [--json]
+tslaws regressions [list|clear]
+tslaws security deps [--offline] [--fail-on LEVEL]
+tslaws migrate <source> [files...] [--write]
+tslaws mcp
 ```
 
-- `check <files>` and `accept <files>` work on the named laws files only: the lock is compared only for their laws, so a locked law in
-  another file is not reported as removed, and `accept` keeps the lock entries of the other files. A law removed from a named file is still reported.
-- `init` scaffolds `tslaws.json`, the `.tslaws` ignore entry, the agent rules in `AGENTS.md`, the Claude Code hook in
-  `.claude/settings.json`, and a starter law if none exists. It never writes the lock; a person then runs `accept`.
-- `accept` records the laws and the `@tslaws-exempt` functions in `tsc-laws.lock`. It refuses to run without a terminal,
-  under `CI`, or with `TSLAWS_AGENT` set, unless a live delegation covers the project (never under `CI`).
-- `delegate grant` lends `accept` to agents for 1h, 8h (default), 1d or 7d (the most), for one project root. `delegate revoke`
-  withdraws it and `delegate status` lists grants; `grant` and `revoke` need a terminal and refuse under `CI` or
-  `TSLAWS_AGENT`. The grant lives in `~/.tslaws/delegation.json`, outside the repository (found through the operating
-  system's user record, not `HOME`; an agent running as the same user can still write that file). A delegated `accept` appends to `.tslaws/accept.log` and prints `DELEGATED ACCEPT`.
-  A grant is a person's decision, bounded in time, outside the repo, audited in `accept.log`. See [docs/laws.md](../../docs/laws.md#lending-accept-to-an-agent).
-- `check` exits 0 only when every law is `proved`, `bounded` or `tested`, nothing is `uncovered`, the files compile and the
-  lock matches. `--json` adds a `hint` to each result, the concrete next action for an agent. `--summary` prints only the
-  results that do not pass, plus the totals. `--watch` re-runs on every `.ts` change.
-- `check --reporter text|json|junit|github` picks the output: `junit` is JUnit XML for CI test reports, `github` prints workflow
-  annotations and appends a table to `GITHUB_STEP_SUMMARY`. See "CI reporters" in `docs/laws.md`.
+Run `tslaws --help` for every flag. `tslaws ui` opens a dashboard (tree, filters, counterexamples, source, live
+reruns on save). `tslaws mutate` changes your code in small ways and lists the changes no law notices. Counterexamples are
+kept in `.tslaws/regressions` and replayed first on every later run. In a monorepo, run from the root and each project
+checks with its own config and lock (`--project`, `--filter`, `--changed`).
 
-- `tslaws mcp` serves `tslaws_check`, `tslaws_check_proposed`, `tslaws_explain`, `tslaws_list` and `tslaws_propose` over MCP (stdio) for
-  agents; it cannot accept laws, promote a proposal or touch the lock. `tslaws promote <proposal> [--to PATH]` is the person's step that moves a proposal into the
-  tree; `tslaws propose <file.ts>` writes one; `tslaws list [--json]` says which files are laws files, at what level, and whether each is accepted. See [docs/laws.md](../../docs/laws.md#agent-integration-mcp).
-- Counterexamples are kept in `.tslaws/regressions` (committable) and replayed before the random search, so a fixed bug cannot
-  return unnoticed. `check --no-regressions` skips the corpus; `tslaws regressions [list|clear]` shows or deletes it.
+## Docs
 
-Without files, every `*.laws.ts` under the current directory is used, and every file the `"laws"` globs of `tslaws.json` pick that declares a law. The compiler is `--compiler`, `TSC_LAWS_BIN`, or
-`tsc-laws` on `PATH`; it finds its lib files through `TSC_TS_LIB_DIR`, or the TypeScript 7 libs scriptc installs in
-`node_modules/@scriptc/*`.
-
-See [docs/laws.md](../../docs/laws.md) for the language, how it compares with Bend 2, and the limits.
-
-## Build and test
-
-```
-npm ci
-npm run fetch:upstream && npm run build:native:dev -w tsc-ts   # needs clang (and zig on Windows)
-npm run build -w tslaws
-TSC_LAWS_BIN=packages/tsc-ts/dist/tsc npm test -w tslaws
-TSC_TS_BIN=packages/tsc-ts/dist/tsc node --test packages/tsc-ts/tests/laws.test.mjs
-```
-
-`tsc-ts --laws-manifest <files>` lists the laws of files as JSON (name, parameters, line, declaration text, and the problems
-that stop a law running); `tslaws` uses it for the lock and for reporting.
+- [Laws for TypeScript](https://github.com/Jordan-Hall/tsc-laws/blob/main/docs/laws.md): the language, levels, the prover, settings
+- [Proof certificates](https://github.com/Jordan-Hall/tsc-laws/blob/main/docs/certificates.md) and the [gallery](https://github.com/Jordan-Hall/tsc-laws/blob/main/docs/certificates/README.md)
+- [Accepting laws on GitHub](https://github.com/Jordan-Hall/tsc-laws/blob/main/docs/github.md)
+- [tslaws in a monorepo](https://github.com/Jordan-Hall/tsc-laws/blob/main/docs/monorepo.md)
+- [Security laws](https://github.com/Jordan-Hall/tsc-laws/blob/main/docs/security-laws.md)
+- [Editor law syntax](https://github.com/Jordan-Hall/tsc-laws/blob/main/docs/editor-law-syntax.md)
+- [Changelog](https://github.com/Jordan-Hall/tsc-laws/blob/main/CHANGELOG-LAWS.md)
