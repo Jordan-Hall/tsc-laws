@@ -1,0 +1,6 @@
+(set-logic ALL)
+(declare-const n Int)
+(assert (and (<= (- 9007199254740991) n) (<= n 9007199254740991)))
+(assert (and (>= n 0) (< n 1000000)))
+(assert (or (not (<= (div n 2) n)) (not (and (<= (- 4503599627370496) n) (<= n 4503599627370496)))))
+(check-sat)

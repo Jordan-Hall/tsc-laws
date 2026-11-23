@@ -1,0 +1,2 @@
+(define-fun Inv0 ((x!0 Int) (x!1 (Array Int Int)) (x!2 Int) (x!3 Int)) Bool
+    (and (not (<= x!3 (- 1))) (not (<= x!2 (- 1)))))

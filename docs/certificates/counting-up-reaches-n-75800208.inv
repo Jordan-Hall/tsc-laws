@@ -1,0 +1,2 @@
+(define-fun Inv0 ((x!0 Int) (x!1 Int)) Bool
+    (not (>= (+ x!1 (* (- 1) x!0)) 1)))
