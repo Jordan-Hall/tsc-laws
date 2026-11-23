@@ -1,0 +1,63 @@
+name: Install the proof tools
+description: >-
+  Installs every tool tslaws can use to prove and to check a proof, pinned by release and checksum or by commit: cvc5 (writes
+  the Alethe proof), Carcara (checks it), and Eldarica and Golem (confirm the loop invariants Z3 finds). Sets TSLAWS_CVC5,
+  TSLAWS_CARCARA, TSLAWS_ELDARICA and TSLAWS_GOLEM for the steps after it. Linux x86-64 only.
+
+runs:
+  using: composite
+  steps:
+    - name: Install cvc5
+      shell: bash
+      env:
+        CVC5_RELEASE: cvc5-1.4.2
+        CVC5_ASSET: cvc5-Linux-x86_64-static.zip
+        CVC5_SHA256: 7eb18f8c814c36a46c5a7d003983e9cfbc4b0a9828d6dd596239291bd4cc61d8
+      run: |
+        mkdir -p "$HOME/cvc5" "$RUNNER_TEMP/cvc5-download"
+        curl -fsSL -o "$RUNNER_TEMP/cvc5-download/$CVC5_ASSET" \
+          "https://github.com/cvc5/cvc5/releases/download/$CVC5_RELEASE/$CVC5_ASSET"
+        echo "$CVC5_SHA256  $RUNNER_TEMP/cvc5-download/$CVC5_ASSET" | sha256sum -c -
+        unzip -q "$RUNNER_TEMP/cvc5-download/$CVC5_ASSET" -d "$HOME/cvc5"
+        echo "TSLAWS_CVC5=$(echo "$HOME"/cvc5/*/bin/cvc5)" >> "$GITHUB_ENV"
+    - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      id: carcara-cache
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          ~/.carcara
+        key: carcara-${{ runner.os }}-20bf49c5ce31089ac83118574c888669355aaae1
+    - name: Install Carcara
+      if: steps.carcara-cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: cargo install --locked --git https://github.com/ufmg-smite/carcara --rev 20bf49c5ce31089ac83118574c888669355aaae1 --root "$HOME/.carcara" carcara
+    - name: Install Eldarica and Golem
+      shell: bash
+      env:
+        ELDARICA_URL: https://github.com/uuverifiers/eldarica/releases/download/v2.3/eldarica-x86-linux-static.gz
+        ELDARICA_SHA256: 6815742c34e92d26b379006029eeeb1877757947206b5af9c2f7ff61a5e9440d
+        GOLEM_URL: https://github.com/usi-verification-and-security/golem/releases/download/v0.9.0/golem-x64-linux.tar.bz2
+        GOLEM_SHA256: 8209e804c6d4870e52d8d53b605a19145309445bffbd7e89f3ab4db31afdc490
+      run: |
+        mkdir -p "$HOME/chc/bin" "$RUNNER_TEMP/chc-download"
+        curl -fsSL -o "$RUNNER_TEMP/chc-download/eldarica.gz" "$ELDARICA_URL"
+        echo "$ELDARICA_SHA256  $RUNNER_TEMP/chc-download/eldarica.gz" | sha256sum -c -
+        gzip -dc "$RUNNER_TEMP/chc-download/eldarica.gz" > "$HOME/chc/bin/eld"
+        curl -fsSL -o "$RUNNER_TEMP/chc-download/golem.tar.bz2" "$GOLEM_URL"
+        echo "$GOLEM_SHA256  $RUNNER_TEMP/chc-download/golem.tar.bz2" | sha256sum -c -
+        tar -xjf "$RUNNER_TEMP/chc-download/golem.tar.bz2" -C "$HOME/chc/bin" golem
+        chmod +x "$HOME/chc/bin/eld" "$HOME/chc/bin/golem"
+        echo "TSLAWS_ELDARICA=$HOME/chc/bin/eld" >> "$GITHUB_ENV"
+        echo "TSLAWS_GOLEM=$HOME/chc/bin/golem" >> "$GITHUB_ENV"
+    - name: Show the tools
+      shell: bash
+      run: |
+        echo "TSLAWS_CARCARA=$HOME/.carcara/bin/carcara" >> "$GITHUB_ENV"
+        "$TSLAWS_CVC5" --version | head -2
+        "$HOME/.carcara/bin/carcara" --version
+        "$HOME/chc/bin/golem" --version || true
+        # A satisfiable one-clause system: both CHC solvers must answer `sat`.
+        printf '(set-logic HORN)\n(declare-fun p (Int) Bool)\n(assert (forall ((x Int)) (=> (= x 0) (p x))))\n(assert (forall ((x Int)) (=> (and (p x) (< x 5)) (p (+ x 1)))))\n(assert (forall ((x Int)) (=> (and (p x) (> x 5)) false)))\n(check-sat)\n' > "$RUNNER_TEMP/chc-download/smoke.smt2"
+        "$HOME/chc/bin/eld" -t:20 "$RUNNER_TEMP/chc-download/smoke.smt2"
+        "$HOME/chc/bin/golem" "$RUNNER_TEMP/chc-download/smoke.smt2"

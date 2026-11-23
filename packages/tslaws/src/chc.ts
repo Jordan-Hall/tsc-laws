@@ -48,9 +48,20 @@ export interface Engine {
   external: (query: string, timeoutMs: number) => Promise<ExternalAnswer[]>;
 }
 
+/**
+ * What a proof certificate for a loop proof is made from: the Horn system as `hornText` prints it (no timeout, so it is
+ * the same text every run) and the `define-fun` of each invariant as Z3 printed it. The invariants are guesses that need
+ * no trust: `certificationProblem` puts them back into the clauses, and the problem it makes is unsatisfiable only when
+ * each clause holds with them.
+ */
+export interface HornCertification {
+  horn: string;
+  invariants: string;
+}
+
 export type ChcVerdict =
   /** A verified invariant for every loop; `notes` says which other solvers confirmed it or could not. */
-  | { kind: 'safe'; invariants: string[]; notes: string[] }
+  | { kind: 'safe'; invariants: string[]; notes: string[]; certification: HornCertification }
   /** Spacer found the clauses contradictory: the law may fail (the unrolled proof looks for the input). */
   | { kind: 'unsafe' }
   /** No answer, or an answer that did not verify. */
@@ -142,6 +153,71 @@ function describe(predicate: Predicate, definition: string, index: number): stri
   return `loop ${index + 1} invariant over (${predicate.names.join(', ')}): ${named}`;
 }
 
+/** `term` with every application of a defined predicate replaced by its body, the arguments put in for the parameters. */
+function inlineApplications(term: string, definitions: Map<string, { params: string[]; body: string }>): string {
+  if (!term.startsWith('(')) return term;
+  const parts = children(term);
+  const head = parts[0];
+  const definition = head === undefined ? undefined : definitions.get(head);
+  const rest = parts.map((part) => inlineApplications(part, definitions));
+  if (definition === undefined) return `(${rest.join(' ')})`;
+  const args = rest.slice(1);
+  if (args.length !== definition.params.length) throw new Error(`${head} is applied to the wrong number of arguments`);
+  const bound = new Map(definition.params.map((param, i) => [param, args[i]!]));
+  const put = (text: string): string => {
+    if (!text.startsWith('(')) return bound.get(text) ?? text;
+    return `(${children(text).map(put).join(' ')})`;
+  };
+  return put(definition.body);
+}
+
+/**
+ * The SMT-LIB problem that proves a loop proof, from the Horn text and the invariants of a `HornCertification`: every
+ * constant of the clauses declared, each invariant put in place of its predicate, and one assertion that some clause
+ * fails. It has no quantifiers and no unknown predicate, so cvc5 can refute it with an Alethe proof and Carcara can check
+ * that proof. Because some constant can break one clause exactly when some constant breaks a clause, the problem is
+ * unsatisfiable exactly when every clause holds for every value, that is, when the invariants are inductive and make the
+ * law hold. Undefined when the invariants do not match the predicates the text declares.
+ */
+export function certificationProblem(horn: string, invariants: string): string | undefined {
+  try {
+    const definitions = new Map<string, { params: string[]; body: string }>();
+    for (const item of topLevel(invariants)) {
+      const parts = children(item);
+      if (parts[0] !== 'define-fun' || parts.length !== 5 || !parts[2]!.startsWith('(')) return undefined;
+      definitions.set(parts[1]!, { params: children(parts[2]!).map((param) => children(param)[0]!), body: parts[4]! });
+    }
+    const predicates = new Set<string>();
+    const constants = new Map<string, string>();
+    const clauses: string[] = [];
+    for (const item of topLevel(horn)) {
+      const parts = children(item);
+      if (parts[0] === 'declare-fun') predicates.add(parts[1]!);
+      if (parts[0] !== 'assert') continue;
+      let body = parts[1]!;
+      if (body.startsWith('(forall')) {
+        const quantified = children(body);
+        for (const binder of children(quantified[1]!)) {
+          const [name, sort] = children(binder);
+          constants.set(name!, sort!);
+        }
+        body = quantified[2]!;
+      }
+      clauses.push(body);
+    }
+    if (predicates.size !== definitions.size || [...predicates].some((name) => !definitions.has(name)))
+      return undefined;
+    if (clauses.length === 0) return undefined;
+    return [
+      ...[...constants].map(([name, sort]) => `(declare-const ${name} ${sort})`),
+      `(assert (or ${clauses.map((clause) => `(not ${inlineApplications(clause, definitions)})`).join(' ')}))`,
+      '(check-sat)',
+    ].join('\n');
+  } catch {
+    return undefined;
+  }
+}
+
 /** Plain Z3 checks each clause with the printed invariants in place of the unknowns; true when every one is valid. */
 async function verified(
   system: HornSystem,
@@ -197,7 +273,11 @@ export async function solveHorn(system: HornSystem, engine: Engine, timeoutMs: n
       else notes.push(`${other.solver} did not confirm (${other.detail ?? other.answer})`);
     }
     const invariants = system.predicates.map((p, i) => describe(p, definitions.get(p.name)!, i));
-    return { kind: 'safe', invariants, notes };
+    const certification = {
+      horn: hornText(system),
+      invariants: system.predicates.map((p) => definitions.get(p.name)!).join('\n'),
+    };
+    return { kind: 'safe', invariants, notes, certification };
   } catch (error) {
     return unknown((error as Error).message);
   }

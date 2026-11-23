@@ -796,7 +796,8 @@ reported as `failed`.
   state on entry satisfies an unknown `Inv`, one pass of the body keeps `Inv`, and `Inv` with the condition false implies
   the law. Z3's Spacer engine looks for `Inv`. When it finds one the invariant is printed in the result (`loop 1 invariant
   over (s, i, n): …`, shown as an assumption) and checked again with plain Z3, which must show every clause valid; only then
-  is the law `proved`, for every iteration count and with no bound. An array parameter (`int[]`, `bigint[]` or `boolean[]`)
+  is the law `proved`, for every iteration count and with no bound. With `certify` on, cvc5 and Carcara check that invariant
+  as well ([Proof certificates](certificates.md#laws-about-loops)). An array parameter (`int[]`, `bigint[]` or `boolean[]`)
   is an SMT array indexed by integers plus a length in 0 to 2^32 − 1, so a law about it holds for every length. Supported on
   such arrays: `length`, `xs[i]` read and write, `push` and `pop` on a copy, `slice()` and `[...xs]` as copies, and `while`
   and `for` loops over them. Reading outside the array is not modelled (JavaScript gives `undefined`): the read
@@ -1434,7 +1435,7 @@ On Windows the native build is `dist/tsc`; copy it to `tsc.exe` to run it.
 
 [docs/media/tslaws-delegation-explainer.mp4](media/tslaws-delegation-explainer.mp4) is a 123-second illustrated explainer of what tslaws offers in one picture, why laws help a migration, and how a person can lend `accept` to an agent for a limited time with `tslaws delegate grant`. It says plainly that a grant is a decision bounded in time and audited, not a sandbox. The command output in it is real, from `examples/checkout` (`scripts/demo/captures/`); the grant file and log lines are labelled illustration drawn from this document. `NARRATION=explainer-delegation.json node scripts/demo/explain.mjs` makes it from `scripts/demo/explainer-delegation.json`.
 
-[docs/media/tslaws-v1.mp4](media/tslaws-v1.mp4) is a 238-second screencast of what is new in v1: monorepo projects, `--changed`, proof certificates (cvc5 writes an Alethe proof, Carcara checks it), loop invariants, and the lock that ties a certificate to its problem. The command output in it is real (`scripts/demo/captures/`, and a screenshot of a CI run). `scripts/demo/explain.mjs` makes it from `scripts/demo/explainer-v1.json`.
+[docs/media/tslaws-v1.mp4](media/tslaws-v1.mp4) is a 229-second screencast of what is new in v1: monorepo projects, `--changed`, proof certificates (cvc5 writes an Alethe proof, Carcara checks it) for straight-line laws and loops alike, loop invariants cross-checked by Eldarica and Golem, the lock that ties a certificate to its problem, and the job that runs every one of those tools on this repository. The command output in it is real (`scripts/demo/captures/`, taken from a run of that job). `scripts/demo/explain.mjs` makes it from `scripts/demo/explainer-v1.json`.
 
 [docs/media/tslaws-intro.mp4](media/tslaws-intro.mp4) is a 79-second narrated recording: the law typed out, the real dashboard running the real laws in `examples/basic`, `examples/react` and `examples/e2e`, and the real `tslaws check` output, including the tamper failure after a law is edited. The voice is [Kokoro](https://huggingface.co/hexgrad/Kokoro-82M) (`scripts/demo/voice.mjs`, open neural text to speech, offline); the music bed and sound cues are synthesised by `scripts/demo/mix.mjs`; `scripts/demo/record.mjs` records the screen. `scripts/demo/captures/` holds the recorded command output.
 

@@ -17,8 +17,15 @@ import { Worker } from 'node:worker_threads';
 import { budget, jobs, WorkerPool } from './pool.ts';
 import { dirname, join } from 'node:path';
 import ts from 'typescript';
-import { certificateName, certify, problemText, type Certificate, type CertifyMode } from './certificates.ts';
-import { runExternalSolvers, solveHorn, type HornSystem } from './chc.ts';
+import {
+  certificateName,
+  certify,
+  certifyHorn,
+  problemText,
+  type Certificate,
+  type CertifyMode,
+} from './certificates.ts';
+import { hornText, runExternalSolvers, solveHorn, type HornCertification, type HornSystem } from './chc.ts';
 import { lawKey } from './lock.ts';
 import { SolverUnavailable, secondOpinion, type SolverName } from './solvers.ts';
 import { Executor, SpuriousModel, Unsupported, and, not, type SeqElement, type Value } from './symbolic.ts';
@@ -500,8 +507,9 @@ function queryOf(input: ProveInput, { decl, executor, facts, holds, safe }: Prob
 /**
  * The SMT-LIB problems the prover can send for a law (unbounded arrays, then bounded; the full safe range, then the
  * small-int retry), as the checkers read them. `tslaws accept` compares a certificate's problem hash with these, so a
- * certificate counts only for what the law proves now. A law the prover cannot model has none, and a law proved with
- * loop invariants is a Horn problem that gets no certificate.
+ * certificate counts only for what the law proves now. A law the prover cannot model has none. For a law with loops the
+ * text is the Horn system: the invariants that prove it are found by Z3 and can differ, so the certificate binds to the
+ * clauses the code yields instead.
  */
 export function problemTexts(input: ProveInput): string[] {
   const texts = new Set<string>();
@@ -509,7 +517,11 @@ export function problemTexts(input: ProveInput): string[] {
     for (const limit of [undefined, ...(input.shapes.some(containsInt) ? [smallInts] : [])]) {
       try {
         const problem = buildProblem(input, limit, theory);
-        if (problem.executor.predicates.length > 0) continue;
+        if (problem.executor.predicates.length > 0) {
+          if (theory)
+            texts.add(hornText(hornSystem(problem.executor, problem.decl, problem.facts, problem.holds, problem.safe)));
+          continue;
+        }
         if (theory && problem.decl.lengths.length === 0) continue;
         texts.add(problemText(queryOf(input, problem).join('\n')));
       } catch {
@@ -551,14 +563,14 @@ function hornSystem(executor: Executor, decl: Declarations, facts: string[], hol
   };
 }
 
-/** The certificate of a proof by loop invariants: none can exist, and with `certify` on the law says so. */
-function hornCertificate(input: ProveInput): { certificate?: Certificate } {
+/** The certificate of a proof by loop invariants: cvc5 refutes the problem the invariants make of the clauses, Carcara checks it. */
+async function hornCertificate(
+  input: ProveInput,
+  certification: HornCertification,
+): Promise<{ certificate?: Certificate }> {
   if (input.certify === undefined || input.certify.mode === false) return {};
   return {
-    certificate: {
-      status: 'uncertified',
-      reason: 'proved with loop invariants found by a Horn solver; cvc5 and Carcara have no proof of that to check',
-    },
+    certificate: await certifyHorn(certification, { timeoutMs: input.timeoutMs, keep: keepOf(input, input.certify) }),
   };
 }
 
@@ -585,8 +597,7 @@ async function attemptWith(
     if (verdict.kind === 'disagree') return { kind: 'unsupported', reason: verdict.reason };
     if (verdict.kind !== 'safe') return undefined;
     const assumptions = [...assumptionsFor(input.shapes, intLimit), ...verdict.invariants, ...verdict.notes];
-    // A Horn proof has no SMT-LIB refutation for cvc5 and Carcara to check, so it is never certified, and `require` fails it.
-    const certificate = hornCertificate(input);
+    const certificate = await hornCertificate(input, verdict.certification);
     return executor.bounded.length > 0
       ? { kind: 'bounded', limits: executor.bounded, assumptions, ...certificate }
       : { kind: 'proved', assumptions, ...certificate };
