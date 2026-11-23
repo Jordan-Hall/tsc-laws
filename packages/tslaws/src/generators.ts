@@ -93,15 +93,13 @@ export class GeneratorFactory {
     throw new UnsupportedType(`no generator for type ${this.checker.typeToString(type)}`);
   }
 
-  /** A type with a registered generator or built-in refinement type (`int`, `nat`, `posInt`, `nonZeroInt`, `intRange`, `nonEmpty`, `asciiString`). */
+  /** A type with a registered generator or built-in refinement type (`int`, `nat`, `posInt`, `nonZeroInt`, `intRange`, `uint8`/`16`/`32`, `int32`, `nonEmpty`, `nonEmptyString`, `asciiString`, `finite`). */
   private registered(type: ts.Type, depth: number): Plan | undefined {
     const symbol = type.aliasSymbol ?? type.getSymbol();
     const name = symbol?.getName();
-    // Parameterized refinement types: `intRange<Lo, Hi>` and `nonEmpty<T>`.
-    if (name === 'intRange') {
-      const bounds = readIntRangeBounds(this.checker, type);
-      if (bounds !== undefined) return { k: 'intRange', min: bounds[0], max: bounds[1] };
-    }
+    // Parameterized & aliased range refinement types (`intRange<Lo, Hi>`, `uint8`, `uint16`, `uint32`, `int32`, or user aliases).
+    const bounds = readIntRangeBounds(this.checker, type);
+    if (bounds !== undefined) return { k: 'intRange', min: bounds[0], max: bounds[1] };
     if (name === 'nonEmpty') {
       const elem = readNonEmptyElement(this.checker, type);
       if (elem !== undefined) return { k: 'nonEmpty', of: this.plan(elem, depth + 1) };
@@ -111,7 +109,15 @@ export class GeneratorFactory {
     const security = securityTypeNames.has(name) && declaredBySecurity(symbol);
     if (security && !arbitraryRegistry().has(name)) registerSecurityGenerators();
     if (!arbitraryRegistry().has(name)) return undefined;
-    if (name === 'int' || name === 'nat' || name === 'posInt' || name === 'nonZeroInt' || name === 'asciiString')
+    if (
+      name === 'int' ||
+      name === 'nat' ||
+      name === 'posInt' ||
+      name === 'nonZeroInt' ||
+      name === 'asciiString' ||
+      name === 'nonEmptyString' ||
+      name === 'finite'
+    )
       return { k: 'named', name };
     const tag = security ? { security: true as const } : {};
     // What to generate if the registration is not there where the plan is used (a worker has only the built-in ones).

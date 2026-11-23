@@ -375,6 +375,8 @@ function canRunInBrowser(plans: Plan[] | undefined): boolean {
           p.name === 'posInt' ||
           p.name === 'nonZeroInt' ||
           p.name === 'asciiString' ||
+          p.name === 'nonEmptyString' ||
+          p.name === 'finite' ||
           p.security === true
         );
       case 'array':

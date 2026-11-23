@@ -1,0 +1,82 @@
+{
+  "fps": 24,
+  "width": 1920,
+  "height": 1080,
+  "bpm": 96,
+  "scenes": [
+    { "id": "hero", "startSec": 0.0, "endSec": 9.5 },
+    { "id": "refine", "startSec": 9.5, "endSec": 24.8 },
+    { "id": "proofs", "startSec": 24.8, "endSec": 41.5 },
+    { "id": "browser", "startSec": 41.5, "endSec": 56.5 },
+    { "id": "speed", "startSec": 56.5, "endSec": 67.6 },
+    { "id": "cta", "startSec": 67.6, "endSec": 76.0 }
+  ],
+  "voice": {
+    "voice": "af_heart",
+    "speed": 0.93,
+    "lines": [
+      {
+        "id": "hero",
+        "startSec": 0.8,
+        "sentences": [
+          { "text": "tslaws 1.2.", "say": "T S laws one point two.", "gapMs": 420 },
+          { "text": "Mathematical proofs and real browser laws — in plain TypeScript." }
+        ]
+      },
+      {
+        "id": "refine",
+        "startSec": 10.1,
+        "sentences": [
+          {
+            "text": "Narrow inputs right in the types: nat, uint8, intRange, nonEmptyString, and finite.",
+            "say": "Narrow inputs right in the types: nat, u int eight, int range, non empty string, and finite.",
+            "gapMs": 420
+          },
+          {
+            "text": "And if an assume statement contradicts itself, the prover catches the vacuous law instead of passing it."
+          }
+        ]
+      },
+      {
+        "id": "proofs",
+        "startSec": 25.4,
+        "sentences": [
+          {
+            "text": "Prove unbounded claims with natural-number induction.",
+            "gapMs": 380
+          },
+          {
+            "text": "Chain hard steps with calc and lemma, verify contracts with requires and ensures, check termination with decreases, and prove dead branches unreachable."
+          }
+        ]
+      },
+      {
+        "id": "browser",
+        "startSec": 42.1,
+        "sentences": [
+          {
+            "text": "Browser laws run in parallel top-level pages on a real local origin — with chainable page locators, trusted user events, auto-retrying element assertions, and mocked network routes."
+          }
+        ]
+      },
+      {
+        "id": "speed",
+        "startSec": 57.1,
+        "sentences": [
+          {
+            "text": "Under the hood, pooled native Z3 workers, shared solver expressions, and an on-disk proof cache return unchanged checks in milliseconds.",
+            "say": "Under the hood, pooled native Z three workers, shared solver expressions, and an on-disk proof cache return unchanged checks in milliseconds."
+          }
+        ]
+      },
+      {
+        "id": "cta",
+        "startSec": 68.1,
+        "sentences": [
+          { "text": "Plain TypeScript or law syntax — proved for every input.", "gapMs": 360 },
+          { "text": "Install tslaws today.", "say": "Install T S laws today." }
+        ]
+      }
+    ]
+  }
+}

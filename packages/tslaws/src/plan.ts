@@ -71,6 +71,8 @@ arbitraryRegistry().set(
   ),
 );
 arbitraryRegistry().set('asciiString', fc.string({ maxLength: 24 }));
+arbitraryRegistry().set('nonEmptyString', fc.string({ minLength: 1, maxLength: 24 }));
+arbitraryRegistry().set('finite', fc.double({ noNaN: true, noDefaultInfinity: true }));
 
 /** Marks a generated function on the wire: browser laws receive their arguments as structured data. */
 export const wireKey = '$tslawsFn';

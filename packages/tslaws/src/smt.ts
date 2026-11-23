@@ -61,6 +61,7 @@ export type Shape =
   | 'boolean'
   | 'string'
   | 'asciiString'
+  | 'nonEmptyString'
   | { array: Shape; minLength?: number }
   | { fields: Record<string, Shape> }
   | undefined;
@@ -225,6 +226,12 @@ function declareParam(
     decl.assumptions.push(`(<= (str.len ${name}) ${maxStringLength})`);
     return { k: 'str', t: name };
   }
+  if (shape === 'nonEmptyString') {
+    decl.constant(name, 'str');
+    decl.assumptions.push(`(str.in_re ${name} (re.* (re.range "\\u{0}" "\\u{ffff}")))`);
+    decl.assumptions.push(`(and (<= 1 (str.len ${name})) (<= (str.len ${name}) ${maxStringLength}))`);
+    return { k: 'str', t: name };
+  }
   if (shape === undefined) throw new Unsupported('a parameter type is not modelled');
   if ('array' in shape && theory) {
     const elem = sequenceElement(shape.array);
@@ -359,7 +366,7 @@ function jsValue(shape: Shape, name: string, model: Map<string, number | bigint 
     return Number(model.get(name) ?? 0);
   if (shape === 'bigint') return BigInt(model.get(name) ?? 0);
   if (shape === 'boolean') return model.get(name) === true;
-  if (shape === 'string' || shape === 'asciiString') return String(model.get(name) ?? '');
+  if (shape === 'string' || shape === 'asciiString' || shape === 'nonEmptyString') return String(model.get(name) ?? '');
   if (shape === undefined) return undefined;
   if ('array' in shape) {
     const len = Number(model.get(`${name}__len`) ?? 0);
@@ -529,7 +536,7 @@ export function assumptionsFor(shapes: Shape[], intLimit?: bigint): string[] {
     if (shape === 'number') found.add(numberAssumption);
     else if (shape === 'int' || shape === 'nat' || shape === 'posInt' || shape === 'nonZeroInt') {
       if (intLimit === undefined) found.add(intAssumption);
-    } else if (shape === 'string' || shape === 'asciiString') found.add(stringAssumption);
+    } else if (shape === 'string' || shape === 'asciiString' || shape === 'nonEmptyString') found.add(stringAssumption);
     else if (shape === undefined || typeof shape === 'string' || 'intRange' in shape) return;
     else if ('array' in shape) visit(shape.array);
     else for (const field of Object.values(shape.fields)) visit(field);
@@ -809,6 +816,22 @@ async function attemptWith(
   const { out, vals } = await solve(queryText, valueQuery, input.timeoutMs);
   const check = out;
   if (check.startsWith('unsat')) {
+    // Vacuity check (like Dafny/Verus/Kani): ensure assume() preconditions are satisfiable so assume(false) can never prove a law.
+    const userAssumptions = executor.assumptions.filter((a) => !executor.lemmaAssumptions.has(a));
+    if (userAssumptions.length > 0) {
+      const vacQuery = [
+        '(set-option :produce-models false)',
+        ...decl.lines,
+        ...executor.freshDecls,
+        ...executor.defs,
+        ...decl.assumptions.map((a) => `(assert ${a})`),
+        ...userAssumptions.map((a) => `(assert ${a})`),
+        '(check-sat)',
+      ].join('\n');
+      const vac = await solve(vacQuery, '', input.timeoutMs);
+      if (vac.out.startsWith('unsat'))
+        throw new Unsupported('assumptions are unsatisfiable (vacuous law — no input satisfies assume())');
+    }
     const assumptions = assumptionsFor(input.shapes, intLimit);
     // For independent certification/second-opinion, omit lemma assumptions so cvc5/Carcara proves the full claim directly.
     const text =
@@ -818,10 +841,18 @@ async function attemptWith(
             ...problem,
             facts: problem.facts.filter((f) => !executor.lemmaAssumptions.has(f)),
           }).join('\n');
-    const certifyQuery = async (): Promise<{ certificate?: Certificate }> =>
-      input.certify === undefined || input.certify.mode === false
-        ? {}
-        : { certificate: await certify(text, { timeoutMs: input.timeoutMs, keep: keepOf(input, input.certify) }) };
+    const certifyQuery = async (): Promise<{ certificate?: Certificate }> => {
+      if (input.certify === undefined || input.certify.mode === false) return {};
+      if (executor.usedInduction)
+        return {
+          certificate: {
+            status: 'uncertified',
+            reason:
+              'induct() subgoals are proved by Z3; standalone Carcara certificate export for induction is not yet emitted',
+          },
+        };
+      return { certificate: await certify(text, { timeoutMs: input.timeoutMs, keep: keepOf(input, input.certify) }) };
+    };
     if (executor.bounded.length > 0) {
       const result: ProofResult = { kind: 'bounded', limits: executor.bounded, assumptions, ...(await certifyQuery()) };
       if (cacheKey !== undefined) input.cache!.set(cacheKey, result);

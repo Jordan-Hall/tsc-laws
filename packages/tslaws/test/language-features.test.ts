@@ -174,4 +174,66 @@ describe('lemma, requires, ensures and decreases', () => {
     assert.notEqual(bad.status, 'proved', `non-decreasing measure must not prove: ${JSON.stringify(bad)}`);
     assert.notEqual(bad.status, 'bounded');
   });
+
+  it('proves laws with fixed-width/string/finite types, implies, iff, distinct, unreachable, calc and induct', async () => {
+    const opts = project('best-verification', {
+      'src/f.laws.ts': [
+        "import { calc, distinct, iff, implies, induct, law, unreachable, type finite, type int32, type intRange, type nat, type nonEmptyString, type uint8 } from 'tslaws';",
+        'type Port = intRange<1, 65535>;',
+        "law.proved('uint8 and int32 stay in fixed-width bounds', (b: uint8, i: int32, p: Port) => b >= 0 && b <= 255 && i >= -2147483648 && i <= 2147483647 && p >= 1 && p <= 65535);",
+        "law.proved('nonEmptyString has length >= 1 and finite is finite', (s: nonEmptyString, x: finite) => s.length >= 1 && Number.isFinite(x));",
+        "law.proved('implies, iff and distinct lower cleanly to SMT', (a: intRange<0, 100>, b: intRange<0, 100>) => {",
+        '  const c1 = implies(a > b, a - b >= 1);',
+        '  const c2 = iff(a === b, a - b === 0);',
+        '  const c3 = implies(distinct(a, b, a + b + 1), a !== b);',
+        '  return c1 && c2 && c3;',
+        '});',
+        "law.proved('unreachable proves dead branch is impossible', (n: nat) => {",
+        '  if (n < 0) unreachable();',
+        '  return n >= 0;',
+        '});',
+        "law.proved('unreachable refutes reachable branch with counterexample', (n: intRange<-5, 5>) => {",
+        '  if (n < 0) unreachable();',
+        '  return true;',
+        '});',
+        "law.proved('calc chains equational proof steps', (x: intRange<-100, 100>, y: intRange<-100, 100>) => {",
+        '  return calc((x + y) * (x + y), x * x + x * y + y * x + y * y, x * x + 2 * x * y + y * y);',
+        '});',
+        "law.proved('induct proves arithmetic identity for all bounded nat', (n: intRange<0, 1000000>) => {",
+        '  return induct(n, (k) => 2 * k + 2 === 2 * (k + 1));',
+        '});',
+        "law.proved('induct rejects a false inductive claim', (n: intRange<0, 1000>) => {",
+        '  return induct(n, (k) => k === 0);',
+        '});',
+        '',
+      ].join('\n'),
+    });
+    const report = await check(opts, true);
+    assert.equal(report.compileDiagnostics, '');
+    assert.equal(byName(report.results, 'uint8 and int32 stay in fixed-width bounds').status, 'proved');
+    assert.equal(byName(report.results, 'nonEmptyString has length >= 1 and finite is finite').status, 'proved');
+    assert.equal(byName(report.results, 'implies, iff and distinct lower cleanly to SMT').status, 'proved');
+    assert.equal(byName(report.results, 'unreachable proves dead branch is impossible').status, 'proved');
+    assert.equal(byName(report.results, 'unreachable refutes reachable branch with counterexample').status, 'failed');
+    assert.equal(byName(report.results, 'calc chains equational proof steps').status, 'proved');
+    assert.equal(byName(report.results, 'induct proves arithmetic identity for all bounded nat').status, 'proved');
+    assert.equal(byName(report.results, 'induct rejects a false inductive claim').status, 'failed');
+  });
+
+  it('catches vacuous assume() laws instead of falsely reporting proved', async () => {
+    const opts = project('vacuity', {
+      'src/f.laws.ts': [
+        "import { assume, law, type int } from 'tslaws';",
+        "law.proved('contradictory assume is caught as open, not proved', (x: int) => {",
+        '  assume(x > 10 && x < 5);',
+        '  return false;',
+        '});',
+        '',
+      ].join('\n'),
+    });
+    const report = await check(opts, true);
+    const r = byName(report.results, 'contradictory assume is caught as open, not proved');
+    assert.equal(r.status, 'open', `vacuous law must not prove: ${JSON.stringify(r)}`);
+    assert.match(r.message ?? '', /vacuous|unsatisfiable|discards/i);
+  });
 });
