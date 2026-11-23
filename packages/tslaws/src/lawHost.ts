@@ -5,7 +5,14 @@
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
-import { installLawRuntime, loadResolver, runtimeFile, useTransforms, type LawRuntime } from './lawRuntime.ts';
+import {
+  evictLoaded,
+  installLawRuntime,
+  loadResolver,
+  runtimeFile,
+  useTransforms,
+  type LawRuntime,
+} from './lawRuntime.ts';
 import { arbitraryOf, type Plan } from './plan.ts';
 import { isDiscard, jsPath, runLaw, summarise } from './propertyRun.ts';
 import { installLoaderHooks, setImportMetaEnv, type ImportMetaEnv } from './runtimeEnv.ts';
@@ -179,7 +186,7 @@ function load(outDir: string, law: ManifestLaw, env: ImportMetaEnv, fresh: boole
     lockDown();
   }
   // The process outlives a check, and the code may have been recompiled since the last one.
-  for (const file of Object.keys(require.cache)) if (file.startsWith(outDir)) delete require.cache[file];
+  evictLoaded(require.cache, outDir);
   const fn = (require(jsPath(outDir, law.file)) as Record<string, Law | undefined>)[law.symbol ?? law.name];
   if (typeof fn !== 'function') throw new Error('compiled module does not export the law');
   loaded.set(key, fn);

@@ -7,7 +7,4 @@ import { jobsPerFile } from './jobs-split.ts';
 /** How many test files run at once, the same number as `--test-concurrency` in the test script. */
 const files = 3;
 
-/** A file keeps two jobs on a small host: with one, a law's second run in the same worker loads a template's module twice. */
-const least = 2;
-
-process.env.TSLAWS_JOBS ??= String(jobsPerFile(files, availableParallelism(), freemem(), least));
+process.env.TSLAWS_JOBS ??= String(jobsPerFile(files, availableParallelism(), freemem()));
