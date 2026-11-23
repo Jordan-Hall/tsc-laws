@@ -2,6 +2,21 @@
 
 The upstream tsc-ts changelog is CHANGELOG.md. Releases of tsc-laws are tagged `laws-v<version>` (see RELEASING-LAWS.md).
 
+## [1.2.0](https://github.com/Jordan-Hall/tsc-laws/compare/laws-v1.1.0...laws-v1.2.0) (2026-11-23)
+
+
+### Features
+
+* **certificates:** break badges and certificates page down in plain words ([#103](https://github.com/Jordan-Hall/tsc-laws/issues/103)) ([ff6afad](https://github.com/Jordan-Hall/tsc-laws/commit/ff6afad59209ea0a503fe7832aacd0b5f666e2c1))
+* **tslaws:** implement phases 1-4 (optimizations, solver caching, next-gen browser runner, refinement types & proof primitives) ([#108](https://github.com/Jordan-Hall/tsc-laws/issues/108)) ([573ed64](https://github.com/Jordan-Hall/tsc-laws/commit/573ed643fa804a1c6aca3c47dbc20d87aefe5bed))
+* **tslaws:** native browser API (page, locators, userEvent, mock) ([#111](https://github.com/Jordan-Hall/tsc-laws/issues/111)) ([1e16ab2](https://github.com/Jordan-Hall/tsc-laws/commit/1e16ab2abcf1760b4018abcba094b5c9f48aec12))
+* **tslaws:** verification language primitives, expectElement, and Blender 3D 1.2 launch film ([#112](https://github.com/Jordan-Hall/tsc-laws/issues/112)) ([faad818](https://github.com/Jordan-Hall/tsc-laws/commit/faad818a11f919901dd1477b6dfb244a07ee4188))
+
+
+### Fixes
+
+* **tslaws:** resolve directory imports in symbolic executor and coverage ([#106](https://github.com/Jordan-Hall/tsc-laws/issues/106)) ([6e0257c](https://github.com/Jordan-Hall/tsc-laws/commit/6e0257cd75f4de105571071f236198da12cc54b5))
+
 ## [1.1.0](https://github.com/Jordan-Hall/tsc-laws/compare/laws-v1.0.0...laws-v1.1.0) (2026-11-23)
 
 
@@ -510,7 +525,7 @@ The upstream tsc-ts changelog is CHANGELOG.md. Releases of tsc-laws are tagged `
 - **Plain JavaScript:** `tslaws.json` `compilerOptions` accepts `allowJs` and `checkJs`; with `allowJs`, `cover` globs include `.js` sources, laws import `.js` modules with generators typed from the emitted declarations, and an exported JS function no law reaches is `uncovered`. Examples: `examples/vanilla-ts` and `examples/vanilla-js`.
 - **Frameworks:** `tslaws.json` `compilerOptions` (jsx, jsxFactory, jsxFragmentFactory, jsxImportSource, experimentalDecorators, emitDecoratorMetadata, useDefineForClassFields, lib, types, strict, noUncheckedIndexedAccess, exactOptionalPropertyTypes; unknown keys are an error), `.tsx` covered sources, and browser bundles that resolve bare imports from the project's `node_modules` (with `global` defined as `globalThis`).
 - **`tslaws ui`:** per-law durations and a list of the slowest laws, a history of the last 20 runs, `flaky` detection with a Flaky filter, and a rerun button for a single law (`only` in `CheckOptions`; `POST /api/run?file=&law=`).
-- **`law` declarations:** a contextual statement, `law [proved] name(params) { … }` or `=> expr;`, parsed as a flagged function
+- **`law` declarations:** a contextual statement, `law [proved] name(params) { â€¦ }` or `=> expr;`, parsed as a flagged function
   declaration; `tsc-ts --laws-manifest` lists them.
 - **`tslaws`:** property tests with generators derived from declared types, a Z3 prover (IEEE doubles, exact `int` and
   `bigint`, bounded arrays, loops and recursion, strings, records), loop `invariant`s for proofs over every iteration count,
