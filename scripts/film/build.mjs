@@ -24,7 +24,7 @@ const out = await esbuild.build({
 });
 const js = out.outputFiles[0].text.replaceAll('</script', '<\\/script');
 const html = `<!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8"><title>tslaws v1</title></head>
+<html lang="en"><head><meta charset="utf-8"><title>tslaws 1.2</title></head>
 <body><script>window.__TIMING__=${JSON.stringify(JSON.parse(timing))};</script>
 <script>${js}</script></body></html>
 `;

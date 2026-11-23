@@ -46,9 +46,9 @@ Laws, migration and delegated accept: why laws make a port safer, and how a pers
 
 [tslaws-delegation-explainer.mp4](docs/media/tslaws-delegation-explainer.mp4)
 
-What is new in v1, as a 75-second animated fable: a law is proved or broken by a counterexample, proofs can carry certificates that cvc5 writes and Carcara checks (loops included, through their invariants), a lock catches edits to a law, a proposed law cannot accept itself, and laws run in a sandbox:
+What is new in tslaws, as a 101-second animated fable: a law is proved or broken by a counterexample, proofs can carry certificates that cvc5 writes and Carcara checks (loops included, through their invariants), a lock catches edits to a law, a proposed law cannot accept itself, laws run in a sandbox, refinement types (`nat`, `posInt`, `intRange`, `nonEmpty`) and proof primitives (`lemma`, `requires`, `ensures`, `decreases`) narrow inputs and guide proofs, browser laws run in parallel top-level pages with real clicks, mocked routes and Vite middleware, and pooled native Z3 with an on-disk proof cache makes repeat checks fly:
 
-[![What is new in tslaws v1: a silent preview that plays here](docs/media/tslaws-v1.gif)](docs/media/tslaws-v1.mp4)
+[![What is new in tslaws: a silent preview that plays here](docs/media/tslaws-v1.gif)](docs/media/tslaws-v1.mp4)
 
 The preview above plays here without sound. [tslaws-v1.mp4](docs/media/tslaws-v1.mp4) is the same video with the voice.
 

@@ -186,7 +186,7 @@ scene.add(floor);
 // The line: an ink rail along the desk with a brass stop at every station.
 const railMat = std(PAL.ink, 0.5);
 box(90, 0.012, 0.05, railMat, scene, 38, 0.006, 1.15).castShadow = false;
-for (let i = 0; i < 9; i++) {
+for (let i = 0; i < 12; i++) {
   const stop = cyl(0.2, 0.2, 0.014, std(PAL.brass, 0.4), scene, i * 3.2, 0.007, 1.15, 40);
   stop.castShadow = false;
   const ring = cyl(0.12, 0.12, 0.016, std(PAL.paper, 0.5), scene, i * 3.2, 0.008, 1.15, 40);
@@ -213,7 +213,24 @@ function roundRect(g, x, y, w, h, r) {
   g.arcTo(x, y, x + w, y, r);
   g.closePath();
 }
-const KEYWORDS = new Set(['export', 'law', 'const', 'return', 'assume', 'number']);
+const KEYWORDS = new Set([
+  'export',
+  'law',
+  'const',
+  'return',
+  'assume',
+  'number',
+  'nat',
+  'posInt',
+  'nonZeroInt',
+  'intRange',
+  'nonEmpty',
+  'asciiString',
+  'lemma',
+  'requires',
+  'ensures',
+  'decreases',
+]);
 function tokens(line) {
   return line.match(/\s+|[A-Za-z_][\w]*|\d+|&&|>=|<=|<|>|[^\sA-Za-z_\d]/g) ?? [];
 }
@@ -535,7 +552,7 @@ window.mascotWorld = (f) => poseTally(f, false);
 
 // ---------- stations ----------
 const stations = [];
-for (let i = 0; i < 9; i++) {
+for (let i = 0; i < 12; i++) {
   const g = new THREE.Group();
   g.position.x = i * 3.2;
   scene.add(g);
@@ -1270,10 +1287,282 @@ function updateG(f) {
   gearProp.rotation.z = f * 0.05;
 }
 
-// Station 7: three stamped laws and a happy clerk.
-const sH = stations[7];
+// Station 7: refinement types & proof primitives (nat, posInt, lemma, requires, ensures, decreases).
+const sJ = stations[7];
+const refineLines = TIMING.text.refineLaw;
+const refineCT = canvasTex(1536, 1024, 'refineCT');
+const cardJ = makeCard(1.5, 0.96, refineCT);
+cardJ.position.set(0.15, 0, -0.22);
+sJ.add(cardJ);
+drawPlaque(refineCT, 1536, 1024, PAL.steel, (g) => {
+  g.fillStyle = PAL.steel;
+  g.font = `700 44px ${SANS}`;
+  g.textAlign = 'left';
+  g.textBaseline = 'alphabetic';
+  g.fillText('REFINEMENT TYPES & PROOF PRIMITIVES', 64, 118);
+  drawCode(g, refineLines, 64, 240, 50, 96, 9999, false);
+});
+const refTags = [
+  { label: 'nat · posInt', color: PAL.steel, ev: 'refTag0' },
+  { label: 'intRange<Lo, Hi>', color: PAL.burnt, ev: 'refTag1' },
+  { label: 'nonEmpty<T>', color: PAL.steelDark, ev: 'refTag2' },
+  { label: 'lemma · decreases', color: PAL.green, ev: 'refTag3' },
+];
+// Rack behind the stacked refinement badges so they stand cleanly with one base and zero floating feet.
+box(0.05, 0.96, 0.04, std(PAL.ink, 0.5), sJ, 1.42, 0.48, -0.19);
+box(0.58, 0.03, 0.2, std(PAL.ink, 0.5), sJ, 1.42, 0.015, -0.15);
+const refTagCards = refTags.map((tag, i) => {
+  const ct = canvasTex(768, 192, 'refTag ' + tag.label);
+  drawPlaque(ct, 768, 192, tag.color, (g) => {
+    g.fillStyle = tag.color;
+    g.font = `700 66px ${MONO}`;
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillText(tag.label, 384, 106);
+  });
+  const geo = new THREE.ExtrudeGeometry(roundedShape(0.84, 0.21, 0.04), {
+    depth: 0.028,
+    bevelEnabled: true,
+    bevelSize: 0.007,
+    bevelThickness: 0.007,
+    bevelSegments: 2,
+    curveSegments: 6,
+  });
+  const pos = geo.attributes.position;
+  const uv = geo.attributes.uv;
+  for (let vi = 0; vi < pos.count; vi++) uv.setXY(vi, pos.getX(vi) / 0.84 + 0.5, pos.getY(vi) / 0.21 + 0.5);
+  const face = new THREE.MeshStandardMaterial({ map: ct.tex, roughness: 0.55 });
+  const c = new THREE.Mesh(geo, [face, std(PAL.paper, 0.7)]);
+  c.castShadow = true;
+  c.receiveShadow = true;
+  c.position.set(1.42, 0.16 + i * 0.255, -0.15);
+  sJ.add(c);
+  return { card: c, ev: tag.ev };
+});
+const stampJ = makeStamp('proved', PAL.green, 0.56, 0.18);
+sJ.add(stampJ);
+function updateJ(f) {
+  cardJ.scale.setScalar(mix(0.05, 1, sp('ui', f, 'refCardIn')));
+  cardJ.visible = f >= ev('refCardIn') - 2;
+  for (const t of refTagCards) {
+    const s = sp('ui', f, t.ev);
+    t.card.scale.setScalar(mix(0.05, 1, s));
+    t.card.visible = f >= ev(t.ev) - 2;
+  }
+  const spJ = stampPose(f, 'refStamp', 0, -0.09);
+  stampJ.visible = !!spJ;
+  if (spJ) {
+    stampJ.position.set(0.45, 0.24 + spJ.lift, -0.14 + spJ.lift * 0.6);
+    stampJ.scale.setScalar(spJ.scale);
+    stampJ.rotation.z = spJ.rot;
+  }
+}
+
+// Station 8: next-gen browser runner — parallel top-level pages, trusted clicks, mocked routes, Vite middleware.
+const sK = stations[8];
+const winSpecs = [
+  {
+    name: 'winPage',
+    title: 'top-level page',
+    url: 'http://127.0.0.1:4173',
+    lines: ['window.top === self', 'localStorage & History', 'Vite middlewareMode'],
+    accent: PAL.steel,
+    ev: 'winIn0',
+    x: -0.32,
+  },
+  {
+    name: 'winUser',
+    title: 'user.click()',
+    url: 'http://127.0.0.1:4173',
+    lines: ['Playwright trusted input', 'event.isTrusted === true', 'parallel BrowserContext'],
+    accent: PAL.burnt,
+    ev: 'winIn1',
+    x: 0.62,
+  },
+  {
+    name: 'winMock',
+    title: "mock('/api')",
+    url: 'http://127.0.0.1:4173',
+    lines: ['intercepted route: 200', 'in-browser fast-check', 'zero per-input IPC'],
+    accent: PAL.green,
+    ev: 'winIn2',
+    x: 1.56,
+  },
+];
+const winCards = winSpecs.map((spec) => {
+  const ct = canvasTex(1024, 820, spec.name);
+  const card = makeCard(0.86, 0.69, ct);
+  card.position.set(spec.x, 0, -0.22);
+  sK.add(card);
+  return { spec, ct, card };
+});
+function drawBrowserWindow(item, clicked, passed) {
+  const { spec, ct } = item;
+  drawPlaque(ct, 1024, 820, spec.accent, (g) => {
+    // Browser chrome bar
+    g.fillStyle = '#E5DAC4';
+    g.fillRect(0, 28, 1024, 108);
+    for (const [idx, dot] of [
+      [0, PAL.red],
+      [1, PAL.brass],
+      [2, PAL.green],
+    ]) {
+      g.fillStyle = dot;
+      g.beginPath();
+      g.arc(58 + idx * 42, 82, 13, 0, Math.PI * 2);
+      g.fill();
+    }
+    g.fillStyle = PAL.paper;
+    roundRect(g, 195, 50, 780, 64, 18);
+    g.fill();
+    g.fillStyle = PAL.steelDark;
+    g.font = `600 34px ${MONO}`;
+    g.textAlign = 'left';
+    g.textBaseline = 'middle';
+    g.fillText(spec.url, 224, 83);
+    // Title
+    g.fillStyle = PAL.ink;
+    g.font = `800 66px ${SANS}`;
+    g.fillText(spec.title, 54, 232);
+    // Feature lines
+    g.fillStyle = PAL.steelDark;
+    g.font = `500 42px ${MONO}`;
+    spec.lines.forEach((line, li) => {
+      g.fillText(line, 54, 336 + li * 74);
+    });
+    // Interactive button on middle card + pass pills on all three
+    if (spec.name === 'winUser') {
+      g.fillStyle = clicked ? PAL.green : PAL.burnt;
+      roundRect(g, 54, 600, 420, 118, 22);
+      g.fill();
+      g.fillStyle = PAL.paper;
+      g.font = `800 48px ${SANS}`;
+      g.textAlign = 'center';
+      g.fillText(clicked ? 'isTrusted ✓' : 'Submit', 264, 662);
+    }
+    if (passed) {
+      g.fillStyle = PAL.green;
+      roundRect(g, 660, 616, 300, 96, 22);
+      g.fill();
+      g.fillStyle = PAL.paper;
+      g.font = `800 50px ${SANS}`;
+      g.textAlign = 'center';
+      g.fillText('TESTED', 810, 666);
+    }
+  });
+}
+function updateK(f, redraw) {
+  const clicked = f >= ev('browserClick');
+  const passed = f >= ev('browserPass');
+  for (const item of winCards) {
+    const s = sp('ui', f, item.spec.ev);
+    item.card.scale.setScalar(mix(0.05, 1, s));
+    item.card.visible = f >= ev(item.spec.ev) - 2;
+    if (redraw) {
+      const k = `${clicked ? 1 : 0}:${passed ? 1 : 0}`;
+      if (item.ct.key !== k) {
+        item.ct.key = k;
+        drawBrowserWindow(item, clicked, passed);
+      }
+    }
+  }
+}
+
+// Station 9: pooled native Z3 & on-disk proof cache.
+const sL = stations[9];
+const poolConsole = new THREE.Group();
+poolConsole.position.set(-0.55, 0, -0.25);
+sL.add(poolConsole);
+box(0.76, 0.66, 0.42, std(PAL.steelDark, 0.45), poolConsole, 0, 0.33, 0);
+box(0.82, 0.05, 0.48, std(PAL.brass, 0.35, { metalness: 0.4 }), poolConsole, 0, 0.68, 0);
+const coreLights = [-0.22, 0, 0.22].map((cx) =>
+  ball(0.055, std(PAL.green, 0.3, { emissive: col('#1E7A44') }), poolConsole, cx, 0.46, 0.22),
+);
+const dialPivot = new THREE.Group();
+dialPivot.position.set(0, 0.2, 0.22);
+poolConsole.add(dialPivot);
+mesh(
+  new THREE.TorusGeometry(0.14, 0.018, 12, 24, Math.PI),
+  std(PAL.brass, 0.35, { metalness: 0.4 }),
+  poolConsole,
+  0,
+  0.2,
+  0.215,
+);
+const needle = box(0.018, 0.13, 0.018, std(PAL.burnt, 0.4), dialPivot, 0, 0.06, 0.01);
+const speedCT = canvasTex(1536, 1024, 'speedCT');
+const cardL = makeCard(1.48, 0.96, speedCT);
+cardL.position.set(0.82, 0, -0.2);
+sL.add(cardL);
+const cacheRows = [
+  { name: 'clampWithinBounds', badge: 'CACHE HIT', ms: '0.4 ms', ev: 'cacheHit0' },
+  { name: 'safeDiv', badge: 'NATIVE Z3', ms: '4.2 ms', ev: 'cacheHit1' },
+  { name: 'sortedInvariant', badge: 'CACHE HIT', ms: '0.3 ms', ev: 'cacheHit2' },
+];
+function drawSpeedCard(count) {
+  drawPlaque(speedCT, 1536, 1024, PAL.green, (g) => {
+    g.fillStyle = PAL.steelDark;
+    g.font = `800 54px ${SANS}`;
+    g.textAlign = 'left';
+    g.textBaseline = 'alphabetic';
+    g.fillText('POOLED NATIVE Z3 · PROOF CACHE', 68, 128);
+    cacheRows.forEach((row, idx) => {
+      const y = 250 + idx * 190;
+      const done = idx < count;
+      g.fillStyle = done ? '#E7F5EC' : '#F3ECDC';
+      roundRect(g, 64, y, 1408, 146, 24);
+      g.fill();
+      g.strokeStyle = done ? PAL.green : 'rgba(30,28,25,0.12)';
+      g.lineWidth = 4;
+      g.stroke();
+      g.fillStyle = PAL.ink;
+      g.font = `600 46px ${MONO}`;
+      g.textAlign = 'left';
+      g.textBaseline = 'middle';
+      g.fillText(row.name, 102, y + 74);
+      if (done) {
+        g.fillStyle = row.badge === 'CACHE HIT' ? PAL.green : PAL.steel;
+        roundRect(g, 820, y + 32, 340, 82, 18);
+        g.fill();
+        g.fillStyle = PAL.paper;
+        g.font = `800 38px ${SANS}`;
+        g.textAlign = 'center';
+        g.fillText(row.badge, 990, y + 75);
+        g.fillStyle = PAL.green;
+        g.font = `700 44px ${MONO}`;
+        g.textAlign = 'right';
+        g.fillText(row.ms, 1432, y + 75);
+      }
+    });
+    g.fillStyle = PAL.steel;
+    g.font = `700 40px ${MONO}`;
+    g.textAlign = 'left';
+    g.textBaseline = 'alphabetic';
+    g.fillText('DAG let-sharing · parallel checks · stat caches', 68, 930);
+  });
+}
+function updateL(f, redraw) {
+  const spin = sp('object', f, 'poolSpin');
+  dialPivot.rotation.z = mix(1.25, -1.25, spin);
+  coreLights.forEach((light, i) => {
+    const pulse = f >= ev('poolSpin') ? 1 + 0.12 * Math.sin(f * 0.25 + i * 2) : 0.85;
+    light.scale.setScalar(pulse);
+  });
+  void needle;
+  if (redraw) {
+    const count = cacheRows.filter((r) => f >= ev(r.ev)).length;
+    const k = `${count}`;
+    if (speedCT.key !== k) {
+      speedCT.key = k;
+      drawSpeedCard(count);
+    }
+  }
+}
+
+// Station 10: three stamped laws and a happy clerk.
+const sH = stations[10];
 const wrapCards = [];
-['proved', 'certified', 'proved'].forEach((word, i) => {
+['proved', 'certified', 'cached'].forEach((word, i) => {
   const ct = canvasTex(1024, 720, 'card ' + word);
   drawPlaque(ct, 1024, 720, word === 'certified' ? PAL.steel : PAL.green, (g) => {
     drawCode(g, lawLines, 42, 170, 34, 70, 9999, false);
@@ -1298,8 +1587,8 @@ const wrapCards = [];
   wrapCards.push(c);
 });
 
-// Station 8: the end card.
-const sI = stations[8];
+// Station 11: the end card.
+const sI = stations[11];
 const endCT = canvasTex(2048, 1100, 'endCT');
 const endCard = makeCard(2.0, 1.07, endCT);
 endCard.position.set(0.5, 0, -0.2);
@@ -1342,7 +1631,20 @@ function updateI(f, redraw) {
   }
 }
 // The frame the end card shows from the first cut: type nothing yet until endType.
-const UPDATERS = [updateA, updateB, updateC, updateD, updateE, updateF, updateG, () => {}, updateI];
+const UPDATERS = [
+  updateA,
+  updateB,
+  updateC,
+  updateD,
+  updateE,
+  updateF,
+  updateG,
+  updateJ,
+  updateK,
+  updateL,
+  () => {},
+  updateI,
+];
 const STATIONS = stations;
 
 // ---------- camera, shots, render ----------
@@ -1371,9 +1673,9 @@ function placeCamera(shot, f) {
 }
 function applyWorld(f, shot, redraw) {
   STATIONS.forEach((g, i) => (g.visible = i === shot.station));
-  const s = poseTally(f, shot.station === 8);
+  const s = poseTally(f, shot.station === 11);
   UPDATERS[shot.station](f, redraw);
-  const rig = shot.station === 8 ? 8 : 0;
+  const rig = shot.station === 11 ? 11 : 0;
   // key light follows the station, so shadows are sharp where the camera looks
   key.position.set(shot.x - 2.4, 4.2, 3.0);
   key.target.position.set(shot.x, 0, 0);
