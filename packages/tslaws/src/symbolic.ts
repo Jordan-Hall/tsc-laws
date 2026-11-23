@@ -8,8 +8,8 @@
 // A proof with no `bounded` entry covers every input; with entries it covers every input within the bounds.
 // Numbers are IEEE doubles (SMT-LIB floating point), except integer values, which are tracked exactly with an
 // obligation that they stay within the safe integers, so the two agree with JavaScript.
-import { readFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { readFileSync, statSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
 import ts from 'typescript';
 import type { Predicate } from './chc.ts';
 import { plural } from './plural.ts';
@@ -78,6 +78,57 @@ interface FileIndex {
   imports: Map<string, string>;
   /** Module-level `const NAME = ...` and `exports.NAME = ...` initializers, evaluated on demand. */
   constants: Map<string, ts.Expression>;
+  /** Re-exported bindings (`Object.defineProperty(exports, "X", { get: () => mod_1.Y })` or `exports.X = mod_1.Y`). */
+  reexports: Map<string, { file: string; name: string }>;
+  /** Star re-exports (`__exportStar(require("./sub"), exports)`). */
+  stars: string[];
+}
+
+const interopHelpers = new Set(['__importStar', '__importDefault', '__toESM']);
+
+function isFile(path: string): boolean {
+  try {
+    return statSync(path).isFile();
+  } catch {
+    return false;
+  }
+}
+
+/** Resolves a relative CommonJS specifier the way Node does: `base.js`, else `base/index.js`. */
+export function resolveRelativeJs(fromFile: string, specifier: string): string {
+  const base = resolve(dirname(fromFile), specifier);
+  if (/\.[cm]?js$/.test(base)) return base;
+  for (const ext of ['.js', '.cjs', '.mjs']) {
+    const file = `${base}${ext}`;
+    if (isFile(file)) return file;
+  }
+  for (const ext of ['.js', '.cjs', '.mjs']) {
+    const index = join(base, `index${ext}`);
+    if (isFile(index)) return index;
+  }
+  if (isFile(base)) return base;
+  return `${base}.js`;
+}
+
+/** Extracts the relative path from `require('./x')` or an interop wrapper like `__importStar(require('./x'))`. */
+function relativeRequire(expression: ts.Expression): string | undefined {
+  let call = expression;
+  while (ts.isCallExpression(call) && call.arguments.length >= 1) {
+    const callee = call.expression;
+    const name = ts.isIdentifier(callee) ? callee.text : ts.isPropertyAccessExpression(callee) ? callee.name.text : '';
+    if (!interopHelpers.has(name)) break;
+    call = call.arguments[0]!;
+  }
+  if (
+    ts.isCallExpression(call) &&
+    ts.isIdentifier(call.expression) &&
+    call.expression.text === 'require' &&
+    call.arguments.length === 1 &&
+    ts.isStringLiteral(call.arguments[0]!) &&
+    call.arguments[0].text.startsWith('.')
+  )
+    return call.arguments[0].text;
+  return undefined;
 }
 
 class Frame {
@@ -188,14 +239,20 @@ export class Executor {
   index(file: string): FileIndex {
     const known = this.files.get(file);
     if (known !== undefined) return known;
-    const source = ts.createSourceFile(
-      file,
-      readFileSync(file, 'utf8'),
-      ts.ScriptTarget.ES2022,
-      true,
-      ts.ScriptKind.JS,
-    );
-    const index: FileIndex = { functions: new Map(), imports: new Map(), constants: new Map() };
+    let text: string;
+    try {
+      text = readFileSync(file, 'utf8');
+    } catch {
+      throw new Unsupported(`cannot read module ${file}`);
+    }
+    const source = ts.createSourceFile(file, text, ts.ScriptTarget.ES2022, true, ts.ScriptKind.JS);
+    const index: FileIndex = {
+      functions: new Map(),
+      imports: new Map(),
+      constants: new Map(),
+      reexports: new Map(),
+      stars: [],
+    };
     this.files.set(file, index);
     for (const statement of source.statements) {
       if (ts.isFunctionDeclaration(statement) && statement.name !== undefined && statement.body !== undefined)
@@ -205,28 +262,20 @@ export class Executor {
         const init = declaration.initializer;
         if (!ts.isIdentifier(declaration.name) || init === undefined) continue;
         if (ts.isArrowFunction(init) || ts.isFunctionExpression(init)) index.functions.set(declaration.name.text, init);
-        else if (
-          ts.isCallExpression(init) &&
-          ts.isIdentifier(init.expression) &&
-          init.expression.text === 'require' &&
-          init.arguments.length === 1 &&
-          ts.isStringLiteral(init.arguments[0]!)
-        ) {
-          const specifier = init.arguments[0].text;
-          if (specifier.startsWith('.')) {
-            const base = resolve(dirname(file), specifier);
-            index.imports.set(declaration.name.text, /\.[cm]?js$/.test(base) ? base : `${base}.js`);
-          }
-        } else if ((declaration.parent.flags & ts.NodeFlags.Const) !== 0)
-          index.constants.set(declaration.name.text, init);
+        else {
+          const specifier = relativeRequire(init);
+          if (specifier !== undefined) index.imports.set(declaration.name.text, resolveRelativeJs(file, specifier));
+          else if ((declaration.parent.flags & ts.NodeFlags.Const) !== 0)
+            index.constants.set(declaration.name.text, init);
+        }
       }
     }
-    this.indexExports(source, index);
+    this.indexExports(source, file, index);
     return index;
   }
 
-  /** `exports.NAME = value` assigned exactly once, at the top level, is a constant; any other assignment spoils it. */
-  private indexExports(source: ts.SourceFile, index: FileIndex): void {
+  /** `exports.NAME = value` assigned exactly once, at the top level, is a constant; also records CommonJS re-exports. */
+  private indexExports(source: ts.SourceFile, file: string, index: FileIndex): void {
     const endsVoid = (e: ts.Expression): boolean => {
       while (ts.isBinaryExpression(e) && e.operatorToken.kind === ts.SyntaxKind.EqualsToken) e = e.right;
       return ts.isVoidExpression(e);
@@ -252,10 +301,113 @@ export class Executor {
     };
     visit(source);
     for (const statement of source.statements) {
-      if (!ts.isExpressionStatement(statement) || !ts.isBinaryExpression(statement.expression)) continue;
+      if (!ts.isExpressionStatement(statement)) continue;
+      if (ts.isCallExpression(statement.expression)) {
+        const call = statement.expression;
+        const callee = call.expression;
+        const calleeName = ts.isIdentifier(callee)
+          ? callee.text
+          : ts.isPropertyAccessExpression(callee)
+            ? callee.name.text
+            : '';
+        // `__exportStar(require("./sub"), exports)` (tsc) or `__reExport(target, require("./sub"), module.exports)` (esbuild)
+        if (calleeName === '__exportStar' && call.arguments.length >= 1) {
+          const specifier = relativeRequire(call.arguments[0]!);
+          if (specifier !== undefined) index.stars.push(resolveRelativeJs(file, specifier));
+          continue;
+        }
+        if (calleeName === '__reExport' && call.arguments.length >= 2) {
+          const specifier = relativeRequire(call.arguments[1]!);
+          if (specifier !== undefined) index.stars.push(resolveRelativeJs(file, specifier));
+          continue;
+        }
+        // esbuild: `__export(stdin_exports, { name: () => import_mod.orig, local: () => localFn })`
+        if (
+          calleeName === '__export' &&
+          call.arguments.length === 2 &&
+          ts.isObjectLiteralExpression(call.arguments[1]!)
+        ) {
+          for (const prop of call.arguments[1].properties) {
+            if (!ts.isPropertyAssignment(prop)) continue;
+            const exportedName =
+              ts.isIdentifier(prop.name) || ts.isStringLiteral(prop.name) ? prop.name.text : undefined;
+            if (exportedName === undefined) continue;
+            const getter = prop.initializer;
+            if (!ts.isArrowFunction(getter) && !ts.isFunctionExpression(getter)) continue;
+            const returned = ts.isBlock(getter.body)
+              ? getter.body.statements.length === 1 && ts.isReturnStatement(getter.body.statements[0]!)
+                ? getter.body.statements[0].expression
+                : undefined
+              : getter.body;
+            if (returned === undefined) continue;
+            if (ts.isPropertyAccessExpression(returned) && ts.isIdentifier(returned.expression)) {
+              const target = index.imports.get(returned.expression.text);
+              if (target !== undefined) index.reexports.set(exportedName, { file: target, name: returned.name.text });
+            } else if (
+              ts.isIdentifier(returned) &&
+              index.functions.has(returned.text) &&
+              !index.functions.has(exportedName)
+            ) {
+              index.functions.set(exportedName, index.functions.get(returned.text)!);
+            }
+          }
+          continue;
+        }
+        // tsc: `Object.defineProperty(exports, "name", { enumerable: true, get: function () { return mod_1.orig; } })`
+        if (
+          ts.isPropertyAccessExpression(callee) &&
+          ts.isIdentifier(callee.expression) &&
+          callee.expression.text === 'Object' &&
+          callee.name.text === 'defineProperty' &&
+          call.arguments.length === 3 &&
+          ts.isIdentifier(call.arguments[0]!) &&
+          call.arguments[0].text === 'exports' &&
+          ts.isStringLiteral(call.arguments[1]!) &&
+          ts.isObjectLiteralExpression(call.arguments[2]!)
+        ) {
+          const exportedName = call.arguments[1].text;
+          const getter = call.arguments[2].properties.find(
+            (p): p is ts.PropertyAssignment =>
+              ts.isPropertyAssignment(p) &&
+              ts.isIdentifier(p.name) &&
+              p.name.text === 'get' &&
+              (ts.isFunctionExpression(p.initializer) || ts.isArrowFunction(p.initializer)),
+          );
+          if (getter !== undefined) {
+            const fn = getter.initializer as ts.FunctionExpression | ts.ArrowFunction;
+            const returned = ts.isBlock(fn.body)
+              ? fn.body.statements.length === 1 && ts.isReturnStatement(fn.body.statements[0]!)
+                ? fn.body.statements[0].expression
+                : undefined
+              : fn.body;
+            if (
+              returned !== undefined &&
+              ts.isPropertyAccessExpression(returned) &&
+              ts.isIdentifier(returned.expression)
+            ) {
+              const target = index.imports.get(returned.expression.text);
+              if (target !== undefined) index.reexports.set(exportedName, { file: target, name: returned.name.text });
+            }
+          }
+        }
+        continue;
+      }
+      if (!ts.isBinaryExpression(statement.expression)) continue;
       const e = statement.expression;
       const name = exported(e.left);
       if (e.operatorToken.kind !== ts.SyntaxKind.EqualsToken || name === undefined || endsVoid(e.right)) continue;
+      // `exports.default = fn` or `exports.alias = localFn`
+      if (ts.isIdentifier(e.right) && index.functions.has(e.right.text) && !index.functions.has(name)) {
+        index.functions.set(name, index.functions.get(e.right.text)!);
+        continue;
+      }
+      if (ts.isPropertyAccessExpression(e.right) && ts.isIdentifier(e.right.expression)) {
+        const target = index.imports.get(e.right.expression.text);
+        if (target !== undefined) {
+          index.reexports.set(name, { file: target, name: e.right.name.text });
+          continue;
+        }
+      }
       if (writes.get(name) === 1 && !index.constants.has(name)) index.constants.set(name, e.right);
     }
   }
@@ -264,12 +416,23 @@ export class Executor {
   private readonly resolving = new Set<string>();
 
   /** The value of a module-level constant of `file` (a literal or arithmetic over other such constants). */
-  private constantValue(file: string, name: string): Value | undefined {
-    const init = this.index(file).constants.get(name);
-    if (init === undefined) return undefined;
+  private constantValue(file: string, name: string, seen = new Set<string>()): Value | undefined {
     const key = `${file}\0${name}`;
     const known = this.constantValues.get(key);
     if (known !== undefined) return known;
+    if (seen.has(key)) return undefined;
+    seen.add(key);
+    const idx = this.index(file);
+    const init = idx.constants.get(name);
+    if (init === undefined) {
+      const reexport = idx.reexports.get(name);
+      if (reexport !== undefined) return this.constantValue(reexport.file, reexport.name, seen);
+      for (const star of idx.stars) {
+        const found = this.constantValue(star, name, seen);
+        if (found !== undefined) return found;
+      }
+      return undefined;
+    }
     if (this.resolving.has(key)) throw new Unsupported(`constant ${name} refers to itself`);
     this.simpleConstant(init, name);
     this.resolving.add(key);
@@ -1905,15 +2068,36 @@ export class Executor {
     return { k: 'undef' };
   }
 
+  private resolveFunction(
+    file: string,
+    name: string,
+    seen = new Set<string>(),
+  ): { file: string; fn: FunctionNode } | undefined {
+    const key = `${file}\0${name}`;
+    if (seen.has(key)) return undefined;
+    seen.add(key);
+    const idx = this.index(file);
+    const direct = idx.functions.get(name);
+    if (direct !== undefined) return { file, fn: direct };
+    const reexport = idx.reexports.get(name);
+    if (reexport !== undefined) return this.resolveFunction(reexport.file, reexport.name, seen);
+    for (const star of idx.stars) {
+      const found = this.resolveFunction(star, name, seen);
+      if (found !== undefined) return found;
+    }
+    return undefined;
+  }
+
   private callProject(file: string, name: string, args: readonly ts.Expression[], f: Frame, pc: string): Value {
-    const fn = this.index(file).functions.get(name);
-    if (fn === undefined) throw new Unsupported(`cannot find the source of ${name}`);
+    const resolved = this.resolveFunction(file, name);
+    if (resolved === undefined) throw new Unsupported(`cannot find the source of ${name}`);
+    const { file: targetFile, fn } = resolved;
     const values = args.map((a) => this.escape(this.ev(a, f, pc)));
     if (f.depth + 1 > this.bound + 2) {
       this.cut(f, pc, 'true', `recursion is cut at depth ${this.bound}`);
       return { k: 'undef' };
     }
-    const inner = new Frame(file, f.depth + 1);
+    const inner = new Frame(targetFile, f.depth + 1);
     this.bindParams(inner, fn, values);
     this.body(fn, inner, this.guard(f, pc));
     if (inner.ret === undefined) return { k: 'undef' };
