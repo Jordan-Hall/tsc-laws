@@ -119,6 +119,46 @@ if (mode === 'stills') {
   await Promise.all([...pages.map(work), flusher]);
   await new Promise((r) => ff.on('close', r));
   console.log('done', N, 'frames', ((Date.now() - t0) / 1000).toFixed(0), 's');
+} else if (mode === 'audit') {
+  // every text face that is cut off by the frame or hidden behind something, sampled every <step> frames
+  const p = await page();
+  const step = Number(c ?? 3);
+  const rows = [];
+  for (let f = Number(a); f <= Number(b); f += step) {
+    const r = await p.evaluate((t) => window.textAudit(t), f / FPS);
+    for (const face of r.faces)
+      if (face.visible < 0.995) rows.push({ f, t: +(f / FPS).toFixed(2), shot: r.shot, ...face });
+  }
+  writeFileSync(out, JSON.stringify(rows));
+  // one line per run of consecutive samples for the same face
+  const runs = [];
+  for (const r of rows) {
+    const last = runs.findLast((x) => x.name === r.name && x.shot === r.shot && r.f - x.f1 <= step);
+    if (last) {
+      last.f1 = r.f;
+      last.min = Math.min(last.min, r.visible);
+      last.minIn = Math.min(last.minIn, r.inFrame);
+    } else runs.push({ name: r.name, shot: r.shot, f0: r.f, f1: r.f, min: r.visible, minIn: r.inFrame });
+  }
+  for (const x of runs)
+    console.log(
+      x.shot.padEnd(10),
+      x.name.padEnd(16),
+      `${(x.f0 / FPS).toFixed(2)}-${(x.f1 / FPS).toFixed(2)}s`,
+      `inFrame>=${x.minIn.toFixed(2)} visible>=${x.min.toFixed(2)}`,
+    );
+  console.log('flagged samples', rows.length, 'runs', runs.length);
+} else if (mode === 'layout') {
+  // pixel rectangles of every text face and of Tally at the given seconds (a, b, c, ...)
+  const p = await page();
+  for (const t of [out, a, b, c, ...process.argv.slice(7)].filter(Boolean)) {
+    const r = await p.evaluate((t) => window.textAudit(t), Number(t));
+    console.log(`t=${t} ${r.shot} tally x ${r.tally[0]}..${r.tally[1]}`);
+    for (const x of r.faces)
+      console.log(
+        `   ${x.name.padEnd(16)} rect ${x.rect.join(',').padEnd(22)} in ${x.inFrame.toFixed(2)} vis ${x.visible.toFixed(2)}`,
+      );
+  }
 } else if (mode === 'mascot') {
   // mascot width in pixels at the middle of every shot
   const p = await page();

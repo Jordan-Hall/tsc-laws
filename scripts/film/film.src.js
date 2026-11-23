@@ -194,11 +194,12 @@ for (let i = 0; i < 9; i++) {
 }
 
 // ---------- text on cards ----------
-function canvasTex(w, h) {
+function canvasTex(w, h, name = 'tex') {
   const c = document.createElement('canvas');
   c.width = w;
   c.height = h;
   const tex = new THREE.CanvasTexture(c);
+  tex.userData.name = name;
   tex.anisotropy = 16;
   tex.colorSpace = THREE.SRGBColorSpace;
   return { c, g: c.getContext('2d'), tex, key: '' };
@@ -299,7 +300,7 @@ function makeCard(w, h, ct) {
 }
 // A stamp that drops onto a card and bounces: one picture-frame before contact it is at full height.
 function makeStamp(label, color, w = 0.62, h = 0.2) {
-  const ct = canvasTex(512, Math.round(512 * (h / w)));
+  const ct = canvasTex(512, Math.round(512 * (h / w)), 'stamp ' + label);
   const g = ct.g;
   g.clearRect(0, 0, ct.c.width, ct.c.height);
   g.strokeStyle = color;
@@ -548,7 +549,7 @@ const edited = lawLines.map((l, i) =>
 );
 
 // Station 0: the desk, a law card that types itself.
-const lawA = canvasTex(1536, 1024);
+const lawA = canvasTex(1536, 1024, 'lawA');
 const cardA = makeCard(1.5, 1.0, lawA);
 stations[0].add(cardA);
 {
@@ -577,8 +578,8 @@ stations[0].add(cardA);
 }
 function updateA(f, redraw) {
   const p = ev('lawIn');
-  const x = mix(2.6, 0.55, sp('ui', f, 'lawIn'));
-  cardA.position.set(x, 0, -0.15);
+  cardA.position.set(0.55, 0, -0.15);
+  cardA.scale.setScalar(mix(0.05, 1, sp('ui', f, 'lawIn')));
   cardA.visible = f >= p - 4;
   if (redraw) {
     const n = Math.round(clamp((f - ev('lawTypeStart')) / (ev('lawTypeEnd') - ev('lawTypeStart'))) * lawChars);
@@ -596,19 +597,24 @@ const sB = stations[1];
 const steel = std(PAL.steel, 0.5);
 const steelDark = std(PAL.steelDark, 0.5);
 const brassMat = std(PAL.brass, 0.4, { metalness: 0.3 });
-box(0.5, 1.1, 0.7, steel, sB, -0.7, 0.55, 0);
-box(0.5, 1.1, 0.7, steel, sB, 0.7, 0.55, 0);
-box(1.9, 0.3, 0.7, steelDark, sB, 0, 1.0, 0);
-box(2.3, 0.1, 0.9, std(PAL.ink, 0.5), sB, 0, 0.05, 0);
+// the gantry stands behind the card path, so a card slides past in front of it and nothing hides its face
+const arch = new THREE.Group();
+arch.position.set(0, 0, -0.4);
+sB.add(arch);
+const CARD_Z = 0.2;
+box(0.5, 1.1, 0.7, steel, arch, -0.7, 0.55, 0);
+box(0.5, 1.1, 0.7, steel, arch, 0.7, 0.55, 0);
+box(1.9, 0.3, 0.7, steelDark, arch, 0, 1.0, 0);
+box(2.3, 0.1, 0.9, std(PAL.ink, 0.5), arch, 0, 0.05, 0);
 const gearGeo = new THREE.CylinderGeometry(0.17, 0.17, 0.05, 12);
-const gearA = mesh(gearGeo, brassMat, sB, -0.45, 1.24, 0.15);
+const gearA = mesh(gearGeo, brassMat, arch, -0.45, 1.24, 0.15);
 gearA.rotation.x = Math.PI / 2;
-const gearB = mesh(gearGeo, std(PAL.brassDark, 0.4, { metalness: 0.3 }), sB, -0.17, 1.24, 0.15);
+const gearB = mesh(gearGeo, std(PAL.brassDark, 0.4, { metalness: 0.3 }), arch, -0.17, 1.24, 0.15);
 gearB.rotation.x = Math.PI / 2;
 const lamp = ball(
   0.09,
   new THREE.MeshStandardMaterial({ color: col('#555'), roughness: 0.3, emissive: col('#000') }),
-  sB,
+  arch,
   0.35,
   1.2,
   0.1,
@@ -621,15 +627,16 @@ const sweep = box(
   sB,
   0,
   0.55,
-  0,
+  CARD_Z,
 );
 sweep.castShadow = false;
 const leverPivot = new THREE.Group();
-leverPivot.position.set(-0.7, 0.6, 0.37);
+leverPivot.position.set(-1.7, 0.1, 0.5);
 sB.add(leverPivot);
-cyl(0.018, 0.018, 0.4, std(PAL.ink, 0.4), leverPivot, 0, -0.2, 0, 10);
-ball(0.05, std(PAL.red, 0.4), leverPivot, 0, -0.4, 0);
-const labelSolver = canvasTex(512, 160);
+box(0.24, 0.1, 0.24, std(PAL.ink, 0.5), sB, -1.7, 0.05, 0.5);
+cyl(0.018, 0.018, 0.5, std(PAL.ink, 0.4), leverPivot, 0, 0.25, 0, 10);
+ball(0.05, std(PAL.red, 0.4), leverPivot, 0, 0.52, 0);
+const labelSolver = canvasTex(512, 160, 'labelSolver');
 {
   const g = labelSolver.g;
   g.fillStyle = PAL.paper;
@@ -645,15 +652,15 @@ const labelSolver = canvasTex(512, 160);
     new THREE.MeshStandardMaterial({ map: labelSolver.tex, roughness: 0.6 }),
   );
   plaque.position.set(0, 1.0, 0.356);
-  sB.add(plaque);
+  arch.add(plaque);
 }
-const lawB = canvasTex(1024, 720);
+const lawB = canvasTex(1024, 720, 'lawB');
 const cardB = makeCard(0.8, 0.56, lawB);
 sB.add(cardB);
 {
   drawPlaque(lawB, 1024, 720, PAL.green, (g) => drawCode(g, lawLines, 42, 170, 34, 70, 9999, false));
 }
-const lawB2 = canvasTex(1024, 720);
+const lawB2 = canvasTex(1024, 720, 'lawB2');
 const cardB2 = makeCard(0.8, 0.56, lawB2);
 sB.add(cardB2);
 const stampProved = makeStamp('proved', PAL.green);
@@ -663,15 +670,14 @@ const stampFailed = makeStamp('failed', PAL.red);
 sB.add(stampFailed);
 function cardTravel(f, inEv, startEv, endEv, exitEv) {
   // x of the card: slide in, wait before the tunnel, pass through, rest on the far side
-  const slideIn = sp('ui', f, inEv);
-  let x = mix(-2.2, -1.05, slideIn);
-  if (f >= startEv) x = mix(-1.05, 1.5, smooth(startEv, endEv, f));
+  let x = -1.0;
+  if (f >= startEv) x = mix(-1.0, 1.15, smooth(startEv, endEv, f));
   return x;
 }
 function updateB(f, redraw) {
   gearA.rotation.y = f * (f > ev('slideStart') && f < ev('slideEnd') + 20 ? 0.16 : f > ev('machineOn') ? 0.03 : 0);
   gearB.rotation.y = -gearA.rotation.y * 1.2 + 0.2;
-  leverPivot.rotation.z = mix(0.6, -0.5, sp('object', f, 'leverPull'));
+  leverPivot.rotation.z = mix(-0.5, 0.55, sp('object', f, 'leverPull'));
   const scanning = f >= ev('slideStart') && f <= ev('slideEnd') + 8;
   sweep.visible = scanning;
   sweep.position.x = -0.4 + 0.8 * Math.abs((((f - ev('slideStart')) / 38) % 2) - 1);
@@ -700,23 +706,25 @@ function updateB(f, redraw) {
   const showB = f >= ev('cardB_in') - 2 && f < 1040;
   cardB.visible = showB;
   const xB = cardTravel(f, 'cardB_in', ev('slideStart'), ev('slideEnd'));
-  cardB.position.set(xB, 0, -0.12);
+  cardB.position.set(xB, 0, CARD_Z);
+  cardB.scale.setScalar(mix(0.05, 1, sp('ui', f, 'cardB_in')));
   const sB1 = stampPose(f, 'proveStamp', 0, -0.1);
   stampProved.visible = !!sB1 && f < 1040;
   if (sB1) {
-    stampProved.position.set(xB + 0.05, 0.07 + 0.56 * 0.45 + sB1.lift, 0.03);
+    stampProved.position.set(xB + 0.05, 0.07 + 0.56 * 0.45 + sB1.lift, CARD_Z + 0.18);
     stampProved.scale.setScalar(sB1.scale);
     stampProved.rotation.z = sB1.rot;
-    stampProved.position.z = 0.06 + sB1.lift * 0.8;
+    stampProved.position.z = CARD_Z + 0.18 + sB1.lift * 0.8;
   }
   // card two: finds a counterexample
   cardB2.visible = f >= ev('cardB2_in') - 2 && f < 1360;
-  const x2 = f < ev('cardB2_out') ? mix(-2.0, 1.5, smooth(ev('cardB2_in'), ev('cardB2_out'), f)) : 1.5;
-  cardB2.position.set(x2, 0, -0.12);
+  const x2 = f < ev('cardB2_out') ? mix(-1.0, 1.15, smooth(ev('cardB2_in'), ev('cardB2_out'), f)) : 1.15;
+  cardB2.position.set(x2, 0, CARD_Z);
+  cardB2.scale.setScalar(mix(0.05, 1, sp('ui', f, 'cardB2_in')));
   const sB2 = stampPose(f, 'failStamp', 0, 0.08);
   stampFailed.visible = !!sB2;
   if (sB2) {
-    stampFailed.position.set(x2 + 0.1, 0.07 + 0.56 * 0.12 + sB2.lift, 0.06 + sB2.lift * 0.8);
+    stampFailed.position.set(x2 + 0.1, 0.07 + 0.56 * 0.12 + sB2.lift, CARD_Z + 0.18 + sB2.lift * 0.8);
     stampFailed.scale.setScalar(sB2.scale);
     stampFailed.rotation.z = sB2.rot;
   }
@@ -748,7 +756,7 @@ sC.add(printer);
 box(0.8, 0.5, 0.6, std(PAL.steel, 0.5), printer, 0, 0.3, 0);
 box(0.86, 0.06, 0.66, std(PAL.steelDark, 0.5), printer, 0, 0.58, 0);
 box(0.44, 0.07, 0.04, std(PAL.ink, 0.5), printer, 0.2, 0.22, 0.31);
-const labelCvc = canvasTex(512, 160);
+const labelCvc = canvasTex(512, 160, 'labelCvc');
 {
   const g = labelCvc.g;
   g.fillStyle = PAL.paper;
@@ -766,7 +774,8 @@ const labelCvc = canvasTex(512, 160);
   p.position.set(-0.1, 0.38, 0.305);
   printer.add(p);
 }
-const scrollTex = canvasTex(2048, 256);
+const scrollTex = canvasTex(2048, 256, 'scrollTex');
+scrollTex.tex.userData.notText = true;
 {
   const g = scrollTex.g;
   g.fillStyle = '#FFFDF6';
@@ -794,7 +803,8 @@ scrollMesh.castShadow = true;
 sC.add(scrollMesh);
 const checks = [];
 {
-  const ct = canvasTex(128, 128);
+  const ct = canvasTex(128, 128, 'check');
+  ct.tex.userData.notText = true;
   const g = ct.g;
   g.clearRect(0, 0, 128, 128);
   g.strokeStyle = PAL.green;
@@ -839,7 +849,7 @@ sC.add(loupe);
   const handle = cyl(0.022, 0.026, 0.3, std(PAL.wood, 0.5), loupe, 0, -0.3, 0, 12);
   handle.position.set(0, -0.3, 0);
 }
-const labelCarcara = canvasTex(512, 160);
+const labelCarcara = canvasTex(512, 160, 'labelCarcara');
 {
   const g = labelCarcara.g;
   g.fillStyle = PAL.paper;
@@ -851,12 +861,8 @@ const labelCarcara = canvasTex(512, 160);
   g.fillText('Carcara', 256, 86);
   labelCarcara.tex.needsUpdate = true;
 }
-const signCarcara = new THREE.Mesh(
-  new THREE.PlaneGeometry(0.5, 0.16),
-  new THREE.MeshStandardMaterial({ map: labelCarcara.tex, roughness: 0.6 }),
-);
-signCarcara.position.set(0, 0.0, 0.0);
-const lawC = canvasTex(1024, 720);
+const signCarcara = makeCard(0.5, 0.16, labelCarcara);
+const lawC = canvasTex(1024, 720, 'lawC');
 const cardC = makeCard(0.9, 0.62, lawC);
 sC.add(cardC);
 drawPlaque(lawC, 1024, 720, PAL.green, (g) => drawCode(g, lawLines, 42, 170, 34, 70, 9999, false));
@@ -864,7 +870,8 @@ const stampC1 = makeStamp('proved', PAL.green, 0.5, 0.16);
 const stampC2 = makeStamp('certified', PAL.steel, 0.58, 0.16);
 sC.add(stampC1, stampC2, signCarcara);
 function updateC(f) {
-  cardC.position.set(mix(-2.4, 0.5, sp('ui', f, 'cardC_in')), 0, -0.6);
+  cardC.position.set(1.1, 0, -0.6);
+  cardC.scale.setScalar(mix(0.05, 1, sp('ui', f, 'cardC_in')));
   const shown = (name) => f >= ev(name);
   stampC1.visible = f >= ev('cardC_in');
   stampC1.position.set(cardC.position.x - 0.12, 0.07 + 0.62 * 0.28, -0.52);
@@ -887,14 +894,12 @@ function updateC(f) {
   // the loupe walks the scroll; each tick lands when it reaches its row
   const lx = f < ev('loupeIn') ? -1.7 : mix(-0.5, 0.95, smooth(ev('tick0') - 20, ev('tick7') + 10, f));
   const lxEntry = f >= ev('loupeIn') && f < ev('tick0') - 20 ? mix(-1.7, -0.5, sp('ui', f, 'loupeIn')) : lx;
-  loupe.position.set(lxEntry, 0.2, 0.55);
+  loupe.position.set(lxEntry, 0.07, 0.6);
   loupe.rotation.x = -Math.PI / 2 + 0.25;
   loupe.visible = f >= ev('loupeIn') - 2;
   signCarcara.visible = f >= ev('loupeIn');
-  signCarcara.position.set(-0.55 + 0.0, 0.1, 0.8);
-  signCarcara.rotation.x = -0.9;
-  signCarcara.position.set(lxEntry - 0.0, 0.015, 0.78);
-  signCarcara.rotation.x = -Math.PI / 2;
+  signCarcara.position.set(-0.95, 0, 0.8);
+  signCarcara.scale.setScalar(mix(0.05, 1, sp('ui', f, 'loupeIn')));
   checks.forEach((m, i) => {
     const e = `tick${i}`;
     const vis = f >= ev(e);
@@ -929,12 +934,12 @@ const invWall = mesh(
 invWall.castShadow = false;
 const invRing = mesh(new THREE.TorusGeometry(0.62, 0.03, 12, 80), std(PAL.green, 0.4), sD, 0, 0.5, 0);
 invRing.rotation.x = Math.PI / 2;
-const lawD = canvasTex(1024, 720);
+const lawD = canvasTex(1024, 720, 'lawD');
 const cardD = makeCard(0.9, 0.62, lawD);
-cardD.position.set(1.35, 0, -0.5);
+cardD.position.set(1.6, 0, -0.5);
 sD.add(cardD);
 drawPlaque(lawD, 1024, 720, PAL.green, (g) => drawCode(g, lawLines, 42, 170, 34, 70, 9999, false));
-const signInv = canvasTex(768, 256);
+const signInv = canvasTex(768, 256, 'signInv');
 {
   const g = signInv.g;
   g.fillStyle = PAL.paper;
@@ -949,7 +954,7 @@ const signInv = canvasTex(768, 256);
   signInv.tex.needsUpdate = true;
 }
 const signInvMesh = makeCard(0.9, 0.3, signInv);
-signInvMesh.position.set(-1.35, 0, -0.5);
+signInvMesh.position.set(-1.6, 0, -0.5);
 sD.add(signInvMesh);
 const stampD = makeStamp('certified', PAL.steel, 0.58, 0.16);
 sD.add(stampD);
@@ -964,7 +969,7 @@ function updateD(f) {
   const sd = stampPose(f, 'certStampD', 0, 0.07);
   stampD.visible = !!sd;
   if (sd) {
-    stampD.position.set(1.4, 0.07 + 0.62 * 0.28 + sd.lift, -0.42 + sd.lift * 0.8);
+    stampD.position.set(1.65, 0.07 + 0.62 * 0.28 + sd.lift, -0.42 + sd.lift * 0.8);
     stampD.scale.setScalar(sd.scale);
     stampD.rotation.z = sd.rot;
   }
@@ -972,7 +977,7 @@ function updateD(f) {
 
 // Station 4: the lock. A padlock closes on the law; an edit pops it open.
 const sE = stations[4];
-const lawE = canvasTex(1536, 1024);
+const lawE = canvasTex(1536, 1024, 'lawE');
 const cardE = makeCard(1.3, 0.9, lawE);
 cardE.position.set(-0.1, 0, -0.2);
 sE.add(cardE);
@@ -1053,11 +1058,11 @@ for (let i = 0; i < 4; i++) box(0.09, 0.075, 0.075, std(PAL.paper, 0.5), barPivo
 box(0.8, 0.05, 0.5, std(PAL.wood, 0.6), sF, -1.4, 0.03, 0);
 box(0.8, 0.05, 0.5, std(PAL.wood, 0.6), sF, 1.45, 0.03, -0.15);
 const pedestal = new THREE.Group();
-pedestal.position.set(0.9, 0, 0.55);
+pedestal.position.set(1.7, 0, 0.35);
 sF.add(pedestal);
-box(0.32, 0.4, 0.32, std(PAL.ink, 0.5), pedestal, 0, 0.2, 0);
+box(0.44, 0.4, 0.32, std(PAL.ink, 0.5), pedestal, 0, 0.2, 0);
 const button = cyl(0.11, 0.11, 0.07, std(PAL.red, 0.4), pedestal, 0, 0.43, 0, 32);
-const labelPromote = canvasTex(512, 160);
+const labelPromote = canvasTex(512, 160, 'labelPromote');
 {
   const g = labelPromote.g;
   g.fillStyle = PAL.paper;
@@ -1069,16 +1074,16 @@ const labelPromote = canvasTex(512, 160);
   g.fillText('promote', 256, 86);
   labelPromote.tex.needsUpdate = true;
   const p = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.28, 0.09),
+    new THREE.PlaneGeometry(0.4, 0.125),
     new THREE.MeshStandardMaterial({ map: labelPromote.tex, roughness: 0.6 }),
   );
   p.position.set(0, 0.22, 0.162);
   pedestal.add(p);
 }
-const lawF = canvasTex(1024, 720);
+const lawF = canvasTex(1024, 720, 'lawF');
 const cardF = makeCard(0.8, 0.56, lawF);
 sF.add(cardF);
-const proposedCT = canvasTex(1024, 720);
+const proposedCT = canvasTex(1024, 720, 'proposedCT');
 function drawProposed(solid) {
   drawPlaque(proposedCT, 1024, 720, solid ? PAL.green : PAL.brassDark, (g) => {
     drawCode(g, lawLines, 42, 170, 34, 70, 9999, false);
@@ -1124,7 +1129,8 @@ function updateF(f, redraw) {
   }
   barPivot.rotation.z = arm;
   // card journey: waits left of the gate, goes to the proposal tray, then through the open gate
-  let cx = -0.95;
+  const GATE_Z = 0.15;
+  let cx = -0.9;
   let cy = 0;
   let solid = false;
   for (const e of ['bonkF1', 'bonkF2']) {
@@ -1133,15 +1139,15 @@ function updateF(f, redraw) {
   }
   if (f >= ev('proposeStamp') - 40) {
     const s = step('ui', since(f, 'proposeStamp') + 0.66);
-    cx = mix(-0.95, -1.4, s);
+    cx = mix(-0.9, -1.25, s);
     cy = 0.05;
   }
   if (f >= ev('cardGo')) {
-    cx = mix(-1.4, 1.45, smooth(ev('cardGo'), ev('cardThrough'), f));
+    cx = mix(-1.25, 1.0, smooth(ev('cardGo'), ev('cardThrough'), f));
     cy = mix(0.05, 0, smooth(ev('cardGo'), ev('cardThrough'), f));
     solid = f >= ev('cardThrough') - 10;
   }
-  cardF.position.set(cx, cy, cx > 1 ? -0.15 : 0.0);
+  cardF.position.set(cx, cy, GATE_Z);
   const key2 = solid ? 'solid' : 'dashed';
   if (redraw && proposedCT.key !== key2) {
     proposedCT.key = key2;
@@ -1150,14 +1156,14 @@ function updateF(f, redraw) {
   const sp1 = stampPose(f, 'proposeStamp', 0, -0.05);
   stampP.visible = !!sp1 && f < ev('cardGo');
   if (sp1) {
-    stampP.position.set(-1.4 + 0.0, 0.07 + 0.56 * 0.5 + 0.05 + sp1.lift, 0.07 + sp1.lift * 0.8);
+    stampP.position.set(-1.25, 0.07 + 0.56 * 0.5 + 0.05 + sp1.lift, GATE_Z + 0.07 + sp1.lift * 0.8);
     stampP.scale.setScalar(sp1.scale);
     stampP.rotation.z = sp1.rot;
   }
   // the person walks in, presses the button once
   const walk = smooth(ev('personIn'), ev('press') - 40, f);
-  const px = mix(3.0, 1.55, walk);
-  person.position.set(px, Math.abs(Math.sin(f * 0.22)) * 0.02 * (walk > 0 && walk < 1 ? 1 : 0), 0.55);
+  const px = mix(3.4, 2.35, walk);
+  person.position.set(px, Math.abs(Math.sin(f * 0.22)) * 0.02 * (walk > 0 && walk < 1 ? 1 : 0), 0.35);
   person.visible = f >= ev('personIn') - 4 && f < 3300;
   const sw = walk > 0 && walk < 1 ? Math.sin(f * 0.22) * 0.5 : 0;
   person.userData.legL.rotation.x = sw;
@@ -1202,12 +1208,12 @@ box(1.5, 1.0, 0.9, glassMat, glassBox, 0, 0.5, 0).castShadow = false;
   }
 }
 glassBox.position.set(0.3, 0, 0);
-const lawG = canvasTex(1024, 720);
+const lawG = canvasTex(1024, 720, 'lawG');
 const cardG = makeCard(0.9, 0.62, lawG);
 cardG.position.set(0.3, 0, -0.1);
 sG.add(cardG);
 drawPlaque(lawG, 1024, 720, PAL.green, (g) => drawCode(g, lawLines, 42, 170, 34, 70, 9999, false));
-const labelBox = canvasTex(512, 160);
+const labelBox = canvasTex(512, 160, 'labelBox');
 {
   const g = labelBox.g;
   g.fillStyle = PAL.paper;
@@ -1220,7 +1226,7 @@ const labelBox = canvasTex(512, 160);
   labelBox.tex.needsUpdate = true;
 }
 const signBox = makeCard(0.7, 0.22, labelBox);
-signBox.position.set(0.3, 0, 0.7);
+signBox.position.set(1.45, 0, 0.3);
 sG.add(signBox);
 const progress = box(0.02, 0.05, 0.02, std(PAL.green, 0.4, { emissive: col('#1A6B3A') }), sG, 0, 0.05, 0.2);
 const fileProp = new THREE.Group();
@@ -1268,7 +1274,7 @@ function updateG(f) {
 const sH = stations[7];
 const wrapCards = [];
 ['proved', 'certified', 'proved'].forEach((word, i) => {
-  const ct = canvasTex(1024, 720);
+  const ct = canvasTex(1024, 720, 'card ' + word);
   drawPlaque(ct, 1024, 720, word === 'certified' ? PAL.steel : PAL.green, (g) => {
     drawCode(g, lawLines, 42, 170, 34, 70, 9999, false);
     g.save();
@@ -1286,7 +1292,7 @@ const wrapCards = [];
     g.restore();
   });
   const c = makeCard(0.75, 0.52, ct);
-  c.position.set(0.2 + i * 0.85, 0, -0.35 - i * 0.05);
+  c.position.set(0.5 + i * 0.85, 0, -0.35 - i * 0.05);
   c.rotation.y = -0.12;
   sH.add(c);
   wrapCards.push(c);
@@ -1294,7 +1300,7 @@ const wrapCards = [];
 
 // Station 8: the end card.
 const sI = stations[8];
-const endCT = canvasTex(2048, 1100);
+const endCT = canvasTex(2048, 1100, 'endCT');
 const endCard = makeCard(2.0, 1.07, endCT);
 endCard.position.set(0.5, 0, -0.2);
 sI.add(endCard);
@@ -1323,7 +1329,8 @@ function drawEnd(n) {
   });
 }
 function updateI(f, redraw) {
-  endCard.position.set(0.5, mix(-0.8, 0, step('ui', since(f, 'endIn'))), -0.2);
+  endCard.position.set(0.5, 0, -0.2);
+  endCard.scale.setScalar(mix(0.05, 1, step('ui', since(f, 'endIn'))));
   endCard.visible = f >= ev('endIn') - 2;
   if (redraw) {
     const n = Math.round(clamp((f - ev('endType')) / (ev('endTypeDone') - ev('endType'))) * endText[1].length);
@@ -1453,8 +1460,96 @@ window.mascotWidthPx = (t) => {
   const rightPx = px(c.x + r);
   return {
     px: Math.abs(rightPx - left),
+    x0: Math.round(Math.min(left, rightPx)),
+    x1: Math.round(Math.max(left, rightPx)),
     visiblePx: Math.max(0, Math.min(W, Math.max(left, rightPx)) - Math.max(0, Math.min(left, rightPx))),
   };
+};
+
+// Test aid: for every text-bearing face in the shot at time t, how much is inside the frame and how much is in
+// front of everything else. Returns one record per face that is at least partly on screen.
+window.textAudit = (t) => {
+  const f = Math.round(t * FPS);
+  const shot = shotAt(f);
+  applyWorld(f, shot, true);
+  placeCamera(shot, f);
+  scene.updateMatrixWorld(true);
+  const solid = [];
+  scene.traverse((o) => {
+    if (!o.isMesh) return;
+    for (let p = o; p; p = p.parent) if (!p.visible) return;
+    const m = Array.isArray(o.material) ? o.material[0] : o.material;
+    if (m.transparent || m.visible === false) return;
+    solid.push(o);
+  });
+  const faces = [];
+  scene.traverse((o) => {
+    if (!o.isMesh) return;
+    for (let p = o; p; p = p.parent) if (!p.visible) return;
+    const mats = Array.isArray(o.material) ? o.material : [o.material];
+    const tm = mats.find((m) => m.map?.userData?.name && !m.map.userData.notText);
+    if (tm) faces.push({ o, name: tm.map.userData.name });
+  });
+  const ray = new THREE.Raycaster();
+  const out = [];
+  const eye = camera.position.clone();
+  const NX = 9;
+  const NY = 5;
+  for (const { o, name } of faces) {
+    o.geometry.computeBoundingBox();
+    const bb = o.geometry.boundingBox;
+    // a stamp that has not dropped yet or a face scaled to nothing is not on screen
+    const sc = new THREE.Vector3().setFromMatrixScale(o.matrixWorld);
+    if (sc.x < 0.05) continue;
+    let inside = 0;
+    let seen = 0;
+    const v = new THREE.Vector3();
+    const dir = new THREE.Vector3();
+    for (let i = 0; i < NX; i++) {
+      for (let j = 0; j < NY; j++) {
+        // keep to the middle 96% of the face so the bevel and the very edge do not count
+        const fx = 0.02 + (0.96 * (i + 0.5)) / NX;
+        const fy = 0.02 + (0.96 * (j + 0.5)) / NY;
+        v.set(bb.min.x + (bb.max.x - bb.min.x) * fx, bb.min.y + (bb.max.y - bb.min.y) * fy, bb.max.z).applyMatrix4(
+          o.matrixWorld,
+        );
+        const ndc = v.clone().project(camera);
+        const inFrame = ndc.z < 1 && Math.abs(ndc.x) <= 1 && Math.abs(ndc.y) <= 1;
+        if (!inFrame) continue;
+        inside++;
+        dir.copy(v).sub(eye);
+        const d = dir.length();
+        dir.normalize();
+        ray.set(eye, dir);
+        ray.near = 0.01;
+        ray.far = d + 1;
+        const hits = ray.intersectObjects(solid, false);
+        const first = hits.find((h) => h.object !== o);
+        if (!first || first.distance > d - 0.012) seen++;
+      }
+    }
+    const total = NX * NY;
+    // screen rectangle of the face in pixels, for planning shots
+    const cs = [
+      [bb.min.x, bb.min.y],
+      [bb.max.x, bb.min.y],
+      [bb.min.x, bb.max.y],
+      [bb.max.x, bb.max.y],
+    ].map(([x, y]) => {
+      const n = new THREE.Vector3(x, y, bb.max.z).applyMatrix4(o.matrixWorld).project(camera);
+      return [((n.x + 1) / 2) * W, ((1 - n.y) / 2) * H];
+    });
+    const rect = [
+      Math.min(...cs.map((c) => c[0])),
+      Math.min(...cs.map((c) => c[1])),
+      Math.max(...cs.map((c) => c[0])),
+      Math.max(...cs.map((c) => c[1])),
+    ].map(Math.round);
+    if (inside === 0) continue;
+    out.push({ name, inFrame: inside / total, visible: seen / total, rect });
+  }
+  const mw = window.mascotWidthPx(f / FPS);
+  return { f, shot: shot.id, faces: out, tally: [mw.x0, mw.x1] };
 };
 window.shotList = () => SHOTS.map((s) => ({ id: s.id, frame: s.frame, frames: s.frames }));
 window.grab = (t, quality = 0.95) => {
