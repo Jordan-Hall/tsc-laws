@@ -5,6 +5,9 @@ certificate lets a second program check it: cvc5 proves the same query again and
 [Alethe](https://verit.loria.fr/documentation/alethe-spec.pdf) format, and [Carcara](https://github.com/ufmg-smite/carcara),
 a small independent proof checker, checks that proof step by step.
 
+The [certificate gallery](certificates/README.md) shows real ones: each law of the demo project with its source, lock hashes,
+loop invariants, a proof excerpt, the full problem and proof files, and the Carcara command that checks them.
+
 ## What it guarantees
 
 A law with the status `certified` has an `unsat` proof that Carcara accepted for the SMT-LIB problem `tslaws` built from the
