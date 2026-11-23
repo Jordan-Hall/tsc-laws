@@ -4,7 +4,7 @@
 import { availableParallelism, freemem } from 'node:os';
 import { jobsPerFile } from './jobs-split.ts';
 
-/** How many test files run at once; the same number as `--test-concurrency` in the test script. */
-const files = 3;
+/** How many test files run at once, the same number as `--test-concurrency` in the test script. Two give a 4-core runner two jobs a file. */
+const files = 2;
 
 process.env.TSLAWS_JOBS ??= String(jobsPerFile(files, availableParallelism(), freemem()));
