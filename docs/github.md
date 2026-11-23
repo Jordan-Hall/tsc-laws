@@ -76,6 +76,42 @@ that passes. In comment mode, a proposal must also have an accept for that exact
 what it accepted and what it held. If it holds a proposal, the run fails, and `tslaws check` keeps failing on `branch`
 until the proposal is fixed or removed.
 
+### What a merge runs
+
+A merge only acts on laws the lock does not record as they are: new laws, edited laws and laws whose dependencies
+changed. It compares the laws on the merged code with the lock first, and runs only those laws, in the same sandboxed
+child as before. The coverage analysis is left out of that run.
+
+- When the lock already records every law (the usual merge: the pull request changed code, not laws), no law runs, the
+  lock is not written and no comment is posted. The run takes seconds, not a full test run.
+- When some laws changed, only those laws run. A project with hundreds of laws and three new ones runs three.
+- A removal or an exemption runs nothing: the merged lock is computed from the files. A level change runs the law, as a
+  changed law does.
+- A run with nothing to prove still compiles the project and checks that the sandbox can be enforced, so a project that
+  does not build, or a Node that cannot sandbox the laws, fails the run as it always did.
+
+Nothing from the pull request counts as proof. A report comment from a pull request run is never read, because that
+run executes the pull request's own code and can write what it likes. The merge re-proves each changed law on the
+merged code, and the result is checked against the laws the merge computed itself: a result for a law that is not in
+the project, or a missing result for a law that had to run, is an error, and nothing is accepted. A law that fails,
+and a proposal that comment mode has no accept for, is held exactly as before.
+
+In the two-job flow, the `laws` job runs the changed laws and `--results` hands the report to the `merge` job. A
+project with no changed laws has no report, and the `merge` job treats that as nothing to accept. If the `merge` job
+finds a changed law that the `laws` job did not report (a report that is missing or short), it holds that law with the
+reason "changed after the laws job ran" and accepts nothing for it: run the workflow again.
+
+### Keeping merge runs short
+
+- Add `paths-ignore` for files that cannot change a law, such as docs, to the `push` trigger of the merge workflow.
+- Make the lock commit not start the workflow again. A commit made with `GITHUB_TOKEN` does not start workflows. A
+  commit made with an app token does, and that run finds nothing to do, but it still pays for a runner and an install.
+  Add `paths-ignore: [tsc-laws.lock]` to the merge workflow, or skip the job when the head commit is the bot's own lock
+  commit.
+- In a monorepo, choose the projects to run by what changed, not by which projects succeeded last time. A project that
+  holds a proposal fails every run, so a "last successful run" base is the first commit and every project runs.
+- Keep the `laws` job's cache for `node_modules`. The `merge` job must not use one.
+
 ## On demand
 
 `tslaws github merge` also runs on `workflow_dispatch`. Use it when the workflow could not run for a while and the lock

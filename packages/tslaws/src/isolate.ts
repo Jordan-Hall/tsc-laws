@@ -83,6 +83,11 @@ export interface Expected {
   laws: ReadonlySet<string>;
   lock: ReadonlySet<string>;
   exempt: ReadonlySet<string>;
+  /**
+   * The laws the report must name, when it covers only some of them (a partial run, see `onlyKeys`). Default: every law.
+   * It may still name any other law of the project.
+   */
+  required?: ReadonlySet<string>;
 }
 
 const longest = { path: 1024, method: 200, text: 20000, assumptions: 100 };
@@ -205,7 +210,7 @@ export function readReport(value: unknown, expected: Expected): CheckReport {
     results.push(result);
   }
   const got = new Set(results.filter((r) => r.status !== 'uncovered').map((r) => lawKey(r.file, r.name)));
-  for (const key of expected.laws) if (!got.has(key)) return fail(`${key} has no result`);
+  for (const key of expected.required ?? expected.laws) if (!got.has(key)) return fail(`${key} has no result`);
 
   const compileOk = report.compileOk as boolean;
   const lockMissing = report.lockMissing as boolean;

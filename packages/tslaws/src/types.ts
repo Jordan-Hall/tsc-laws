@@ -107,6 +107,11 @@ export interface CheckOptions {
   regressionExamples?: string[];
   /** Check only the laws with these names; the others are skipped without a result or an event. */
   only?: string[];
+  /**
+   * Check only the laws with these keys (`file::name`), and leave the coverage analysis out: the run is a partial one. Set
+   * by `github merge`, which needs the outcome of the laws the lock does not record yet and nothing else.
+   */
+  onlyKeys?: string[];
   /** Told as the check proceeds: which laws there are, which is running, each result, and frames of a browser page. */
   onEvent?: (event: LawEvent) => void;
 }

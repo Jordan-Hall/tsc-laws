@@ -201,6 +201,11 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
     }
     return verdict;
   };
+  // `only` (names) and `onlyKeys` (`file::name`) narrow the run; a law they leave out has no result and no event.
+  const keyed = (law: ManifestLaw): boolean =>
+    options.onlyKeys === undefined || options.onlyKeys.includes(lawKey(law.file, law.name));
+  const selected = (law: ManifestLaw): boolean =>
+    (options.only === undefined || options.only.includes(law.name)) && keyed(law);
   const sources = new Sources(options.cwd);
   // What a law reaches is syntactic and cheap; a project that cannot be read this way just has no locations.
   const exercisesFor = (law: ManifestLaw): Exercised[] => {
@@ -315,14 +320,18 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
   }
 
   for (const law of laws) {
-    if (law.problems.length > 0 && !blocked.has(lawKey(law.file, law.name)))
+    if (keyed(law) && law.problems.length > 0 && !blocked.has(lawKey(law.file, law.name)))
       add(law, 'error', 'manifest', { message: law.problems.join('; ') });
   }
 
   const covered = coverFiles(options.cwd, readConfig(options.cwd).cover ?? []);
   const compiled = [...new Set([...options.files, ...covered])];
-  const nodeLaws = laws.filter((law) => law.problems.length === 0 && verdictOf(law.file).kind === 'node').length;
-  const runsHere = laws.filter((law) => law.problems.length === 0 && verdictOf(law.file).kind !== 'browser').length;
+  const nodeLaws = laws.filter(
+    (law) => selected(law) && law.problems.length === 0 && verdictOf(law.file).kind === 'node',
+  ).length;
+  const runsHere = laws.filter(
+    (law) => selected(law) && law.problems.length === 0 && verdictOf(law.file).kind !== 'browser',
+  ).length;
   // The sandbox is on unless the person turned it off with `sandbox: false` (`--no-sandbox`), and a Node that cannot
   // enforce it is an error here, never a quiet fallback. End-to-end laws are no exception: see `allowE2e`.
   const sandboxed = runsHere > 0 && useSandbox(options);
@@ -367,7 +376,7 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
     }
   };
   const runBody = async (law: ManifestLaw, add: Add): Promise<void> => {
-    if (options.only !== undefined && !options.only.includes(law.name)) return;
+    if (!selected(law)) return;
     if (blocked.has(lawKey(law.file, law.name))) return;
     options.onEvent?.({ type: 'start', file: law.file, name: law.name });
     let types: LawTypes;
@@ -627,8 +636,7 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
   const page = new Semaphore(1);
   await Promise.all(
     laws.map(async (law, index) => {
-      const skipped =
-        (options.only !== undefined && !options.only.includes(law.name)) || blocked.has(lawKey(law.file, law.name));
+      const skipped = !selected(law) || blocked.has(lawKey(law.file, law.name));
       if (skipped) {
         finished.set(index, []);
         flush();
@@ -639,7 +647,7 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
     }),
   );
 
-  if (enforceLock) {
+  if (enforceLock && options.onlyKeys === undefined) {
     const coverage = derived.coverage(() =>
       analyzeCoverage({
         cwd: options.cwd,
