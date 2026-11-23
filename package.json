@@ -25,7 +25,8 @@
     "oxlint": "^1.87.0",
     "scriptc": "0.4.8",
     "turbo": "2.11.7",
-    "typescript": "5.9"
+    "typescript": "5.9",
+    "typescript-5.9": "npm:typescript@5.9"
   },
   "overrides": {
     "esbuild": "^0.28.1",

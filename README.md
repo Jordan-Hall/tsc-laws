@@ -56,6 +56,7 @@ What it offers:
   records, bounded-checks arrays, loops and recursion, and proves loops for every iteration count when the code carries an
   `invariant`. Whatever does not lower is property-tested with inputs generated from your types, shrunk to a minimal
   counterexample. Every result says which it was.
+- **Proofs you can check.** `--certify` has cvc5 write a proof and Carcara check it; see the [certificate gallery](docs/certificates/README.md).
 - **Agents cannot weaken the laws.** A lock file hashes the laws and coverage exemptions; `tslaws accept` needs a person at
   a terminal. A coverage gate fails exported code that no law reaches.
 - **Built for the agent loop.** `tslaws init` scaffolds the rules and a Claude Code hook that blocks commits on failure;

@@ -1,0 +1,8 @@
+(set-logic ALL)
+(declare-const x Int)
+(declare-const lo Int)
+(assert (and (<= (- 9007199254740991) x) (<= x 9007199254740991)))
+(assert (and (<= (- 9007199254740991) lo) (<= lo 9007199254740991)))
+(assert (and (and (> x (- 1000000)) (< x 1000000)) (and (> lo (- 1000000)) (< lo 1000000))))
+(assert (or (not (>= (ite (< x lo) lo x) lo)) (not true)))
+(check-sat)

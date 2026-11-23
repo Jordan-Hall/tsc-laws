@@ -22,6 +22,8 @@ on:
       - '.github/actions/proof-tools/**'
       - 'scripts/ci/certificates-*'
       - 'scripts/ci/certificates-*/**'
+      - 'docs/certificates.md'
+      - 'docs/certificates/**'
       - '.github/workflows/certificates.yml'
   workflow_dispatch:
 
@@ -47,6 +49,19 @@ jobs:
       - name: Try the tools by hand
         if: always()
         run: node scripts/ci/certificates-smoke.mjs
+      # The certificate gallery (docs/certificates): check and accept the demo with the real tools, then turn the lock, the saved
+      # problems and proofs and the report into the page and its files. This runs before the steps that reset the demo, so the
+      # lock and the saved proofs are the ones one run made. `accept` runs under `script` as in the step below.
+      - name: Generate the certificate gallery
+        working-directory: scripts/ci/certificates-demo
+        run: |
+          tslaws() { node "$GITHUB_WORKSPACE/packages/tslaws/bin/tslaws.js" "$@"; }
+          export -f tslaws
+          export GITHUB_WORKSPACE
+          tslaws check --json > "$RUNNER_TEMP/gallery-report.json" || true
+          printf 'accept\n' | env -u CI script -qec 'bash -c "tslaws accept"' /dev/null
+          node "$GITHUB_WORKSPACE/scripts/ci/certificates-docs.mjs" generate \
+            --report "$RUNNER_TEMP/gallery-report.json" --out "$RUNNER_TEMP/certificate-docs"
       - name: Certify and cross-check with the real tools
         working-directory: packages/tslaws
         env:
@@ -88,3 +103,29 @@ jobs:
       - name: tslaws checks its own laws
         working-directory: packages/tslaws
         run: node bin/tslaws.js check laws/core.laws.ts --certify --summary
+      # The committed gallery must still describe the demo: the same laws, sources and certified status, and the hashes the code
+      # determines. Proofs are not compared byte for byte (see the top of the script); Carcara checks each committed proof.
+      # When this fails, copy the certificate-docs artifact of the run over docs/certificates and commit it.
+      - name: The certificate gallery is current
+        if: always()
+        run: node scripts/ci/certificates-docs.mjs check --fresh "$RUNNER_TEMP/certificate-docs" --recheck
+      - name: Upload the certificate gallery
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: certificate-docs
+          path: ${{ runner.temp }}/certificate-docs
+          if-no-files-found: warn
+          retention-days: 14
+      # What the demo's last check saved: the problems, proofs, clauses and invariants, and the records of the certified laws.
+      - name: Upload the certificates
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: certificates
+          path: |
+            scripts/ci/certificates-demo/.tslaws/certificates
+            scripts/ci/certificates-demo/.tslaws/certificates.json
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 14
