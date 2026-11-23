@@ -1,0 +1,145 @@
+{
+  "demo": "scripts/ci/certificates-demo",
+  "laws": {
+    "src/math.laws.ts::addition commutes": {
+      "file": "src/math.laws.ts",
+      "line": 8,
+      "name": "addition commutes",
+      "outcome": "proved",
+      "certificate": "certified",
+      "source": "law.proved('addition commutes', (a: bigint, b: bigint) => a + b === b + a);",
+      "calls": {},
+      "files": "addition-commutes-1abed562",
+      "record": {
+        "law": "7368b6ab068904c6b3dd3daafd15e84621ffb6b2af4c17e8ef8a92159387ed17",
+        "problemHash": "b070b6637e023df9d0f0975a2fb984032ec0856174fe0a24655529e14963eafa",
+        "proofHash": "21e8ff40313d5a0778e68cc3ceeabb3bd5122426debcbcf5c3e7598a39d76826",
+        "checkerHash": "9ce46691a5d710581434e25ce82b95a475e68614906c7dc3376e03ed311c071a"
+      },
+      "rare": true
+    },
+    "src/math.laws.ts::doubling is adding twice": {
+      "file": "src/math.laws.ts",
+      "line": 9,
+      "name": "doubling is adding twice",
+      "outcome": "proved",
+      "certificate": "certified",
+      "source": "law.proved('doubling is adding twice', (a: bigint) => a * 2n === a + a);",
+      "calls": {},
+      "files": "doubling-is-adding-twice-a7857105",
+      "record": {
+        "law": "d83b8f4f70c4dc835e54eb007b08656fc0f51f0231b60c7cbd2dd8e4f27c815f",
+        "problemHash": "54f8b584d405c651c35099391f76beb75ff9ce343a3c5da14e6e1ab68f319b9f",
+        "proofHash": "9a622b99586e2d4bf6e0dc59d93b1d7a5ad345ebc4094cb7c28874f04acbad05",
+        "checkerHash": "d063fda380d63c08a4ec74df5e2275035f18fabbba4977a0eb78baa4a2c89983"
+      },
+      "rare": true
+    },
+    "src/math.laws.ts::and commutes": {
+      "file": "src/math.laws.ts",
+      "line": 10,
+      "name": "and commutes",
+      "outcome": "proved",
+      "certificate": "certified",
+      "source": "law.proved('and commutes', (a: boolean, b: boolean) => (a && b) === (b && a));",
+      "calls": {},
+      "files": "and-commutes-11802642",
+      "record": {
+        "law": "5ebbf284dfcdfd35deef31b439a34982263857df8ebb950686fdb2e9dd6fc049",
+        "problemHash": "d6176a8000d921cd865b3b52f12a6be9dfa588b1ec15d5f82238efa1499c1242",
+        "proofHash": "400e497274dfd1d526f4d79bfe5984ed19e38d7d7f8d4ae6fd0734bb62fe1d03",
+        "checkerHash": "3a8d97b6ee321664af32400b4132a3d78661fd8980fc64002f5110149f7de36f"
+      }
+    },
+    "src/math.laws.ts::counting up reaches n": {
+      "file": "src/math.laws.ts",
+      "line": 11,
+      "name": "counting up reaches n",
+      "outcome": "proved",
+      "certificate": "certified",
+      "source": "law.proved('counting up reaches n', (n: int) => {\n  assume(n >= 0 && n < 1_000_000);\n  return countUp(n) === n;\n});",
+      "calls": {
+        "countUp": "export function countUp(n: int): int {\n  let i = 0;\n  while (i < n) {\n    i = i + 1;\n  }\n  return i as int;\n}"
+      },
+      "files": "counting-up-reaches-n-75800208",
+      "record": {
+        "law": "882a02187977ca23149cb49cfd7266acdc86c652877098772f71adab3044c67f",
+        "problemHash": "9faf0950404da797e80ece617f7f994c5e26bd8aeb94016f9cb1b9ad51af9336",
+        "systemHash": "2d1e727a3f034b33c429cd1433a1a1a241326d1970570982edb434245f7f8583",
+        "proofHash": "276fcf8342e6b9f2412cbc55eb6acd78cdc5095248dc7ca0b68aec427afbb4dc",
+        "checkerHash": "106c5f9b1b1c1335a30822f9aaa112c9b8fd1fb542c516a9ead30728f9da0809"
+      },
+      "rare": true
+    },
+    "src/math.laws.ts::the largest is never negative": {
+      "file": "src/math.laws.ts",
+      "line": 15,
+      "name": "the largest is never negative",
+      "outcome": "proved",
+      "certificate": "certified",
+      "source": "law.proved('the largest is never negative', (xs: int[]) => largest(xs) >= 0);",
+      "calls": {
+        "largest": "export function largest(xs: int[]): int {\n  let m = 0;\n  let i = 0;\n  while (i < xs.length) {\n    if (xs[i] > m) m = xs[i];\n    i += 1;\n  }\n  return m as int;\n}"
+      },
+      "files": "the-largest-is-never-negative-b9bcd452",
+      "record": {
+        "law": "79d4c602bd65df57f594d4a935377b3d3a59c8ed1caac89198e85ae6f0a5fe88",
+        "problemHash": "ae7b15a1887140b4404eaae0c048d77dbbbb571a65753011eaef0d0dfb70bdda",
+        "systemHash": "375630e68d86929e0aaa32ea167ba0a84f2fc701085405e6d65675549bd92615",
+        "proofHash": "bdec6f59a4b5fb02a5ce3eed4e4532b8b2d86c0ff682e712eab1dcb82ab7b590",
+        "checkerHash": "de891f6afce30637406fd96ef243aa6703b0f101a556c694cb8f3783e55df3fe"
+      },
+      "rare": true
+    },
+    "src/math.laws.ts::the average sits between": {
+      "file": "src/math.laws.ts",
+      "line": 16,
+      "name": "the average sits between",
+      "outcome": "proved",
+      "certificate": "uncertified (the law uses floating-point numbers, which Alethe proofs do not cover (use int or bigint))",
+      "source": "law('the average sits between', (a: number, b: number) => {\n  assume(a >= 0 && a <= b && b <= 1_000_000);\n  return average(a, b) >= a && average(a, b) <= b;\n});",
+      "calls": {
+        "average": "export function average(a: number, b: number): number {\n  return (a + b) / 2;\n}"
+      }
+    },
+    "src/math.laws.ts::half is at most n": {
+      "file": "src/math.laws.ts",
+      "line": 20,
+      "name": "half is at most n",
+      "outcome": "proved",
+      "certificate": "certified",
+      "source": "law.proved('half is at most n', (n: int) => {\n  assume(n >= 0 && n < 1_000_000);\n  return half(n) <= n;\n});",
+      "calls": {
+        "half": "export function half(n: int): int {\n  return Math.floor(n / 2) as int;\n}"
+      },
+      "files": "half-is-at-most-n-2a7cb777",
+      "record": {
+        "law": "f1b01c2a9481699aefd5f84dd02ab56093b6985f2608dcc3fcc4803d839f4718",
+        "problemHash": "f0755f5b086de805cf4531b8593abfc76f2fb34e48161713932cb8496ab56cdd",
+        "proofHash": "20ce665cfe9d174e774f55b1c2de84a938431db5cdc967a65171654a814b8adc",
+        "checkerHash": "c95f3996c9dc2725cb23091555f6b9eb8cd3d91fe142a9dff3db14f80bf82740"
+      },
+      "rare": true
+    },
+    "src/math.laws.ts::clamping never goes below the floor": {
+      "file": "src/math.laws.ts",
+      "line": 24,
+      "name": "clamping never goes below the floor",
+      "outcome": "proved",
+      "certificate": "certified",
+      "source": "law.proved('clamping never goes below the floor', (x: int, lo: int) => {\n  assume(small(x) && small(lo));\n  return clampAbove(x, lo) >= lo;\n});",
+      "calls": {
+        "small": "const small = (n: int) => n > -1_000_000 && n < 1_000_000;",
+        "clampAbove": "export function clampAbove(x: int, lo: int): int {\n  return (x < lo ? lo : x) as int;\n}"
+      },
+      "files": "clamping-never-goes-below-the-floor-a48e68a5",
+      "record": {
+        "law": "6eb82448ed7e7218ec973f65a47953059c2036a1f2faa70cdcdb3fc58e4a48bc",
+        "problemHash": "e3ae714117ee49136c62f70526ed6ae5433c70d3114345562ec4f2c71cbb04ea",
+        "proofHash": "f0861177bd0716745465d4889128476236714959d5a7cc703cc51559138768ae",
+        "checkerHash": "99d90386cfe49ba3f6d9392593572f09d2840c3671d399493b2bd9f09768e7a2"
+      },
+      "rare": true
+    }
+  }
+}

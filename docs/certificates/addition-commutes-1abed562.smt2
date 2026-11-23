@@ -1,0 +1,5 @@
+(set-logic ALL)
+(declare-const a Int)
+(declare-const b Int)
+(assert (or (not (= (+ a b) (+ b a))) (not true)))
+(check-sat)
