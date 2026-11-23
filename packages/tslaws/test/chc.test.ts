@@ -7,7 +7,14 @@ import { after, afterEach, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import './serial-solver.ts';
 import { check } from '../dist/check.js';
-import { hornText, solveHorn, type Engine, type HornSystem } from '../dist/chc.js';
+import {
+  certificationProblem,
+  hornText,
+  runExternalSolvers,
+  solveHorn,
+  type Engine,
+  type HornSystem,
+} from '../dist/chc.js';
 import { readManifest } from '../dist/compile.js';
 import { writeLock } from '../dist/lock.js';
 import { solve } from '../dist/smt.js';
@@ -112,7 +119,7 @@ describe(
       );
     });
 
-    it('leaves a proof by invariant uncertified, so "require" fails it', async () => {
+    it('certifies a proof by invariant, and "require" fails it only when the tools are missing', async () => {
       const files = {
         'src/f.ts': sources,
         'src/f.laws.ts': [
@@ -122,21 +129,32 @@ describe(
           '',
         ].join('\n'),
       };
-      // No cvc5 proof of a Horn problem exists: with "certify" the law stays proved and says so.
-      const lenient = byName(
-        (await check({ ...project('horn-certify', files), certify: true }, true)).results,
-        'twiceIsDouble',
-      );
-      assert.equal(lenient.status, 'proved', JSON.stringify(lenient));
-      assert.equal(lenient.certificate?.status, 'uncertified');
-      assert.match(lenient.certificate?.reason ?? '', /loop invariants.*Horn/);
-      // With "require" it is an error, not a pass for want of a certificate.
-      const required = byName(
-        (await check({ ...project('horn-require', files), certify: 'require' }, true)).results,
-        'twiceIsDouble',
-      );
-      assert.equal(required.status, 'error', JSON.stringify(required));
-      assert.match(required.message ?? '', /"certify": "require" is set but the proof is uncertified/);
+      // With the tools absent the law stays proved and says the certificate is unavailable; "require" makes that an error.
+      const savedTools = { cvc5: process.env.TSLAWS_CVC5, carcara: process.env.TSLAWS_CARCARA };
+      try {
+        process.env.TSLAWS_CVC5 = join(root, 'missing', 'cvc5');
+        process.env.TSLAWS_CARCARA = join(root, 'missing', 'carcara');
+        const lenient = byName(
+          (await check({ ...project('horn-certify', files), certify: true }, true)).results,
+          'twiceIsDouble',
+        );
+        assert.equal(lenient.status, 'proved', JSON.stringify(lenient));
+        assert.equal(lenient.certificate?.status, 'unavailable');
+        const required = byName(
+          (await check({ ...project('horn-require', files), certify: 'require' }, true)).results,
+          'twiceIsDouble',
+        );
+        assert.equal(required.status, 'error', JSON.stringify(required));
+        assert.match(required.message ?? '', /"certify": "require" is set but the proof is unavailable/);
+      } finally {
+        for (const [name, value] of [
+          ['TSLAWS_CVC5', savedTools.cvc5],
+          ['TSLAWS_CARCARA', savedTools.carcara],
+        ] as const) {
+          if (value === undefined) delete process.env[name];
+          else process.env[name] = value;
+        }
+      }
       // Without certification asked for, nothing changes.
       assert.equal(
         byName((await check(project('horn-plain', files), true)).results, 'twiceIsDouble').certificate,
@@ -305,6 +323,38 @@ describe('the Horn solving path', () => {
     assert.equal((text.match(/\(forall /g) ?? []).length, 3);
   });
 
+  it('turns the found invariants and the clauses into one quantifier-free problem Z3 refutes', async () => {
+    const verdict = await solveHorn(counting('(= i n)'), engine([]), 20000);
+    assert.equal(verdict.kind, 'safe', JSON.stringify(verdict));
+    if (verdict.kind !== 'safe') return;
+    assert.equal(verdict.certification.horn, hornText(counting('(= i n)')));
+    const problem = certificationProblem(verdict.certification.horn, verdict.certification.invariants)!;
+    assert.ok(problem, 'a problem is made');
+    assert.doesNotMatch(problem, /forall|define-fun|Inv\d/);
+    assert.match(problem, /^\(declare-const /);
+    const { out } = await solve(problem, '', 20000);
+    assert.match(out, /^unsat/);
+  });
+
+  it('makes a satisfiable problem of an invariant that is not inductive, and none of a mismatched one', async () => {
+    const horn = hornText(counting('(= i n)'));
+    // `false` is not true at entry, so the clauses are broken for some values and the problem has a model.
+    const wrong = '(define-fun Inv1 ((x!0 Int) (x!1 Int)) Bool false)';
+    const { out } = await solve(certificationProblem(horn, wrong)!, '', 20000);
+    assert.match(out, /^sat/);
+    assert.equal(certificationProblem(horn, ''), undefined, 'a predicate without a definition');
+    assert.equal(
+      certificationProblem(
+        horn,
+        `${wrong}
+(define-fun Other ((x!0 Int)) Bool true)`,
+      ),
+      undefined,
+      'a definition for a predicate the clauses do not declare',
+    );
+    assert.equal(certificationProblem(horn, '(declare-const x Int)'), undefined, 'only define-fun is accepted');
+  });
+
   it('keeps an agreeing second solver as a note', async () => {
     const verdict = await solveHorn(counting('(= i n)'), engine([{ solver: 'Eldarica', answer: 'sat' }]), 20000);
     assert.equal(verdict.kind, 'safe');
@@ -351,3 +401,36 @@ describe('a second CHC solver in a law', { skip: compiler === undefined ? 'set T
     assert.match(JSON.stringify(r), /disagree/);
   });
 });
+
+// The certificates workflow installs Eldarica and Golem and sets TSLAWS_REQUIRE_CERT_TOOLS=1; elsewhere these skip.
+const requireSolvers = process.env.TSLAWS_REQUIRE_CERT_TOOLS === '1';
+const haveSolvers = process.env.TSLAWS_ELDARICA !== undefined && process.env.TSLAWS_GOLEM !== undefined;
+
+describe(
+  'with the real Eldarica and Golem',
+  { skip: haveSolvers || requireSolvers ? false : 'TSLAWS_ELDARICA and TSLAWS_GOLEM are not set' },
+  () => {
+    const answers = async (claim: string): Promise<Map<string, string>> => {
+      const found = await runExternalSolvers(hornText(counting(claim)), 30000);
+      return new Map(found.map((answer) => [answer.solver, answer.answer]));
+    };
+
+    it('has both solvers when they are required', async () => {
+      if (!requireSolvers) return;
+      const found = await answers('(= i n)');
+      assert.deepEqual([...found.keys()].sort(), ['Eldarica', 'Golem']);
+    });
+
+    it('both agree with the invariant Spacer finds', async () => {
+      const found = await answers('(= i n)');
+      assert.equal(found.get('Eldarica'), 'sat', JSON.stringify([...found]));
+      assert.equal(found.get('Golem'), 'sat', JSON.stringify([...found]));
+    });
+
+    it('both refute a claim the loop can break', async () => {
+      const found = await answers('(= i (+ n 1))');
+      assert.equal(found.get('Eldarica'), 'unsat', JSON.stringify([...found]));
+      assert.equal(found.get('Golem'), 'unsat', JSON.stringify([...found]));
+    });
+  },
+);

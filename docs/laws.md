@@ -796,7 +796,8 @@ reported as `failed`.
   state on entry satisfies an unknown `Inv`, one pass of the body keeps `Inv`, and `Inv` with the condition false implies
   the law. Z3's Spacer engine looks for `Inv`. When it finds one the invariant is printed in the result (`loop 1 invariant
   over (s, i, n): …`, shown as an assumption) and checked again with plain Z3, which must show every clause valid; only then
-  is the law `proved`, for every iteration count and with no bound. An array parameter (`int[]`, `bigint[]` or `boolean[]`)
+  is the law `proved`, for every iteration count and with no bound. With `certify` on, cvc5 and Carcara check that invariant
+  as well ([Proof certificates](certificates.md#laws-about-loops)). An array parameter (`int[]`, `bigint[]` or `boolean[]`)
   is an SMT array indexed by integers plus a length in 0 to 2^32 − 1, so a law about it holds for every length. Supported on
   such arrays: `length`, `xs[i]` read and write, `push` and `pop` on a copy, `slice()` and `[...xs]` as copies, and `while`
   and `for` loops over them. Reading outside the array is not modelled (JavaScript gives `undefined`): the read

@@ -774,6 +774,144 @@ function installed(env: string, binary: string): boolean {
   return found.error === undefined && found.status === 0;
 }
 
+const loopSource = [
+  "import type { int } from 'tslaws';",
+  'export function twice(n: int): int {',
+  '  let s = 0;',
+  '  let i = 0;',
+  '  while (i < n) {',
+  '    s += 2;',
+  '    i += 1;',
+  '  }',
+  '  return s as int;',
+  '}',
+  '',
+].join(String.fromCharCode(10));
+const loopLaws = [
+  "import { assume } from 'tslaws';",
+  "import type { int } from 'tslaws';",
+  "import { twice } from './f';",
+  'export law proved twiceIsDouble(n: int) { assume(n >= 0 && n <= 1000000); return twice(n) === 2 * n; }',
+  '',
+].join(String.fromCharCode(10));
+
+describe('certificates for loop proofs', { skip: compiler === undefined ? 'set TSC_LAWS_BIN' : false }, () => {
+  const key = lawKey('src/f.laws.ts', 'twiceIsDouble');
+  const loopOptions = (name: string): CheckOptions => ({
+    ...project(name, { 'src/f.ts': loopSource, 'src/f.laws.ts': loopLaws }),
+    certify: true,
+  });
+  const certifiedLoop = async (
+    name: string,
+  ): Promise<{ options: CheckOptions; laws: ManifestLaw[]; result: LawResult }> => {
+    process.env.TSLAWS_CVC5 = cvc5Proves().path;
+    process.env.TSLAWS_CARCARA = carcaraAccepts().path;
+    const options = loopOptions(name);
+    const result = (await check(options, true)).results.find((r) => r.name === 'twiceIsDouble')!;
+    assert.equal(result.status, 'proved', JSON.stringify(result));
+    return { options, laws: readManifest(compiler!, options.files, options.cwd), result };
+  };
+  const savedFile = (options: CheckOptions, extension: string): string => {
+    const dir = join(options.cwd, '.tslaws', 'certificates');
+    return join(
+      dir,
+      readdirSync(dir).find((f) => f.endsWith(extension))!,
+    );
+  };
+  const accept = async (options: CheckOptions, laws: ManifestLaw[]): Promise<{ keys: string[]; said: string }> => {
+    let said = '';
+    const records = await certificatesToAccept(options, laws, undefined, (text) => (said += text));
+    return { keys: Object.keys(records), said };
+  };
+
+  it('certifies the invariants Z3 found, binds the record to the clauses and saves what accept needs', async () => {
+    const { options, result } = await certifiedLoop('loop-certified');
+    assert.equal(result.certificate?.status, 'certified', JSON.stringify(result.certificate));
+    assert.match(result.certificate?.systemHash ?? '', /^[0-9a-f]{64}$/);
+    for (const extension of ['.smt2', '.alethe', '.horn', '.inv']) assert.ok(savedFile(options, extension));
+    const query = readFileSync(savedFile(options, '.smt2'), 'utf8');
+    assert.doesNotMatch(
+      query,
+      /forall|define-fun|declare-fun/,
+      'the problem has no quantifier and no unknown predicate',
+    );
+    assert.equal(result.certificate?.systemHash, hashOf(readFileSync(savedFile(options, '.horn'), 'utf8')));
+    assert.equal(readRecords(options.cwd)[key]?.systemHash, result.certificate?.systemHash);
+  });
+
+  it('passes "require" now that a loop proof has a certificate', async () => {
+    process.env.TSLAWS_CVC5 = cvc5Proves().path;
+    process.env.TSLAWS_CARCARA = carcaraAccepts().path;
+    const options = { ...loopOptions('loop-require'), certify: 'require' as const };
+    const result = (await check(options, true)).results.find((r) => r.name === 'twiceIsDouble')!;
+    assert.equal(result.status, 'proved', JSON.stringify(result));
+    assert.equal(result.certificate?.status, 'certified');
+  });
+
+  it('is not certified, and "require" fails, when Carcara rejects the proof of the invariants', async () => {
+    process.env.TSLAWS_CVC5 = cvc5Proves().path;
+    process.env.TSLAWS_CARCARA = fake("console.log('invalid'); process.exitCode = 1;").path;
+    const options = { ...loopOptions('loop-rejected'), certify: 'require' as const };
+    const result = (await check(options, true)).results.find((r) => r.name === 'twiceIsDouble')!;
+    assert.equal(result.status, 'error', JSON.stringify(result));
+    assert.match(result.message ?? '', /Carcara did not accept the proof/);
+  });
+
+  it('accepts the record while the clauses, invariants and proof check out', async () => {
+    const { options, laws } = await certifiedLoop('loop-accept');
+    const { keys, said } = await accept(options, laws);
+    assert.deepEqual(keys, [key]);
+    assert.equal(said, '');
+    const lock = acceptChanges(
+      undefined,
+      laws,
+      [],
+      undefined,
+      new Set(lockChanges(undefined, laws, []).map((c) => c.fingerprint)),
+      readRecords(options.cwd),
+    );
+    assert.equal(lock.certificates?.[key]?.systemHash, readRecords(options.cwd)[key]?.systemHash);
+  });
+
+  it('drops a record whose saved invariants are not the ones that made the saved problem', async () => {
+    const { options, laws } = await certifiedLoop('loop-invariant-edited');
+    const file = savedFile(options, '.inv');
+    console.log('INV<<' + readFileSync(file, 'utf8') + '>>');
+    // An invariant that is false at entry would make a different problem; the saved one must not stand for it.
+    writeFileSync(file, readFileSync(file, 'utf8').replace(/Bool\s[\s\S]*$/, 'Bool false)'));
+    const { keys, said } = await accept(options, laws);
+    assert.deepEqual(keys, []);
+    assert.match(said, /the saved invariants do not turn the clauses into the saved problem/);
+  });
+
+  it('drops a record whose saved clauses were swapped, or whose saved files are gone', async () => {
+    const swapped = await certifiedLoop('loop-clauses-edited');
+    writeFileSync(savedFile(swapped.options, '.horn'), '(set-logic HORN)\n(check-sat)\n');
+    const first = await accept(swapped.options, swapped.laws);
+    assert.deepEqual(first.keys, []);
+    assert.match(first.said, /the saved clauses do not match the record/);
+    const gone = await certifiedLoop('loop-files-gone');
+    rmSync(savedFile(gone.options, '.inv'));
+    const second = await accept(gone.options, gone.laws);
+    assert.deepEqual(second.keys, []);
+    assert.match(second.said, /the saved clauses or invariants are missing/);
+  });
+
+  it('drops a record for another system of clauses than the law yields now', async () => {
+    const { options, laws } = await certifiedLoop('loop-other-clauses');
+    const other = '(set-logic HORN)\n(check-sat)\n';
+    const record = readRecords(options.cwd)[key]!;
+    writeFileSync(savedFile(options, '.horn'), other);
+    writeFileSync(
+      join(options.cwd, '.tslaws', 'certificates.json'),
+      JSON.stringify({ [key]: { ...record, systemHash: hashOf(other) } }),
+    );
+    const { keys, said } = await accept(options, laws);
+    assert.deepEqual(keys, []);
+    assert.match(said, /different proof problem than the law yields now/);
+  });
+});
+
 // TSLAWS_REQUIRE_CERT_TOOLS=1 (set by the certificates workflow) makes missing tools a failure instead of a skip.
 const requireTools = process.env.TSLAWS_REQUIRE_CERT_TOOLS === '1';
 const realTools = installed('TSLAWS_CVC5', 'cvc5') && installed('TSLAWS_CARCARA', 'carcara');
