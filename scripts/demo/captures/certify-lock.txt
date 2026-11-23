@@ -1,46 +1,60 @@
 {
-  "version": 1,
+  "version": 2,
   "laws": {
-    "src/math.laws.ts::addition commutes": "ece357fde3b6c0e7e85b8768e4121686840aeea21e3acc00addae3a076d38f75",
-    "src/math.laws.ts::and commutes": "da59703eed979247eb3d728902242993e6b5aafc9cc92108acba4714176ffa94",
-    "src/math.laws.ts::clamping never goes below the floor": "2e112a8b590199f0cf4ab3406388787fe5a0046f35ad65f19dd609ec705b6b10",
-    "src/math.laws.ts::counting up reaches n": "3bd053b06a61cf778893286ed4f16a7c9cf2cb395ca1c414d4931df461ffcdb1",
-    "src/math.laws.ts::doubling is adding twice": "a4895118c72c8f8dd832ca47452f559a2d63c7a6088b7b29e22d97b5523760c7",
-    "src/math.laws.ts::half is at most n": "e5d700a24a4a6f54d9e267b31eb0ee4a15b69a03aa74aa46ba3a785e0ce66ec4",
-    "src/math.laws.ts::the average sits between": "c197db1bfa070363ab2fccd6a1d3c3e6852fb13062582255797a9994ba6ee30e",
-    "src/math.laws.ts::the largest is never negative": "325d54a3d743f7fdc0c7e13cdfe180584418966fe02257f05818382cc352456e"
+    "src/math.laws.ts::addition commutes": "6592183e41d2c3ffcc8e2889e450a06cb174c6ffd4bd97e992707f373b9fc1bf",
+    "src/math.laws.ts::and commutes": "70097fdcaaf79355477df96b859412f714e453128e8386a7fe864622dc59e31e",
+    "src/math.laws.ts::clamping never goes below the floor": "0bdd9152aa4abb2d54e7acbb1ed28c74c43ac8dd07b2888a447b1ce334df5ef0",
+    "src/math.laws.ts::counting up reaches n": "f3e6b613e5919af4009b5fee26969a9cb4aa6df555087f37877fb07afe8a9ed5",
+    "src/math.laws.ts::doubling is adding twice": "8a433c914e974f119c3f71d3c4d48dd0bc72264863de007a847ccad7198f1c00",
+    "src/math.laws.ts::half is at most n": "7805bc83609142fe9d367e8c8f9639f2f982a2985967a757def9e54ae90a2ae7",
+    "src/math.laws.ts::the average sits between": "2bfdcdfe6fa0dfbc77aa6ca2653bc794fc9664aab3fe3d63ce0a5976f8fb0e3f",
+    "src/math.laws.ts::the largest is never negative": "b7803ebe6cf0f35f2909ac74f6b51fbd52c2c338827ef31a2fad5bd247ab4586"
   },
   "exempt": [],
   "certificates": {
     "src/math.laws.ts::addition commutes": {
-      "law": "ece357fde3b6c0e7e85b8768e4121686840aeea21e3acc00addae3a076d38f75",
+      "law": "6592183e41d2c3ffcc8e2889e450a06cb174c6ffd4bd97e992707f373b9fc1bf",
       "problemHash": "b070b6637e023df9d0f0975a2fb984032ec0856174fe0a24655529e14963eafa",
       "proofHash": "21e8ff40313d5a0778e68cc3ceeabb3bd5122426debcbcf5c3e7598a39d76826",
       "checkerHash": "9ce46691a5d710581434e25ce82b95a475e68614906c7dc3376e03ed311c071a"
     },
     "src/math.laws.ts::and commutes": {
-      "law": "da59703eed979247eb3d728902242993e6b5aafc9cc92108acba4714176ffa94",
+      "law": "70097fdcaaf79355477df96b859412f714e453128e8386a7fe864622dc59e31e",
       "problemHash": "d6176a8000d921cd865b3b52f12a6be9dfa588b1ec15d5f82238efa1499c1242",
       "proofHash": "400e497274dfd1d526f4d79bfe5984ed19e38d7d7f8d4ae6fd0734bb62fe1d03",
       "checkerHash": "3a8d97b6ee321664af32400b4132a3d78661fd8980fc64002f5110149f7de36f"
     },
     "src/math.laws.ts::clamping never goes below the floor": {
-      "law": "2e112a8b590199f0cf4ab3406388787fe5a0046f35ad65f19dd609ec705b6b10",
+      "law": "0bdd9152aa4abb2d54e7acbb1ed28c74c43ac8dd07b2888a447b1ce334df5ef0",
       "problemHash": "e3ae714117ee49136c62f70526ed6ae5433c70d3114345562ec4f2c71cbb04ea",
       "proofHash": "f0861177bd0716745465d4889128476236714959d5a7cc703cc51559138768ae",
       "checkerHash": "99d90386cfe49ba3f6d9392593572f09d2840c3671d399493b2bd9f09768e7a2"
     },
+    "src/math.laws.ts::counting up reaches n": {
+      "law": "f3e6b613e5919af4009b5fee26969a9cb4aa6df555087f37877fb07afe8a9ed5",
+      "problemHash": "9faf0950404da797e80ece617f7f994c5e26bd8aeb94016f9cb1b9ad51af9336",
+      "systemHash": "2d1e727a3f034b33c429cd1433a1a1a241326d1970570982edb434245f7f8583",
+      "proofHash": "276fcf8342e6b9f2412cbc55eb6acd78cdc5095248dc7ca0b68aec427afbb4dc",
+      "checkerHash": "106c5f9b1b1c1335a30822f9aaa112c9b8fd1fb542c516a9ead30728f9da0809"
+    },
     "src/math.laws.ts::doubling is adding twice": {
-      "law": "a4895118c72c8f8dd832ca47452f559a2d63c7a6088b7b29e22d97b5523760c7",
+      "law": "8a433c914e974f119c3f71d3c4d48dd0bc72264863de007a847ccad7198f1c00",
       "problemHash": "54f8b584d405c651c35099391f76beb75ff9ce343a3c5da14e6e1ab68f319b9f",
       "proofHash": "9a622b99586e2d4bf6e0dc59d93b1d7a5ad345ebc4094cb7c28874f04acbad05",
       "checkerHash": "d063fda380d63c08a4ec74df5e2275035f18fabbba4977a0eb78baa4a2c89983"
     },
     "src/math.laws.ts::half is at most n": {
-      "law": "e5d700a24a4a6f54d9e267b31eb0ee4a15b69a03aa74aa46ba3a785e0ce66ec4",
+      "law": "7805bc83609142fe9d367e8c8f9639f2f982a2985967a757def9e54ae90a2ae7",
       "problemHash": "f0755f5b086de805cf4531b8593abfc76f2fb34e48161713932cb8496ab56cdd",
       "proofHash": "20ce665cfe9d174e774f55b1c2de84a938431db5cdc967a65171654a814b8adc",
       "checkerHash": "c95f3996c9dc2725cb23091555f6b9eb8cd3d91fe142a9dff3db14f80bf82740"
+    },
+    "src/math.laws.ts::the largest is never negative": {
+      "law": "b7803ebe6cf0f35f2909ac74f6b51fbd52c2c338827ef31a2fad5bd247ab4586",
+      "problemHash": "ae7b15a1887140b4404eaae0c048d77dbbbb571a65753011eaef0d0dfb70bdda",
+      "systemHash": "375630e68d86929e0aaa32ea167ba0a84f2fc701085405e6d65675549bd92615",
+      "proofHash": "bdec6f59a4b5fb02a5ce3eed4e4532b8b2d86c0ff682e712eab1dcb82ab7b590",
+      "checkerHash": "de891f6afce30637406fd96ef243aa6703b0f101a556c694cb8f3783e55df3fe"
     }
   }
 }

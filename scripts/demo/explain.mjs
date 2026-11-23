@@ -517,7 +517,7 @@ const scenes = {
     const t = timeline();
     t.at(0.3).line('<span class="cm"># tests sample</span>');
     t.at(1.9).line('<span class="cm"># laws prove</span>');
-    t.at(3.4).line('<span class="cm"># and now the proofs carry certificates</span>');
+    t.at(3.4).line('<span class="cm"># and now every proof carries a certificate</span>');
     t.at(5.4).blank().type('tslaws check').wait(0.2);
     t.out(capture('certify-check.txt', true).slice(0, 6), 0.7);
     return [vdoc(t.html()), t.now];
@@ -550,19 +550,22 @@ const scenes = {
     return [vdoc(t.html()), t.now];
   },
   v_cert_real: () => {
-    const rows = capture('certify-check.txt', true).filter((l) => !/^\s+(assuming|Only|solver)/.test(l));
+    // The loop rows carry a long formula; the scene keeps the invariant's variables and who agreed with it.
+    const rows = capture('certify-check.txt', true)
+      .filter((l) => !/^\s+(Only|solver|hint)/.test(l))
+      .map((l) => l.replace(/assuming: int parameters[^;]*(; )?/, '').replace(/: \(.*?\); (Eldarica)/, '; $1'))
+      .filter((l) => l.trim() && !/^\s+assuming:/.test(l));
     const t = timeline();
-    t.at(0.3).shot('certificates-run.png', 6.5);
-    t.at(7).type('tslaws check').wait(0.4);
+    t.type('tslaws check').wait(0.4);
     t.out(rows, 0.9);
     return [vdoc(t.html()), t.now];
   },
   v_cert_bind: () => {
     const rows = capture('certify-require.txt', true).filter((l) => /^(ERROR|PROVED|exit status)/.test(l));
     const lock = readFileSync(new URL('captures/certify-lock.txt', import.meta.url), 'utf8').split(/\r?\n/);
-    const from = lock.findIndex((l) => l.includes('"src/math.laws.ts::addition commutes": {'));
+    const from = lock.findIndex((l) => l.includes('"src/math.laws.ts::counting up reaches n": {'));
     const rec = lock
-      .slice(from, from + 6)
+      .slice(from, from + 7)
       .map((l) => l.replace(/^ {4}/, ''))
       .map((l) => l.replace(/"([0-9a-f]{12})[0-9a-f]+"/g, '"$1..."'))
       .join('\n');
@@ -581,18 +584,9 @@ const scenes = {
     const t = timeline();
     t.code('src/math.ts', fn.trimEnd(), vcode);
     t.at(5).blank().line('<span class="cm"># z3 Spacer finds the loop invariant (constrained Horn clauses)</span>');
-    t.at(10).line('<span class="cm"># plain z3 checks it again; Eldarica or Golem cross-check it if installed</span>');
-    t.at(16).line('<span class="cm"># xs can be any length</span>');
-    return [vdoc(t.html()), t.now];
-  },
-  v_loops_real: () => {
-    const all = capture('certify-check.txt', true);
-    const rows = [];
-    for (let i = 0; i < all.length; i++)
-      if (/^PROVED   (counting up|the largest)/.test(all[i])) rows.push(all[i], all[i + 1], all[i + 2]);
-    const t = timeline();
-    t.type('tslaws check').wait(0.4);
-    t.out(rows, 2.2);
+    t.at(10).line('<span class="cm"># cvc5 proves the clauses with it put in; Carcara checks that proof</span>');
+    t.at(16).line('<span class="cm"># Eldarica and Golem cross-check the invariant, if installed</span>');
+    t.at(21).line('<span class="cm"># xs can be any length</span>');
     return [vdoc(t.html()), t.now];
   },
   v_sec: () => {
@@ -622,14 +616,22 @@ const scenes = {
     t.out(capture('certify-accept.txt', true), 0.8, (l) => esc(l));
     return [vdoc(t.html()), t.now];
   },
-  v_oidc: () => {
+  // The repo runs tslaws on itself with every proof tool installed; these are the real steps of that job.
+  v_repo: () => {
+    const steps = readFileSync(new URL('../../.github/workflows/certificates.yml', import.meta.url), 'utf8')
+      .split(/\r?\n/)
+      .filter((l) => /^ {6}- (name|uses|run): /.test(l))
+      .map((l) => l.replace(/^ {6}- /, '').replace(/ # v\d+$/, ''))
+      .map((l) => l.replace('uses: ./.github/actions/proof-tools', 'name: cvc5, Carcara, Eldarica, Golem'))
+      .filter((l) => l.startsWith('name:'))
+      .map((l) => '- ' + l.slice(6));
     const t = timeline();
-    t.code(
-      '.github/workflows/release.yml (excerpt)',
-      readFileSync(new URL('captures/release-excerpt.txt', import.meta.url), 'utf8').trimEnd(),
-      vcode,
-    );
-    t.at(9).blank().line('<span class="cm"># no npm token secret is used anywhere in the job</span>');
+    t.code('.github/workflows/certificates.yml (steps)', steps.join('\n'), (l) => esc(l));
+    t.at(11)
+      .blank()
+      .line(
+        '<span class="cm"># tools pinned by release and checksum: a change in their output shows up here first</span>',
+      );
     return [vdoc(t.html()), t.now];
   },
   v_outro: () => {

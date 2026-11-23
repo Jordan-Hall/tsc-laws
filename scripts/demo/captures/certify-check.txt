@@ -5,13 +5,14 @@ PROVED   doubling is adding twice (src/math.laws.ts:9) [smt]
 PROVED   and commutes (src/math.laws.ts:10) [smt]
          certificate: certified
 PROVED   counting up reaches n (src/math.laws.ts:11) [smt]
-         assuming: int parameters stay within ±(2^53 - 1); loop 1 invariant over (n, i): (not (>= (+ i (* (- 1) n)) 1))
-         certificate: uncertified (proved with loop invariants found by a Horn solver; cvc5 and Carcara have no proof of that to check)
+         assuming: int parameters stay within ±(2^53 - 1); loop 1 invariant over (n, i): (not (>= (+ i (* (- 1) n)) 1)); Eldarica agrees; Golem agrees
+         certificate: certified
 PROVED   the largest is never negative (src/math.laws.ts:15) [smt]
-         assuming: int parameters stay within ±(2^53 - 1); loop 1 invariant over (xs.length, xs, m, i): (and (not (<= i (- 1))) (not (<= m (- 1))))
-         certificate: uncertified (proved with loop invariants found by a Horn solver; cvc5 and Carcara have no proof of that to check)
+         assuming: int parameters stay within ±(2^53 - 1); loop 1 invariant over (xs.length, xs, m, i): (and (not (<= i (- 1))) (not (<= m (- 1)))); Eldarica agrees; Golem did not confirm (unknown)
+         certificate: certified
 TESTED   the average sits between (src/math.laws.ts:16) [property]
          solver gave up within 5000 ms
+         hint: Only property-tested (200 runs), not proved: the prover did not lower this law. Passing; to get a proof, restrict the code to int/bigint/boolean/string and simple control flow. More inputs: `--runs N`.
 PROVED   half is at most n (src/math.laws.ts:20) [smt]
          assuming: int parameters stay within ±(2^53 - 1)
          certificate: certified

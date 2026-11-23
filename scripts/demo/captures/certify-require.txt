@@ -4,14 +4,15 @@ PROVED   doubling is adding twice (src/math.laws.ts:9) [smt]
          certificate: certified
 PROVED   and commutes (src/math.laws.ts:10) [smt]
          certificate: certified
-ERROR    counting up reaches n (src/math.laws.ts:11) [smt]
-         "certify": "require" is set but the proof is uncertified (proved with loop invariants found by a Horn solver; cvc5 and Carcara have no proof of that to check)
-         certificate: uncertified (proved with loop invariants found by a Horn solver; cvc5 and Carcara have no proof of that to check)
-ERROR    the largest is never negative (src/math.laws.ts:15) [smt]
-         "certify": "require" is set but the proof is uncertified (proved with loop invariants found by a Horn solver; cvc5 and Carcara have no proof of that to check)
-         certificate: uncertified (proved with loop invariants found by a Horn solver; cvc5 and Carcara have no proof of that to check)
+PROVED   counting up reaches n (src/math.laws.ts:11) [smt]
+         assuming: int parameters stay within ±(2^53 - 1); loop 1 invariant over (n, i): (not (>= (+ i (* (- 1) n)) 1)); Eldarica agrees; Golem agrees
+         certificate: certified
+PROVED   the largest is never negative (src/math.laws.ts:15) [smt]
+         assuming: int parameters stay within ±(2^53 - 1); loop 1 invariant over (xs.length, xs, m, i): (and (not (<= i (- 1))) (not (<= m (- 1)))); Eldarica agrees; Golem did not confirm (unknown)
+         certificate: certified
 TESTED   the average sits between (src/math.laws.ts:16) [property]
          solver gave up within 5000 ms
+         hint: Only property-tested (200 runs), not proved: the prover did not lower this law. Passing; to get a proof, restrict the code to int/bigint/boolean/string and simple control flow. More inputs: `--runs N`.
 PROVED   half is at most n (src/math.laws.ts:20) [smt]
          assuming: int parameters stay within ±(2^53 - 1)
          certificate: certified
@@ -19,5 +20,5 @@ PROVED   clamping never goes below the floor (src/math.laws.ts:24) [smt]
          assuming: int parameters stay within ±(2^53 - 1)
          certificate: certified
 
-8 laws: 5 proved, 0 bounded, 1 tested, 0 open, 0 failed, 0 tampered, 2 errors
-exit status 1
+8 laws: 7 proved, 0 bounded, 1 tested, 0 open, 0 failed, 0 tampered, 0 errors
+exit status 0
