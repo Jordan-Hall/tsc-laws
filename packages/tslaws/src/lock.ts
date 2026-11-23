@@ -45,9 +45,8 @@ export function lawHash(law: ManifestLaw): string {
     .digest('hex');
 }
 
-export function readLock(path: string): Lock | undefined {
-  if (!existsSync(path)) return undefined;
-  const lock = JSON.parse(readFileSync(path, 'utf8')) as {
+export function parseLock(text: string): Lock {
+  const lock = JSON.parse(text) as {
     version?: number;
     laws: LockEntries;
     exempt?: string[];
@@ -61,6 +60,11 @@ export function readLock(path: string): Lock | undefined {
     ...(lock.levels === undefined ? {} : { levels: lock.levels }),
     ...(lock.certificates === undefined ? {} : { certificates: lock.certificates }),
   };
+}
+
+export function readLock(path: string): Lock | undefined {
+  if (!existsSync(path)) return undefined;
+  return parseLock(readFileSync(path, 'utf8'));
 }
 
 /** The records that still describe their law: the law is in the lock with the hash the record was made for. */
