@@ -10,6 +10,7 @@
 import { fork } from 'node:child_process';
 import type { CheckReport } from './check.ts';
 import { lawKey } from './lock.ts';
+import { budget, jobs } from './pool.ts';
 import type { CheckOptions, LawResult, LawStatus, ProposalOutcome } from './types.ts';
 
 /** Names a child may inherit. Everything else, tokens included, is dropped. */
@@ -223,7 +224,7 @@ export function readReport(value: unknown, expected: Expected): CheckReport {
 }
 
 /** What the child is told: the options as data (no callbacks cross the boundary). */
-export type ChildRequest = { options: Omit<CheckOptions, 'onEvent'>; enforceLock: boolean };
+export type ChildRequest = { options: Omit<CheckOptions, 'onEvent'>; enforceLock: boolean; jobs?: number };
 
 /** Runs `check(options, enforceLock)` in a credential-free child and returns its validated report. */
 export function checkIsolated(
@@ -231,6 +232,16 @@ export function checkIsolated(
   enforceLock: boolean,
   expected: Expected,
   env: NodeJS.ProcessEnv = process.env,
+): Promise<CheckReport> {
+  // The child is a slot of the budget while it runs, and it is handed the budget's size, not a fresh one of its own.
+  return budget.run(() => forkCheck(options, enforceLock, expected, env));
+}
+
+function forkCheck(
+  options: CheckOptions,
+  enforceLock: boolean,
+  expected: Expected,
+  env: NodeJS.ProcessEnv,
 ): Promise<CheckReport> {
   const extension = import.meta.url.endsWith('.ts') ? '.ts' : '.js';
   const { onEvent: _onEvent, ...data } = options;
@@ -265,6 +276,6 @@ export function checkIsolated(
     child.on('exit', (code, signal) =>
       done(() => reject(new Error(`the check process ended without a report (${signal ?? `exit ${code}`})`))),
     );
-    child.send({ options: data, enforceLock } satisfies ChildRequest);
+    child.send({ options: data, enforceLock, jobs: jobs() } satisfies ChildRequest);
   });
 }

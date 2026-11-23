@@ -4,7 +4,6 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { after, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import './serial-solver.ts';
 import { check } from '../dist/check.js';
 import { readManifest } from '../dist/compile.js';
 import { writeLock } from '../dist/lock.js';

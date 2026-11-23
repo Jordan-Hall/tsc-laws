@@ -4,6 +4,7 @@
 // they already replay in JavaScript.
 import { spawn } from 'node:child_process';
 import { extname } from 'node:path';
+import { budget, lowerPriority } from './pool.ts';
 
 export type SolverName = 'z3' | 'cvc5';
 
@@ -70,12 +71,17 @@ const missing = (): SolverUnavailable =>
 
 /** Asks cvc5 for the verdict on the query; a binary that cannot be started throws `SolverUnavailable`. */
 export function runCvc5(query: string, timeoutMs: number): Promise<Cvc5Answer> {
+  return budget.run(() => spawnCvc5(query, timeoutMs));
+}
+
+function spawnCvc5(query: string, timeoutMs: number): Promise<Cvc5Answer> {
   const { file, args } = command();
   return new Promise((resolve, reject) => {
     const child = spawn(file, [...args, '--lang', 'smt2', '--tlimit', String(timeoutMs)], {
       stdio: ['pipe', 'pipe', 'pipe'],
       windowsHide: true,
     });
+    lowerPriority(child.pid);
     let stdout = '';
     let stderr = '';
     let finished = false;

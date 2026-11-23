@@ -7,7 +7,7 @@ import { GeneratorFactory } from './generators.ts';
 import { lawEnv } from './coverage.ts';
 import { arbitraryOf, UnsupportedType, type Plan } from './plan.ts';
 import { type PropertyOutcome } from './propertyRun.ts';
-import { WorkerPool } from './pool.ts';
+import { budget, WorkerPool } from './pool.ts';
 import type { Shape } from './smt.ts';
 import type { CheckOptions, ManifestLaw } from './types.ts';
 
@@ -120,6 +120,16 @@ export function warmWorkers(n: number): void {
 
 /** Runs the property test of `law` in a pooled worker, giving up on it after `options.propertyTimeoutMs`. */
 export async function runLawGuarded(
+  outDir: string,
+  law: ManifestLaw,
+  options: CheckOptions,
+  plans: Plan[],
+): Promise<PropertyOutcome | 'timeout'> {
+  // The worker task is a slot of the budget (the law's own, when it runs under one).
+  return budget.run(() => runInWorker(outDir, law, options, plans));
+}
+
+async function runInWorker(
   outDir: string,
   law: ManifestLaw,
   options: CheckOptions,

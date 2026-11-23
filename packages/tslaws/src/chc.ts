@@ -13,6 +13,7 @@ import { spawn } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { extname, join } from 'node:path';
+import { budget, lowerPriority } from './pool.ts';
 
 /** One unknown predicate: the invariant of one loop, over the variables live at the loop. */
 export interface Predicate {
@@ -248,6 +249,7 @@ function runExternal(
       resolve(answer);
     };
     const child = spawn(bin, args, { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
+    lowerPriority(child.pid);
     const timer = setTimeout(() => {
       child.kill();
       done({ solver: solver.name, answer: 'timeout', detail: `no answer within ${timeoutMs} ms` });
@@ -270,8 +272,9 @@ function runExternal(
 
 /** Runs each installed solver (`TSLAWS_ELDARICA` and `TSLAWS_GOLEM`, else `eld` and `golem` on the PATH) on the system. */
 export async function runExternalSolvers(query: string, timeoutMs: number): Promise<ExternalAnswer[]> {
-  const answers = await Promise.all(
-    externals.map(async (solver) => {
+  // One extra slot for each solver past the first; with none free they run one after another.
+  const answers = await budget.portfolio(
+    externals.map((solver) => async () => {
       const path = process.env[solver.env] ?? solver.command;
       return missing.has(path) ? undefined : runExternal(solver, path, query, timeoutMs);
     }),

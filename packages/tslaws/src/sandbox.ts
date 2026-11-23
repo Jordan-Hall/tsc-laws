@@ -23,7 +23,7 @@ import type { HostReply, HostRequest, Prepared } from './lawHost.ts';
 import { runtimeOf, transformSource } from './lawRuntime.ts';
 import { pluginExtensionNeeded } from './pluginHooks.ts';
 import { transformPluginFile } from './pluginHost.ts';
-import { jobs, WorkerPool } from './pool.ts';
+import { budget, jobs, WorkerPool } from './pool.ts';
 import type { PropertyOutcome } from './propertyRun.ts';
 import { decodeExample } from './regressions.ts';
 import { normal, type GuardConfig } from './sandboxGuard.ts';
@@ -566,11 +566,37 @@ class LawProcess {
 
 const pools = new Map<string, { cwd: string; pool: WorkerPool<LawProcess> }>();
 
+/** How long a law process may sit unused before it ends. */
+const idleMs = 5000;
+
+/** The law processes alive now, across every project. */
+export function liveSandboxProcesses(): number {
+  let live = 0;
+  for (const { pool } of pools.values()) live += pool.live;
+  return live;
+}
+
+/**
+ * Makes room for a process about to start: the cap is shared by every project, not held by each, so an idle process of
+ * another project (or configuration) ends when the budget is already spent. The pool counts the new one before it starts.
+ */
+function startProcess(cwd: string, extra: string[]): LawProcess {
+  const cap = jobs();
+  for (const { pool } of pools.values()) {
+    if (liveSandboxProcesses() <= cap) break;
+    while (liveSandboxProcesses() > cap && pool.evictOne());
+  }
+  return new LawProcess(cwd, extra);
+}
+
 function poolFor(cwd: string, extra: string[]): WorkerPool<LawProcess> {
   const key = JSON.stringify([resolve(cwd), extra]);
   let entry = pools.get(key);
   if (entry === undefined) {
-    entry = { cwd: resolve(cwd), pool: new WorkerPool(() => new LawProcess(cwd, extra)) };
+    entry = {
+      cwd: resolve(cwd),
+      pool: new WorkerPool(() => startProcess(cwd, extra), jobs, idleMs),
+    };
     pools.set(key, entry);
   }
   return entry.pool;
@@ -588,7 +614,9 @@ export function releaseSandbox(cwd: string): void {
 
 /** Starts `n` law processes ahead of the first law, so they load while the code compiles. */
 export function warmSandbox(cwd: string, n: number): void {
-  poolFor(cwd, []).warm(Math.min(n, jobs()));
+  const pool = poolFor(cwd, []);
+  // The cap is shared: this project may warm only what the other projects have left.
+  pool.warm(Math.min(n, jobs() - (liveSandboxProcesses() - pool.live)));
 }
 
 /** What a sandboxed run of a law came to: the outcome and whether the law is async (the prover cannot model an await). */
@@ -611,7 +639,12 @@ export class Sandbox {
   }
 
   /** Sends one request to a process of its own, and gives up on it after `timeoutMs`. */
-  private async ask(timeoutMs: number, make: (id: number) => Body): Promise<HostReply | 'timeout'> {
+  private ask(timeoutMs: number, make: (id: number) => Body): Promise<HostReply | 'timeout'> {
+    // A law process is a slot of the budget while it works; under the law that asked for it, that is the law's own slot.
+    return budget.run(() => this.askOnce(timeoutMs, make));
+  }
+
+  private async askOnce(timeoutMs: number, make: (id: number) => Body): Promise<HostReply | 'timeout'> {
     let current = await this.pool.acquire();
     // A process that was configured for another reviewed set (an earlier check) is not reused: it takes no second configure.
     while (current.configKey !== undefined && current.configKey !== this.config.key) {

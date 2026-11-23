@@ -17,7 +17,7 @@ import {
 import { analyzeCoverage, coverFiles, lawEnv, readConfig } from './coverage.ts';
 import { parseGithubConfig } from './github.ts';
 import { derivedStore } from './derived.ts';
-import { jobs } from './pool.ts';
+import { budget, configureJobs } from './pool.ts';
 import { hostConfig, LawLoadError, Sandbox, useSandbox, warnE2e, warmSandbox } from './sandbox.ts';
 import {
   certificateFailure,
@@ -45,7 +45,7 @@ import type { CheckOptions, ProposalOutcome, LawResult, ManifestLaw } from './ty
 
 type Add = (law: ManifestLaw, status: LawResult['status'], method: string, extra?: Partial<LawResult>) => void;
 
-/** Runs at most `limit` tasks at once. */
+/** Runs at most `limit` tasks at once. The CPU limit is the process-wide budget (pool.ts); this holds the single page. */
 class Semaphore {
   private free: number;
   private readonly queue: (() => void)[] = [];
@@ -176,6 +176,7 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
   const notices: string[] = [];
   // The level of a laws file comes from its name (the default) or its imports (`levels: "imports"`); looked at once per file.
   const config = readConfig(options.cwd);
+  configureJobs({ config: config.jobs });
   const levelsMode = config.levels ?? 'names';
   const certifyMode = options.certify ?? config.certify ?? false;
   // The certificate each law proved this run got, or undefined when its proof was not certified.
@@ -620,8 +621,9 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
       nextToFlush += 1;
     }
   };
-  // Property laws and proofs share the cores; browser and end-to-end laws share one page and one server, so they queue.
-  const lanes = { cpu: new Semaphore(jobs()), page: new Semaphore(1) };
+  // Every law takes a slot of the process-wide CPU budget, and what it starts (a proof, a solver, a law process) runs on
+  // that slot. Browser and end-to-end laws also share one page and one server, so they queue for it first.
+  const page = new Semaphore(1);
   await Promise.all(
     laws.map(async (law, index) => {
       const skipped =
@@ -631,8 +633,8 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
         flush();
         return;
       }
-      const lane = verdictOf(law.file).kind !== 'node' ? lanes.page : lanes.cpu;
-      await lane.run(() => runOne(law, index));
+      const inSlot = (): Promise<void> => budget.run(() => runOne(law, index));
+      await (verdictOf(law.file).kind !== 'node' ? page.run(inSlot) : inSlot());
     }),
   );
 

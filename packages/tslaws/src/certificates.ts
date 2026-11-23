@@ -10,6 +10,7 @@ import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { budget, lowerPriority } from './pool.ts';
 import { cvc5Text, toolCommand } from './solvers.ts';
 
 /** `certify` in tslaws.json: off (absent or false), on, or `"require"`, where a law without a certificate is an error. */
@@ -109,8 +110,13 @@ interface Ran {
 
 /** Runs a tool to the end; resolves `undefined` when the binary cannot be started and `'timeout'` when it overran. */
 function run(file: string, args: string[], timeoutMs: number): Promise<Ran | undefined | 'timeout'> {
+  return budget.run(() => spawnTool(file, args, timeoutMs));
+}
+
+function spawnTool(file: string, args: string[], timeoutMs: number): Promise<Ran | undefined | 'timeout'> {
   return new Promise((resolve) => {
     const child = spawn(file, args, { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
+    lowerPriority(child.pid);
     let stdout = '';
     let stderr = '';
     let finished = false;

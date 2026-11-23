@@ -14,7 +14,7 @@
 // infinities too). A parameter typed `int` (from 'tslaws') or `bigint` is an exact integer.
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { Worker } from 'node:worker_threads';
-import { jobs, WorkerPool } from './pool.ts';
+import { budget, jobs, WorkerPool } from './pool.ts';
 import { dirname, join } from 'node:path';
 import ts from 'typescript';
 import { certificateName, certify, problemText, type Certificate, type CertifyMode } from './certificates.ts';
@@ -308,7 +308,7 @@ function startWorker(): Worker {
 }
 
 // Each Z3 instance holds a large WebAssembly heap; more than four at once run out of memory on the bigger queries.
-const solvers = new WorkerPool(startWorker, Math.min(4, jobs()));
+const solvers = new WorkerPool(startWorker, () => Math.min(4, jobs()));
 
 /**
  * Runs the query, and runs it again in a fresh worker when the solver itself fell over (a WebAssembly allocation that
@@ -317,7 +317,8 @@ const solvers = new WorkerPool(startWorker, Math.min(4, jobs()));
 export async function solve(query: string, values: string, timeoutMs: number): Promise<{ out: string; vals: string }> {
   for (let attempt = 0; ; attempt += 1) {
     try {
-      return await solveOnce(query, values, timeoutMs);
+      // A solve is a slot of the budget (the law's own, when it runs under one).
+      return await budget.run(() => solveOnce(query, values, timeoutMs));
     } catch (error) {
       if (attempt >= 2 || !(error instanceof Unsupported) || !error.message.startsWith('the solver crashed'))
         throw error;
