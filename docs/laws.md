@@ -417,7 +417,7 @@ law, or any law that runs in the main process) that imports project source which
 plugin: tslaws runs esbuild with your `bundlerPlugins` on that one file and hands Node the result, as CommonJS for `require` and
 as an ES module for `import()`. Both go through `module.registerHooks` (Node 22.15 or later; an older Node still serves `require`). Plugins
 may be asynchronous: a helper thread runs them while the loader waits, so there is no pre-compile step. The file is not bundled, so
-its own imports stay `require` calls and a module shared with the law is the same instance. A plugin that answers with CSS leaves
+its own imports stay `require` calls and a module shared with the law is the same instance. A relative import from such a file to a project `.ts` module that the build compiled resolves to the compiled copy in `.tslaws/out`, the one the law's own imports get, so the plugin needs no knowledge of the output layout and the sandbox still serves only reviewed files. A plugin that answers with CSS leaves
 an empty module, since a stylesheet means nothing in Node. Only `onLoad` (and `onResolve` for the file itself) applies: a plugin
 that invents virtual module names for imports is not consulted for those imports. An extension that no plugin handles fails the
 law with an `error` naming the file, the extension and the `bundlerPlugins` setting. The compiler needs an ambient declaration for the format

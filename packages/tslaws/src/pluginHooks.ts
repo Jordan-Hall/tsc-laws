@@ -11,6 +11,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 export interface PluginHookHost {
   ownerOf(file: string): { cwd: string; bundlerPlugins?: string[] } | undefined;
   beside(request: string, parent: { filename: string }): string | undefined;
+  /** The build's compiled copy of a project `.ts` file that a file in a project format imports, if it has one. */
+  twin(file: string, importer: string | undefined): string | undefined;
   /** The source Node can run for a file in a project format (see `transformPluginFile` in pluginHost.ts). */
   transform(file: string, cwd: string, plugins: readonly string[], format: 'cjs' | 'esm'): string;
 }
@@ -30,14 +32,17 @@ export function installPluginHooks(host: PluginHookHost): boolean {
   if (typeof registerHooks !== 'function') return installed;
   registerHooks({
     resolve(specifier, context, nextResolve) {
+      const parent = context.parentURL?.startsWith('file:') ? fileURLToPath(context.parentURL) : undefined;
+      let resolved: ReturnType<typeof nextResolve>;
       try {
-        return nextResolve(specifier, context);
+        resolved = nextResolve(specifier, context);
       } catch (error) {
-        const parent = context.parentURL?.startsWith('file:') ? fileURLToPath(context.parentURL) : undefined;
         const file = parent === undefined ? undefined : host.beside(specifier, { filename: parent });
         if (file === undefined) throw error;
         return { url: pathToFileURL(file).href, shortCircuit: true };
       }
+      const twin = resolved.url.startsWith('file:') ? host.twin(fileURLToPath(resolved.url), parent) : undefined;
+      return twin === undefined ? resolved : { ...resolved, url: pathToFileURL(twin).href, format: 'commonjs' };
     },
     load(url, context, nextLoad) {
       if (!url.startsWith('file:')) return nextLoad(url, context);
