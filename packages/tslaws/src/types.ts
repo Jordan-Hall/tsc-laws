@@ -88,6 +88,10 @@ export interface CheckOptions {
   browserPauseMs?: number;
   /** The engine that runs browser laws. Default chromium, or `TSLAWS_BROWSER_ENGINE`. */
   browser?: 'chromium' | 'firefox' | 'webkit';
+  /** Isolation mode for browser laws: `'page'` (top-level BrowserContext, default) or `'iframe'`. */
+  browserIsolation?: 'page' | 'iframe';
+  /** Launch browser laws in a visible window for interactive debugging (`--headed`). */
+  headed?: boolean;
   /** Flags the person gave on the command line, which beat `tslaws.json`: `runs`, `property-timeout`. */
   explicit?: ('runs' | 'property-timeout')[];
   /**

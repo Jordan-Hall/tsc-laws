@@ -19,6 +19,21 @@ import { importMetaEnvOf, parseEnvConfig, type ImportMetaEnv } from './runtimeEn
 import { resolveRelativeJs } from './symbolic.ts';
 import { solversProblem, type SolverName } from './solvers.ts';
 
+export interface BrowserConfig {
+  /** 'page' (default): top-level BrowserContext + Page (`window.top === window.self`). 'iframe': isolated iframe inside runner page. */
+  isolation?: 'page' | 'iframe';
+  /** Run browser laws headless (default true). Set false or pass `--headed` for interactive debugging. */
+  headless?: boolean;
+  viewport?: { width: number; height: number };
+  colorScheme?: 'light' | 'dark' | 'no-preference';
+  /** Reuse Vite dev server middleware when present (`'auto'`, `true`, or `false`). */
+  vite?: boolean | 'auto';
+  /** Run fast-check property loops inside the browser page to eliminate per-input IPC (default true). */
+  inBrowser?: boolean;
+  /** Record a Playwright trace into `.tslaws/traces/` when a browser law fails (default false). */
+  traceOnFailure?: boolean;
+}
+
 export interface CoverageConfig {
   cover?: string[];
   /** Compiler options the runner passes to tsc; see `compilerFlags` in compile.ts for the supported keys. */
@@ -28,6 +43,8 @@ export interface CoverageConfig {
    * tslaws.json, or `false` for none. Default: the nearest tsconfig.json above the project. See tsconfigResolve.ts.
    */
   tsconfig?: string | false;
+  /** Browser component laws configuration: isolation mode (`page` or `iframe`), viewport, Vite middleware, traces. */
+  browser?: BrowserConfig;
   /** End-to-end laws: the app to drive; see `parseE2eConfig`. */
   e2e?: E2eConfig;
   /**
@@ -85,6 +102,7 @@ const configKeys = [
   'certify',
   'compilerOptions',
   'tsconfig',
+  'browser',
   'e2e',
   'bundlerPlugins',
   'sandboxReads',
@@ -186,6 +204,40 @@ function checkFile(raw: unknown, source: string): Record<string, unknown> {
       laws.some((entry) => typeof entry !== 'string' || entry.replace(/^!/, '') === '' || entry.startsWith('/')))
   )
     fail(`"laws" must be an array of project-relative globs, got ${JSON.stringify(laws)}`);
+  if (object.browser !== undefined) {
+    if (!isPlain(object.browser)) return fail('"browser" must be an object');
+    const b = object.browser;
+    const allowed = ['isolation', 'headless', 'viewport', 'colorScheme', 'vite', 'inBrowser', 'traceOnFailure'];
+    for (const key of Object.keys(b))
+      if (!allowed.includes(key))
+        fail(`"browser.${key}" is not supported; supported options are ${allowed.join(', ')}`);
+    if (b.isolation !== undefined && b.isolation !== 'page' && b.isolation !== 'iframe')
+      fail('"browser.isolation" must be "page" or "iframe"');
+    if (b.headless !== undefined && typeof b.headless !== 'boolean') fail('"browser.headless" must be true or false');
+    if (b.inBrowser !== undefined && typeof b.inBrowser !== 'boolean')
+      fail('"browser.inBrowser" must be true or false');
+    if (b.traceOnFailure !== undefined && typeof b.traceOnFailure !== 'boolean')
+      fail('"browser.traceOnFailure" must be true or false');
+    if (b.vite !== undefined && typeof b.vite !== 'boolean' && b.vite !== 'auto')
+      fail('"browser.vite" must be true, false or "auto"');
+    if (
+      b.colorScheme !== undefined &&
+      b.colorScheme !== 'light' &&
+      b.colorScheme !== 'dark' &&
+      b.colorScheme !== 'no-preference'
+    )
+      fail('"browser.colorScheme" must be "light", "dark" or "no-preference"');
+    if (b.viewport !== undefined) {
+      if (!isPlain(b.viewport)) return fail('"browser.viewport" must be { width, height } with positive numbers');
+      if (
+        typeof b.viewport.width !== 'number' ||
+        typeof b.viewport.height !== 'number' ||
+        b.viewport.width < 1 ||
+        b.viewport.height < 1
+      )
+        fail('"browser.viewport" must be { width, height } with positive numbers');
+    }
+  }
   if (object.security !== undefined) parseSecurityConfig(object.security);
   return object;
 }
@@ -362,10 +414,42 @@ function loadMerged(
   return deepMerge(base, own);
 }
 
+interface ConfigCacheEntry {
+  /** `[path, rawText]` for each file in the extends chain; empty when `tslaws.json` was absent. */
+  files: [string, string][];
+  config: CoverageConfig;
+}
+const configCache = new Map<string, ConfigCacheEntry>();
+
 /** The settings of tslaws.json in `cwd`, with every `extends` followed; `{}` when there is no file. */
 export function readConfig(cwd: string): CoverageConfig {
+  const key = resolve(cwd);
   const path = join(cwd, 'tslaws.json');
-  if (!existsSync(path)) return {};
+  const cached = configCache.get(key);
+  if (cached !== undefined) {
+    if (cached.files.length === 0) {
+      if (!existsSync(path)) return cached.config;
+    } else {
+      let valid = true;
+      for (const [file, prev] of cached.files) {
+        try {
+          if (readFileSync(file, 'utf8') !== prev) {
+            valid = false;
+            break;
+          }
+        } catch {
+          valid = false;
+          break;
+        }
+      }
+      if (valid) return cached.config;
+    }
+  }
+  if (!existsSync(path)) {
+    const empty: CoverageConfig = {};
+    configCache.set(key, { files: [], config: empty });
+    return empty;
+  }
   const loaded: string[] = [];
   const merged = loadMerged(path, cwd, extendsRoot(cwd), [], loaded);
   let config: CoverageConfig;
@@ -376,6 +460,13 @@ export function readConfig(cwd: string): CoverageConfig {
     if (loaded.length === 1) throw error;
     const files = loaded.map((file) => relative(cwd, file).replaceAll('\\', '/')).join(', ');
     throw new Error(`${(error as Error).message} (merged from ${files})`);
+  }
+  try {
+    const files: [string, string][] = loaded.map((file) => [file, readFileSync(file, 'utf8')]);
+    if (configCache.size > 512) configCache.clear();
+    configCache.set(key, { files, config });
+  } catch {
+    // Skip caching if a file vanished mid-read.
   }
   return config;
 }

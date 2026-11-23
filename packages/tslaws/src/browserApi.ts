@@ -52,6 +52,116 @@ export function type(field: HTMLInputElement | HTMLTextAreaElement | HTMLSelectE
   fire(field, 'change');
 }
 
+// ---- Trusted Playwright-backed interactions & network mocking (via the browser bridge) ----
+
+interface BridgeCommand {
+  action:
+    | 'click'
+    | 'dblClick'
+    | 'hover'
+    | 'focus'
+    | 'fill'
+    | 'type'
+    | 'press'
+    | 'keyboard'
+    | 'select'
+    | 'setViewport'
+    | 'mock';
+  selector?: string;
+  text?: string;
+  key?: string;
+  values?: string | string[];
+  width?: number;
+  height?: number;
+  urlPattern?: string;
+  response?: MockResponse;
+}
+
+type BridgeFn = (command: BridgeCommand) => Promise<void>;
+
+function bridge(): BridgeFn {
+  const fn = (globalThis as { __tslawsBridge?: BridgeFn }).__tslawsBridge;
+  if (typeof fn !== 'function')
+    throw new Error('trusted browser interactions (`user`, `mock`) require running inside `tslaws` browser runner');
+  return fn;
+}
+
+let targetSeq = 0;
+
+async function withSelector<T>(target: Element | string, run: (selector: string) => Promise<T>): Promise<T> {
+  if (typeof target === 'string') return run(target);
+  const id = `t${++targetSeq}`;
+  target.setAttribute('data-tslaws-uid', id);
+  try {
+    return await run(`[data-tslaws-uid="${id}"]`);
+  } finally {
+    target.removeAttribute('data-tslaws-uid');
+  }
+}
+
+/**
+ * Trusted browser interactions driven by Playwright (`isTrusted: true`, real hit-testing, `:hover`, `:focus-visible`,
+ * native form controls and keyboard navigation), analogous to Vitest Browser Mode's `userEvent`.
+ */
+export const user = {
+  /** Performs a real pointer/mouse click with hit-testing and focus. */
+  click(target: Element | string): Promise<void> {
+    return withSelector(target, (selector) => bridge()({ action: 'click', selector }));
+  },
+  /** Performs a real double click. */
+  dblClick(target: Element | string): Promise<void> {
+    return withSelector(target, (selector) => bridge()({ action: 'dblClick', selector }));
+  },
+  /** Moves the real pointer over `target`, triggering `:hover` and pointer events. */
+  hover(target: Element | string): Promise<void> {
+    return withSelector(target, (selector) => bridge()({ action: 'hover', selector }));
+  },
+  /** Focuses `target` through the browser engine. */
+  focus(target: Element | string): Promise<void> {
+    return withSelector(target, (selector) => bridge()({ action: 'focus', selector }));
+  },
+  /** Clears and fills an input/textarea with real browser input events. */
+  fill(target: Element | string, value: string): Promise<void> {
+    return withSelector(target, (selector) => bridge()({ action: 'fill', selector, text: value }));
+  },
+  /** Types `value` keystroke by keystroke into `target`. */
+  type(target: Element | string, value: string): Promise<void> {
+    return withSelector(target, (selector) => bridge()({ action: 'type', selector, text: value }));
+  },
+  /** Presses a keyboard key (for example `'Enter'`, `'Escape'`, `'Tab'`, `'ArrowDown'`). */
+  press(key: string): Promise<void> {
+    return bridge()({ action: 'press', key });
+  },
+  /** Types raw text through the browser keyboard. */
+  keyboard(keys: string): Promise<void> {
+    return bridge()({ action: 'keyboard', text: keys });
+  },
+  /** Selects one or more `<option>` values on a `<select>` element. */
+  select(target: Element | string, values: string | string[]): Promise<void> {
+    return withSelector(target, (selector) => bridge()({ action: 'select', selector, values }));
+  },
+  /** Resizes the browser viewport (for responsive layout and media-query laws). */
+  setViewport(width: number, height: number): Promise<void> {
+    return bridge()({ action: 'setViewport', width, height });
+  },
+};
+
+export interface MockResponse {
+  status?: number;
+  body?: string;
+  json?: unknown;
+  headers?: Record<string, string>;
+  contentType?: string;
+}
+
+/**
+ * Intercepts network requests matching `urlPattern` (e.g. `'**\/api\/user'`) in this browser law via Playwright routing,
+ * returning `response`. Automatically cleared after each law input.
+ */
+export function mock(urlPattern: string, response: MockResponse): Promise<void> {
+  return bridge()({ action: 'mock', urlPattern, response });
+}
+
 export interface A11yViolation {
   id: string;
   impact: string | null;

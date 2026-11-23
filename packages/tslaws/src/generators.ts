@@ -10,6 +10,35 @@ import { arbitraryOf, UnsupportedType, type Plan } from './plan.ts';
 
 export { toWire, UnsupportedType, wireKey } from './plan.ts';
 
+/** Extracts `[min, max]` literal bounds from `intRange<Lo, Hi>`. */
+export function readIntRangeBounds(checker: ts.TypeChecker, type: ts.Type): [number, number] | undefined {
+  const args = type.aliasTypeArguments;
+  if (args !== undefined && args.length === 2 && args[0]!.isNumberLiteral() && args[1]!.isNumberLiteral()) {
+    const lo = args[0]!.value;
+    const hi = args[1]!.value;
+    if (Number.isSafeInteger(lo) && Number.isSafeInteger(hi) && lo <= hi) return [lo, hi];
+  }
+  const minProp = type.getProperty('__tslawsMin');
+  const maxProp = type.getProperty('__tslawsMax');
+  if (minProp === undefined || maxProp === undefined) return undefined;
+  const minType = checker.getTypeOfSymbol(minProp);
+  const maxType = checker.getTypeOfSymbol(maxProp);
+  if (minType.isNumberLiteral() && maxType.isNumberLiteral() && minType.value <= maxType.value)
+    return [minType.value, maxType.value];
+  return undefined;
+}
+
+/** Extracts the element type `T` from `nonEmpty<T>`. */
+export function readNonEmptyElement(checker: ts.TypeChecker, type: ts.Type): ts.Type | undefined {
+  if (type.aliasTypeArguments !== undefined && type.aliasTypeArguments.length === 1) return type.aliasTypeArguments[0];
+  if (type.flags & ts.TypeFlags.Intersection) {
+    for (const part of (type as ts.IntersectionType).types) {
+      if (checker.isArrayType(part)) return checker.getTypeArguments(part as ts.TypeReference)[0];
+    }
+  }
+  return undefined;
+}
+
 /** Whether a type is declared in tslaws' own security module, not by a project that reuses the name. */
 function declaredBySecurity(symbol: ts.Symbol): boolean {
   return (symbol.declarations ?? []).some((d) => /\/tslaws\/(dist|src)\/security\//.test(d.getSourceFile().fileName));
@@ -64,16 +93,26 @@ export class GeneratorFactory {
     throw new UnsupportedType(`no generator for type ${this.checker.typeToString(type)}`);
   }
 
-  /** A type with a registered generator keeps its name in the plan, so a registration made later still applies. */
+  /** A type with a registered generator or built-in refinement type (`int`, `nat`, `posInt`, `nonZeroInt`, `intRange`, `nonEmpty`, `asciiString`). */
   private registered(type: ts.Type, depth: number): Plan | undefined {
     const symbol = type.aliasSymbol ?? type.getSymbol();
-    if (symbol === undefined) return undefined;
-    const name = symbol.getName();
+    const name = symbol?.getName();
+    // Parameterized refinement types: `intRange<Lo, Hi>` and `nonEmpty<T>`.
+    if (name === 'intRange') {
+      const bounds = readIntRangeBounds(this.checker, type);
+      if (bounds !== undefined) return { k: 'intRange', min: bounds[0], max: bounds[1] };
+    }
+    if (name === 'nonEmpty') {
+      const elem = readNonEmptyElement(this.checker, type);
+      if (elem !== undefined) return { k: 'nonEmpty', of: this.plan(elem, depth + 1) };
+    }
+    if (symbol === undefined || name === undefined) return undefined;
     // The payload types of tslaws/security have their generators even when the law has not been loaded yet.
     const security = securityTypeNames.has(name) && declaredBySecurity(symbol);
     if (security && !arbitraryRegistry().has(name)) registerSecurityGenerators();
     if (!arbitraryRegistry().has(name)) return undefined;
-    if (name === 'int') return { k: 'named', name };
+    if (name === 'int' || name === 'nat' || name === 'posInt' || name === 'nonZeroInt' || name === 'asciiString')
+      return { k: 'named', name };
     const tag = security ? { security: true as const } : {};
     // What to generate if the registration is not there where the plan is used (a worker has only the built-in ones).
     // `int` and the like are intersections that have no useful structure, so a type that cannot be planned has none.

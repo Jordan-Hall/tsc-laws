@@ -12,7 +12,7 @@
 // them (`--allow-e2e`). `--no-sandbox` turns it all off, with a warning.
 import { fork, type ChildProcess } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
-import { existsSync, readdirSync, readFileSync, realpathSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -338,6 +338,37 @@ const namesOf = (manifest: Record<string, unknown> | undefined, fields: readonly
     return typeof value === 'object' && value !== null ? Object.keys(value) : [];
   });
 
+const trustedPackagesCache = new Map<
+  string,
+  { stamps: [string, number, number][]; value: { modules: string[]; linked: string[] } }
+>();
+
+function manifestStamp(dir: string): [string, number, number][] {
+  const out: [string, number, number][] = [];
+  for (const name of ['package.json', 'package-lock.json', 'pnpm-lock.yaml']) {
+    const p = join(dir, name);
+    try {
+      const st = statSync(p);
+      out.push([p, st.size, st.mtimeMs]);
+    } catch {
+      out.push([p, -1, -1]);
+    }
+  }
+  return out;
+}
+
+function stampsMatch(stamps: [string, number, number][]): boolean {
+  for (const [p, size, mtimeMs] of stamps) {
+    try {
+      const st = statSync(p);
+      if (st.size !== size || st.mtimeMs !== mtimeMs) return false;
+    } catch {
+      if (size !== -1 || mtimeMs !== -1) return false;
+    }
+  }
+  return true;
+}
+
 /**
  * The packages the code may load: those the manifests declare (the project's `package.json` with its dev dependencies,
  * and tslaws's own) and, from each one's manifest, what it declares in turn. Anything else in a `node_modules` was put
@@ -346,6 +377,9 @@ const namesOf = (manifest: Record<string, unknown> | undefined, fields: readonly
  */
 export function trustedPackages(cwd: string): { modules: string[]; linked: string[] } {
   const project = realOf(resolve(cwd));
+  const cached = trustedPackagesCache.get(project);
+  if (cached !== undefined && stampsMatch(cached.stamps)) return cached.value;
+  const stamps = [...manifestStamp(project), ...manifestStamp(tslawsRoot)];
   const modules = new Set<string>();
   const linked = new Set<string>();
   const seen = new Set<string>();
@@ -372,7 +406,10 @@ export function trustedPackages(cwd: string): { modules: string[]; linked: strin
   ];
   for (const [dir, fields] of manifests)
     for (const name of namesOf(readManifest(join(dir, 'package.json')), fields)) visit(name, dir);
-  return { modules: [...modules], linked: [...linked] };
+  const value = { modules: [...modules], linked: [...linked] };
+  if (trustedPackagesCache.size > 256) trustedPackagesCache.clear();
+  trustedPackagesCache.set(project, { stamps, value });
+  return value;
 }
 
 /** Everything the process needs to know about the reviewed set, built once per check after the build. */
@@ -500,11 +537,11 @@ class LawProcess {
   /** Answers only requests that carry it. The process learns it from `configure` and no law can read it. */
   private readonly token = randomBytes(24).toString('hex');
 
-  constructor(cwd: string, extra: string[]) {
+  constructor(flags: string[]) {
     this.child = fork(hostFile, [], {
       // The allowlisted environment the token-free check process gets (see isolate.ts): no credential, no code loader.
       env: scrubbedEnv(process.env),
-      execArgv: sandboxFlags(cwd, extra),
+      execArgv: flags,
       serialization: 'advanced',
       stdio: ['ignore', 'inherit', 'inherit', 'ipc'],
       windowsHide: true,
@@ -580,22 +617,24 @@ export function liveSandboxProcesses(): number {
  * Makes room for a process about to start: the cap is shared by every project, not held by each, so an idle process of
  * another project (or configuration) ends when the budget is already spent. The pool counts the new one before it starts.
  */
-function startProcess(cwd: string, extra: string[]): LawProcess {
+function startProcess(flags: string[]): LawProcess {
   const cap = jobs();
   for (const { pool } of pools.values()) {
     if (liveSandboxProcesses() <= cap) break;
     while (liveSandboxProcesses() > cap && pool.evictOne());
   }
-  return new LawProcess(cwd, extra);
+  return new LawProcess(flags);
 }
 
 function poolFor(cwd: string, extra: string[]): WorkerPool<LawProcess> {
   const key = JSON.stringify([resolve(cwd), extra]);
   let entry = pools.get(key);
   if (entry === undefined) {
+    // Compute permission flags once per pool instead of re-walking node_modules for every forked process.
+    const flags = sandboxFlags(cwd, extra);
     entry = {
       cwd: resolve(cwd),
-      pool: new WorkerPool(() => startProcess(cwd, extra), jobs, idleMs),
+      pool: new WorkerPool(() => startProcess(flags), jobs, idleMs),
     };
     pools.set(key, entry);
   }
@@ -670,7 +709,13 @@ export class Sandbox {
   }
 
   /** The property test of `law`, `'timeout'` when it does not finish; throws `LawLoadError` when it cannot be loaded. */
-  async run(outDir: string, law: ManifestLaw, options: CheckOptions, plans: Plan[]): Promise<SandboxedRun | 'timeout'> {
+  async run(
+    outDir: string,
+    law: ManifestLaw,
+    options: CheckOptions,
+    plans: Plan[],
+    buildKey?: string,
+  ): Promise<SandboxedRun | 'timeout'> {
     const reply = await this.ask(options.propertyTimeoutMs ?? 30000, (id) => ({
       type: 'run',
       id,
@@ -680,6 +725,7 @@ export class Sandbox {
       // Functions cannot cross to the process; it needs only the numbers.
       options: { ...options, onEvent: undefined },
       env: lawEnv(options.cwd, 'node'),
+      buildKey,
     }));
     if (reply === 'timeout') return reply;
     if ('error' in reply) {
