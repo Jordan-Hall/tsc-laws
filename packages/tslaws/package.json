@@ -63,7 +63,7 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "node --test --test-concurrency=1 test/*.test.ts",
+    "test": "node --test --test-concurrency=3 --import ./test/setup.ts test/*.test.ts",
     "check": "node bin/tslaws.js check",
     "laws": "node bin/tslaws.js check laws/core.laws.ts",
     "check:watch": "node bin/tslaws.js check --watch"

@@ -31,7 +31,7 @@ function project(name: string, files: Record<string, string>): CheckOptions {
     lockFile: join(cwd, 'tsc-laws.lock'),
     noProve: false,
     bound: 4,
-    proofTimeoutMs: 10000,
+    proofTimeoutMs: 30000,
   };
   writeLock(options.lockFile, readManifest(compiler!, options.files, cwd));
   return options;
