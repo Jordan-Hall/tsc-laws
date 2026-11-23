@@ -161,27 +161,18 @@ laws use them too: project source that imports such a file loads it through the 
 file to a project `.ts` module resolves to the compiled twin in `.tslaws/out`, the same copy the law's own imports get.
 See [Bundler plugins](https://github.com/Jordan-Hall/tsc-laws/blob/main/docs/laws.md#bundler-plugins).
 
-## When Z3 crashes
-
-If the Z3 worker crashes (it throws, runs out of memory or exits), tslaws retries the query on a fresh worker twice. If
-every try crashes, the law is an `error` whose message says `the Z3 solver crashed` and why. It is never quietly
-downgraded to a bounded proof or a test. A solver that gives up or runs out of time behaves as before: the law falls back
-to a bounded proof or to tests, and says so.
-
 ## The prover
 
 `tslaws` symbolically executes the compiled JavaScript of a law, inlining the project functions it calls, and asks Z3 for
-an input that returns `false`. A model is replayed in JavaScript, and only a reproduced failure is reported as `failed`.
+an input that returns `false`; only a failure it can replay in JavaScript is reported as `failed`. `int` is an exact whole
+number and `bigint` is exact with no bound. Arrays, loops and recursion unroll up to `--bound` (a `bounded` result), and
+`invariant(cond)` first in a loop body proves the loop for every iteration count. What does not lower stays `tested`, or a
+`law proved` is `open`, with the reason. `TSLAWS_DEBUG=1` keeps each query as an `.smt2` file under `.tslaws/out/smt`.
 
-- Numbers are IEEE doubles, so rounding and overflow are real; `int` (`import type { int } from 'tslaws'`) is an exact
-  whole number, and `bigint` is exact with no bound.
-- Arrays, loops and recursion unroll up to `--bound`, which makes the result `bounded`. `invariant(cond)` first in a loop
-  body proves the loop for every iteration count, with no bound.
-- Strings, records, `forall` and `exists` over arrays are supported. Anything else leaves the law `tested`, or a
-  `law proved` `open`, with the reason.
-
-Z3 and the property tests each run in a worker with a timeout (`--proof-timeout`, `--property-timeout`), so a hard query
-cannot hang the check. `TSLAWS_DEBUG=1` keeps each query as an `.smt2` file under `.tslaws/out/smt`.
+If the Z3 worker crashes (it throws, runs out of memory or exits), the query is retried twice on a fresh worker. If every
+try crashes, the law is an `error` whose message says `the Z3 solver crashed` and why. It is never quietly downgraded to
+a bounded proof or a test. A solver that gives up or runs out of time still falls back to a bounded proof or to tests,
+and says so.
 
 ## Commands
 
