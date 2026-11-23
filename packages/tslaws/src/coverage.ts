@@ -14,6 +14,7 @@ import { globMatcher } from './globs.ts';
 import { customLawFile } from './lawFiles.ts';
 import { certifyProblem, type CertifyMode } from './certificates.ts';
 import { importMetaEnvOf, parseEnvConfig, type ImportMetaEnv } from './runtimeEnv.ts';
+import { resolveRelativeJs } from './symbolic.ts';
 import { solversProblem, type SolverName } from './solvers.ts';
 
 export interface CoverageConfig {
@@ -116,6 +117,8 @@ interface Node {
 interface Module {
   nodes: Map<string, Node>;
   imports: Map<string, string>;
+  reexports: Map<string, { file: string; name: string }>;
+  stars: string[];
 }
 
 /** Why `value` is not a usable `projects` list (directory globs relative to the file), or undefined. */
@@ -433,10 +436,10 @@ function relativeRequire(expression: ts.Expression): string | undefined {
 function parseModule(jsFile: string, modules: Map<string, Module>): Module | undefined {
   const known = modules.get(jsFile);
   if (known !== undefined) return known;
-  if (!existsSync(jsFile)) return undefined;
+  if (!existsSync(jsFile) || !statSync(jsFile).isFile()) return undefined;
   const text = readFileSync(jsFile, 'utf8');
   const source = ts.createSourceFile(jsFile, text, ts.ScriptTarget.ES2022, true, ts.ScriptKind.JS);
-  const module: Module = { nodes: new Map(), imports: new Map() };
+  const module: Module = { nodes: new Map(), imports: new Map(), reexports: new Map(), stars: [] };
   modules.set(jsFile, module);
   const exempt = (statement: ts.Node): boolean =>
     (ts.getLeadingCommentRanges(text, statement.getFullStart()) ?? []).some((r) =>
@@ -454,8 +457,76 @@ function parseModule(jsFile: string, modules: Map<string, Module>): Module | und
       else {
         const specifier = relativeRequire(init);
         if (specifier === undefined) continue;
-        const base = resolve(dirname(jsFile), specifier);
-        module.imports.set(declaration.name.text, /\.[cm]?js$/.test(base) ? base : `${base}.js`);
+        module.imports.set(declaration.name.text, resolveRelativeJs(jsFile, specifier));
+      }
+    }
+  }
+  for (const statement of source.statements) {
+    if (!ts.isExpressionStatement(statement) || !ts.isCallExpression(statement.expression)) continue;
+    const call = statement.expression;
+    const callee = call.expression;
+    const calleeName = ts.isIdentifier(callee)
+      ? callee.text
+      : ts.isPropertyAccessExpression(callee)
+        ? callee.name.text
+        : '';
+    if (calleeName === '__exportStar' && call.arguments.length >= 1) {
+      const specifier = relativeRequire(call.arguments[0]!);
+      if (specifier !== undefined) module.stars.push(resolveRelativeJs(jsFile, specifier));
+    } else if (calleeName === '__reExport' && call.arguments.length >= 2) {
+      const specifier = relativeRequire(call.arguments[1]!);
+      if (specifier !== undefined) module.stars.push(resolveRelativeJs(jsFile, specifier));
+    } else if (
+      calleeName === '__export' &&
+      call.arguments.length === 2 &&
+      ts.isObjectLiteralExpression(call.arguments[1]!)
+    ) {
+      for (const prop of call.arguments[1].properties) {
+        if (!ts.isPropertyAssignment(prop)) continue;
+        const exportedName = ts.isIdentifier(prop.name) || ts.isStringLiteral(prop.name) ? prop.name.text : undefined;
+        if (exportedName === undefined) continue;
+        const getter = prop.initializer;
+        if (!ts.isArrowFunction(getter) && !ts.isFunctionExpression(getter)) continue;
+        const returned = ts.isBlock(getter.body)
+          ? getter.body.statements.length === 1 && ts.isReturnStatement(getter.body.statements[0]!)
+            ? getter.body.statements[0].expression
+            : undefined
+          : getter.body;
+        if (returned !== undefined && ts.isPropertyAccessExpression(returned) && ts.isIdentifier(returned.expression)) {
+          const target = module.imports.get(returned.expression.text);
+          if (target !== undefined) module.reexports.set(exportedName, { file: target, name: returned.name.text });
+        }
+      }
+    } else if (
+      ts.isPropertyAccessExpression(callee) &&
+      ts.isIdentifier(callee.expression) &&
+      callee.expression.text === 'Object' &&
+      callee.name.text === 'defineProperty' &&
+      call.arguments.length === 3 &&
+      ts.isIdentifier(call.arguments[0]!) &&
+      call.arguments[0].text === 'exports' &&
+      ts.isStringLiteral(call.arguments[1]!) &&
+      ts.isObjectLiteralExpression(call.arguments[2]!)
+    ) {
+      const exportedName = call.arguments[1].text;
+      const getter = call.arguments[2].properties.find(
+        (p): p is ts.PropertyAssignment =>
+          ts.isPropertyAssignment(p) &&
+          ts.isIdentifier(p.name) &&
+          p.name.text === 'get' &&
+          (ts.isFunctionExpression(p.initializer) || ts.isArrowFunction(p.initializer)),
+      );
+      if (getter !== undefined) {
+        const fn = getter.initializer as ts.FunctionExpression | ts.ArrowFunction;
+        const returned = ts.isBlock(fn.body)
+          ? fn.body.statements.length === 1 && ts.isReturnStatement(fn.body.statements[0]!)
+            ? fn.body.statements[0].expression
+            : undefined
+          : fn.body;
+        if (returned !== undefined && ts.isPropertyAccessExpression(returned) && ts.isIdentifier(returned.expression)) {
+          const target = module.imports.get(returned.expression.text);
+          if (target !== undefined) module.reexports.set(exportedName, { file: target, name: returned.name.text });
+        }
       }
     }
   }
@@ -542,8 +613,20 @@ export function analyzeCoverage(input: CoverageInput): CoverageReport {
     reached.add(current);
     const [js, name] = current.split('::') as [string, string];
     const module = parseModule(js, modules);
-    const node = module?.nodes.get(name);
+    if (module === undefined) continue;
+    const node = module.nodes.get(name);
     if (node !== undefined) for (const next of edges(js, node)) if (!reached.has(next)) queue.push(next);
+    const reexport = module.reexports.get(name);
+    if (reexport !== undefined) {
+      parseModule(reexport.file, modules);
+      const next = key(reexport.file, reexport.name);
+      if (!reached.has(next)) queue.push(next);
+    }
+    for (const star of module.stars) {
+      parseModule(star, modules);
+      const next = key(star, name);
+      if (!reached.has(next)) queue.push(next);
+    }
   }
 
   // The modules in scope: the cover globs, or every project module the laws import.
@@ -553,7 +636,7 @@ export function analyzeCoverage(input: CoverageInput): CoverageReport {
     const visit = (js: string): void => {
       const module = parseModule(js, modules);
       if (module === undefined) return;
-      for (const target of module.imports.values()) {
+      for (const target of [...module.imports.values(), ...module.stars]) {
         if (!scope.has(target) && !lawJs.includes(target)) {
           scope.add(target);
           visit(target);
