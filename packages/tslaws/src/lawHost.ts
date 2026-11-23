@@ -37,6 +37,8 @@ export type HostRequest =
       plans: Plan[];
       options: CheckOptions;
       env: ImportMetaEnv;
+      /** Identifies the build; unchanged keys reuse already-loaded compiled modules instead of evicting require.cache per law. */
+      buildKey?: string;
     }
   | {
       type: 'holds';
@@ -62,6 +64,7 @@ const guard = new Guard();
 let secret: string | undefined;
 const transformed = new Map<string, Prepared>();
 const loaded = new Map<string, Law>();
+const loadedBuildKeys = new Map<string, string>();
 let guarded = false;
 
 // The channel is the only way out. Keep it, and take it from the code that runs here so it cannot answer for the host.
@@ -166,27 +169,36 @@ function lookup(kind: string, file: string): string {
   return prepared.code;
 }
 
-function load(outDir: string, law: ManifestLaw, env: ImportMetaEnv, fresh: boolean): Law {
+function load(outDir: string, law: ManifestLaw, env: ImportMetaEnv, fresh: boolean, buildKey?: string): Law {
   const key = `${outDir}\0${law.file}\0${law.symbol ?? law.name}`;
+  const sameBuild = buildKey !== undefined && loadedBuildKeys.get(outDir) === buildKey;
   const known = loaded.get(key);
-  if (!fresh && known !== undefined) return known;
-  setImportMetaEnv(env);
-  installLoaderHooks();
-  useTransforms({
-    source: (file) => lookup('ts', file),
-    plugin: (file, _cwd, _plugins, format) => lookup(format, file),
-  });
-  installLawRuntime(JSON.parse(readFileSync(join(outDir, runtimeFile), 'utf8')) as LawRuntime);
-  // Before the guard: the resolver loads TypeScript, which needs Node modules that no law may load.
-  loadResolver();
-  // From here on only reviewed files load. Installed after the runtime's own hooks, so it sees what they resolve.
-  if (!guarded) {
-    guarded = true;
-    installGuard(guard);
-    lockDown();
+  if ((!fresh || sameBuild) && known !== undefined) {
+    setImportMetaEnv(env);
+    return known;
   }
-  // The process outlives a check, and the code may have been recompiled since the last one.
-  evictLoaded(require.cache, outDir);
+  setImportMetaEnv(env);
+  if (!sameBuild) {
+    installLoaderHooks();
+    useTransforms({
+      source: (file) => lookup('ts', file),
+      plugin: (file, _cwd, _plugins, format) => lookup(format, file),
+    });
+    installLawRuntime(JSON.parse(readFileSync(join(outDir, runtimeFile), 'utf8')) as LawRuntime);
+    // Before the guard: the resolver loads TypeScript, which needs Node modules that no law may load.
+    loadResolver();
+    // From here on only reviewed files load. Installed after the runtime's own hooks, so it sees what they resolve.
+    if (!guarded) {
+      guarded = true;
+      installGuard(guard);
+      lockDown();
+    }
+    // The process outlives a check, and the code may have been recompiled since the last one.
+    evictLoaded(require.cache, outDir);
+    for (const k of loaded.keys()) if (k.startsWith(`${outDir}\0`)) loaded.delete(k);
+    if (buildKey !== undefined) loadedBuildKeys.set(outDir, buildKey);
+    else loadedBuildKeys.delete(outDir);
+  }
   const fn = (require(jsPath(outDir, law.file)) as Record<string, Law | undefined>)[law.symbol ?? law.name];
   if (typeof fn !== 'function') throw new Error('compiled module does not export the law');
   loaded.set(key, fn);
@@ -218,7 +230,13 @@ process.on('message', async (request: HostRequest) => {
   const { id } = request;
   let fn: Law;
   try {
-    fn = load(request.outDir, request.law, request.env, request.type === 'run');
+    fn = load(
+      request.outDir,
+      request.law,
+      request.env,
+      request.type === 'run',
+      request.type === 'run' ? request.buildKey : undefined,
+    );
   } catch (error) {
     send({ id, error: message(error), phase: 'load' } satisfies HostReply);
     return;

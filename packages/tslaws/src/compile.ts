@@ -240,6 +240,8 @@ const awaitStub = (file: string): string => `throw new Error(${JSON.stringify(`$
  * words is left alone. Returns the new text and whether the module waits at its top level.
  */
 function rewriteImportMeta(text: string, file: string, source: string): { text: string; awaits: boolean } {
+  // Fast path: skip parsing when the emitted file mentions neither `import.meta` nor `await`.
+  if (!text.includes('import.meta') && !/\bawait\b/.test(text)) return { text, awaits: false };
   const parsed = ts.createSourceFile(file, text, ts.ScriptTarget.ES2022, false, ts.ScriptKind.JS);
   const edits: { start: number; end: number; text: string }[] = [];
   const env = `globalThis.${importMetaEnvGlobal}`;
@@ -375,9 +377,19 @@ function compile(compiler: string, files: string[], cwd: string, resolution: Res
     ...extra,
   ];
   const args = ['--ignoreConfig', ...flags, ...files];
-  // What the options say is part of what was built.
-  const keyArgs = [...args, JSON.stringify(resolution?.options ?? null)];
-  const reused = builtin ? cachedBuild(keyArgs, files, cwd, outDir) : undefined;
+  // What the options say is part of what was built (including the compiler binary stamp for native builds).
+  const compilerStamp = builtin
+    ? 'builtin'
+    : (() => {
+        try {
+          const st = statSync(compiler);
+          return `${compiler}:${st.size}:${st.mtimeMs}`;
+        } catch {
+          return compiler;
+        }
+      })();
+  const keyArgs = [...args, JSON.stringify(resolution?.options ?? null), compilerStamp];
+  const reused = cachedBuild(keyArgs, files, cwd, outDir);
   if (reused !== undefined) return reused;
   rmSync(outDir, { recursive: true, force: true });
   mkdirSync(outDir, { recursive: true });
@@ -434,11 +446,30 @@ function compile(compiler: string, files: string[], cwd: string, resolution: Res
   if (lacksEnvTypes(output())) again(argsFor(used, [envTypes]));
   const problems = lowering ? lowerEmittedModules(outDir, { outDir, root }) : [];
   // The project's own files sit where they do under the root, so its output is that deep in `outDir`.
-  return {
+  const result: BuildResult = {
     outDir: join(outDir, relative(root, cwd)),
     diagnostics: [output().trim(), ...problems].filter((part) => part !== '').join('\n'),
     ok: run.status === 0 && problems.length === 0,
   };
+  if (result.ok) {
+    // Collect source files corresponding to emitted JS files so native builds can also reuse the build cache.
+    const emittedSources = new Set<string>(files.map((f) => resolve(cwd, f)));
+    const collect = (dir: string): void => {
+      if (!existsSync(dir)) return;
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const p = join(dir, entry.name);
+        if (entry.isDirectory()) collect(p);
+        else if (/\.m?js$/.test(entry.name)) {
+          const src = sourceOfOutput(p, outDir, root);
+          if (existsSync(src)) emittedSources.add(src);
+        }
+      }
+    };
+    collect(outDir);
+    if (resolution !== undefined && existsSync(resolution.file)) emittedSources.add(resolution.file);
+    saveBuildCache(keyArgs, files, cwd, result, [...emittedSources]);
+  }
+  return result;
 }
 
 /** Every `node_modules/@types` from `cwd` upwards: where the compiler looks for global declarations by default. */

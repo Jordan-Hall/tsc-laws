@@ -17,7 +17,9 @@ export type Plan =
   | { k: 'template'; texts: string[]; parts: Plan[] }
   /** A type with a registered generator; `fallback` is what to generate when none is registered by the time of use. */
   | { k: 'named'; name: string; fallback?: Plan; security?: true }
+  | { k: 'intRange'; min: number; max: number }
   | { k: 'array'; of: Plan }
+  | { k: 'nonEmpty'; of: Plan }
   | { k: 'tuple'; required: Plan[]; optional: Plan[] }
   | { k: 'fn'; returns: Plan }
   | { k: 'record'; fields: Record<string, Plan>; required: string[] }
@@ -39,6 +41,36 @@ arbitraryRegistry().set(
     { weight: 1, arbitrary: fc.integer({ min: -Number.MAX_SAFE_INTEGER, max: Number.MAX_SAFE_INTEGER }) },
   ),
 );
+
+// Built-in refinement types from 'tslaws'.
+arbitraryRegistry().set(
+  'nat',
+  fc.oneof(
+    { weight: 4, arbitrary: fc.integer({ min: 0, max: 16 }) },
+    { weight: 3, arbitrary: fc.integer({ min: 0, max: 1000 }) },
+    { weight: 1, arbitrary: fc.integer({ min: 0, max: Number.MAX_SAFE_INTEGER }) },
+  ),
+);
+arbitraryRegistry().set(
+  'posInt',
+  fc.oneof(
+    { weight: 4, arbitrary: fc.integer({ min: 1, max: 16 }) },
+    { weight: 3, arbitrary: fc.integer({ min: 1, max: 1000 }) },
+    { weight: 1, arbitrary: fc.integer({ min: 1, max: Number.MAX_SAFE_INTEGER }) },
+  ),
+);
+arbitraryRegistry().set(
+  'nonZeroInt',
+  fc.oneof(
+    { weight: 4, arbitrary: fc.integer({ min: 1, max: 16 }) },
+    { weight: 4, arbitrary: fc.integer({ min: -16, max: -1 }) },
+    { weight: 2, arbitrary: fc.integer({ min: 1, max: 1000 }) },
+    { weight: 2, arbitrary: fc.integer({ min: -1000, max: -1 }) },
+    { weight: 1, arbitrary: fc.integer({ min: 1, max: Number.MAX_SAFE_INTEGER }) },
+    { weight: 1, arbitrary: fc.integer({ min: -Number.MAX_SAFE_INTEGER, max: -1 }) },
+  ),
+);
+arbitraryRegistry().set('asciiString', fc.string({ maxLength: 24 }));
 
 /** Marks a generated function on the wire: browser laws receive their arguments as structured data. */
 export const wireKey = '$tslawsFn';
@@ -125,8 +157,12 @@ export function arbitraryOf(plan: Plan): fc.Arbitrary<unknown> {
       if (plan.fallback === undefined) throw new UnsupportedType(`no generator registered for ${plan.name}`);
       return arbitraryOf(plan.fallback);
     }
+    case 'intRange':
+      return fc.integer({ min: Math.ceil(plan.min), max: Math.floor(plan.max) });
     case 'array':
       return sequence(arbitraryOf(plan.of), { maxLength: 8 });
+    case 'nonEmpty':
+      return sequence(arbitraryOf(plan.of), { minLength: 1, maxLength: 8 });
     case 'tuple': {
       const required = plan.required.map(arbitraryOf);
       const optional = plan.optional.map(arbitraryOf);

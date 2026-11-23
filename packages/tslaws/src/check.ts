@@ -17,6 +17,7 @@ import {
 import { analyzeCoverage, coverFiles, lawEnv, readConfig } from './coverage.ts';
 import { parseGithubConfig } from './github.ts';
 import { derivedStore } from './derived.ts';
+import { openProofCache } from './proofCache.ts';
 import { budget, configureJobs } from './pool.ts';
 import { hostConfig, LawLoadError, Sandbox, useSandbox, warnE2e, warmSandbox } from './sandbox.ts';
 import {
@@ -45,6 +46,8 @@ import { declarationOf, exercisesOf, markFailing, Sources, type Exercised } from
 import type { CheckOptions, ProposalOutcome, LawResult, ManifestLaw } from './types.ts';
 
 type Add = (law: ManifestLaw, status: LawResult['status'], method: string, extra?: Partial<LawResult>) => void;
+
+let checkSequence = 0;
 
 /** Runs at most `limit` tasks at once. The CPU limit is the process-wide budget (pool.ts); this holds the single page. */
 class Semaphore {
@@ -353,6 +356,10 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
     : undefined;
   // What the type checker works out is kept with the build it came from, so an unchanged project skips the checker.
   const derived = derivedStore(options.cwd, built.key);
+  const proofCache = openProofCache(options.cwd);
+  // Identifies this check invocation for pooled sandbox/worker processes so laws in the same check reuse loaded modules
+  // while a subsequent `check()` cleanly evicts stale module state and plugin-loaded assets once.
+  const runBuildKey = `${built.key ?? 'nobuild'}:${++checkSequence}`;
   let programOf: ts.Program | undefined;
   const program = (): ts.Program =>
     (programOf ??=
@@ -428,12 +435,21 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
     }
     // One property run of the law: in the sandbox, or in a worker of this process when it is off or the law is end to end.
     const execute = async (runOptions: CheckOptions): Promise<PropertyOutcome | 'timeout'> => {
-      if (!sandboxed || e2e) return runLawGuarded(built.outDir, law, runOptions, types.plans);
+      if (!sandboxed || e2e) return runLawGuarded(built.outDir, law, runOptions, types.plans, runBuildKey);
       if (sandbox === undefined) throw new Error('the law sandbox is on but was not set up');
-      const ran = await sandbox.run(built.outDir, law, runOptions, types.plans);
+      const ran = await sandbox.run(built.outDir, law, runOptions, types.plans, runBuildKey);
       if (ran === 'timeout') return ran;
       isAsync = ran.async;
       return ran.outcome;
+    };
+    const holds = (inputs: unknown[]): boolean | Promise<boolean> => {
+      if (sandboxed && sandbox === undefined) return false;
+      if (sandbox !== undefined) return sandbox.holds(built.outDir, law, inputs, limitMs);
+      try {
+        return fn!(...inputs) !== false;
+      } catch (error) {
+        return isDiscard(error);
+      }
     };
     let details: PropertyOutcome | 'timeout';
     // Counterexamples found before are tried first.
@@ -446,6 +462,34 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
     if (e2e) {
       if (!options.explicit?.includes('runs')) lawOptions = { ...lawOptions, runs: e2eConfig?.runs ?? 10 };
       if (!options.explicit?.includes('property-timeout')) limitMs = e2eConfig?.timeoutMs ?? 120000;
+    }
+    // For provable sync node laws, start SMT proving concurrently with fast-check when extra budget slots are available.
+    const looksAsync = isAsync || /\basync\s*(?:law|\(|function|[A-Za-z_$])/.test(law.text);
+    const canProve = !browser && !e2e && !options.noProve && !looksAsync;
+    const startProof = (): ReturnType<typeof proveLaw> =>
+      proveLaw({
+        law,
+        shapes: types.shapes,
+        jsFile: jsPath(built.outDir, law.file),
+        bound: options.bound,
+        timeoutMs: options.proofTimeoutMs,
+        holds,
+        solvers: config.solvers,
+        cache: proofCache,
+        certify:
+          certifyMode === false
+            ? undefined
+            : { mode: certifyMode, dir: join(options.cwd, '.tslaws', 'certificates'), root: options.cwd },
+      });
+    let earlyProof: ReturnType<typeof proveLaw> | undefined;
+    let releaseProofSlot: (() => void) | undefined;
+    if (canProve) {
+      releaseProofSlot = budget.tryHold();
+      if (releaseProofSlot !== undefined) {
+        earlyProof = startProof().finally(() => releaseProofSlot?.());
+        // Prevent unhandled rejection if the property run fails or throws before we await `earlyProof`.
+        earlyProof.catch(() => undefined);
+      }
     }
     try {
       details = e2e
@@ -463,6 +507,7 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
                 symbol: law.symbol,
                 jsFile: jsPath(built.outDir, law.file),
                 generators: types.generators,
+                plans: types.plans,
               },
               lawOptions,
             )
@@ -518,28 +563,7 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
       });
       return;
     }
-    const holds = (inputs: unknown[]): boolean | Promise<boolean> => {
-      if (sandboxed && sandbox === undefined) return false;
-      if (sandbox !== undefined) return sandbox.holds(built.outDir, law, inputs, limitMs);
-      try {
-        return fn!(...inputs) !== false;
-      } catch (error) {
-        return isDiscard(error);
-      }
-    };
-    const proof = await proveLaw({
-      law,
-      shapes: types.shapes,
-      jsFile: jsPath(built.outDir, law.file),
-      bound: options.bound,
-      timeoutMs: options.proofTimeoutMs,
-      holds,
-      solvers: config.solvers,
-      certify:
-        certifyMode === false
-          ? undefined
-          : { mode: certifyMode, dir: join(options.cwd, '.tslaws', 'certificates'), root: options.cwd },
-    });
+    const proof = await (earlyProof ?? startProof());
     const certified = (certificate: LawResult['certificate']): Pick<LawResult, 'certificate'> =>
       certificate === undefined ? {} : { certificate };
     const assumed = (list: string[]): Pick<LawResult, 'assumptions'> => (list.length > 0 ? { assumptions: list } : {});
@@ -631,9 +655,10 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
       nextToFlush += 1;
     }
   };
-  // Every law takes a slot of the process-wide CPU budget, and what it starts (a proof, a solver, a law process) runs on
-  // that slot. Browser and end-to-end laws also share one page and one server, so they queue for it first.
-  const page = new Semaphore(1);
+  // Every law takes a slot of the process-wide CPU budget, and what it starts (a proof, a solver, a law process,
+  // or an isolated BrowserContext) runs on that slot. Browser laws run in parallel across isolated contexts (no
+  // single-page bottleneck); end-to-end laws share one app dev server and serialize unless configured otherwise.
+  const e2eGate = new Semaphore(1);
   await Promise.all(
     laws.map(async (law, index) => {
       const skipped = !selected(law) || blocked.has(lawKey(law.file, law.name));
@@ -643,7 +668,7 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
         return;
       }
       const inSlot = (): Promise<void> => budget.run(() => runOne(law, index));
-      await (verdictOf(law.file).kind !== 'node' ? page.run(inSlot) : inSlot());
+      await (verdictOf(law.file).kind === 'e2e' ? e2eGate.run(inSlot) : inSlot());
     }),
   );
 
@@ -682,6 +707,9 @@ export async function check(options: CheckOptions, enforceLock: boolean): Promis
       });
     }
   }
+
+  derived.flush();
+  proofCache.flush();
 
   await closeBrowser();
   await stopServer();

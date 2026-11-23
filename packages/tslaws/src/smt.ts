@@ -12,7 +12,7 @@
 //
 // Numbers are IEEE doubles; a parameter typed `number` is a finite double (the generators exclude NaN and the
 // infinities too). A parameter typed `int` (from 'tslaws') or `bigint` is an exact integer.
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { Worker } from 'node:worker_threads';
 import { budget, jobs, WorkerPool } from './pool.ts';
 import { dirname, join } from 'node:path';
@@ -34,18 +34,34 @@ import {
   type HornSystem,
 } from './chc.ts';
 import { lawKey } from './lock.ts';
+import { closeNativeZ3, nativeZ3Path, solveNative } from './nativeZ3.ts';
+import { proofCacheKey, type ProofCache } from './proofCache.ts';
 import { SolverUnavailable, secondOpinion, type SolverName } from './solvers.ts';
-import { Executor, SpuriousModel, Unsupported, and, not, type SeqElement, type Value } from './symbolic.ts';
+import {
+  Executor,
+  readParsedJs,
+  SpuriousModel,
+  Unsupported,
+  and,
+  not,
+  type SeqElement,
+  type Value,
+} from './symbolic.ts';
 import type { ManifestLaw } from './types.ts';
 import { plural } from './plural.ts';
 
 export type Shape =
   | 'number'
   | 'int'
+  | 'nat'
+  | 'posInt'
+  | 'nonZeroInt'
+  | { intRange: [number, number] }
   | 'bigint'
   | 'boolean'
   | 'string'
-  | { array: Shape }
+  | 'asciiString'
+  | { array: Shape; minLength?: number }
   | { fields: Record<string, Shape> }
   | undefined;
 
@@ -75,6 +91,8 @@ export interface ProveInput {
    * proofs of certified laws; `root` is the project they are named relative to.
    */
   certify?: { mode: CertifyMode; dir: string; root: string };
+  /** Optional proof & certificate result cache keyed by exact SMT-LIB problem hash. */
+  cache?: ProofCache;
 }
 
 type Sort = 'fp' | 'int' | 'bool' | 'str';
@@ -125,7 +143,20 @@ class Declarations {
 const maxStringLength = 536870888;
 
 function sequenceElement(shape: Shape): SeqElement | undefined {
-  return shape === 'int' ? 'int' : shape === 'bigint' ? 'big' : shape === 'boolean' ? 'bool' : undefined;
+  if (
+    shape === 'int' ||
+    shape === 'nat' ||
+    shape === 'posInt' ||
+    shape === 'nonZeroInt' ||
+    (typeof shape === 'object' && shape !== undefined && 'intRange' in shape)
+  )
+    return 'int';
+  return shape === 'bigint' ? 'big' : shape === 'boolean' ? 'bool' : undefined;
+}
+
+function intAtom(n: number | bigint): string {
+  const b = BigInt(n);
+  return b < 0n ? `(- ${-b})` : `${b}`;
 }
 
 function declareParam(
@@ -148,6 +179,31 @@ function declareParam(
     );
     return { k: 'int', t: name };
   }
+  if (shape === 'nat') {
+    decl.constant(name, 'int');
+    const hi = intLimit ?? 9007199254740991n;
+    decl.assumptions.push(`(and (<= 0 ${name}) (<= ${name} ${hi}))`);
+    return { k: 'int', t: name };
+  }
+  if (shape === 'posInt') {
+    decl.constant(name, 'int');
+    const hi = intLimit ?? 9007199254740991n;
+    decl.assumptions.push(`(and (<= 1 ${name}) (<= ${name} ${hi}))`);
+    return { k: 'int', t: name };
+  }
+  if (shape === 'nonZeroInt') {
+    decl.constant(name, 'int');
+    const range =
+      intLimit === undefined ? safeRange(name) : `(and (<= (- ${intLimit}) ${name}) (<= ${name} ${intLimit}))`;
+    decl.assumptions.push(`(and ${range} (not (= ${name} 0)))`);
+    return { k: 'int', t: name };
+  }
+  if (typeof shape === 'object' && shape !== undefined && 'intRange' in shape) {
+    decl.constant(name, 'int');
+    const [lo, hi] = shape.intRange;
+    decl.assumptions.push(`(and (<= ${intAtom(lo)} ${name}) (<= ${name} ${intAtom(hi)}))`);
+    return { k: 'int', t: name };
+  }
   if (shape === 'bigint') {
     decl.constant(name, 'int');
     return { k: 'big', t: name };
@@ -163,17 +219,26 @@ function declareParam(
     decl.assumptions.push(`(<= (str.len ${name}) ${maxStringLength})`);
     return { k: 'str', t: name };
   }
+  if (shape === 'asciiString') {
+    decl.constant(name, 'str');
+    decl.assumptions.push(`(str.in_re ${name} (re.* (re.range "\\u{0}" "\\u{7f}")))`);
+    decl.assumptions.push(`(<= (str.len ${name}) ${maxStringLength})`);
+    return { k: 'str', t: name };
+  }
   if (shape === undefined) throw new Unsupported('a parameter type is not modelled');
   if ('array' in shape && theory) {
     const elem = sequenceElement(shape.array);
     if (elem === undefined) throw new Unsupported('arrays of this element type are proved only within the bound');
     decl.sequence(name, elem);
+    if (shape.minLength !== undefined && shape.minLength > 0)
+      decl.assumptions.push(`(<= ${shape.minLength} ${name}__len)`);
     return { k: 'seq', len: { k: 'int', t: `${name}__len` }, data: `${name}__data`, elem, id: { escaped: true } };
   }
   if ('array' in shape) {
     const len = `${name}__len`;
     decl.constant(len, 'int');
-    decl.assumptions.push(`(and (<= 0 ${len}) (<= ${len} ${bound}))`);
+    const minLen = shape.minLength ?? 0;
+    decl.assumptions.push(`(and (<= ${minLen} ${len}) (<= ${len} ${bound}))`);
     const slots: Value[] = [];
     for (let i = 0; i < bound; i += 1)
       slots.push(declareParam(`${name}__${i}`, shape.array, bound, decl, intLimit, theory));
@@ -283,10 +348,18 @@ function modelValue(sort: Sort, e: Sexp): number | bigint | boolean | string {
 }
 
 function jsValue(shape: Shape, name: string, model: Map<string, number | bigint | boolean | string>): unknown {
-  if (shape === 'number' || shape === 'int') return Number(model.get(name) ?? 0);
+  if (
+    shape === 'number' ||
+    shape === 'int' ||
+    shape === 'nat' ||
+    shape === 'posInt' ||
+    shape === 'nonZeroInt' ||
+    (typeof shape === 'object' && shape !== undefined && 'intRange' in shape)
+  )
+    return Number(model.get(name) ?? 0);
   if (shape === 'bigint') return BigInt(model.get(name) ?? 0);
   if (shape === 'boolean') return model.get(name) === true;
-  if (shape === 'string') return String(model.get(name) ?? '');
+  if (shape === 'string' || shape === 'asciiString') return String(model.get(name) ?? '');
   if (shape === undefined) return undefined;
   if ('array' in shape) {
     const len = Number(model.get(`${name}__len`) ?? 0);
@@ -349,15 +422,27 @@ export function startSolverWorkersWith(start: () => Worker): () => void {
  * never `Unsupported`, so a proof cannot take it for a solver that gave up.
  */
 export async function solve(query: string, values: string, timeoutMs: number): Promise<{ out: string; vals: string }> {
+  const native = spawnWorker === startWorker ? nativeZ3Path() : undefined;
   for (let attempt = 0; ; attempt += 1) {
     try {
       // A solve is a slot of the budget (the law's own, when it runs under one).
-      return await budget.run(() => solveOnce(query, values, timeoutMs));
+      return await budget.run(() =>
+        native !== undefined
+          ? solveNative(
+              native,
+              query,
+              values,
+              timeoutMs,
+              () => new Unsupported(`the solver did not stop within ${timeoutMs} ms and was terminated`),
+            )
+          : solveOnce(query, values, timeoutMs),
+      );
     } catch (error) {
       if (!(error instanceof SolverCrash)) throw error;
       if (attempt >= crashRetries)
         throw new SolverCrash(`${error.message} (the query was tried on ${plural(attempt + 1, 'fresh worker')})`);
-      solvers.close();
+      if (native !== undefined) closeNativeZ3();
+      else solvers.close();
       await new Promise((done) => setTimeout(done, 400 * (attempt + 1)));
     }
   }
@@ -419,7 +504,7 @@ function resultOf(value: Value): string {
 }
 
 function containsArray(shape: Shape): boolean {
-  if (shape === undefined || typeof shape === 'string') return false;
+  if (shape === undefined || typeof shape === 'string' || 'intRange' in shape) return false;
   if ('array' in shape) return true;
   return Object.values(shape.fields).some(containsArray);
 }
@@ -442,10 +527,10 @@ export function assumptionsFor(shapes: Shape[], intLimit?: bigint): string[] {
   const found = new Set<string>();
   const visit = (shape: Shape): void => {
     if (shape === 'number') found.add(numberAssumption);
-    else if (shape === 'int') {
+    else if (shape === 'int' || shape === 'nat' || shape === 'posInt' || shape === 'nonZeroInt') {
       if (intLimit === undefined) found.add(intAssumption);
-    } else if (shape === 'string') found.add(stringAssumption);
-    else if (shape === undefined || typeof shape === 'string') return;
+    } else if (shape === 'string' || shape === 'asciiString') found.add(stringAssumption);
+    else if (shape === undefined || typeof shape === 'string' || 'intRange' in shape) return;
     else if ('array' in shape) visit(shape.array);
     else for (const field of Object.values(shape.fields)) visit(field);
   };
@@ -477,8 +562,8 @@ export async function proveLaw(input: ProveInput): Promise<ProofResult> {
 }
 
 function containsInt(shape: Shape): boolean {
-  if (shape === 'int') return true;
-  if (shape === undefined || typeof shape === 'string') return false;
+  if (shape === 'int' || shape === 'nat' || shape === 'posInt' || shape === 'nonZeroInt') return true;
+  if (shape === undefined || typeof shape === 'string' || 'intRange' in shape) return false;
   if ('array' in shape) return containsInt(shape.array);
   return Object.values(shape.fields).some(containsInt);
 }
@@ -502,13 +587,7 @@ interface Problem {
 }
 
 function buildProblem(input: ProveInput, intLimit: bigint | undefined, theory: boolean): Problem {
-  const source = ts.createSourceFile(
-    input.jsFile,
-    readFileSync(input.jsFile, 'utf8'),
-    ts.ScriptTarget.ES2022,
-    true,
-    ts.ScriptKind.JS,
-  );
+  const source = readParsedJs(input.jsFile);
   const fn = source.statements.find(
     (s): s is ts.FunctionDeclaration =>
       ts.isFunctionDeclaration(s) && s.name?.text === (input.law.symbol ?? input.law.name),
@@ -631,21 +710,91 @@ async function attemptWith(
   if (executor.predicates.length > 0) {
     // Cvc5 does not solve Horn clauses, so a proof it must confirm is left to the bounded way.
     if (input.solvers?.includes('cvc5')) return undefined;
-    const verdict = await solveHorn(
-      hornSystem(executor, decl, facts, holds, safe),
-      { z3: solve, external: runExternalSolvers },
-      input.timeoutMs,
-    );
+    const system = hornSystem(executor, decl, facts, holds, safe);
+    const keep = input.certify === undefined || input.certify.mode === false ? undefined : keepOf(input, input.certify);
+    const cacheKey =
+      input.cache === undefined
+        ? undefined
+        : proofCacheKey({
+            query: hornText(system),
+            bounded: executor.bounded,
+            assumptions: assumptionsFor(input.shapes, intLimit),
+            solvers: input.solvers,
+            certify: input.certify?.mode,
+          });
+    if (cacheKey !== undefined) {
+      const hit = input.cache!.get(cacheKey, keep);
+      if (hit !== undefined) return hit;
+    }
+    const verdict = await solveHorn(system, { z3: solve, external: runExternalSolvers }, input.timeoutMs);
     if (verdict.kind === 'disagree') return { kind: 'unsupported', reason: verdict.reason };
     if (verdict.kind === 'crash') throw new SolverCrash(verdict.reason);
     if (verdict.kind !== 'safe') return undefined;
     const assumptions = [...assumptionsFor(input.shapes, intLimit), ...verdict.invariants, ...verdict.notes];
     const certificate = await hornCertificate(input, verdict.certification);
-    return executor.bounded.length > 0
-      ? { kind: 'bounded', limits: executor.bounded, assumptions, ...certificate }
-      : { kind: 'proved', assumptions, ...certificate };
+    const result: ProofResult =
+      executor.bounded.length > 0
+        ? { kind: 'bounded', limits: executor.bounded, assumptions, ...certificate }
+        : { kind: 'proved', assumptions, ...certificate };
+    if (cacheKey !== undefined) input.cache!.set(cacheKey, result);
+    return result;
+  }
+  // Prove any intermediate `lemma(...)` subgoals first so assuming them in the main query is mathematically sound.
+  if (executor.subgoals.length > 0) {
+    const baseAssumptions = theory ? [] : decl.assumptions;
+    for (const subgoal of executor.subgoals) {
+      const subQuery = [
+        `(set-option :timeout ${input.timeoutMs})`,
+        ...decl.lines,
+        ...executor.freshDecls,
+        ...executor.defs,
+        ...baseAssumptions.map((a) => `(assert ${a})`),
+        ...subgoal.assumptions.map((a) => `(assert ${a})`),
+        `(assert (not ${subgoal.goal}))`,
+        '(check-sat)',
+      ].join('\n');
+      const watchSub = decl.constants.map((c) => {
+        const term = c.term ?? c.name;
+        return c.sort === 'fp' ? `(fp.to_real ${term})` : term;
+      });
+      const subValueQuery = watchSub.length === 0 ? '' : `(get-value (${watchSub.join(' ')}))`;
+      const sub = await solve(subQuery, subValueQuery, input.timeoutMs);
+      if (sub.out.startsWith('unsat')) continue;
+      if (sub.out.startsWith('sat')) {
+        const values = watchSub.length === 0 ? '()' : sub.vals;
+        const pairs = parseSexp(values) as Sexp[];
+        const model = new Map<string, number | bigint | boolean | string>();
+        decl.constants.forEach((c, i) => {
+          const pair = pairs[i];
+          if (Array.isArray(pair) && pair.length === 2) model.set(c.name, modelValue(c.sort, pair[1]!));
+        });
+        if (!decl.lengths.some((len) => Number(model.get(len) ?? 0) > shownElements)) {
+          const inputs = names.map((name, i) => jsValue(input.shapes[i], name, model));
+          if (!(await input.holds(inputs)))
+            return { kind: 'refuted', model: names.map((n, i) => `${n} = ${show(inputs[i])}`).join(', '), inputs };
+        }
+        throw new Unsupported('a lemma() step could not be proved');
+      }
+      throw new Unsupported(`a lemma() step was not proved within ${input.timeoutMs} ms`);
+    }
   }
   const query = queryOf(input, problem);
+  const queryText = query.join('\n');
+  const keep = input.certify === undefined || input.certify.mode === false ? undefined : keepOf(input, input.certify);
+  const cacheKey =
+    input.cache === undefined
+      ? undefined
+      : proofCacheKey({
+          query: problemText(queryText),
+          bounded: executor.bounded,
+          assumptions: assumptionsFor(input.shapes, intLimit),
+          solvers: input.solvers,
+          certify: input.certify?.mode,
+        });
+  if (cacheKey !== undefined) {
+    const hit = input.cache!.get(cacheKey, keep);
+    if (hit !== undefined) return hit;
+  }
   const watch = decl.constants.map((c) => {
     const term = c.term ?? c.name;
     return c.sort === 'fp' ? `(fp.to_real ${term})` : term;
@@ -654,33 +803,46 @@ async function attemptWith(
   if (process.env.TSLAWS_DEBUG !== undefined) {
     const dir = join(dirname(input.jsFile), '..', 'smt');
     mkdirSync(dir, { recursive: true });
-    writeFileSync(join(dir, `${input.law.name}.smt2`), `${query.join('\n')}\n(get-model)\n`);
+    writeFileSync(join(dir, `${input.law.name}.smt2`), `${queryText}\n(get-model)\n`);
   }
   const valueQuery = watch.length === 0 ? '' : `(get-value (${watch.join(' ')}))`;
-  const { out, vals } = await solve(query.join('\n'), valueQuery, input.timeoutMs);
+  const { out, vals } = await solve(queryText, valueQuery, input.timeoutMs);
   const check = out;
   if (check.startsWith('unsat')) {
     const assumptions = assumptionsFor(input.shapes, intLimit);
-    const text = query.join('\n');
+    // For independent certification/second-opinion, omit lemma assumptions so cvc5/Carcara proves the full claim directly.
+    const text =
+      executor.lemmaAssumptions.size === 0
+        ? queryText
+        : queryOf(input, {
+            ...problem,
+            facts: problem.facts.filter((f) => !executor.lemmaAssumptions.has(f)),
+          }).join('\n');
     const certifyQuery = async (): Promise<{ certificate?: Certificate }> =>
       input.certify === undefined || input.certify.mode === false
         ? {}
         : { certificate: await certify(text, { timeoutMs: input.timeoutMs, keep: keepOf(input, input.certify) }) };
-    if (executor.bounded.length > 0)
-      return { kind: 'bounded', limits: executor.bounded, assumptions, ...(await certifyQuery()) };
+    if (executor.bounded.length > 0) {
+      const result: ProofResult = { kind: 'bounded', limits: executor.bounded, assumptions, ...(await certifyQuery()) };
+      if (cacheKey !== undefined) input.cache!.set(cacheKey, result);
+      return result;
+    }
     // Only a proof that would stand is sent to the second solver.
     const unconfirmed = await secondOpinion(input.solvers ?? [], text, input.timeoutMs);
-    return unconfirmed === undefined
-      ? { kind: 'proved', assumptions, ...(await certifyQuery()) }
-      : {
-          kind: 'bounded',
-          limits: [unconfirmed],
-          assumptions,
-          // Nothing was proved, so nothing is certified; `require` must not let this pass.
-          ...(input.certify === undefined || input.certify.mode === false
-            ? {}
-            : { certificate: { status: 'uncertified', reason: unconfirmed } as Certificate }),
-        };
+    const result: ProofResult =
+      unconfirmed === undefined
+        ? { kind: 'proved', assumptions, ...(await certifyQuery()) }
+        : {
+            kind: 'bounded',
+            limits: [unconfirmed],
+            assumptions,
+            // Nothing was proved, so nothing is certified; `require` must not let this pass.
+            ...(input.certify === undefined || input.certify.mode === false
+              ? {}
+              : { certificate: { status: 'uncertified', reason: unconfirmed } as Certificate }),
+          };
+    if (cacheKey !== undefined && unconfirmed === undefined) input.cache!.set(cacheKey, result);
+    return result;
   }
   if (check.startsWith('unknown')) throw new Unsupported(`solver gave up within ${input.timeoutMs} ms`);
   if (!check.startsWith('sat')) throw new Unsupported(`solver said: ${check.split('\n')[0]}`);

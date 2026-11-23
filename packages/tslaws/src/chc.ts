@@ -82,16 +82,34 @@ const unknown = (reason: string): ChcVerdict => ({ kind: 'unknown', reason });
 /** Floating point and strings are outside what the CHC engines decide: the unrolled proof handles those. */
 const unmodelled = /FloatingPoint|\bfp\.|to_fp|\bstr\.|\bString\b|\bre\./;
 
-function expand(text: string, shared: Map<string, string>): string {
-  let out = text;
-  // A shared term may name an earlier one, so expand until nothing is left.
-  for (let round = 0; round <= shared.size && /\b_s\d+\b/.test(out); round += 1)
-    out = out.replace(/\b_s\d+\b/g, (name) => shared.get(name) ?? name);
-  return out;
+/** Wraps `text` in nested SMT-LIB `let` bindings for any `_sN` shared terms it transitively references (DAG-preserving, no exponential blowup). */
+function bindShared(text: string, shared: Map<string, string>): string {
+  if (shared.size === 0 || !/\b_s\d+\b/.test(text)) return text;
+  const needed = new Set<string>();
+  const queue = [...text.matchAll(/\b_s\d+\b/g)].map((m) => m[0]);
+  while (queue.length > 0) {
+    const name = queue.pop()!;
+    if (needed.has(name)) continue;
+    const def = shared.get(name);
+    if (def === undefined) continue;
+    needed.add(name);
+    for (const match of def.matchAll(/\b_s\d+\b/g)) {
+      if (!needed.has(match[0])) queue.push(match[0]);
+    }
+  }
+  if (needed.size === 0) return text;
+  // Shared terms are created sequentially (`_s0`, `_s1`, ...), so numeric order is guaranteed topological.
+  const ordered = [...needed].sort((a, b) => Number(a.slice(2)) - Number(b.slice(2)));
+  let wrapped = text;
+  for (let i = ordered.length - 1; i >= 0; i -= 1) {
+    const name = ordered[i]!;
+    wrapped = `(let ((${name} ${shared.get(name)!})) ${wrapped})`;
+  }
+  return wrapped;
 }
 
 const closed = (system: HornSystem, text: string): string => {
-  const body = expand(text, system.shared);
+  const body = bindShared(text, system.shared);
   if (system.constants.length === 0) return body;
   return `(forall (${system.constants.map((c) => `(${c.name} ${c.sort})`).join(' ')}) ${body})`;
 };
