@@ -2,6 +2,44 @@
 
 The upstream tsc-ts changelog is CHANGELOG.md. Releases of tsc-laws are tagged `laws-v<version>` (see RELEASING-LAWS.md).
 
+## [1.0.0](https://github.com/Jordan-Hall/tsc-laws/compare/laws-v0.10.0...laws-v1.0.0) (2026-11-23)
+
+
+### Features
+
+* **tslaws:** accept laws across a monorepo in one GitHub flow ([#47](https://github.com/Jordan-Hall/tsc-laws/issues/47)) ([b6d2b47](https://github.com/Jordan-Hall/tsc-laws/commit/b6d2b479e4800c2c7eb29c299c03522e4297856a))
+* **tslaws:** apply bundlerPlugins to node laws too ([#63](https://github.com/Jordan-Hall/tsc-laws/issues/63)) ([14027ac](https://github.com/Jordan-Hall/tsc-laws/commit/14027ac0ad6dbf85e148adca577c0b983e577be8))
+* **tslaws:** certify proofs by loop invariants ([#82](https://github.com/Jordan-Hall/tsc-laws/issues/82)) ([a550650](https://github.com/Jordan-Hall/tsc-laws/commit/a550650cefcca1cc8884eeebbfc42e96f8b0f1df))
+* **tslaws:** check code against CWE security laws and dependencies against OSV ([#52](https://github.com/Jordan-Hall/tsc-laws/issues/52)) ([86c90b3](https://github.com/Jordan-Hall/tsc-laws/commit/86c90b3ab564cc1addec863920bf1454982581d3))
+* **tslaws:** check proofs with cvc5 and Carcara certificates ([#43](https://github.com/Jordan-Hall/tsc-laws/issues/43)) ([4177c30](https://github.com/Jordan-Hall/tsc-laws/commit/4177c302a8ad0d0ff609f9782112b05b5234249a))
+* **tslaws:** make every package and generated project ES-module first ([#64](https://github.com/Jordan-Hall/tsc-laws/issues/64)) ([bcaf2ea](https://github.com/Jordan-Hall/tsc-laws/commit/bcaf2eaf71fc0a25b1220ebd0fcfa54849b3feb3))
+* **tslaws:** prove loops with inferred invariants and arrays of any length ([#51](https://github.com/Jordan-Hall/tsc-laws/issues/51)) ([6728ceb](https://github.com/Jordan-Hall/tsc-laws/commit/6728ceb73e6e522b29092a373456376bed4caca3))
+* **tslaws:** resolve law imports with the package's tsconfig ([#38](https://github.com/Jordan-Hall/tsc-laws/issues/38)) ([63e7373](https://github.com/Jordan-Hall/tsc-laws/commit/63e7373fe349d63e5e0b08969a8f41184eba8c41))
+* **tslaws:** run laws in a permission sandbox ([#79](https://github.com/Jordan-Hall/tsc-laws/issues/79)) ([d55a661](https://github.com/Jordan-Hall/tsc-laws/commit/d55a661fc8a71d6bfdb1e18745e1906508820ec6))
+* **tslaws:** run only the changed projects, and follow the project in VS Code ([#41](https://github.com/Jordan-Hall/tsc-laws/issues/41)) ([ed006f6](https://github.com/Jordan-Hall/tsc-laws/commit/ed006f6a17a298049905a8126531c6748fd9d78e))
+
+
+### Fixes
+
+* **ci:** give the certificates demo a longer proof timeout ([#83](https://github.com/Jordan-Hall/tsc-laws/issues/83)) ([d05fb8a](https://github.com/Jordan-Hall/tsc-laws/commit/d05fb8ab1ed8b4b69f0dfa7194a7afa72f8621f5))
+* **ci:** run the certificates job when its demo project changes ([#88](https://github.com/Jordan-Hall/tsc-laws/issues/88)) ([baaecd4](https://github.com/Jordan-Hall/tsc-laws/commit/baaecd4c1979f939531a45c89e736178eeab228b))
+* **tslaws:** bind certificates to their problem and re-check them at accept ([#50](https://github.com/Jordan-Hall/tsc-laws/issues/50)) ([e490374](https://github.com/Jordan-Hall/tsc-laws/commit/e490374757b6962b49ccbaf294ed35cd7dd009a0))
+* **tslaws:** certify laws with integer range obligations ([#68](https://github.com/Jordan-Hall/tsc-laws/issues/68)) ([24b0164](https://github.com/Jordan-Hall/tsc-laws/commit/24b01641b0a505808f6db7d38a78911d0ba726e2))
+* **tslaws:** check &lt;files&gt; no longer reports laws outside them as removed ([#67](https://github.com/Jordan-Hall/tsc-laws/issues/67)) ([fd978be](https://github.com/Jordan-Hall/tsc-laws/commit/fd978be42cb785d68d865a1491ca75a597e4becf))
+* **tslaws:** check loop-body obligations in CHC proofs, and stop a planted OSV cache hiding vulnerabilities ([#53](https://github.com/Jordan-Hall/tsc-laws/issues/53)) ([53bf2d6](https://github.com/Jordan-Hall/tsc-laws/commit/53bf2d687bca45b3673d9362365e4e0dc3713c80))
+* **tslaws:** confirm imports on promote and refuse imports of unreviewed code ([#75](https://github.com/Jordan-Hall/tsc-laws/issues/75)) ([184fe7f](https://github.com/Jordan-Hall/tsc-laws/commit/184fe7f5df27d0d32ca0d8eca6865ce04c8d39ae))
+* **tslaws:** keep credentials out of browser laws and rewrite import.meta as syntax ([#45](https://github.com/Jordan-Hall/tsc-laws/issues/45)) ([43a481c](https://github.com/Jordan-Hall/tsc-laws/commit/43a481c2365b874cd8b7513bf4676b5189c58284))
+* **tslaws:** keep the helpers a promoted law uses ([#56](https://github.com/Jordan-Hall/tsc-laws/issues/56)) ([9a56696](https://github.com/Jordan-Hall/tsc-laws/commit/9a56696075ad0a10b1dec033ff974fb05a9a2c1d))
+* **tslaws:** let propose take the helpers a proposed law needs ([#65](https://github.com/Jordan-Hall/tsc-laws/issues/65)) ([ade6260](https://github.com/Jordan-Hall/tsc-laws/commit/ade626061e5c3d0ab0da1be2212d365f1aac9a0c))
+* **tslaws:** let the CLI exit once a multi-project run is done ([#78](https://github.com/Jordan-Hall/tsc-laws/issues/78)) ([410c2b2](https://github.com/Jordan-Hall/tsc-laws/commit/410c2b2390b07a97b0fdb6ea9d9fe58e00ef3662))
+* **tslaws:** load packages that export only an import condition ([#57](https://github.com/Jordan-Hall/tsc-laws/issues/57)) ([4b715c0](https://github.com/Jordan-Hall/tsc-laws/commit/4b715c0419c134497a890ac9362a79d42e3d7b48))
+* **tslaws:** lock covers helpers, imported code and run settings ([#71](https://github.com/Jordan-Hall/tsc-laws/issues/71)) ([d0d2111](https://github.com/Jordan-Hall/tsc-laws/commit/d0d2111ad6822bf7bfc9d61bc63d057977fb311e))
+* **tslaws:** one CPU budget for laws, solves, solvers and law processes ([#85](https://github.com/Jordan-Hall/tsc-laws/issues/85)) ([92d1848](https://github.com/Jordan-Hall/tsc-laws/commit/92d184897ee22cfbd7566b9492a69141ac7b4066))
+* **tslaws:** pluralise counts in output ([#77](https://github.com/Jordan-Hall/tsc-laws/issues/77)) ([aa2e7ed](https://github.com/Jordan-Hall/tsc-laws/commit/aa2e7ed8dffc45cd934c36be410ef1b8c915f3aa))
+* **tslaws:** run laws in a token-free child process in GitHub mode ([#72](https://github.com/Jordan-Hall/tsc-laws/issues/72)) ([cd737b1](https://github.com/Jordan-Hall/tsc-laws/commit/cd737b1e440cae55b01a6e1714f4c155104851eb))
+* **tslaws:** show and confirm helper code before promote copies it ([#70](https://github.com/Jordan-Hall/tsc-laws/issues/70)) ([ac5bf6e](https://github.com/Jordan-Hall/tsc-laws/commit/ac5bf6e4a24316edfe61a82f4534913ee9603b60))
+* **web:** update Next.js to close its open advisories ([#62](https://github.com/Jordan-Hall/tsc-laws/issues/62)) ([bf8a727](https://github.com/Jordan-Hall/tsc-laws/commit/bf8a7275a2fbd8398e8c83e8f47eaaf5a0ba015f))
+
 ## [0.10.0](https://github.com/Jordan-Hall/tsc-laws/compare/laws-v0.9.0...laws-v0.10.0) (2026-11-16)
 
 
