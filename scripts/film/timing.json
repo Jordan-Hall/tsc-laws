@@ -1,0 +1,1464 @@
+{
+  "voice": {
+    "voice": "af_heart",
+    "speed": 0.93,
+    "lines": [
+      {
+        "id": "meet",
+        "frame": 40,
+        "sentences": [
+          {
+            "text": "This is Tally.",
+            "gapMs": 450
+          },
+          {
+            "text": "Tally keeps the rules."
+          }
+        ]
+      },
+      {
+        "id": "law",
+        "frame": 284,
+        "sentences": [
+          {
+            "text": "You write a rule your code has to keep.",
+            "gapMs": 420
+          },
+          {
+            "text": "That's a law."
+          }
+        ]
+      },
+      {
+        "id": "work",
+        "frame": 526,
+        "sentences": [
+          {
+            "text": "Then tslaws goes to work.",
+            "say": "Then T S laws goes to work.",
+            "gapMs": 400
+          },
+          {
+            "text": "It doesn't only test the law.",
+            "gapMs": 380
+          },
+          {
+            "text": "It proves it."
+          }
+        ]
+      },
+      {
+        "id": "proved",
+        "frame": 926,
+        "sentences": [
+          {
+            "text": "Proved, for every input."
+          }
+        ]
+      },
+      {
+        "id": "broken",
+        "frame": 1046,
+        "sentences": [
+          {
+            "text": "Or it finds the one input that breaks it."
+          }
+        ]
+      },
+      {
+        "id": "cert",
+        "frame": 1366,
+        "sentences": [
+          {
+            "text": "Every proof can carry a certificate.",
+            "gapMs": 420
+          },
+          {
+            "text": "cvc5 writes it out.",
+            "say": "C V C five writes it out.",
+            "gapMs": 420
+          },
+          {
+            "text": "A second program, Carcara, checks each step."
+          }
+        ]
+      },
+      {
+        "id": "loops",
+        "frame": 1926,
+        "sentences": [
+          {
+            "text": "Even loops get one, through their invariants."
+          }
+        ]
+      },
+      {
+        "id": "lock",
+        "frame": 2166,
+        "sentences": [
+          {
+            "text": "The lock remembers every law.",
+            "gapMs": 420
+          },
+          {
+            "text": "Change one, and it knows."
+          }
+        ]
+      },
+      {
+        "id": "gate",
+        "frame": 2566,
+        "sentences": [
+          {
+            "text": "A new law can't accept itself.",
+            "gapMs": 420
+          },
+          {
+            "text": "Tally can propose it.",
+            "gapMs": 380
+          },
+          {
+            "text": "But a person has to promote it."
+          }
+        ]
+      },
+      {
+        "id": "sandbox",
+        "frame": 3166,
+        "sentences": [
+          {
+            "text": "And every law runs in a sandbox.",
+            "gapMs": 420
+          },
+          {
+            "text": "It can't write files, or start a process."
+          }
+        ]
+      },
+      {
+        "id": "close",
+        "frame": 3606,
+        "sentences": [
+          {
+            "text": "Write a law.",
+            "gapMs": 520
+          },
+          {
+            "text": "Let it be proved."
+          }
+        ]
+      },
+      {
+        "id": "end",
+        "frame": 4126,
+        "sentences": [
+          {
+            "text": "tslaws, one point oh.",
+            "say": "T S laws. One point oh."
+          }
+        ]
+      }
+    ]
+  },
+  "fps": 60,
+  "size": [1920, 1080],
+  "bpm": 90,
+  "framesPerBeat": 40,
+  "frames": 4480,
+  "palette": {
+    "desk": "#EBE1CD",
+    "deskLine": "#D8CBB0",
+    "sky": "#E4D8C0",
+    "paper": "#FBF6EA",
+    "ink": "#1E1C19",
+    "brass": "#EDA832",
+    "brassDark": "#B87A1E",
+    "burnt": "#C8501E",
+    "green": "#2E9E5B",
+    "red": "#D2402F",
+    "steel": "#4C6E8F",
+    "steelDark": "#2F4A63",
+    "wood": "#7A4A2B",
+    "glass": "#CDE7F0",
+    "skin": "#F0D5B0",
+    "suit": "#2C3E5A",
+    "key": "#FFE2B8",
+    "fill": "#CFE0F0",
+    "rim": "#BBD6FF"
+  },
+  "springs": {
+    "ui": {
+      "zeta": 1,
+      "omega": 13
+    },
+    "object": {
+      "zeta": 0.8,
+      "omega": 12
+    },
+    "character": {
+      "zeta": 0.5,
+      "omega": 16
+    }
+  },
+  "squash": {
+    "crouch": [1.2, 0.75],
+    "takeoff": [0.85, 1.28],
+    "land": [1.25, 0.75],
+    "crouchFrames": 9,
+    "takeoffFrames": 6
+  },
+  "motionBlur": {
+    "subframes": 16,
+    "shutter": 0.45
+  },
+  "grade": {
+    "exposure": 1,
+    "vignette": 0.14,
+    "grain": 1.4,
+    "fog": 0.018
+  },
+  "text": {
+    "law": [
+      "export law proved clampWithinBounds(",
+      "  x: number, lo: number, hi: number,",
+      ") {",
+      "  assume(lo <= hi);",
+      "  const y = clamp(x, lo, hi);",
+      "  return y >= lo && y <= hi;",
+      "}"
+    ],
+    "lawEdited": "assume(lo < hi);",
+    "labels": [
+      "proved",
+      "failed",
+      "certified",
+      "tampered",
+      "proposed",
+      "promote",
+      "solver",
+      "cvc5",
+      "Carcara",
+      "invariant",
+      "sandbox",
+      "counterexample",
+      "[[3,3]]"
+    ],
+    "end": ["tslaws 1.0.0", "npm i -D tslaws"]
+  },
+  "shots": [
+    {
+      "id": "A-hop",
+      "frame": 0,
+      "frames": 160,
+      "station": 0,
+      "x": 0,
+      "lens": 50,
+      "fstop": 2,
+      "cam": [-0.1, 0.5, 3.1],
+      "look": [-0.1, 0.3, 0],
+      "drift": [0.12, 0, 0]
+    },
+    {
+      "id": "A-close",
+      "frame": 160,
+      "frames": 120,
+      "station": 0,
+      "x": 0,
+      "lens": 85,
+      "fstop": 2,
+      "cam": [-0.45, 0.5, 4.4],
+      "look": [-0.45, 0.38, 0],
+      "drift": [0.1, 0, 0]
+    },
+    {
+      "id": "A-law",
+      "frame": 280,
+      "frames": 240,
+      "station": 0,
+      "x": 0,
+      "lens": 85,
+      "fstop": 2.8,
+      "cam": [0.25, 0.55, 5.6],
+      "look": [0.25, 0.5, 0],
+      "drift": [0.15, 0, 0]
+    },
+    {
+      "id": "B-arrive",
+      "frame": 520,
+      "frames": 160,
+      "station": 1,
+      "x": 3.2,
+      "lens": 35,
+      "fstop": 4,
+      "cam": [-0.4, 0.85, 4.8],
+      "look": [-0.4, 0.55, 0],
+      "drift": [0.05, 0, 0]
+    },
+    {
+      "id": "B-lever",
+      "frame": 680,
+      "frames": 120,
+      "station": 1,
+      "x": 3.2,
+      "lens": 50,
+      "fstop": 2.4,
+      "cam": [-1.5, 0.7, 3.2],
+      "look": [-1.5, 0.5, 0],
+      "drift": [0, 0, 0]
+    },
+    {
+      "id": "B-scan",
+      "frame": 800,
+      "frames": 120,
+      "station": 1,
+      "x": 3.2,
+      "lens": 35,
+      "fstop": 2.8,
+      "cam": [-0.4, 0.85, 4.8],
+      "look": [-0.4, 0.55, 0],
+      "drift": [0.05, 0, 0]
+    },
+    {
+      "id": "B-stamp",
+      "frame": 920,
+      "frames": 120,
+      "station": 1,
+      "x": 3.2,
+      "lens": 85,
+      "fstop": 2.8,
+      "cam": [1.5, 0.6, 5.4],
+      "look": [1.5, 0.62, 0],
+      "drift": [0.03, 0, 0]
+    },
+    {
+      "id": "B-fail",
+      "frame": 1040,
+      "frames": 160,
+      "station": 1,
+      "x": 3.2,
+      "lens": 50,
+      "fstop": 2.4,
+      "cam": [-0.4, 0.85, 6.6],
+      "look": [-0.4, 0.55, 0],
+      "drift": [0.05, 0, 0]
+    },
+    {
+      "id": "B-react",
+      "frame": 1200,
+      "frames": 160,
+      "station": 1,
+      "x": 3.2,
+      "lens": 85,
+      "fstop": 2.8,
+      "cam": [1.5, 0.55, 5.4],
+      "look": [1.5, 0.55, 0],
+      "drift": [0.03, 0, 0]
+    },
+    {
+      "id": "C-arrive",
+      "frame": 1360,
+      "frames": 160,
+      "station": 2,
+      "x": 6.4,
+      "lens": 35,
+      "fstop": 4,
+      "cam": [0.55, 0.8, 4.4],
+      "look": [0.55, 0.35, 0],
+      "drift": [-0.05, 0, 0]
+    },
+    {
+      "id": "C-print",
+      "frame": 1520,
+      "frames": 200,
+      "station": 2,
+      "x": 6.4,
+      "lens": 50,
+      "fstop": 2.8,
+      "cam": [0.55, 1.5, 6.3],
+      "look": [0.55, 0.15, 0.1],
+      "drift": [0.05, 0, 0]
+    },
+    {
+      "id": "C-check",
+      "frame": 1720,
+      "frames": 200,
+      "station": 2,
+      "x": 6.4,
+      "lens": 85,
+      "fstop": 2.8,
+      "cam": [0.55, 1.1, 10.7],
+      "look": [0.55, 0.25, 0.1],
+      "drift": [0.05, 0, 0]
+    },
+    {
+      "id": "D-loop",
+      "frame": 1920,
+      "frames": 120,
+      "station": 3,
+      "x": 9.6,
+      "lens": 35,
+      "fstop": 4,
+      "cam": [0, 1.2, 4.6],
+      "look": [0, 0.2, 0],
+      "drift": [-0.05, 0, 0]
+    },
+    {
+      "id": "D-inv",
+      "frame": 2040,
+      "frames": 120,
+      "station": 3,
+      "x": 9.6,
+      "lens": 50,
+      "fstop": 2.8,
+      "cam": [0, 0.9, 6.6],
+      "look": [0, 0.3, 0],
+      "drift": [0.05, 0, 0]
+    },
+    {
+      "id": "E-lock",
+      "frame": 2160,
+      "frames": 160,
+      "station": 4,
+      "x": 12.8,
+      "lens": 85,
+      "fstop": 2.8,
+      "cam": [-0.15, 0.6, 8.5],
+      "look": [-0.15, 0.5, 0],
+      "drift": [0.03, 0, 0]
+    },
+    {
+      "id": "E-edit",
+      "frame": 2320,
+      "frames": 120,
+      "station": 4,
+      "x": 12.8,
+      "lens": 50,
+      "fstop": 2.4,
+      "cam": [-0.3, 0.6, 4.6],
+      "look": [-0.3, 0.45, 0],
+      "drift": [-0.03, 0, 0]
+    },
+    {
+      "id": "E-tamper",
+      "frame": 2440,
+      "frames": 120,
+      "station": 4,
+      "x": 12.8,
+      "lens": 85,
+      "fstop": 2.8,
+      "cam": [0.8, 0.55, 8.25],
+      "look": [0.8, 0.5, 0],
+      "drift": [0.03, 0, 0]
+    },
+    {
+      "id": "F-push",
+      "frame": 2560,
+      "frames": 160,
+      "station": 5,
+      "x": 16,
+      "lens": 35,
+      "fstop": 4,
+      "cam": [0.15, 0.9, 5.5],
+      "look": [0.15, 0.4, 0],
+      "drift": [-0.05, 0, 0]
+    },
+    {
+      "id": "F-propose",
+      "frame": 2720,
+      "frames": 160,
+      "station": 5,
+      "x": 16,
+      "lens": 50,
+      "fstop": 2.4,
+      "cam": [0.15, 0.8, 7.8],
+      "look": [0.15, 0.4, 0],
+      "drift": [0.05, 0, 0]
+    },
+    {
+      "id": "F-person",
+      "frame": 2880,
+      "frames": 160,
+      "station": 5,
+      "x": 16,
+      "lens": 85,
+      "fstop": 2.8,
+      "cam": [0.15, 1.0, 13.2],
+      "look": [0.15, 0.5, 0],
+      "drift": [0.05, 0, 0]
+    },
+    {
+      "id": "F-open",
+      "frame": 3040,
+      "frames": 120,
+      "station": 5,
+      "x": 16,
+      "lens": 50,
+      "fstop": 2.4,
+      "cam": [0.15, 0.6, 7.8],
+      "look": [0.15, 0.4, 0],
+      "drift": [-0.05, 0, 0]
+    },
+    {
+      "id": "G-box",
+      "frame": 3160,
+      "frames": 160,
+      "station": 6,
+      "x": 19.2,
+      "lens": 35,
+      "fstop": 4,
+      "cam": [0.1, 1.0, 4.2],
+      "look": [0.1, 0.45, 0],
+      "drift": [0.05, 0, 0]
+    },
+    {
+      "id": "G-bonk",
+      "frame": 3320,
+      "frames": 160,
+      "station": 6,
+      "x": 19.2,
+      "lens": 50,
+      "fstop": 2.8,
+      "cam": [0.1, 0.7, 5.5],
+      "look": [0.1, 0.5, 0],
+      "drift": [0.03, 0, 0]
+    },
+    {
+      "id": "G-run",
+      "frame": 3480,
+      "frames": 120,
+      "station": 6,
+      "x": 19.2,
+      "lens": 50,
+      "fstop": 2.4,
+      "cam": [0.1, 0.9, 5.5],
+      "look": [0.1, 0.45, 0],
+      "drift": [-0.03, 0, 0]
+    },
+    {
+      "id": "H-wrap",
+      "frame": 3600,
+      "frames": 240,
+      "station": 7,
+      "x": 22.4,
+      "lens": 35,
+      "fstop": 4,
+      "cam": [0.8, 0.9, 4.1],
+      "look": [0.8, 0.4, 0],
+      "drift": [0.05, 0, 0]
+    },
+    {
+      "id": "H-close",
+      "frame": 3840,
+      "frames": 240,
+      "station": 7,
+      "x": 22.4,
+      "lens": 85,
+      "fstop": 2.8,
+      "cam": [0.8, 0.55, 10],
+      "look": [0.8, 0.4, 0],
+      "drift": [0.03, 0, 0]
+    },
+    {
+      "id": "I-end",
+      "frame": 4080,
+      "frames": 400,
+      "station": 8,
+      "x": 25.6,
+      "lens": 35,
+      "fstop": 4,
+      "cam": [0.1, 0.75, 3.4],
+      "look": [0.1, 0.55, 0],
+      "drift": [0.05, 0, 0]
+    }
+  ],
+  "events": {
+    "hopA_take": 22,
+    "hopA_land": 60,
+    "hopB_take": 82,
+    "hopB_land": 110,
+    "tap": 214,
+    "lawIn": 284,
+    "lawTypeStart": 336,
+    "lawTypeEnd": 476,
+    "lawDone": 480,
+    "cardB_in": 524,
+    "hopC_take": 540,
+    "hopC_land": 574,
+    "machineOn": 568,
+    "hopL_take": 676,
+    "hopL_land": 700,
+    "leverPull": 704,
+    "slideStart": 812,
+    "slideEnd": 905,
+    "proveStamp": 940,
+    "exitProved": 1030,
+    "cardB2_in": 1046,
+    "cardB2_out": 1112,
+    "failType": 1130,
+    "failStamp": 1206,
+    "startle_take": 1204,
+    "startle_land": 1238,
+    "cardC_in": 1364,
+    "hopCC_take": 1376,
+    "hopCC_land": 1410,
+    "printStart": 1536,
+    "printEnd": 1660,
+    "jumpC1_take": 1560,
+    "jumpC1_land": 1590,
+    "jumpC2_take": 1600,
+    "jumpC2_land": 1630,
+    "loupeIn": 1726,
+    "tick0": 1756,
+    "tick1": 1772,
+    "tick2": 1788,
+    "tick3": 1804,
+    "tick4": 1820,
+    "tick5": 1836,
+    "tick6": 1852,
+    "tick7": 1868,
+    "certStamp": 1888,
+    "runStart": 1928,
+    "invOn": 2016,
+    "certStampD": 2112,
+    "lockClose": 2204,
+    "tapE": 2250,
+    "penStart": 2338,
+    "textSwap": 2372,
+    "lockOpen": 2452,
+    "tamperStamp": 2476,
+    "startleE_take": 2480,
+    "startleE_land": 2512,
+    "hopF_take": 2576,
+    "hopF_land": 2606,
+    "bonkF1": 2650,
+    "bonkF2": 2692,
+    "proposeStamp": 2760,
+    "personIn": 2890,
+    "press": 2976,
+    "gateOpen": 3048,
+    "cardGo": 3070,
+    "cardThrough": 3130,
+    "cheerF1_take": 3084,
+    "cheerF1_land": 3116,
+    "cheerF2_take": 3124,
+    "cheerF2_land": 3152,
+    "hopG_take": 3170,
+    "hopG_land": 3200,
+    "boxDrop": 3190,
+    "boxLand": 3236,
+    "bonkG1": 3400,
+    "bonkG2": 3470,
+    "running": 3500,
+    "passG": 3540,
+    "hopH1_take": 3616,
+    "hopH1_land": 3648,
+    "hopH2_take": 3664,
+    "hopH2_land": 3696,
+    "hopH3_take": 3712,
+    "hopH3_land": 3744,
+    "tapH": 3990,
+    "endIn": 4090,
+    "endType": 4150,
+    "endTypeDone": 4214,
+    "endChime": 4216,
+    "hopL2_land": 782
+  },
+  "moves": [
+    {
+      "type": "place",
+      "f": 0,
+      "pos": [-2.6, 0.1]
+    },
+    {
+      "type": "hop",
+      "take": 22,
+      "land": 60,
+      "from": [-2.6, 0.1],
+      "to": [-0.95, 0.1],
+      "h": 0.55
+    },
+    {
+      "type": "hop",
+      "take": 82,
+      "land": 110,
+      "from": [-0.95, 0.1],
+      "to": [-0.55, 0.15],
+      "h": 0.28
+    },
+    {
+      "type": "place",
+      "f": 520,
+      "pos": [0.2, 0.6]
+    },
+    {
+      "type": "hop",
+      "take": 540,
+      "land": 574,
+      "from": [0.2, 0.6],
+      "to": [1.1, 0.6],
+      "h": 0.45
+    },
+    {
+      "type": "hop",
+      "take": 676,
+      "land": 700,
+      "from": [1.1, 0.6],
+      "to": [1.15, 0.55],
+      "h": 0.3
+    },
+    {
+      "type": "hop",
+      "take": 762,
+      "land": 782,
+      "from": [1.15, 0.55],
+      "to": [1.15, 0.55],
+      "h": 0.22
+    },
+    {
+      "type": "place",
+      "f": 800,
+      "pos": [1.15, 0.55]
+    },
+    {
+      "type": "place",
+      "f": 920,
+      "pos": [5.2, 0.6]
+    },
+    {
+      "type": "place",
+      "f": 1040,
+      "pos": [1.15, 0.55]
+    },
+    {
+      "type": "place",
+      "f": 1200,
+      "pos": [5.2, 0.6]
+    },
+    {
+      "type": "hop",
+      "take": 1204,
+      "land": 1238,
+      "from": [5.2, 0.6],
+      "to": [5.15, 0.65],
+      "h": 0.4
+    },
+    {
+      "type": "place",
+      "f": 1360,
+      "pos": [9.7, 0.2]
+    },
+    {
+      "type": "hop",
+      "take": 1376,
+      "land": 1410,
+      "from": [9.7, 0.2],
+      "to": [8.4, 0.2],
+      "h": 0.35
+    },
+    {
+      "type": "place",
+      "f": 1520,
+      "pos": [8.4, 0.2]
+    },
+    {
+      "type": "hop",
+      "take": 1560,
+      "land": 1590,
+      "from": [8.4, 0.2],
+      "to": [8.4, 0.2],
+      "h": 0.25
+    },
+    {
+      "type": "hop",
+      "take": 1600,
+      "land": 1630,
+      "from": [8.4, 0.2],
+      "to": [8.4, 0.2],
+      "h": 0.25
+    },
+    {
+      "type": "place",
+      "f": 1720,
+      "pos": [8.4, 0.2]
+    },
+    {
+      "type": "run",
+      "from": 1920,
+      "to": 2160,
+      "center": [9.6, 0],
+      "radius": 0.55
+    },
+    {
+      "type": "place",
+      "f": 2160,
+      "pos": [11.4, 0.3]
+    },
+    {
+      "type": "place",
+      "f": 2320,
+      "pos": [11.4, 0.3]
+    },
+    {
+      "type": "place",
+      "f": 2440,
+      "pos": [14.8, 0.3]
+    },
+    {
+      "type": "hop",
+      "take": 2480,
+      "land": 2512,
+      "from": [14.8, 0.3],
+      "to": [14.75, 0.35],
+      "h": 0.4
+    },
+    {
+      "type": "place",
+      "f": 2560,
+      "pos": [13.0, 0.3]
+    },
+    {
+      "type": "hop",
+      "take": 2576,
+      "land": 2606,
+      "from": [13.0, 0.3],
+      "to": [14.05, 0.25],
+      "h": 0.3
+    },
+    {
+      "type": "hop",
+      "take": 2632,
+      "land": 2650,
+      "from": [14.05, 0.25],
+      "to": [14.25, 0.25],
+      "h": 0.08
+    },
+    {
+      "type": "hop",
+      "take": 2654,
+      "land": 2680,
+      "from": [14.25, 0.25],
+      "to": [14.0, 0.3],
+      "h": 0.3
+    },
+    {
+      "type": "hop",
+      "take": 2676,
+      "land": 2692,
+      "from": [14.0, 0.3],
+      "to": [14.25, 0.25],
+      "h": 0.08
+    },
+    {
+      "type": "hop",
+      "take": 2696,
+      "land": 2722,
+      "from": [14.25, 0.25],
+      "to": [14.0, 0.3],
+      "h": 0.3
+    },
+    {
+      "type": "place",
+      "f": 2724,
+      "pos": [14.0, 0.3]
+    },
+    {
+      "type": "place",
+      "f": 2880,
+      "pos": [14.0, 0.3]
+    },
+    {
+      "type": "place",
+      "f": 3040,
+      "pos": [14.0, 0.3]
+    },
+    {
+      "type": "hop",
+      "take": 3084,
+      "land": 3116,
+      "from": [14.0, 0.3],
+      "to": [14.0, 0.3],
+      "h": 0.55
+    },
+    {
+      "type": "hop",
+      "take": 3124,
+      "land": 3152,
+      "from": [14.0, 0.3],
+      "to": [14.0, 0.3],
+      "h": 0.45
+    },
+    {
+      "type": "place",
+      "f": 3160,
+      "pos": [17.9, 0.3]
+    },
+    {
+      "type": "hop",
+      "take": 3170,
+      "land": 3200,
+      "from": [17.9, 0.3],
+      "to": [18.2, 0.35],
+      "h": 0.2
+    },
+    {
+      "type": "hop",
+      "take": 3384,
+      "land": 3400,
+      "from": [18.2, 0.35],
+      "to": [18.48, 0.35],
+      "h": 0.1
+    },
+    {
+      "type": "hop",
+      "take": 3404,
+      "land": 3432,
+      "from": [18.48, 0.35],
+      "to": [18.15, 0.35],
+      "h": 0.28
+    },
+    {
+      "type": "hop",
+      "take": 3454,
+      "land": 3470,
+      "from": [18.15, 0.35],
+      "to": [18.48, 0.35],
+      "h": 0.1
+    },
+    {
+      "type": "hop",
+      "take": 3474,
+      "land": 3504,
+      "from": [18.48, 0.35],
+      "to": [18.15, 0.35],
+      "h": 0.28
+    },
+    {
+      "type": "place",
+      "f": 3600,
+      "pos": [21.85, 0.2]
+    },
+    {
+      "type": "hop",
+      "take": 3616,
+      "land": 3648,
+      "from": [21.85, 0.2],
+      "to": [21.85, 0.2],
+      "h": 0.5
+    },
+    {
+      "type": "hop",
+      "take": 3664,
+      "land": 3696,
+      "from": [21.85, 0.2],
+      "to": [21.85, 0.2],
+      "h": 0.5
+    },
+    {
+      "type": "hop",
+      "take": 3712,
+      "land": 3744,
+      "from": [21.85, 0.2],
+      "to": [21.85, 0.2],
+      "h": 0.55
+    },
+    {
+      "type": "place",
+      "f": 3840,
+      "pos": [21.85, 0.2]
+    },
+    {
+      "type": "place",
+      "f": 4080,
+      "pos": [24.55, 0.2]
+    }
+  ],
+  "gaze": [
+    {
+      "f": 0,
+      "at": [0, 0.4, 3]
+    },
+    {
+      "f": 60,
+      "at": [0, 0.4, 3]
+    },
+    {
+      "f": 150,
+      "at": [0, 0.45, 3]
+    },
+    {
+      "f": 278,
+      "at": [0.55, 0.55, -0.1]
+    },
+    {
+      "f": 480,
+      "at": [0.55, 0.55, -0.1]
+    },
+    {
+      "f": 520,
+      "at": [2, 0.4, 3]
+    },
+    {
+      "f": 568,
+      "at": [3.2, 0.9, 0.2]
+    },
+    {
+      "f": 700,
+      "at": [1.5, 0.6, 0.5]
+    },
+    {
+      "f": 800,
+      "at": [3.2, 0.5, 0]
+    },
+    {
+      "f": 920,
+      "at": [4.4, 0.5, 0]
+    },
+    {
+      "f": 1040,
+      "at": [3.2, 0.5, 0]
+    },
+    {
+      "f": 1200,
+      "at": [4.4, 0.5, 0]
+    },
+    {
+      "f": 1360,
+      "at": [7.5, 0.3, 0]
+    },
+    {
+      "f": 1520,
+      "at": [6.6, 0.2, 0.35]
+    },
+    {
+      "f": 1720,
+      "at": [7.0, 0.2, 0.4]
+    },
+    {
+      "f": 1920,
+      "at": [10.9, 0.5, -0.4]
+    },
+    {
+      "f": 2040,
+      "at": [9.6, 0.4, 0]
+    },
+    {
+      "f": 2160,
+      "at": [12.7, 0.5, -0.2]
+    },
+    {
+      "f": 2320,
+      "at": [12.7, 0.55, -0.2]
+    },
+    {
+      "f": 2440,
+      "at": [12.9, 0.5, -0.2]
+    },
+    {
+      "f": 2560,
+      "at": [15.1, 0.4, 0]
+    },
+    {
+      "f": 2724,
+      "at": [14.9, 0.4, 0.15]
+    },
+    {
+      "f": 2880,
+      "at": [18.3, 0.5, 0.35]
+    },
+    {
+      "f": 3040,
+      "at": [17.0, 0.5, 0]
+    },
+    {
+      "f": 3160,
+      "at": [19.5, 0.5, -0.1]
+    },
+    {
+      "f": 3500,
+      "at": [19.5, 0.5, -0.1]
+    },
+    {
+      "f": 3600,
+      "at": [23.6, 0.4, -0.3]
+    },
+    {
+      "f": 3840,
+      "at": [23.6, 0.4, 3]
+    },
+    {
+      "f": 4080,
+      "at": [26.1, 0.55, -0.2]
+    },
+    {
+      "f": 4300,
+      "at": [25.6, 0.5, 3]
+    }
+  ],
+  "acts": {
+    "taps": [214, 2250, 3990],
+    "startles": [1206, 2476, 2650, 2692, 3400, 3470],
+    "cheers": [3616, 3084, 4216]
+  },
+  "hits": [
+    {
+      "event": "hopA_land",
+      "sound": "land",
+      "picture": 60,
+      "frame": 61
+    },
+    {
+      "event": "hopB_land",
+      "sound": "land",
+      "picture": 110,
+      "frame": 111
+    },
+    {
+      "event": "tap",
+      "sound": "tap",
+      "picture": 214,
+      "frame": 215
+    },
+    {
+      "event": "lawIn",
+      "sound": "paper",
+      "picture": 284,
+      "frame": 285
+    },
+    {
+      "event": "lawDone",
+      "sound": "chime",
+      "picture": 480,
+      "frame": 481
+    },
+    {
+      "event": "cardB_in",
+      "sound": "paper",
+      "picture": 524,
+      "frame": 525
+    },
+    {
+      "event": "machineOn",
+      "sound": "hum",
+      "picture": 568,
+      "frame": 569
+    },
+    {
+      "event": "hopC_land",
+      "sound": "land",
+      "picture": 574,
+      "frame": 575
+    },
+    {
+      "event": "hopL_land",
+      "sound": "land",
+      "picture": 700,
+      "frame": 701
+    },
+    {
+      "event": "leverPull",
+      "sound": "clack",
+      "picture": 704,
+      "frame": 705
+    },
+    {
+      "event": "hopL2_land",
+      "sound": "land",
+      "picture": 782,
+      "frame": 783
+    },
+    {
+      "event": "slideStart",
+      "sound": "whirr",
+      "picture": 812,
+      "frame": 813
+    },
+    {
+      "event": "proveStamp",
+      "sound": "stamp",
+      "picture": 940,
+      "frame": 941
+    },
+    {
+      "event": "cardB2_in",
+      "sound": "paper",
+      "picture": 1046,
+      "frame": 1047
+    },
+    {
+      "event": "failStamp",
+      "sound": "stampBad",
+      "picture": 1206,
+      "frame": 1207
+    },
+    {
+      "event": "startle_land",
+      "sound": "land",
+      "picture": 1238,
+      "frame": 1239
+    },
+    {
+      "event": "cardC_in",
+      "sound": "paper",
+      "picture": 1364,
+      "frame": 1365
+    },
+    {
+      "event": "hopCC_land",
+      "sound": "land",
+      "picture": 1410,
+      "frame": 1411
+    },
+    {
+      "event": "printStart",
+      "sound": "print",
+      "picture": 1536,
+      "frame": 1537
+    },
+    {
+      "event": "jumpC1_land",
+      "sound": "land",
+      "picture": 1590,
+      "frame": 1591
+    },
+    {
+      "event": "jumpC2_land",
+      "sound": "land",
+      "picture": 1630,
+      "frame": 1631
+    },
+    {
+      "event": "tick0",
+      "sound": "tick",
+      "picture": 1756,
+      "frame": 1757
+    },
+    {
+      "event": "tick1",
+      "sound": "tick",
+      "picture": 1772,
+      "frame": 1773
+    },
+    {
+      "event": "tick2",
+      "sound": "tick",
+      "picture": 1788,
+      "frame": 1789
+    },
+    {
+      "event": "tick3",
+      "sound": "tick",
+      "picture": 1804,
+      "frame": 1805
+    },
+    {
+      "event": "tick4",
+      "sound": "tick",
+      "picture": 1820,
+      "frame": 1821
+    },
+    {
+      "event": "tick5",
+      "sound": "tick",
+      "picture": 1836,
+      "frame": 1837
+    },
+    {
+      "event": "tick6",
+      "sound": "tick",
+      "picture": 1852,
+      "frame": 1853
+    },
+    {
+      "event": "tick7",
+      "sound": "tick",
+      "picture": 1868,
+      "frame": 1869
+    },
+    {
+      "event": "certStamp",
+      "sound": "stampCert",
+      "picture": 1888,
+      "frame": 1889
+    },
+    {
+      "event": "runStart",
+      "sound": "whirr",
+      "picture": 1928,
+      "frame": 1929
+    },
+    {
+      "event": "invOn",
+      "sound": "rise",
+      "picture": 2016,
+      "frame": 2017
+    },
+    {
+      "event": "certStampD",
+      "sound": "stampCert",
+      "picture": 2112,
+      "frame": 2113
+    },
+    {
+      "event": "lockClose",
+      "sound": "lock",
+      "picture": 2204,
+      "frame": 2205
+    },
+    {
+      "event": "tapE",
+      "sound": "tap",
+      "picture": 2250,
+      "frame": 2251
+    },
+    {
+      "event": "penStart",
+      "sound": "scribble",
+      "picture": 2338,
+      "frame": 2339
+    },
+    {
+      "event": "textSwap",
+      "sound": "tick",
+      "picture": 2372,
+      "frame": 2373
+    },
+    {
+      "event": "lockOpen",
+      "sound": "pop",
+      "picture": 2452,
+      "frame": 2453
+    },
+    {
+      "event": "tamperStamp",
+      "sound": "stampBad",
+      "picture": 2476,
+      "frame": 2477
+    },
+    {
+      "event": "startleE_land",
+      "sound": "land",
+      "picture": 2512,
+      "frame": 2513
+    },
+    {
+      "event": "hopF_land",
+      "sound": "land",
+      "picture": 2606,
+      "frame": 2607
+    },
+    {
+      "event": "bonkF1",
+      "sound": "bonk",
+      "picture": 2650,
+      "frame": 2651
+    },
+    {
+      "event": "bonkF2",
+      "sound": "bonk",
+      "picture": 2692,
+      "frame": 2693
+    },
+    {
+      "event": "proposeStamp",
+      "sound": "stampSoft",
+      "picture": 2760,
+      "frame": 2761
+    },
+    {
+      "event": "press",
+      "sound": "click",
+      "picture": 2976,
+      "frame": 2977
+    },
+    {
+      "event": "gateOpen",
+      "sound": "creak",
+      "picture": 3048,
+      "frame": 3049
+    },
+    {
+      "event": "cheerF1_land",
+      "sound": "land",
+      "picture": 3116,
+      "frame": 3117
+    },
+    {
+      "event": "cheerF2_land",
+      "sound": "land",
+      "picture": 3152,
+      "frame": 3153
+    },
+    {
+      "event": "hopG_land",
+      "sound": "land",
+      "picture": 3200,
+      "frame": 3201
+    },
+    {
+      "event": "boxLand",
+      "sound": "clink",
+      "picture": 3236,
+      "frame": 3237
+    },
+    {
+      "event": "bonkG1",
+      "sound": "bonk",
+      "picture": 3400,
+      "frame": 3401
+    },
+    {
+      "event": "bonkG2",
+      "sound": "bonk",
+      "picture": 3470,
+      "frame": 3471
+    },
+    {
+      "event": "passG",
+      "sound": "chime",
+      "picture": 3540,
+      "frame": 3541
+    },
+    {
+      "event": "hopH1_land",
+      "sound": "land",
+      "picture": 3648,
+      "frame": 3649
+    },
+    {
+      "event": "hopH2_land",
+      "sound": "land",
+      "picture": 3696,
+      "frame": 3697
+    },
+    {
+      "event": "hopH3_land",
+      "sound": "land",
+      "picture": 3744,
+      "frame": 3745
+    },
+    {
+      "event": "tapH",
+      "sound": "gavel",
+      "picture": 3990,
+      "frame": 3991
+    },
+    {
+      "event": "endIn",
+      "sound": "paper",
+      "picture": 4090,
+      "frame": 4091
+    },
+    {
+      "event": "endChime",
+      "sound": "chime",
+      "picture": 4216,
+      "frame": 4217
+    }
+  ],
+  "music": {
+    "bpm": 90,
+    "key": "F major",
+    "chords": ["F", "Dm", "Bb", "C"],
+    "outroFrame": 4300
+  }
+}

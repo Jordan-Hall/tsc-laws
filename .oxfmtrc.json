@@ -15,6 +15,7 @@
     "examples/*/node_modules/**",
     "**/*.laws.ts",
     "**/.tslaws/**",
-    "**/.tmp-*/**"
+    "**/.tmp-*/**",
+    "scripts/film/film.html"
   ]
 }
