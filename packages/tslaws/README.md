@@ -1,5 +1,11 @@
 # tslaws
 
+[![npm](https://img.shields.io/npm/v/tslaws)](https://www.npmjs.com/package/tslaws)
+[![CI](https://github.com/Jordan-Hall/tsc-laws/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Jordan-Hall/tsc-laws/actions/workflows/ci.yml)
+[![License](https://img.shields.io/github/license/Jordan-Hall/tsc-laws)](https://github.com/Jordan-Hall/tsc-laws/blob/main/LICENSE)
+[![tslaws](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FJordan-Hall%2Ftsc-laws%2Fmain%2Fdocs%2Fcertificates%2Fbadge-laws.json)](https://github.com/Jordan-Hall/tsc-laws/blob/main/docs/certificates/README.md)
+[![certificates](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FJordan-Hall%2Ftsc-laws%2Fmain%2Fdocs%2Fcertificates%2Fbadge-certificates.json)](https://github.com/Jordan-Hall/tsc-laws/blob/main/docs/certificates/README.md)
+
 ```sh
 npm i -D tslaws   # also installs the compiler for your platform (tslaws-compiler-<platform>)
 npx tslaws init

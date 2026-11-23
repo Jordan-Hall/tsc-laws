@@ -8,6 +8,10 @@
 // `generate` reads the demo's tsc-laws.lock (what `accept` wrote) and falls back to .tslaws/certificates.json (what `check`
 // wrote, and what `accept` copies after checking it). The report is the `check --json` run made before `accept`.
 //
+// Beside the page are the two shields.io endpoint badges the README shows (badge-laws.json and badge-certificates.json),
+// written by the same code as `tslaws badge` from the index. They are small and deterministic, so `check` compares them
+// exactly, with what the committed index and a fresh run give.
+//
 // Proofs can differ between runs in details that do not change what they prove (and the invariant Z3 finds for a loop can
 // too, which changes that law's problem, proof and hashes), so `check` does not compare them byte for byte. It compares what
 // the code determines: the laws and their source, whether each one is certified, the law's lock hash and the hash that
@@ -36,6 +40,9 @@ const tool = await import(pathToFileURL(join(root, 'packages/tslaws/dist/certifi
   () => undefined,
 );
 if (tool === undefined) fail('tslaws is not built yet: run `npm run build -w tslaws` first');
+const badge = await import(pathToFileURL(join(root, 'packages/tslaws/dist/badge.js')).href).catch(() => undefined);
+if (badge === undefined) fail('tslaws is not built yet: run `npm run build -w tslaws` first');
+const { badgeTexts, badgesOf } = badge;
 const { carcaraArgs, certificateName, cvc5ProofArgs, hashOf, rareDeclarations, rareRulesOf } = tool;
 
 function fail(message) {
@@ -293,6 +300,17 @@ function render(index, read) {
   }
 }
 
+/** The texts of the two badge files for an index: the laws proved, and the laws a checker certified. */
+const badgesOfIndex = (index) =>
+  badgeTexts(
+    badgesOf(
+      Object.values(index.laws).map((entry) => ({
+        proved: entry.outcome === 'proved',
+        certified: entry.files !== undefined,
+      })),
+    ),
+  );
+
 const filesOf = (dir) => new Set(existsSync(dir) ? readdirSync(dir) : []);
 
 async function generate({ report, demo = 'scripts/ci/certificates-demo', out = 'docs/certificates' }) {
@@ -315,6 +333,7 @@ async function generate({ report, demo = 'scripts/ci/certificates-demo', out = '
   });
   mkdirSync(outDir, { recursive: true });
   const keep = new Set(['README.md', 'index.json']);
+  const badges = badgesOfIndex({ laws: entries });
   const work = mkdtempSync(join(tmpdir(), 'certificate-docs-'));
   for (const [key, entry] of Object.entries(entries)) {
     if (entry.files === undefined) continue;
@@ -341,6 +360,7 @@ async function generate({ report, demo = 'scripts/ci/certificates-demo', out = '
     if (!keep.has(name) && /\.(smt2|alethe|horn|inv|rare)$/.test(name)) unlinkSync(join(outDir, name));
   const index = { demo: slash(demo), laws: entries };
   writeFileSync(join(outDir, 'index.json'), `${JSON.stringify(index, null, 2)}\n`);
+  for (const [name, text] of Object.entries(badges)) writeFileSync(join(outDir, name), text);
   writeFileSync(
     join(outDir, 'README.md'),
     render(index, (name) => readFileSync(join(outDir, name), 'utf8')),
@@ -414,6 +434,12 @@ function check({ fresh, docs = 'docs/certificates', recheck }) {
       if (hashOf(read(`${entry.files}.${ext}`)) !== entry.record[field])
         problems.push(`${key}: ${entry.files}.${ext} does not hash as ${field} in index.json says`);
   }
+  for (const [source, index] of [
+    ['index.json', committed],
+    ['a fresh run', current],
+  ])
+    for (const [name, text] of Object.entries(badgesOfIndex(index)))
+      if (!existsSync(join(docsDir, name)) || read(name) !== text) problems.push(`${name} is not what ${source} gives`);
   if (problems.length === 0) {
     if (!existsSync(join(docsDir, 'README.md')) || read('README.md') !== render(committed, read))
       problems.push('README.md is not what index.json renders to');

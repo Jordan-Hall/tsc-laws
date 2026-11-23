@@ -105,7 +105,8 @@ jobs:
         run: node bin/tslaws.js check laws/core.laws.ts --certify --summary
       # The committed gallery must still describe the demo: the same laws, sources and certified status, and the hashes the code
       # determines. Proofs are not compared byte for byte (see the top of the script); Carcara checks each committed proof.
-      # When this fails, copy the certificate-docs artifact of the run over docs/certificates and commit it.
+      # When this fails, copy the certificate-docs artifact of the run over docs/certificates and commit it. The gallery holds the
+      # two endpoint badges the README shows (badge-laws.json, badge-certificates.json); they are checked with the rest.
       - name: The certificate gallery is current
         if: always()
         run: node scripts/ci/certificates-docs.mjs check --fresh "$RUNNER_TEMP/certificate-docs" --recheck

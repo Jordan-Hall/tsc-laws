@@ -2,6 +2,12 @@
 
 <p align="center"><img src="docs/media/brand/logo-512.png" alt="tsc-laws" width="128" height="128"></p>
 
+[![npm](https://img.shields.io/npm/v/tslaws)](https://www.npmjs.com/package/tslaws)
+[![CI](https://github.com/Jordan-Hall/tsc-laws/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Jordan-Hall/tsc-laws/actions/workflows/ci.yml)
+[![License](https://img.shields.io/github/license/Jordan-Hall/tsc-laws)](https://github.com/Jordan-Hall/tsc-laws/blob/main/LICENSE)
+[![tslaws](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FJordan-Hall%2Ftsc-laws%2Fmain%2Fdocs%2Fcertificates%2Fbadge-laws.json)](https://github.com/Jordan-Hall/tsc-laws/blob/main/docs/certificates/README.md)
+[![certificates](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FJordan-Hall%2Ftsc-laws%2Fmain%2Fdocs%2Fcertificates%2Fbadge-certificates.json)](https://github.com/Jordan-Hall/tsc-laws/blob/main/docs/certificates/README.md)
+
 **Laws for TypeScript, checked the way Bend 2 checks its laws, without leaving TypeScript.**
 
 A person writes `law` declarations. A coding agent writes the code. One command, `tslaws check`, says whether the code
