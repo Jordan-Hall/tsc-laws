@@ -26,8 +26,6 @@ export interface BrowserConfig {
   headless?: boolean;
   viewport?: { width: number; height: number };
   colorScheme?: 'light' | 'dark' | 'no-preference';
-  /** Reuse Vite dev server middleware when present (`'auto'`, `true`, or `false`). */
-  vite?: boolean | 'auto';
   /** Run fast-check property loops inside the browser page to eliminate per-input IPC (default true). */
   inBrowser?: boolean;
   /** Record a Playwright trace into `.tslaws/traces/` when a browser law fails (default false). */
@@ -207,7 +205,7 @@ function checkFile(raw: unknown, source: string): Record<string, unknown> {
   if (object.browser !== undefined) {
     if (!isPlain(object.browser)) return fail('"browser" must be an object');
     const b = object.browser;
-    const allowed = ['isolation', 'headless', 'viewport', 'colorScheme', 'vite', 'inBrowser', 'traceOnFailure'];
+    const allowed = ['isolation', 'headless', 'viewport', 'colorScheme', 'inBrowser', 'traceOnFailure'];
     for (const key of Object.keys(b))
       if (!allowed.includes(key))
         fail(`"browser.${key}" is not supported; supported options are ${allowed.join(', ')}`);
@@ -218,8 +216,6 @@ function checkFile(raw: unknown, source: string): Record<string, unknown> {
       fail('"browser.inBrowser" must be true or false');
     if (b.traceOnFailure !== undefined && typeof b.traceOnFailure !== 'boolean')
       fail('"browser.traceOnFailure" must be true or false');
-    if (b.vite !== undefined && typeof b.vite !== 'boolean' && b.vite !== 'auto')
-      fail('"browser.vite" must be true, false or "auto"');
     if (
       b.colorScheme !== undefined &&
       b.colorScheme !== 'light' &&

@@ -64,14 +64,13 @@ function byName(results: LawResult[], name: string): LawResult {
 }
 
 describe('"browser" config validation', () => {
-  it('accepts valid browser options and rejects invalid ones', () => {
+  it('accepts valid browser options and rejects invalid ones (including vite)', () => {
     const ok = parseConfig({
       browser: {
         isolation: 'page',
         headless: true,
         viewport: { width: 1280, height: 800 },
         colorScheme: 'dark',
-        vite: 'auto',
         inBrowser: true,
         traceOnFailure: false,
       },
@@ -79,6 +78,7 @@ describe('"browser" config validation', () => {
     assert.equal(ok.browser?.isolation, 'page');
     assert.equal(ok.browser?.colorScheme, 'dark');
     assert.throws(() => parseConfig({ browser: { isolation: 'shadow' } }), /"browser\.isolation"/);
+    assert.throws(() => parseConfig({ browser: { vite: true } }), /"browser\.vite"/);
     assert.throws(() => parseConfig({ browser: { unknownKey: true } }), /"browser\.unknownKey"/);
     assert.throws(() => parseConfig({ browser: { viewport: { width: 0, height: 100 } } }), /"browser\.viewport"/);
   });
@@ -164,6 +164,57 @@ describe('next-gen browser runner', { skip: !hasBrowser() ? 'needs Chrome, Edge 
       'tested',
     );
     assert.equal(byName(report.results, 'mock intercepts fetch requests in browser laws').status, 'tested');
+    assert.equal(report.ok, true);
+  });
+
+  it('provides native Vitest-Browser-style page locators, chaining, userEvent, viewport and screenshots', async () => {
+    const opts = project('vitest-browser-api', {
+      'src/locators.browser.laws.ts': [
+        "import { law, type intRange } from 'tslaws';",
+        "import { mount, page, userEvent, waitFor } from 'tslaws/browser';",
+        "law('page locators chain, filter and drive trusted userEvent actions', async (n: intRange<1, 5>) => {",
+        '  mount(`',
+        '    <label for="item-name">Item name</label>',
+        '    <input id="item-name" placeholder="Add item" type="text" />',
+        '    <input id="agree" type="checkbox" aria-label="Agree" />',
+        '    <button type="button">Add item</button>',
+        '    <ul role="list">',
+        '      <li role="listitem"><span>Alpha</span><button type="button">Pick</button></li>',
+        '      <li role="listitem"><span>Beta</span><button type="button">Pick</button></li>',
+        '    </ul>',
+        '    <output data-testid="picked"></output>',
+        '  `);',
+        '  const out = document.querySelector("[data-testid=picked]")!;',
+        '  const input = document.querySelector("#item-name") as HTMLInputElement;',
+        '  let submitted = "";',
+        '  input.addEventListener("keydown", (e) => { if (e.key === "Enter") submitted = input.value; });',
+        '  document.querySelectorAll("li button").forEach((btn) => {',
+        '    btn.addEventListener("click", (e) => {',
+        '      if (e.isTrusted) out.textContent = btn.previousElementSibling!.textContent;',
+        '    });',
+        '  });',
+        '  const field = page.getByLabelText("Item name");',
+        '  await userEvent.fill(field, `task-${n}`);',
+        '  await userEvent.keyboard("{Enter}");',
+        '  const agree = page.getByRole("checkbox", { name: /agree/i });',
+        '  await userEvent.check(agree);',
+        '  const betaBtn = page.getByRole("listitem").filter({ hasText: "Beta" }).getByRole("button", { name: "Pick" });',
+        '  await betaBtn.click();',
+        '  await waitFor(async () => (await page.getByTestId("picked").textContent()) === "Beta");',
+        '  const checked = await agree.isChecked();',
+        '  const count = await page.getByRole("listitem").count();',
+        '  const el = await page.getByTestId("picked").element();',
+        '  await page.viewport(800, 600);',
+        '  const shot = await page.screenshot();',
+        '  return submitted === `task-${n}` && checked && count === 2 && el.textContent === "Beta" && window.innerWidth === 800 && shot.length > 100;',
+        '});',
+        '',
+      ].join('\n'),
+    });
+    const report = await check(opts, true);
+    assert.equal(report.compileDiagnostics, '');
+    const r = byName(report.results, 'page locators chain, filter and drive trusted userEvent actions');
+    assert.equal(r.status, 'tested', JSON.stringify(r));
     assert.equal(report.ok, true);
   });
 

@@ -1,10 +1,9 @@
 // Local HTTP ESM server for browser laws: gives every browser law a real `http://127.0.0.1:<port>` origin
 // (localStorage, History API, Cookies, WebCrypto, relative fetch, native ESM), caches esbuild bundles once per
-// `.browser.laws.ts` file instead of once per law, bundles a browser fast-check runner for zero-IPC in-browser
-// property testing, and optionally reuses a project's Vite dev server middleware when configured.
+// `.browser.laws.ts` file instead of once per law, and bundles a browser fast-check runner for zero-IPC in-browser
+// property testing. No external dev-server dependency (no Vite).
 import { existsSync, statSync } from 'node:fs';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
-import { createRequire } from 'node:module';
 import { extname, join, relative as pathRelative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build as bundleWith, type Plugin } from 'esbuild';
@@ -316,55 +315,11 @@ window.__tslawsMountFrame = (src) => new Promise((resolve, reject) => {
 </body>
 </html>`;
 
-interface ViteMiddlewareServer {
-  middlewares: (req: IncomingMessage, res: ServerResponse, next: () => void) => void;
-  close(): Promise<void>;
-}
-
-const viteServers = new Map<string, Promise<ViteMiddlewareServer | undefined>>();
-
-function hasViteConfig(cwd: string): boolean {
-  return ['vite.config.ts', 'vite.config.js', 'vite.config.mts', 'vite.config.mjs'].some((f) =>
-    existsSync(join(cwd, f)),
-  );
-}
-
-/** Starts Vite in middlewareMode for `cwd` when `vite` is requested/auto-detected and installed in the project. */
-async function viteFor(cwd: string, mode: boolean | 'auto' | undefined): Promise<ViteMiddlewareServer | undefined> {
-  if (mode === false || mode === undefined) return undefined;
-  if (mode === 'auto' && !hasViteConfig(cwd)) return undefined;
-  const root = resolve(cwd);
-  const existing = viteServers.get(root);
-  if (existing !== undefined) return existing;
-  const starting = (async (): Promise<ViteMiddlewareServer | undefined> => {
-    try {
-      const req = createRequire(join(root, 'package.json'));
-      const vite = req('vite') as {
-        createServer: (opts: Record<string, unknown>) => Promise<ViteMiddlewareServer>;
-      };
-      return await vite.createServer({
-        root,
-        appType: 'custom',
-        logLevel: 'silent',
-        server: { middlewareMode: true, hmr: false, watch: null },
-      });
-    } catch {
-      return undefined;
-    }
-  })();
-  viteServers.set(root, starting);
-  return starting;
-}
-
 let server: Server | undefined;
 let serverUrl: Promise<string> | undefined;
-let activeVite: ViteMiddlewareServer | undefined;
 
 /** Ensures the local HTTP server for browser laws is listening and returns its base URL (`http://127.0.0.1:<port>`). */
-export async function ensureBrowserServer(cwd?: string, viteMode?: boolean | 'auto'): Promise<string> {
-  if (cwd !== undefined && viteMode !== undefined && viteMode !== false) {
-    activeVite = await viteFor(cwd, viteMode);
-  }
+export async function ensureBrowserServer(): Promise<string> {
   if (serverUrl !== undefined) return serverUrl;
   serverUrl = new Promise<string>((resolveUrl, rejectUrl) => {
     const http = createServer((req, res) => {
@@ -444,12 +399,6 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       .end(bundle.js);
     return;
   }
-  if (activeVite !== undefined) {
-    activeVite.middlewares(req, res, () => {
-      if (!res.writableEnded) res.writeHead(404).end('not found');
-    });
-    return;
-  }
   // Ignore favicon requests silently so the console stays clean.
   if (extname(url.pathname) === '.ico') {
     res.writeHead(204).end();
@@ -458,23 +407,13 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
   res.writeHead(404).end('not found');
 }
 
-/** Stops the local browser HTTP server and any Vite middleware server. */
+/** Stops the local browser HTTP server. */
 export async function closeBrowserServer(): Promise<void> {
   const http = server;
   server = undefined;
   serverUrl = undefined;
-  activeVite = undefined;
   bundlesById.clear();
   bundleCache.clear();
-  const vites = [...viteServers.values()];
-  viteServers.clear();
-  for (const v of vites) {
-    try {
-      await (await v)?.close();
-    } catch {
-      // Already closed.
-    }
-  }
   if (http !== undefined) {
     await new Promise<void>((done) => http.close(() => done()));
   }

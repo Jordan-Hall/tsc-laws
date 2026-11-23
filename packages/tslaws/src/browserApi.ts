@@ -52,99 +52,527 @@ export function type(field: HTMLInputElement | HTMLTextAreaElement | HTMLSelectE
   fire(field, 'change');
 }
 
-// ---- Trusted Playwright-backed interactions & network mocking (via the browser bridge) ----
+// ---- Native Vitest-Browser-style `page`, `Locator`, `userEvent`, `waitFor`, and `mock` (via Playwright bridge) ----
+
+type WirePattern = string | { __re: true; source: string; flags: string };
+
+type LocatorStep =
+  | { k: 'css'; selector: string }
+  | { k: 'role'; role: string; options?: Record<string, unknown> }
+  | { k: 'text'; text: WirePattern; exact?: boolean }
+  | { k: 'label'; text: WirePattern; exact?: boolean }
+  | { k: 'placeholder'; text: WirePattern; exact?: boolean }
+  | { k: 'testId'; testId: string }
+  | { k: 'altText'; text: WirePattern; exact?: boolean }
+  | { k: 'title'; text: WirePattern; exact?: boolean }
+  | { k: 'first' }
+  | { k: 'last' }
+  | { k: 'nth'; index: number }
+  | {
+      k: 'filter';
+      hasText?: WirePattern;
+      hasNotText?: WirePattern;
+      has?: LocatorStep[];
+      hasNot?: LocatorStep[];
+    };
 
 interface BridgeCommand {
   action:
     | 'click'
     | 'dblClick'
+    | 'tripleClick'
     | 'hover'
+    | 'unhover'
     | 'focus'
     | 'fill'
+    | 'clear'
     | 'type'
     | 'press'
     | 'keyboard'
+    | 'tab'
     | 'select'
+    | 'check'
+    | 'uncheck'
+    | 'dragAndDrop'
     | 'setViewport'
-    | 'mock';
+    | 'screenshot'
+    | 'count'
+    | 'isVisible'
+    | 'isEnabled'
+    | 'isChecked'
+    | 'textContent'
+    | 'inputValue'
+    | 'getAttribute'
+    | 'waitFor'
+    | 'markElements'
+    | 'mock'
+    | 'resetMocks';
+  locator?: LocatorStep[];
+  targetLocator?: LocatorStep[];
   selector?: string;
   text?: string;
   key?: string;
+  name?: string;
   values?: string | string[];
+  shift?: boolean;
+  button?: 'left' | 'right' | 'middle';
+  force?: boolean;
   width?: number;
   height?: number;
+  path?: string;
+  fullPage?: boolean;
+  state?: 'visible' | 'hidden' | 'attached' | 'detached';
+  timeout?: number;
+  token?: string;
   urlPattern?: string;
   response?: MockResponse;
 }
 
-type BridgeFn = (command: BridgeCommand) => Promise<void>;
+type BridgeFn = (command: BridgeCommand) => Promise<unknown>;
 
 function bridge(): BridgeFn {
   const fn = (globalThis as { __tslawsBridge?: BridgeFn }).__tslawsBridge;
   if (typeof fn !== 'function')
-    throw new Error('trusted browser interactions (`user`, `mock`) require running inside `tslaws` browser runner');
+    throw new Error(
+      'trusted browser interactions (`page`, `userEvent`, `user`, `mock`) require running inside `tslaws` browser runner',
+    );
   return fn;
 }
 
+function wirePattern(text: string | RegExp): WirePattern {
+  return typeof text === 'string' ? text : { __re: true, source: text.source, flags: text.flags };
+}
+
+export interface LocatorRoleOptions {
+  name?: string | RegExp;
+  exact?: boolean;
+  checked?: boolean;
+  disabled?: boolean;
+  expanded?: boolean;
+  includeHidden?: boolean;
+  level?: number;
+  pressed?: boolean;
+  selected?: boolean;
+}
+
+export interface LocatorTextOptions {
+  exact?: boolean;
+}
+
+export interface LocatorFilterOptions {
+  hasText?: string | RegExp;
+  hasNotText?: string | RegExp;
+  has?: Locator;
+  hasNot?: Locator;
+}
+
+export interface ClickOptions {
+  button?: 'left' | 'right' | 'middle';
+  force?: boolean;
+}
+
+export interface WaitForLocatorOptions {
+  state?: 'visible' | 'hidden' | 'attached' | 'detached';
+  timeout?: number;
+}
+
+export interface ScreenshotOptions {
+  path?: string;
+  fullPage?: boolean;
+}
+
+export type InteractionTarget = Locator | Element | string;
+
 let targetSeq = 0;
 
-async function withSelector<T>(target: Element | string, run: (selector: string) => Promise<T>): Promise<T> {
-  if (typeof target === 'string') return run(target);
+async function withLocatorSteps<T>(target: InteractionTarget, run: (steps: LocatorStep[]) => Promise<T>): Promise<T> {
+  if (target instanceof Locator) return run(target.steps);
+  if (typeof target === 'string') return run([{ k: 'css', selector: target }]);
   const id = `t${++targetSeq}`;
   target.setAttribute('data-tslaws-uid', id);
   try {
-    return await run(`[data-tslaws-uid="${id}"]`);
+    return await run([{ k: 'css', selector: `[data-tslaws-uid="${id}"]` }]);
   } finally {
     target.removeAttribute('data-tslaws-uid');
   }
 }
 
 /**
- * Trusted browser interactions driven by Playwright (`isTrusted: true`, real hit-testing, `:hover`, `:focus-visible`,
- * native form controls and keyboard navigation), analogous to Vitest Browser Mode's `userEvent`.
+ * Chainable, auto-waiting Playwright-backed browser locator (`page.getByRole(...)`, `page.getByText(...)`, etc.),
+ * providing Vitest Browser Mode ergonomics natively inside `tslaws` with zero external runner or Vite dependency.
  */
-export const user = {
-  /** Performs a real pointer/mouse click with hit-testing and focus. */
-  click(target: Element | string): Promise<void> {
-    return withSelector(target, (selector) => bridge()({ action: 'click', selector }));
+export class Locator {
+  readonly steps: LocatorStep[];
+
+  constructor(steps: LocatorStep[]) {
+    this.steps = steps;
+  }
+
+  private next(step: LocatorStep): Locator {
+    return new Locator([...this.steps, step]);
+  }
+
+  getByRole(role: string, options?: LocatorRoleOptions): Locator {
+    const wire =
+      options === undefined
+        ? undefined
+        : {
+            ...options,
+            ...(options.name === undefined ? {} : { name: wirePattern(options.name) }),
+          };
+    return this.next({ k: 'role', role, ...(wire === undefined ? {} : { options: wire }) });
+  }
+
+  getByText(text: string | RegExp, options?: LocatorTextOptions): Locator {
+    return this.next({ k: 'text', text: wirePattern(text), exact: options?.exact });
+  }
+
+  getByLabelText(text: string | RegExp, options?: LocatorTextOptions): Locator {
+    return this.next({ k: 'label', text: wirePattern(text), exact: options?.exact });
+  }
+
+  getByPlaceholder(text: string | RegExp, options?: LocatorTextOptions): Locator {
+    return this.next({ k: 'placeholder', text: wirePattern(text), exact: options?.exact });
+  }
+
+  getByTestId(testId: string): Locator {
+    return this.next({ k: 'testId', testId });
+  }
+
+  getByAltText(text: string | RegExp, options?: LocatorTextOptions): Locator {
+    return this.next({ k: 'altText', text: wirePattern(text), exact: options?.exact });
+  }
+
+  getByTitle(text: string | RegExp, options?: LocatorTextOptions): Locator {
+    return this.next({ k: 'title', text: wirePattern(text), exact: options?.exact });
+  }
+
+  locator(selector: string): Locator {
+    return this.next({ k: 'css', selector });
+  }
+
+  first(): Locator {
+    return this.next({ k: 'first' });
+  }
+
+  last(): Locator {
+    return this.next({ k: 'last' });
+  }
+
+  nth(index: number): Locator {
+    return this.next({ k: 'nth', index });
+  }
+
+  filter(options: LocatorFilterOptions): Locator {
+    return this.next({
+      k: 'filter',
+      ...(options.hasText === undefined ? {} : { hasText: wirePattern(options.hasText) }),
+      ...(options.hasNotText === undefined ? {} : { hasNotText: wirePattern(options.hasNotText) }),
+      ...(options.has === undefined ? {} : { has: options.has.steps }),
+      ...(options.hasNot === undefined ? {} : { hasNot: options.hasNot.steps }),
+    });
+  }
+
+  async click(options?: ClickOptions): Promise<void> {
+    await bridge()({ action: 'click', locator: this.steps, button: options?.button, force: options?.force });
+  }
+
+  async dblClick(options?: ClickOptions): Promise<void> {
+    await bridge()({ action: 'dblClick', locator: this.steps, button: options?.button, force: options?.force });
+  }
+
+  async tripleClick(options?: ClickOptions): Promise<void> {
+    await bridge()({ action: 'tripleClick', locator: this.steps, button: options?.button, force: options?.force });
+  }
+
+  async hover(options?: { force?: boolean }): Promise<void> {
+    await bridge()({ action: 'hover', locator: this.steps, force: options?.force });
+  }
+
+  async unhover(): Promise<void> {
+    await bridge()({ action: 'unhover' });
+  }
+
+  async focus(): Promise<void> {
+    await bridge()({ action: 'focus', locator: this.steps });
+  }
+
+  async fill(value: string): Promise<void> {
+    await bridge()({ action: 'fill', locator: this.steps, text: value });
+  }
+
+  async clear(): Promise<void> {
+    await bridge()({ action: 'clear', locator: this.steps });
+  }
+
+  async type(value: string): Promise<void> {
+    await bridge()({ action: 'type', locator: this.steps, text: value });
+  }
+
+  async press(key: string): Promise<void> {
+    await bridge()({ action: 'press', locator: this.steps, key });
+  }
+
+  async selectOptions(values: string | string[]): Promise<void> {
+    await bridge()({ action: 'select', locator: this.steps, values });
+  }
+
+  async check(options?: { force?: boolean }): Promise<void> {
+    await bridge()({ action: 'check', locator: this.steps, force: options?.force });
+  }
+
+  async uncheck(options?: { force?: boolean }): Promise<void> {
+    await bridge()({ action: 'uncheck', locator: this.steps, force: options?.force });
+  }
+
+  async dropTo(target: InteractionTarget): Promise<void> {
+    await withLocatorSteps(target, async (targetLocator) => {
+      await bridge()({ action: 'dragAndDrop', locator: this.steps, targetLocator });
+    });
+  }
+
+  async screenshot(options?: { path?: string }): Promise<string> {
+    return (await bridge()({ action: 'screenshot', locator: this.steps, path: options?.path })) as string;
+  }
+
+  async count(): Promise<number> {
+    return (await bridge()({ action: 'count', locator: this.steps })) as number;
+  }
+
+  async isVisible(): Promise<boolean> {
+    return (await bridge()({ action: 'isVisible', locator: this.steps })) as boolean;
+  }
+
+  async isEnabled(): Promise<boolean> {
+    return (await bridge()({ action: 'isEnabled', locator: this.steps })) as boolean;
+  }
+
+  async isChecked(): Promise<boolean> {
+    return (await bridge()({ action: 'isChecked', locator: this.steps })) as boolean;
+  }
+
+  async textContent(): Promise<string | null> {
+    return (await bridge()({ action: 'textContent', locator: this.steps })) as string | null;
+  }
+
+  async inputValue(): Promise<string> {
+    return (await bridge()({ action: 'inputValue', locator: this.steps })) as string;
+  }
+
+  async getAttribute(name: string): Promise<string | null> {
+    return (await bridge()({ action: 'getAttribute', locator: this.steps, name })) as string | null;
+  }
+
+  async waitFor(options?: WaitForLocatorOptions): Promise<void> {
+    await bridge()({ action: 'waitFor', locator: this.steps, state: options?.state, timeout: options?.timeout });
+  }
+
+  /** Returns all currently matching live DOM elements in the page. */
+  async elements(): Promise<Element[]> {
+    const token = `f${++targetSeq}`;
+    await bridge()({ action: 'markElements', locator: this.steps, token });
+    const found = [...document.querySelectorAll(`[data-tslaws-found^="${token}:"]`)];
+    for (const el of found) el.removeAttribute('data-tslaws-found');
+    return found;
+  }
+
+  /** Returns the single matching DOM element, or `null` if none matched (throws if multiple match). */
+  async query(): Promise<Element | null> {
+    const found = await this.elements();
+    if (found.length > 1)
+      throw new Error(`locator matched ${found.length} elements; narrow it with .first() or .nth()`);
+    return found[0] ?? null;
+  }
+
+  /** Returns the single matching DOM element, throwing if zero or multiple elements match. */
+  async element(): Promise<Element> {
+    const found = await this.elements();
+    if (found.length === 0) throw new Error('locator matched no elements');
+    if (found.length > 1)
+      throw new Error(`locator matched ${found.length} elements; narrow it with .first() or .nth()`);
+    return found[0]!;
+  }
+}
+
+const rootLocator = new Locator([]);
+
+/**
+ * Native Vitest-Browser-style `page` API backed directly by Playwright: auto-retrying accessible locators
+ * (`getByRole`, `getByText`, `getByLabelText`, `getByPlaceholder`, `getByTestId`, `getByAltText`, `getByTitle`,
+ * `locator`), viewport resizing, and page screenshots.
+ */
+export const page = {
+  getByRole(role: string, options?: LocatorRoleOptions): Locator {
+    return rootLocator.getByRole(role, options);
   },
-  /** Performs a real double click. */
-  dblClick(target: Element | string): Promise<void> {
-    return withSelector(target, (selector) => bridge()({ action: 'dblClick', selector }));
+  getByText(text: string | RegExp, options?: LocatorTextOptions): Locator {
+    return rootLocator.getByText(text, options);
   },
-  /** Moves the real pointer over `target`, triggering `:hover` and pointer events. */
-  hover(target: Element | string): Promise<void> {
-    return withSelector(target, (selector) => bridge()({ action: 'hover', selector }));
+  getByLabelText(text: string | RegExp, options?: LocatorTextOptions): Locator {
+    return rootLocator.getByLabelText(text, options);
   },
-  /** Focuses `target` through the browser engine. */
-  focus(target: Element | string): Promise<void> {
-    return withSelector(target, (selector) => bridge()({ action: 'focus', selector }));
+  getByPlaceholder(text: string | RegExp, options?: LocatorTextOptions): Locator {
+    return rootLocator.getByPlaceholder(text, options);
   },
-  /** Clears and fills an input/textarea with real browser input events. */
-  fill(target: Element | string, value: string): Promise<void> {
-    return withSelector(target, (selector) => bridge()({ action: 'fill', selector, text: value }));
+  getByTestId(testId: string): Locator {
+    return rootLocator.getByTestId(testId);
   },
-  /** Types `value` keystroke by keystroke into `target`. */
-  type(target: Element | string, value: string): Promise<void> {
-    return withSelector(target, (selector) => bridge()({ action: 'type', selector, text: value }));
+  getByAltText(text: string | RegExp, options?: LocatorTextOptions): Locator {
+    return rootLocator.getByAltText(text, options);
   },
-  /** Presses a keyboard key (for example `'Enter'`, `'Escape'`, `'Tab'`, `'ArrowDown'`). */
-  press(key: string): Promise<void> {
-    return bridge()({ action: 'press', key });
+  getByTitle(text: string | RegExp, options?: LocatorTextOptions): Locator {
+    return rootLocator.getByTitle(text, options);
   },
-  /** Types raw text through the browser keyboard. */
-  keyboard(keys: string): Promise<void> {
-    return bridge()({ action: 'keyboard', text: keys });
+  locator(selector: string): Locator {
+    return rootLocator.locator(selector);
   },
-  /** Selects one or more `<option>` values on a `<select>` element. */
-  select(target: Element | string, values: string | string[]): Promise<void> {
-    return withSelector(target, (selector) => bridge()({ action: 'select', selector, values }));
+  /** Wraps a live DOM element in a Playwright-backed `Locator`. */
+  elementLocator(el: Element): Locator {
+    let id = el.getAttribute('data-tslaws-uid');
+    if (id === null) {
+      id = `e${++targetSeq}`;
+      el.setAttribute('data-tslaws-uid', id);
+      registry().push(() => el.removeAttribute('data-tslaws-uid'));
+    }
+    return new Locator([{ k: 'css', selector: `[data-tslaws-uid="${id}"]` }]);
   },
   /** Resizes the browser viewport (for responsive layout and media-query laws). */
-  setViewport(width: number, height: number): Promise<void> {
-    return bridge()({ action: 'setViewport', width, height });
+  async viewport(width: number, height: number): Promise<void> {
+    await bridge()({ action: 'setViewport', width, height });
+  },
+  /** Takes a real Playwright PNG screenshot of the page (returns base64, and writes to `path` if provided). */
+  async screenshot(options?: ScreenshotOptions): Promise<string> {
+    return (await bridge()({ action: 'screenshot', path: options?.path, fullPage: options?.fullPage })) as string;
   },
 };
+
+/**
+ * Trusted browser interactions driven by Playwright (`isTrusted: true`, real hit-testing, `:hover`, `:focus-visible`,
+ * native form controls, keyboard navigation, and drag-and-drop), matching Vitest Browser Mode's `userEvent`.
+ */
+export const userEvent = {
+  /** Performs a real pointer/mouse click with hit-testing and focus. */
+  async click(target: InteractionTarget, options?: ClickOptions): Promise<void> {
+    await withLocatorSteps(target, async (locator) => {
+      await bridge()({ action: 'click', locator, button: options?.button, force: options?.force });
+    });
+  },
+  /** Performs a real double click. */
+  async dblClick(target: InteractionTarget, options?: ClickOptions): Promise<void> {
+    await withLocatorSteps(target, async (locator) => {
+      await bridge()({ action: 'dblClick', locator, button: options?.button, force: options?.force });
+    });
+  },
+  /** Performs a real triple click. */
+  async tripleClick(target: InteractionTarget, options?: ClickOptions): Promise<void> {
+    await withLocatorSteps(target, async (locator) => {
+      await bridge()({ action: 'tripleClick', locator, button: options?.button, force: options?.force });
+    });
+  },
+  /** Moves the real pointer over `target`, triggering `:hover` and pointer events. */
+  async hover(target: InteractionTarget, options?: { force?: boolean }): Promise<void> {
+    await withLocatorSteps(target, async (locator) => {
+      await bridge()({ action: 'hover', locator, force: options?.force });
+    });
+  },
+  /** Moves the pointer away from the hovered element. */
+  async unhover(): Promise<void> {
+    await bridge()({ action: 'unhover' });
+  },
+  /** Focuses `target` through the browser engine. */
+  async focus(target: InteractionTarget): Promise<void> {
+    await withLocatorSteps(target, async (locator) => {
+      await bridge()({ action: 'focus', locator });
+    });
+  },
+  /** Clears and fills an input/textarea with real browser input events. */
+  async fill(target: InteractionTarget, value: string): Promise<void> {
+    await withLocatorSteps(target, async (locator) => {
+      await bridge()({ action: 'fill', locator, text: value });
+    });
+  },
+  /** Clears an input/textarea value. */
+  async clear(target: InteractionTarget): Promise<void> {
+    await withLocatorSteps(target, async (locator) => {
+      await bridge()({ action: 'clear', locator });
+    });
+  },
+  /** Types `value` keystroke by keystroke into `target`. */
+  async type(target: InteractionTarget, value: string): Promise<void> {
+    await withLocatorSteps(target, async (locator) => {
+      await bridge()({ action: 'type', locator, text: value });
+    });
+  },
+  /** Presses a keyboard key (for example `'Enter'`, `'Escape'`, `'Tab'`, `'ArrowDown'`). */
+  async press(key: string): Promise<void> {
+    await bridge()({ action: 'press', key });
+  },
+  /** Types text and special key sequences (e.g. `'hello{Enter}'`, `'{Shift>}a{/Shift}'`) through the browser keyboard. */
+  async keyboard(keys: string): Promise<void> {
+    await bridge()({ action: 'keyboard', text: keys });
+  },
+  /** Moves focus via the Tab key (`{ shift: true }` for Shift+Tab). */
+  async tab(options?: { shift?: boolean }): Promise<void> {
+    await bridge()({ action: 'tab', shift: options?.shift });
+  },
+  /** Selects one or more `<option>` values on a `<select>` element. */
+  async selectOptions(target: InteractionTarget, values: string | string[]): Promise<void> {
+    await withLocatorSteps(target, async (locator) => {
+      await bridge()({ action: 'select', locator, values });
+    });
+  },
+  /** Checks a checkbox or radio control. */
+  async check(target: InteractionTarget, options?: { force?: boolean }): Promise<void> {
+    await withLocatorSteps(target, async (locator) => {
+      await bridge()({ action: 'check', locator, force: options?.force });
+    });
+  },
+  /** Unchecks a checkbox control. */
+  async uncheck(target: InteractionTarget, options?: { force?: boolean }): Promise<void> {
+    await withLocatorSteps(target, async (locator) => {
+      await bridge()({ action: 'uncheck', locator, force: options?.force });
+    });
+  },
+  /** Drags `source` onto `target` with real browser pointer/drag events. */
+  async dragAndDrop(source: InteractionTarget, target: InteractionTarget): Promise<void> {
+    await withLocatorSteps(source, async (locator) => {
+      await withLocatorSteps(target, async (targetLocator) => {
+        await bridge()({ action: 'dragAndDrop', locator, targetLocator });
+      });
+    });
+  },
+};
+
+/** Backwards-compatible alias for `userEvent`, also exposing `select` and `setViewport`. */
+export const user = {
+  ...userEvent,
+  select: userEvent.selectOptions,
+  setViewport: page.viewport,
+};
+
+/** Polls `predicate` until it returns a truthy value (or non-throwing result), failing after `timeout` ms. */
+export async function waitFor<T>(
+  predicate: () => T | Promise<T>,
+  options: { timeout?: number; interval?: number } = {},
+): Promise<T> {
+  const timeout = options.timeout ?? 5000;
+  const interval = options.interval ?? 50;
+  const deadline = Date.now() + timeout;
+  let lastError: unknown;
+  for (;;) {
+    try {
+      const value = await predicate();
+      if (value !== false && value !== null && value !== undefined) return value;
+    } catch (error) {
+      lastError = error;
+    }
+    if (Date.now() >= deadline) {
+      if (lastError !== undefined) throw lastError;
+      throw new Error(`waitFor timed out after ${timeout}ms`);
+    }
+    await new Promise<void>((done) => setTimeout(done, interval));
+  }
+}
 
 export interface MockResponse {
   status?: number;
@@ -158,8 +586,13 @@ export interface MockResponse {
  * Intercepts network requests matching `urlPattern` (e.g. `'**\/api\/user'`) in this browser law via Playwright routing,
  * returning `response`. Automatically cleared after each law input.
  */
-export function mock(urlPattern: string, response: MockResponse): Promise<void> {
-  return bridge()({ action: 'mock', urlPattern, response });
+export async function mock(urlPattern: string, response: MockResponse): Promise<void> {
+  await bridge()({ action: 'mock', urlPattern, response });
+}
+
+/** Clears all active `mock()` network routes for the current law run. */
+export async function clearMocks(): Promise<void> {
+  await bridge()({ action: 'resetMocks' });
 }
 
 export interface A11yViolation {

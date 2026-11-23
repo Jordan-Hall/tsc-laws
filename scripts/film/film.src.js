@@ -1358,21 +1358,21 @@ function updateJ(f) {
   }
 }
 
-// Station 8: next-gen browser runner — parallel top-level pages, trusted clicks, mocked routes, Vite middleware.
+// Station 8: next-gen browser runner — parallel top-level pages, native Vitest-style locators, trusted clicks, mocked routes.
 const sK = stations[8];
 const winSpecs = [
   {
     name: 'winPage',
     title: 'top-level page',
     url: 'http://127.0.0.1:4173',
-    lines: ['window.top === self', 'localStorage & History', 'Vite middlewareMode'],
+    lines: ['window.top === self', 'page.getByRole()', 'localStorage & History'],
     accent: PAL.steel,
     ev: 'winIn0',
     x: -0.32,
   },
   {
     name: 'winUser',
-    title: 'user.click()',
+    title: 'userEvent.click()',
     url: 'http://127.0.0.1:4173',
     lines: ['Playwright trusted input', 'event.isTrusted === true', 'parallel BrowserContext'],
     accent: PAL.burnt,
