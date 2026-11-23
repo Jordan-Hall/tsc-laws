@@ -63,6 +63,8 @@ jobs:
       - run: npm run lint
       - name: Check release notes
         run: node scripts/release-notes.mjs
+      - name: Check the package README
+        run: node scripts/ci/package-readme.mjs
 
   build:
     name: build
