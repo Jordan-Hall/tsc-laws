@@ -142,3 +142,29 @@ test('the stream parser passes the project tag of a root run on, and leaves sing
     ],
   );
 });
+
+test('lowercase Windows drive letters from VS Code URIs are normalised to uppercase', () => {
+  const files = {
+    'D:\\dev\\repo\\tslaws.json': JSON.stringify({ projects: ['packages/*'] }),
+    'D:\\dev\\repo\\packages\\ui\\tslaws.json': '{}',
+  };
+  const winIo = {
+    path: path.win32,
+    fs: {
+      existsSync: (p) => Object.hasOwn(files, p),
+      readFileSync: (p) => files[p],
+    },
+  };
+  const found = locate('d:\\dev\\repo\\packages\\ui\\src\\index.ts', ['d:\\dev\\repo'], winIo);
+  assert.deepEqual(found, {
+    dir: 'D:\\dev\\repo\\packages\\ui',
+    folder: 'D:\\dev\\repo',
+    kind: 'project',
+  });
+  const root = locateIn('d:\\dev\\repo', ['d:\\dev\\repo'], winIo);
+  assert.deepEqual(root, {
+    dir: 'D:\\dev\\repo',
+    folder: 'D:\\dev\\repo',
+    kind: 'root',
+  });
+});

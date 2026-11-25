@@ -101,7 +101,7 @@ const slash = (path: string): string => path.replaceAll('\\', '/');
 
 const realOf = (path: string): string => {
   try {
-    return realpathSync(path);
+    return realpathSync.native(path);
   } catch {
     return path;
   }

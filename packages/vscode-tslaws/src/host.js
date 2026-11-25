@@ -57,14 +57,30 @@ function activateExtension(vscode, context, io) {
   const supportCache = new Map();
   const shadows = new Map();
 
+  const canonicalPath = (p) => {
+    const normalised = nodePath.normalize(p).replace(/[\\/]+$/, '');
+    if (/^[a-zA-Z]:/.test(normalised)) {
+      try {
+        const real = fs.realpathSync?.native?.(normalised);
+        if (typeof real === 'string' && real.toLowerCase() === normalised.toLowerCase()) return real;
+      } catch {
+        // Fall back to uppercasing the drive letter when the path cannot be resolved.
+      }
+      return normalised.replace(/^[a-z](?=:)/, (drive) => drive.toUpperCase());
+    }
+    return normalised;
+  };
+  const stateKey = (dir) => (dir === '' ? '' : canonicalPath(dir));
+
   // Everything the editor shows belongs to one project (the nearest tslaws.json above a file). Each project has its own
   // state; `project` is the one the open file is in, and the views, the status bar and the commands follow it. A run
   // keeps the state it started with, so switching files while it goes cannot mix two projects' results.
-  const folders = () => (vscode.workspace.workspaceFolders ?? []).map((f) => f.uri.fsPath);
+  const folders = () => (vscode.workspace.workspaceFolders ?? []).map((f) => canonicalPath(f.uri.fsPath));
   const projectIo = { fs, path: nodePath };
   const states = new Map();
   const stateOf = (dir) => {
-    let st = states.get(dir);
+    const k = stateKey(dir);
+    let st = states.get(k);
     if (st === undefined) {
       const ranAt = new Map();
       st = {
@@ -85,11 +101,11 @@ function activateExtension(vscode, context, io) {
         cacheLoaded: false,
         listLoaded: false,
       };
-      states.set(dir, st);
+      states.set(k, st);
     }
     return st;
   };
-  const forFile = (file) => locate(file, folders(), projectIo);
+  const forFile = (file) => locate(canonicalPath(file), folders(), projectIo);
   /** The project of the file in the editor, else of the first workspace folder. */
   let project = (() => {
     const open = vscode.window.activeTextEditor?.document.uri;
@@ -756,8 +772,11 @@ function activateExtension(vscode, context, io) {
       // An older tslaws, or none yet: look for the conventional names, in this project and not in those nested in it.
       const found = await vscode.workspace.findFiles('**/*.laws.ts', '**/{node_modules,.tslaws}/**');
       st.lawFiles = found
-        .map((u) => u.fsPath)
-        .filter((file) => forFile(file)?.dir === owner.dir)
+        .map((u) => canonicalPath(u.fsPath))
+        .filter((file) => {
+          const fileOwner = forFile(file);
+          return fileOwner !== undefined && samePath(fileOwner.dir, owner.dir);
+        })
         .map((file) => relativeTo(file, owner.dir));
       st.listed = new Map(st.lawFiles.map((f) => [f, fromName(f)]));
     }
@@ -795,7 +814,7 @@ function activateExtension(vscode, context, io) {
 
   /** Make `next` the project the views and commands follow (the open file moved into it). */
   const adopt = (next) => {
-    if (next === undefined || (project !== undefined && next.dir === project.dir)) return;
+    if (next === undefined || (project !== undefined && samePath(next.dir, project.dir))) return;
     project = next;
     cur = stateOf(next.dir);
     loadReport(next.dir);
@@ -823,6 +842,7 @@ function activateExtension(vscode, context, io) {
   // The "laws" globs of tslaws.json decide which other files are laws files, and proposals show a badge too.
   const configWatcher = vscode.workspace.createFileSystemWatcher('**/tslaws.json');
   const proposalWatcher = vscode.workspace.createFileSystemWatcher('**/.tslaws/proposals/*.ts');
+  const lockWatcher = vscode.workspace.createFileSystemWatcher('**/tsc-laws.lock');
 
   context.subscriptions.push(
     output,
@@ -836,6 +856,7 @@ function activateExtension(vscode, context, io) {
     watcher,
     configWatcher,
     proposalWatcher,
+    lockWatcher,
     decorations,
     vscode.window.registerFileDecorationProvider(decorationProvider),
     configWatcher.onDidChange(() => void refreshLawFiles()),
@@ -843,6 +864,9 @@ function activateExtension(vscode, context, io) {
     configWatcher.onDidDelete(() => void refreshLawFiles()),
     proposalWatcher.onDidCreate(() => void refreshLawFiles()),
     proposalWatcher.onDidDelete(() => void refreshLawFiles()),
+    lockWatcher.onDidChange(() => void refreshLawFiles()),
+    lockWatcher.onDidCreate(() => void refreshLawFiles()),
+    lockWatcher.onDidDelete(() => void refreshLawFiles()),
     watcher.onDidCreate(() => void refreshLawFiles()),
     watcher.onDidDelete(() => void refreshLawFiles()),
     vscode.commands.registerCommand('tslaws.check', () =>

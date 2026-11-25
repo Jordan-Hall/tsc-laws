@@ -167,7 +167,7 @@ export function makeFake({ root, roots, settings = {}, trusted = true, lawFiles 
   const opened = [];
   const output = [];
   const docs = [];
-  const watchers = { create: event(), delete: event() };
+  const watchers = { create: event(), delete: event(), change: event() };
   const events = { change: event(), save: event(), config: event(), editors: event(), active: event() };
   const controllers = [];
   const cfg = { ...settings };
@@ -286,7 +286,7 @@ export function makeFake({ root, roots, settings = {}, trusted = true, lawFiles 
       createFileSystemWatcher: () => ({
         onDidCreate: watchers.create.on,
         onDidDelete: watchers.delete.on,
-        onDidChange: () => ({ dispose() {} }),
+        onDidChange: watchers.change.on,
         dispose() {},
       }),
       openTextDocument: async (uri) => makeDoc(uri.fsPath),

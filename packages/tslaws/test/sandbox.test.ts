@@ -11,7 +11,16 @@ import { dirname, join, parse } from 'node:path';
 import { after, before, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { check } from '../dist/check.js';
-import { grantOutside, hostConfig, permissionFlag, readOutcome, sandboxFlags, useSandbox } from '../dist/sandbox.js';
+import { canonicalCwd } from '../dist/canonicalPath.js';
+import {
+  grantOutside,
+  hostConfig,
+  permissionFlag,
+  readableBy,
+  readOutcome,
+  sandboxFlags,
+  useSandbox,
+} from '../dist/sandbox.js';
 import type { CheckOptions, LawResult } from '../dist/types.js';
 
 const compiler = process.env.TSC_LAWS_BIN;
@@ -863,4 +872,26 @@ describe('reads outside the project', { skip: compiler === undefined ? 'set TSC_
     const { granted, refused } = grant(cwd, [ok, linked]);
     assert.deepEqual([granted, refused], [[ok], [linked]]);
   });
+
+  it(
+    'canonicalises a lowercase Windows drive letter in cwd, readableBy, hostConfig and check',
+    { skip: process.platform !== 'win32' ? 'Windows drive-letter casing only' : false },
+    async () => {
+      const cwd = project('win-drive-case', {
+        'src/a.ts': 'export const inc = (n: number): number => n + 1;\n',
+        'src/a.laws.ts':
+          "import { inc } from './a';\nexport law incAddsOne(n: number) {\n  return inc(n) === n + 1;\n}\n",
+      });
+      const canonical = canonicalCwd(cwd);
+      const lower = canonical.replace(/^[A-Z](?=:)/, (drive) => drive.toLowerCase());
+      assert.notEqual(lower, canonical);
+      assert.equal(canonicalCwd(lower), canonical);
+      assert.ok(readableBy(lower).includes(canonical), 'readableBy uses canonical casing');
+      const cfg = hostConfig(lower, ['src/a.laws.ts'], join(canonical, '.tslaws', 'out'), []);
+      assert.deepEqual(cfg.outside, []);
+      const report = await check(options(lower, ['src/a.laws.ts']), false);
+      assert.equal(report.ok, true, JSON.stringify(report));
+      assert.equal(only(report.results).status, 'tested');
+    },
+  );
 });

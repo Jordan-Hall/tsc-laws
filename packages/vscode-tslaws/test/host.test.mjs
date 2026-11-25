@@ -1127,3 +1127,54 @@ test('an untrusted workspace never runs tslaws list, and still finds the convent
   assert.equal(s.fake.fileDecorators[0].provideFileDecoration(uri).badge, 'N');
   s.finish();
 });
+
+test('a tsc-laws.lock change refreshes the law list', async () => {
+  const s = scenario({ answer: emitAll([provedResult('totalNeverNegative', 3)], 0) });
+  await until(() => s.lists.length >= 1, 'initial list');
+  const before = s.lists.length;
+  s.fake.watchers.change.fire(s.fake.vscode.Uri.file(s.abs('tsc-laws.lock')));
+  await until(() => s.lists.length > before, 'list after lock change');
+  s.finish();
+});
+
+test(
+  'spawns tslaws with canonical uppercase Windows drive letter when workspace folder uses lowercase',
+  { skip: process.platform !== 'win32' ? 'Windows drive-letter casing only' : false },
+  async () => {
+    const s = scenario({ answer: emitAll([provedResult('totalNeverNegative', 3)], 0) });
+    try {
+      const canonical = fs.realpathSync.native(s.root);
+      const lower = canonical.replace(/^[A-Z](?=:)/, (drive) => drive.toLowerCase());
+      assert.notEqual(lower, canonical);
+      const lowerFake = makeFake({
+        root: lower,
+        settings: { debounceMs: 100 },
+        trusted: true,
+        lawFiles: [path.join(lower, 'src/cart.laws.ts')],
+      });
+      lowerFake.vscode.workspace.workspaceFolders = [{ uri: { fsPath: lower, scheme: 'file' } }];
+      const calls = [];
+      const { spawn } = makeSpawn((call) => {
+        calls.push(call);
+        if (call.args.includes('--help')) {
+          call.child.stdout.emit('data', HELP);
+          return call.child.emit('close', 0);
+        }
+        if (call.args.includes('list')) {
+          call.child.stdout.emit('data', JSON.stringify({ files: [] }));
+          return call.child.emit('close', 0);
+        }
+        emitAll([provedResult('totalNeverNegative', 3)], 0)(call);
+      });
+      const ctx = { subscriptions: [] };
+      const api = activateExtension(lowerFake.vscode, ctx, { spawn, fs });
+      await until(() => calls.length >= 1, 'initial spawn');
+      await api.launch({ files: null }).done;
+      assert.ok(calls.length >= 2);
+      for (const call of calls) assert.equal(call.opts.cwd, canonical);
+      ctx.subscriptions.forEach((sub) => sub.dispose?.());
+    } finally {
+      s.finish();
+    }
+  },
+);
