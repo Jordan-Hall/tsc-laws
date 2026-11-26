@@ -166,6 +166,27 @@ describe('the permission model flags', () => {
     assert.match(outside.stderr, /ERR_ACCESS_DENIED/);
   });
 
+  it(
+    'grants the directory a process opens when realpath names it differently',
+    { skip: process.platform !== 'win32' ? 'Windows junctions only' : false },
+    () => {
+      const cwd = project('reads-junction/app', { 'src/a.ts': 'export const n = 1;\n' });
+      const link = join(base, 'reads-junction', 'via');
+      try {
+        symlinkSync(cwd, link, 'junction');
+      } catch {
+        return;
+      }
+      const file = join(link, 'src', 'a.ts');
+      const run = spawnSync(
+        process.execPath,
+        [...sandboxFlags(link), '-e', `require('node:fs').readFileSync(${JSON.stringify(file)}, 'utf8')`],
+        { encoding: 'utf8' },
+      );
+      assert.equal(run.status, 0, run.stderr);
+    },
+  );
+
   it('does not let a process learn what it runs on from /proc and /run', { skip: process.platform === 'win32' }, () => {
     for (const path of ['/proc/version', '/proc/sys/fs/binfmt_misc/WSLInterop', '/run/WSL'])
       assert.match(script(`require('node:fs').existsSync(${JSON.stringify(path)})`).stderr, /ERR_ACCESS_DENIED/);
@@ -898,11 +919,26 @@ describe('reads outside the project', { skip: compiler === undefined ? 'set TSC_
     const { granted, refused } = grant(cwd, [ok, linked]);
     assert.deepEqual([granted, refused], [[ok], [linked]]);
   });
+});
 
-  it(
-    'canonicalises a lowercase Windows drive letter in cwd, readableBy, hostConfig and check',
-    { skip: process.platform !== 'win32' ? 'Windows drive-letter casing only' : false },
-    async () => {
+describe(
+  'a lowercase Windows drive letter',
+  {
+    skip:
+      process.platform !== 'win32'
+        ? 'Windows drive-letter casing only'
+        : compiler === undefined
+          ? 'set TSC_LAWS_BIN'
+          : false,
+  },
+  () => {
+    // The project sits in this package, not the OS temp directory. The temp directory's 8.3 name is a different
+    // path from its long name, and the compiler's lib files are found by walking up from the project to this repo.
+    before(() => {
+      base = root;
+    });
+
+    it('canonicalises cwd, readableBy, hostConfig and check', async () => {
       const cwd = project('win-drive-case', {
         'src/a.ts': 'export const inc = (n: number): number => n + 1;\n',
         'src/a.laws.ts':
@@ -918,6 +954,6 @@ describe('reads outside the project', { skip: compiler === undefined ? 'set TSC_
       const report = await check(options(lower, ['src/a.laws.ts']), false);
       assert.equal(report.ok, true, JSON.stringify(report));
       assert.equal(only(report.results).status, 'tested');
-    },
-  );
-});
+    });
+  },
+);

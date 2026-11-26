@@ -146,22 +146,31 @@ const tslawsRoot = real(fileURLToPath(new URL('../', import.meta.url)));
 /** What of it the process loads: its code and its `package.json`, not whatever else sits in the package directory. */
 const tslawsCode = [join(tslawsRoot, 'dist'), join(tslawsRoot, 'src'), join(tslawsRoot, 'package.json')];
 
+/**
+ * Every spelling of `path` a process may open. Node's permission check compares the path text: on Windows a
+ * lowercase drive letter, an 8.3 name and a long name are different grants, even when they are one directory.
+ */
+function openPaths(path: string): string[] {
+  const resolved = plainPath(resolve(path));
+  const actual = real(resolved);
+  return resolved === actual ? [actual] : [resolved, actual];
+}
+
 /** The `--allow-fs-read` paths: the project, its `node_modules`, the tslaws package, and the trees workspace links lead to. */
 export function readableBy(cwd: string, extra: string[] = []): string[] {
   const canonical = canonicalCwd(cwd);
   const project = real(canonical);
   const here = modulesAbove(project, project);
   const there = modulesAbove(tslawsRoot, project);
-  const roots = fold(canonical) === fold(project) ? [project] : [project, canonical];
   return [
     ...new Set([
-      ...roots,
+      ...openPaths(canonical),
       ...tslawsCode,
       ...here.modules,
       ...here.linked,
       ...there.modules,
       ...there.linked,
-      ...extra.map((entry) => real(entry)),
+      ...extra.flatMap((entry) => openPaths(entry)),
     ]),
   ];
 }
@@ -634,12 +643,15 @@ function startProcess(flags: string[]): LawProcess {
 }
 
 function poolFor(cwd: string, extra: string[]): WorkerPool<LawProcess> {
-  const base = real(cwd);
+  // Grants keep the path the build opens. `real` alone drops an 8.3 name or a junction, and the permission
+  // check then refuses the compiled law.
+  const shown = canonicalCwd(cwd);
+  const base = real(shown);
   const key = JSON.stringify([fold(base), extra.map((entry) => fold(real(entry)))]);
   let entry = pools.get(key);
   if (entry === undefined) {
     // Compute permission flags once per pool instead of re-walking node_modules for every forked process.
-    const flags = sandboxFlags(base, extra);
+    const flags = sandboxFlags(shown, extra);
     entry = {
       cwd: base,
       pool: new WorkerPool(() => startProcess(flags), jobs, idleMs),
