@@ -99,3 +99,20 @@ test('a project too big to copy cheaply is refused, so the run falls back to the
     p.done();
   }
 });
+
+test('a file that cannot be copied is refused, so the run falls back to the saved files', () => {
+  const p = project();
+  try {
+    const fake = {
+      ...fs,
+      copyFileSync() {
+        throw Object.assign(new Error('locked'), { code: 'EBUSY' });
+      },
+    };
+    const synced = createShadow({ root: p.root, fs: fake }).sync(new Map());
+    assert.equal(synced.ok, false);
+    assert.match(synced.reason, /cannot copy the project: locked/);
+  } finally {
+    p.done();
+  }
+});
