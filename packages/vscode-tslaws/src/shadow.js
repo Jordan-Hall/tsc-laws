@@ -55,39 +55,45 @@ function createShadow(o) {
         return { ok: false, reason: `cannot read the project: ${e.message}` };
       }
       if (files.length > MAX_FILES) return { ok: false, reason: `more than ${MAX_FILES} files` };
-      fs.mkdirSync(dir, { recursive: true });
       let copied = 0;
-      const seen = new Set();
-      for (const rel of files) {
-        seen.add(rel);
-        const from = path.join(o.root, rel);
-        const to = path.join(dir, rel);
-        const overlay = overlays.get(rel);
-        const stat = fs.statSync(from);
-        if (stat.size > MAX_BYTES && overlay === undefined) continue;
-        const before = known.get(rel);
-        if (overlay !== undefined) {
-          if (before?.overlay === overlay) continue;
-          fs.mkdirSync(path.dirname(to), { recursive: true });
-          fs.writeFileSync(to, overlay);
-          known.set(rel, { size: stat.size, mtimeMs: stat.mtimeMs, overlay });
-          copied++;
-        } else if (
-          before === undefined ||
-          before.overlay !== undefined ||
-          before.size !== stat.size ||
-          before.mtimeMs !== stat.mtimeMs
-        ) {
-          fs.mkdirSync(path.dirname(to), { recursive: true });
-          fs.copyFileSync(from, to);
-          known.set(rel, { size: stat.size, mtimeMs: stat.mtimeMs });
-          copied++;
+      try {
+        fs.mkdirSync(dir, { recursive: true });
+        const seen = new Set();
+        for (const rel of files) {
+          seen.add(rel);
+          const from = path.join(o.root, rel);
+          const to = path.join(dir, rel);
+          const overlay = overlays.get(rel);
+          const stat = fs.statSync(from);
+          if (stat.size > MAX_BYTES && overlay === undefined) continue;
+          const before = known.get(rel);
+          if (overlay !== undefined) {
+            if (before?.overlay === overlay) continue;
+            fs.mkdirSync(path.dirname(to), { recursive: true });
+            fs.writeFileSync(to, overlay);
+            known.set(rel, { size: stat.size, mtimeMs: stat.mtimeMs, overlay });
+            copied++;
+          } else if (
+            before === undefined ||
+            before.overlay !== undefined ||
+            before.size !== stat.size ||
+            before.mtimeMs !== stat.mtimeMs
+          ) {
+            fs.mkdirSync(path.dirname(to), { recursive: true });
+            fs.copyFileSync(from, to);
+            known.set(rel, { size: stat.size, mtimeMs: stat.mtimeMs });
+            copied++;
+          }
         }
-      }
-      for (const rel of known.keys()) {
-        if (seen.has(rel)) continue;
-        known.delete(rel);
-        fs.rmSync(path.join(dir, rel), { force: true });
+        for (const rel of known.keys()) {
+          if (seen.has(rel)) continue;
+          known.delete(rel);
+          fs.rmSync(path.join(dir, rel), { force: true });
+        }
+      } catch (e) {
+        // A file the operating system will not copy (locked, gone mid-read) is not a failed check.
+        // The run continues on the saved files.
+        return { ok: false, reason: `cannot copy the project: ${e.message}` };
       }
       const modules = path.join(o.root, 'node_modules');
       const link = path.join(dir, 'node_modules');

@@ -635,7 +635,9 @@ test('live results: typing in a function runs its laws in the background and its
   const s = scenario({ settings: { liveBackground: 'on' }, answer: emitAll([failedResult, otherResult]) });
   try {
     edit(s, 'src/cart.ts');
-    await until(() => s.diag('src/cart.ts') !== undefined, 'the background run to finish');
+    // The run copies the project into a shadow first. That copy is synchronous, and the first one on
+    // Windows can take longer than the usual wait, so the deadline has room for it.
+    await until(() => s.diag('src/cart.ts') !== undefined, 'the background run to finish', 15_000);
     assert.equal(s.checks.length, 1);
     show(s, 'src/cart.ts');
     assert.deepEqual(

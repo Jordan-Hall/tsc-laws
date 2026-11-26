@@ -431,12 +431,13 @@ export function makeSpawn(script) {
 
 export const settle = (ms = 0) => new Promise((r) => setTimeout(r, ms));
 
-/** Wait until `fn()` is truthy. */
+/** Wait until `fn()` is truthy. One last look after the deadline: the condition can become true during the last pause. */
 export async function until(fn, what = 'condition', ms = 3000) {
   const end = Date.now() + ms;
-  while (Date.now() < end) {
+  for (;;) {
     if (await fn()) return;
-    await settle(5);
+    if (Date.now() >= end) break;
+    await settle(Math.min(5, end - Date.now()));
   }
   throw new Error(`timed out waiting for ${what}`);
 }
