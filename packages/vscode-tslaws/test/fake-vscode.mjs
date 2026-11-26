@@ -126,6 +126,17 @@ function event() {
   return { listeners, on: (fn) => (listeners.push(fn), { dispose() {} }), fire: (e) => listeners.forEach((l) => l(e)) };
 }
 
+/** Enough of a VS Code glob for the watchers this extension creates. */
+function matchesGlob(glob, uri) {
+  const file = String(uri?.fsPath ?? '').replaceAll('\\', '/');
+  const pattern = glob
+    .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+    .replace(/\*\*/g, '<<globstar>>')
+    .replace(/\*/g, '[^/]*')
+    .replace(/<<globstar>>/g, '.*');
+  return new RegExp(`(?:^|/)${pattern}$`, 'i').test(file);
+}
+
 /** A test item collection with the parts of the real one the extension uses. */
 function items() {
   const map = new Map();
@@ -167,7 +178,7 @@ export function makeFake({ root, roots, settings = {}, trusted = true, lawFiles 
   const opened = [];
   const output = [];
   const docs = [];
-  const watchers = { create: event(), delete: event() };
+  const watchers = { create: event(), delete: event(), change: event() };
   const events = { change: event(), save: event(), config: event(), editors: event(), active: event() };
   const controllers = [];
   const cfg = { ...settings };
@@ -283,10 +294,10 @@ export function makeFake({ root, roots, settings = {}, trusted = true, lawFiles 
       },
       getConfiguration,
       findFiles: async () => lawFiles.map((f) => Uri.file(f)),
-      createFileSystemWatcher: () => ({
-        onDidCreate: watchers.create.on,
-        onDidDelete: watchers.delete.on,
-        onDidChange: () => ({ dispose() {} }),
+      createFileSystemWatcher: (glob) => ({
+        onDidCreate: (fn) => watchers.create.on((uri) => (matchesGlob(glob, uri) ? fn(uri) : undefined)),
+        onDidDelete: (fn) => watchers.delete.on((uri) => (matchesGlob(glob, uri) ? fn(uri) : undefined)),
+        onDidChange: (fn) => watchers.change.on((uri) => (matchesGlob(glob, uri) ? fn(uri) : undefined)),
         dispose() {},
       }),
       openTextDocument: async (uri) => makeDoc(uri.fsPath),

@@ -1127,3 +1127,124 @@ test('an untrusted workspace never runs tslaws list, and still finds the convent
   assert.equal(s.fake.fileDecorators[0].provideFileDecoration(uri).badge, 'N');
   s.finish();
 });
+
+test('a tsc-laws.lock change refreshes the law list', async () => {
+  const s = scenario({ answer: emitAll([provedResult('totalNeverNegative', 3)], 0) });
+  await until(() => s.lists.length >= 1, 'initial list');
+  const before = s.lists.length;
+  s.fake.watchers.change.fire(s.fake.vscode.Uri.file(s.abs('tsc-laws.lock')));
+  await until(() => s.lists.length > before, 'list after lock change');
+  s.finish();
+});
+
+test('a tsc-laws.lock change refreshes the project that owns the lock', async () => {
+  const root = fs.realpathSync(mkdtempSync(path.join(tmpdir(), 'tslaws-host-')));
+  const put = (rel, text) => {
+    mkdirSync(path.dirname(path.join(root, rel)), { recursive: true });
+    writeFileSync(path.join(root, rel), text);
+  };
+  put('node_modules/tslaws/bin/tslaws.js', '');
+  put('packages/a/tslaws.json', '{}\n');
+  put('packages/b/tslaws.json', '{}\n');
+  put('packages/a/src/cart.laws.ts', LAWS);
+  put('packages/b/src/cart.laws.ts', LAWS);
+  put('packages/a/tsc-laws.lock', '{}\n');
+  put('packages/b/tsc-laws.lock', '{}\n');
+  const fake = makeFake({
+    root,
+    settings: { debounceMs: 100 },
+    lawFiles: ['packages/a/src/cart.laws.ts', 'packages/b/src/cart.laws.ts'].map((rel) => path.join(root, rel)),
+  });
+  const docA = fake.open(path.join(root, 'packages/a/src/cart.laws.ts'));
+  const docB = fake.open(path.join(root, 'packages/b/src/cart.laws.ts'));
+  fake.state.activeTextEditor = { document: docA };
+  const lists = [];
+  let statusB = 'accepted';
+  const { spawn } = makeSpawn((call) => {
+    if (call.args.includes('--help')) {
+      call.child.stdout.emit('data', HELP);
+      return call.child.emit('close', 0);
+    }
+    if (call.args.includes('list')) {
+      lists.push(call);
+      const ownedB = call.opts.cwd.replaceAll('\\', '/').endsWith('/packages/b');
+      call.child.stdout.emit(
+        'data',
+        JSON.stringify({
+          files: [{ file: 'src/cart.laws.ts', kind: 'node', status: ownedB ? statusB : 'accepted', notices: [] }],
+        }),
+      );
+      return call.child.emit('close', 0);
+    }
+    call.child.emit('close', 0);
+  });
+  const context = { subscriptions: [] };
+  try {
+    activateExtension(fake.vscode, context, { spawn, fs });
+    const owned = (dir) => (call) => call.opts.cwd.replaceAll('\\', '/').endsWith(`/packages/${dir}`);
+    await until(() => lists.some(owned('a')), 'list for the open project');
+    fake.activate(docB);
+    await until(() => lists.some(owned('b')), 'list for the other project');
+    fake.activate(docA);
+    await settle(30);
+    const aBefore = lists.filter(owned('a')).length;
+    const bBefore = lists.filter(owned('b')).length;
+    statusB = 'unaccepted';
+    fake.watchers.change.fire(fake.vscode.Uri.file(path.join(root, 'packages/b/tsc-laws.lock')));
+    await until(() => lists.filter(owned('b')).length > bBefore, 'list for the lock owner');
+    assert.equal(lists.filter(owned('a')).length, aBefore);
+    const badge = fake.fileDecorators[0].provideFileDecoration(
+      fake.vscode.Uri.file(path.join(root, 'packages/b/src/cart.laws.ts')),
+    );
+    assert.match(badge.tooltip, /not in tsc-laws\.lock yet/);
+    const listedB = lists.filter(owned('b')).length;
+    fake.activate(docB);
+    await settle(40);
+    assert.equal(lists.filter(owned('b')).length, listedB);
+  } finally {
+    context.subscriptions.forEach((sub) => sub.dispose?.());
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test(
+  'spawns tslaws with canonical uppercase Windows drive letter when workspace folder uses lowercase',
+  { skip: process.platform !== 'win32' ? 'Windows drive-letter casing only' : false },
+  async () => {
+    const s = scenario({ answer: emitAll([provedResult('totalNeverNegative', 3)], 0) });
+    try {
+      const canonical = fs.realpathSync.native(s.root);
+      const lower = canonical.replace(/^[A-Z](?=:)/, (drive) => drive.toLowerCase());
+      assert.notEqual(lower, canonical);
+      const lowerFake = makeFake({
+        root: lower,
+        settings: { debounceMs: 100 },
+        trusted: true,
+        lawFiles: [path.join(lower, 'src/cart.laws.ts')],
+      });
+      lowerFake.vscode.workspace.workspaceFolders = [{ uri: { fsPath: lower, scheme: 'file' } }];
+      const calls = [];
+      const { spawn } = makeSpawn((call) => {
+        calls.push(call);
+        if (call.args.includes('--help')) {
+          call.child.stdout.emit('data', HELP);
+          return call.child.emit('close', 0);
+        }
+        if (call.args.includes('list')) {
+          call.child.stdout.emit('data', JSON.stringify({ files: [] }));
+          return call.child.emit('close', 0);
+        }
+        emitAll([provedResult('totalNeverNegative', 3)], 0)(call);
+      });
+      const ctx = { subscriptions: [] };
+      const api = activateExtension(lowerFake.vscode, ctx, { spawn, fs });
+      await until(() => calls.length >= 1, 'initial spawn');
+      await api.launch({ files: null }).done;
+      assert.ok(calls.length >= 2);
+      for (const call of calls) assert.equal(call.opts.cwd, canonical);
+      ctx.subscriptions.forEach((sub) => sub.dispose?.());
+    } finally {
+      s.finish();
+    }
+  },
+);

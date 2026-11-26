@@ -17,7 +17,11 @@
 
 import nodePath from 'node:path';
 
-const norm = (path, p) => path.normalize(p).replace(/[\\/]+$/, '');
+const norm = (path, p) =>
+  path
+    .normalize(p)
+    .replace(/[\\/]+$/, '')
+    .replace(/^[a-z](?=:[\\/]|:$)/, (drive) => drive.toUpperCase());
 const fold = (path, p) => norm(path, p).toLowerCase();
 
 /** Whether `file` is `dir` or lies below it. */
@@ -73,14 +77,15 @@ function declaresWorkspaces(io, dir) {
  */
 function locateIn(start, folders, io) {
   const path = io.path ?? nodePath;
-  const folder = owningFolder(path, start, folders);
-  if (folder === undefined) return undefined;
+  const rawFolder = owningFolder(path, start, folders);
+  if (rawFolder === undefined) return undefined;
+  const folder = norm(path, rawFolder);
   for (let dir = norm(path, start); ; dir = path.dirname(dir)) {
     const config = configAt(io, dir);
     if (config !== undefined) return { dir, folder, kind: config.lists ? 'root' : 'project' };
     if (fold(path, dir) === fold(path, folder) || path.dirname(dir) === dir) break;
   }
-  return { dir: norm(path, folder), folder, kind: declaresWorkspaces(io, folder) ? 'root' : 'folder' };
+  return { dir: folder, folder, kind: declaresWorkspaces(io, folder) ? 'root' : 'folder' };
 }
 
 /** The project that holds the file `file`. */

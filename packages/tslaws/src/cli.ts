@@ -53,6 +53,7 @@ import type { CheckOptions, LawEvent, LawResult } from './types.ts';
 import { securityUsage } from './security/cli.ts';
 import { plural } from './plural.ts';
 import { configureJobs } from './pool.ts';
+import { canonicalCwd } from './canonicalPath.ts';
 
 const usage = `tslaws init [--force]       scaffold tslaws.json, .gitignore, AGENTS.md, Claude Code hooks and a starter law (never writes the lock)
 tslaws check [files...] [--reporter text|json|junit|github|ndjson] [--law NAME[,NAME]] [--json] [--summary] [--watch] [--runs N] [--seed N] [--no-prove] [--certify] [--require-certify] [--no-regressions] [--no-sandbox] [--allow-e2e] [--bound N] [--proof-timeout MS] [--property-timeout MS] [--jobs N] [--proposed] [--compiler PATH] [--browser chromium|firefox|webkit] [--browser-mode page|iframe] [--headed]
@@ -850,7 +851,7 @@ export async function main(args: string[]): Promise<number> {
     return 0;
   }
   const { command, flags, files, projects, filters } = parse(args);
-  const cwd = process.cwd();
+  const cwd = canonicalCwd(process.cwd());
   if (flags.has('jobs')) {
     const given = Number(flags.get('jobs'));
     if (!Number.isInteger(given) || given < 1) {

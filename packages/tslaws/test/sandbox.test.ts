@@ -4,14 +4,23 @@
 // Needs the built compiler in TSC_LAWS_BIN and `npm run build` for dist/.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import nodeModule from 'node:module';
 import { homedir, tmpdir } from 'node:os';
 import { dirname, join, parse } from 'node:path';
 import { after, before, describe, it } from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { check } from '../dist/check.js';
-import { grantOutside, hostConfig, permissionFlag, readOutcome, sandboxFlags, useSandbox } from '../dist/sandbox.js';
+import { canonicalCwd, ontoSpelling, plainPath, spellingRoots } from '../dist/canonicalPath.js';
+import {
+  grantOutside,
+  hostConfig,
+  permissionFlag,
+  readableBy,
+  readOutcome,
+  sandboxFlags,
+  useSandbox,
+} from '../dist/sandbox.js';
 import type { CheckOptions, LawResult } from '../dist/types.js';
 
 const compiler = process.env.TSC_LAWS_BIN;
@@ -120,6 +129,55 @@ describe('the configuration of a law process', () => {
   });
 });
 
+describe('canonical paths', () => {
+  it('strips the Windows device prefix a native realpath can return', () => {
+    assert.equal(plainPath('\\\\?\\D:\\repo\\app'), 'D:\\repo\\app');
+    assert.equal(plainPath('\\\\?\\UNC\\server\\share\\app'), '\\\\server\\share\\app');
+    assert.equal(plainPath('/tmp/app'), '/tmp/app');
+  });
+
+  it('rewrites an 8.3 directory onto the name the build opened', () => {
+    const opened = 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\proj';
+    const actual = 'C:\\Users\\runneradmin\\AppData\\Local\\Temp\\proj';
+    assert.deepEqual(spellingRoots(opened, actual), {
+      opened: 'C:\\Users\\RUNNER~1',
+      actual: 'C:\\Users\\runneradmin',
+    });
+    assert.equal(
+      ontoSpelling('C:\\Users\\runneradmin\\AppData\\Local\\Temp\\lib\\x.ts', opened, actual),
+      'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\lib\\x.ts',
+    );
+    assert.equal(
+      ontoSpelling('C:/Users/runneradmin/AppData/Local/Temp/lib/x.ts', opened, actual),
+      'C:/Users/RUNNER~1/AppData/Local/Temp/lib/x.ts',
+    );
+    // A difference that is only case is already one path.
+    assert.equal(spellingRoots('D:\\Repo\\App', 'D:\\repo\\app'), undefined);
+    assert.equal(
+      ontoSpelling('D:\\repo\\app\\src\\a.ts', 'D:\\Repo\\App', 'D:\\repo\\app'),
+      'D:\\repo\\app\\src\\a.ts',
+    );
+  });
+
+  it(
+    'grants the canonical cwd when the drive letter is lowercase',
+    { skip: process.platform !== 'win32' ? 'Windows drive-letter casing only' : false },
+    () => {
+      const cwd = project('win-drive-grant', { 'src/a.ts': 'export const n = 1;\n' });
+      const canonical = canonicalCwd(cwd);
+      const lower = canonical.replace(/^[A-Z](?=:)/, (drive) => drive.toLowerCase());
+      assert.notEqual(lower, canonical);
+      assert.equal(canonicalCwd(lower), canonical);
+      const reads = readableBy(lower);
+      assert.ok(reads.includes(canonical), reads.join('\n'));
+      assert.ok(
+        reads.every((entry) => !entry.startsWith('\\\\?\\')),
+        reads.join('\n'),
+      );
+    },
+  );
+});
+
 describe('the permission model flags', () => {
   const flags = sandboxFlags(root);
   const script = (code: string) => spawnSync(process.execPath, [...flags, '-e', code], { encoding: 'utf8', cwd: root });
@@ -130,6 +188,91 @@ describe('the permission model flags', () => {
     assert.notEqual(outside.status, 0);
     assert.match(outside.stderr, /ERR_ACCESS_DENIED/);
   });
+
+  it(
+    'grants the directory a process opens when realpath names it differently',
+    { skip: process.platform !== 'win32' ? 'Windows junctions only' : false },
+    () => {
+      const cwd = project('reads-junction/app', { 'src/a.ts': 'export const n = 1;\n' });
+      const link = join(base, 'reads-junction', 'via');
+      try {
+        symlinkSync(cwd, link, 'junction');
+      } catch {
+        return;
+      }
+      const file = join(link, 'src', 'a.ts');
+      const run = spawnSync(
+        process.execPath,
+        [...sandboxFlags(link), '-e', `require('node:fs').readFileSync(${JSON.stringify(file)}, 'utf8')`],
+        { encoding: 'utf8' },
+      );
+      assert.equal(run.status, 0, run.stderr);
+    },
+  );
+
+  it(
+    'resolves a path alias when the grant uses the real directory name',
+    { skip: process.platform !== 'win32' ? 'Windows 8.3 names only' : false },
+    () => {
+      const spell = join(root, 'spell');
+      const actualRoot = join(spell, 'runneradmin');
+      const openedLink = join(spell, 'RUNNER~1');
+      const cwd = join(openedLink, 'App', 'proj');
+      const lib = join(actualRoot, 'App', 'lib', 'x.ts');
+      mkdirSync(join(actualRoot, 'App', 'proj'), { recursive: true });
+      mkdirSync(dirname(lib), { recursive: true });
+      writeFileSync(lib, 'export const x = 1;\n');
+      try {
+        symlinkSync(actualRoot, openedLink, 'junction');
+      } catch {
+        return;
+      }
+      const out = join(cwd, '.tslaws', 'out');
+      mkdirSync(join(out, 'proj', 'src'), { recursive: true });
+      mkdirSync(join(out, 'lib'), { recursive: true });
+      // The compiler writes this so the output stays CommonJS under a package that is a module.
+      writeFileSync(join(out, 'package.json'), '{"type":"commonjs"}\n');
+      writeFileSync(join(out, 'lib', 'x.js'), 'exports.x = 1;\n');
+      writeFileSync(join(out, 'proj', 'src', 'a.laws.js'), 'exports.x = require("@lib/x").x;\n');
+      const runtime = pathToFileURL(fileURLToPath(new URL('../dist/lawRuntime.js', import.meta.url))).href;
+      const repo = fileURLToPath(new URL('../../..', import.meta.url));
+      const openedLib = join(openedLink, 'App', 'lib').replaceAll('\\', '/');
+      const runner = join(cwd, 'run.mjs');
+      writeFileSync(
+        runner,
+        [
+          `import { createRequire } from 'node:module';`,
+          `import { join } from 'node:path';`,
+          `import { installLawRuntime, loadResolver } from ${JSON.stringify(runtime)};`,
+          `const cwd = process.argv[2];`,
+          `const lib = process.argv[3];`,
+          `const outDir = join(cwd, '.tslaws', 'out', 'proj');`,
+          `installLawRuntime({ cwd, outDir, options: { paths: { '@lib/*': [lib + '/*'] } } });`,
+          `loadResolver();`,
+          `const loaded = createRequire(join(outDir, 'src', 'a.laws.js'))(join(outDir, 'src', 'a.laws.js'));`,
+          `if (loaded.x !== 1) throw new Error('resolved ' + loaded.x);`,
+        ].join('\n'),
+      );
+      const longProject = realpathSync.native(cwd);
+      const flag = permissionFlag();
+      assert.ok(flag);
+      const run = spawnSync(
+        process.execPath,
+        [
+          flag,
+          `--allow-fs-read=${repo}`,
+          `--allow-fs-read=${cwd}`,
+          `--allow-fs-read=${longProject}`,
+          `--allow-fs-read=${lib}`,
+          runner,
+          cwd,
+          openedLib,
+        ],
+        { encoding: 'utf8' },
+      );
+      assert.equal(run.status, 0, run.stderr);
+    },
+  );
 
   it('does not let a process learn what it runs on from /proc and /run', { skip: process.platform === 'win32' }, () => {
     for (const path of ['/proc/version', '/proc/sys/fs/binfmt_misc/WSLInterop', '/run/WSL'])
@@ -864,3 +1007,40 @@ describe('reads outside the project', { skip: compiler === undefined ? 'set TSC_
     assert.deepEqual([granted, refused], [[ok], [linked]]);
   });
 });
+
+describe(
+  'a lowercase Windows drive letter',
+  {
+    skip:
+      process.platform !== 'win32'
+        ? 'Windows drive-letter casing only'
+        : compiler === undefined
+          ? 'set TSC_LAWS_BIN'
+          : false,
+  },
+  () => {
+    // The project sits in this package, not the OS temp directory. The temp directory's 8.3 name is a different
+    // path from its long name, and the compiler's lib files are found by walking up from the project to this repo.
+    before(() => {
+      base = root;
+    });
+
+    it('canonicalises cwd, readableBy, hostConfig and check', async () => {
+      const cwd = project('win-drive-case', {
+        'src/a.ts': 'export const inc = (n: number): number => n + 1;\n',
+        'src/a.laws.ts':
+          "import { inc } from './a';\nexport law incAddsOne(n: number) {\n  return inc(n) === n + 1;\n}\n",
+      });
+      const canonical = canonicalCwd(cwd);
+      const lower = canonical.replace(/^[A-Z](?=:)/, (drive) => drive.toLowerCase());
+      assert.notEqual(lower, canonical);
+      assert.equal(canonicalCwd(lower), canonical);
+      assert.ok(readableBy(lower).includes(canonical), 'readableBy uses canonical casing');
+      const cfg = hostConfig(lower, ['src/a.laws.ts'], join(canonical, '.tslaws', 'out'), []);
+      assert.deepEqual(cfg.outside, []);
+      const report = await check(options(lower, ['src/a.laws.ts']), false);
+      assert.equal(report.ok, true, JSON.stringify(report));
+      assert.equal(only(report.results).status, 'tested');
+    });
+  },
+);

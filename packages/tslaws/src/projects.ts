@@ -8,6 +8,7 @@ import { projectsProblem, readConfig } from './coverage.ts';
 import { globMatcher } from './globs.ts';
 import { customLawFile } from './lawFiles.ts';
 import { readResolution } from './tsconfigResolve.ts';
+import { canonicalCwd } from './canonicalPath.ts';
 
 export interface Project {
   /** Absolute directory of the project. */
@@ -189,7 +190,7 @@ function rootHasLaws(root: string, projects: string[]): boolean {
  * own (see `rootHasLaws`); a root whose tslaws.json only lists projects is just the list.
  */
 export function discoverProjects(root: string, opts: DiscoverOptions = {}): Project[] {
-  const dir = resolve(root);
+  const dir = canonicalCwd(resolve(root));
   const listed = projectsOf(dir);
   const globs = listed ?? [workspacesOf(dir), pnpmWorkspacesOf(dir)].find((list) => list.length > 0) ?? [];
   const paths = globs.length === 0 ? [] : matchingProjects(dir, globs);
@@ -217,7 +218,7 @@ export function discoverProjects(root: string, opts: DiscoverOptions = {}): Proj
  * tslaws.json has a `projects` list.
  */
 export function isMonorepoRoot(cwd: string): boolean {
-  const dir = resolve(cwd);
+  const dir = canonicalCwd(resolve(cwd));
   if (!existsSync(join(dir, 'tslaws.json'))) return discoverProjects(dir, { standalone: true }).length > 0;
   return projectsOf(dir) !== undefined;
 }
@@ -445,7 +446,7 @@ export interface Affected {
  * to a file a tslaws.json extends selects every project.
  */
 export function affectedProjects(root: string, files: string[]): Affected[] {
-  const dir = resolve(root);
+  const dir = canonicalCwd(resolve(root));
   const projects = discoverProjects(dir);
   const every = (reason: string): Affected[] => projects.map((project) => ({ project, reason }));
   const bases = new Map<string, string>();

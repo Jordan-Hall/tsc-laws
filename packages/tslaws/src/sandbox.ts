@@ -17,6 +17,7 @@ import { homedir } from 'node:os';
 import { dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
+import { canonicalCwd, ontoSpelling, plainPath } from './canonicalPath.ts';
 import { lawEnv, readConfig } from './coverage.ts';
 import { scrubbedEnv } from './isolate.ts';
 import type { HostReply, HostRequest, Prepared } from './lawHost.ts';
@@ -88,6 +89,19 @@ export function warnE2e(): void {
 const keptFlag =
   /^--(experimental-strip-types|experimental-transform-types|no-experimental-strip-types|max-old-space-size=\d+|max-semi-space-size=\d+|stack-size=\d+)$/;
 
+/** The path as the file system has it: links followed, and the case Windows and macOS keep. Itself when it does not exist. */
+function real(path: string): string {
+  try {
+    return plainPath(realpathSync.native(path));
+  } catch {
+    return plainPath(resolve(path));
+  }
+}
+
+/** Paths compare in one case on a file system that ignores it. */
+const folds = process.platform === 'win32' || process.platform === 'darwin' || !ts.sys.useCaseSensitiveFileNames;
+const fold = (path: string): string => (folds ? path.toLowerCase() : path);
+
 /**
  * The packages' trees: every `node_modules` above `from`, and the trees its symlinks (workspace packages) point to. A
  * workspace links the project being checked into the root `node_modules` as well; that tree is the project, whose files
@@ -96,19 +110,24 @@ const keptFlag =
 function modulesAbove(from: string, project: string): { modules: string[]; linked: string[] } {
   const modules: string[] = [];
   const linked: string[] = [];
-  for (let dir = resolve(from); ; dir = dirname(dir)) {
+  const projectFold = fold(real(project));
+  for (let dir = real(from); ; dir = dirname(dir)) {
     const modulesDir = join(dir, 'node_modules');
     if (existsSync(modulesDir)) {
       modules.push(modulesDir);
+      const modulesFold = fold(modulesDir);
       const scan = (parent: string, entries: import('node:fs').Dirent[]): void => {
         for (const entry of entries) {
           const path = join(parent, entry.name);
           if (entry.isSymbolicLink()) {
             try {
-              const target = realpathSync(path);
+              const target = real(path);
+              const targetFold = fold(target);
               const isProject =
-                project === target || project.startsWith(target + sep) || target.startsWith(project + sep);
-              if (!target.startsWith(modulesDir) && !isProject) linked.push(target);
+                projectFold === targetFold ||
+                projectFold.startsWith(targetFold + sep) ||
+                targetFold.startsWith(projectFold + sep);
+              if (!targetFold.startsWith(modulesFold) && !isProject) linked.push(target);
             } catch {
               // A link that points nowhere loads nothing.
             }
@@ -122,32 +141,36 @@ function modulesAbove(from: string, project: string): { modules: string[]; linke
   }
 }
 
-const realOf = (path: string): string => {
-  try {
-    return realpathSync(path);
-  } catch {
-    return path;
-  }
-};
-
 /** The tslaws package: `src` or `dist` sits directly under it. */
-const tslawsRoot = fileURLToPath(new URL('../', import.meta.url));
+const tslawsRoot = real(fileURLToPath(new URL('../', import.meta.url)));
 /** What of it the process loads: its code and its `package.json`, not whatever else sits in the package directory. */
 const tslawsCode = [join(tslawsRoot, 'dist'), join(tslawsRoot, 'src'), join(tslawsRoot, 'package.json')];
 
+/**
+ * Every spelling of `path` a process may open. Node's permission check compares the path text: on Windows a
+ * lowercase drive letter, an 8.3 name and a long name are different grants, even when they are one directory.
+ */
+function openPaths(path: string): string[] {
+  const resolved = plainPath(resolve(path));
+  const actual = real(resolved);
+  return resolved === actual ? [actual] : [resolved, actual];
+}
+
 /** The `--allow-fs-read` paths: the project, its `node_modules`, the tslaws package, and the trees workspace links lead to. */
 export function readableBy(cwd: string, extra: string[] = []): string[] {
-  const here = modulesAbove(cwd, resolve(cwd));
-  const there = modulesAbove(tslawsRoot, resolve(cwd));
+  const canonical = canonicalCwd(cwd);
+  const project = real(canonical);
+  const here = modulesAbove(project, project);
+  const there = modulesAbove(tslawsRoot, project);
   return [
     ...new Set([
-      resolve(cwd),
+      ...openPaths(canonical),
       ...tslawsCode,
       ...here.modules,
       ...here.linked,
       ...there.modules,
       ...there.linked,
-      ...extra,
+      ...extra.flatMap((entry) => openPaths(entry)),
     ]),
   ];
 }
@@ -225,19 +248,6 @@ const isInside = (dir: string, file: string): boolean => {
   const rel = relative(dir, file);
   return rel !== '' && rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel);
 };
-
-/** The path as the file system has it: links followed, and the case Windows and macOS keep. Itself when it does not exist. */
-function real(path: string): string {
-  try {
-    return realpathSync.native(path);
-  } catch {
-    return resolve(path);
-  }
-}
-
-/** Paths compare in one case on a file system that ignores it. */
-const folds = process.platform === 'win32' || process.platform === 'darwin' || !ts.sys.useCaseSensitiveFileNames;
-const fold = (path: string): string => (folds ? path.toLowerCase() : path);
 
 /**
  * The first part of `path` that is a dotfile or a dot directory. A path inside the project is judged below the project,
@@ -376,8 +386,9 @@ function stampsMatch(stamps: [string, number, number][]): boolean {
  * package) is source: its tree is trusted as a tree. The project itself is not a package; its files are reviewed one by one.
  */
 export function trustedPackages(cwd: string): { modules: string[]; linked: string[] } {
-  const project = realOf(resolve(cwd));
-  const cached = trustedPackagesCache.get(project);
+  const project = real(resolve(cwd));
+  const projectFold = fold(project);
+  const cached = trustedPackagesCache.get(projectFold);
   if (cached !== undefined && stampsMatch(cached.stamps)) return cached.value;
   const stamps = [...manifestStamp(project), ...manifestStamp(tslawsRoot)];
   const modules = new Set<string>();
@@ -386,17 +397,19 @@ export function trustedPackages(cwd: string): { modules: string[]; linked: strin
   const find = (name: string, from: string): string | undefined => {
     for (let dir = from; ; dir = dirname(dir)) {
       const candidate = join(dir, 'node_modules', name);
-      if (existsSync(join(candidate, 'package.json'))) return realOf(candidate);
+      if (existsSync(join(candidate, 'package.json'))) return real(candidate);
       if (dirname(dir) === dir) return undefined;
     }
   };
   const visit = (name: string, from: string): void => {
     const dir = find(name, from);
-    if (dir === undefined || seen.has(dir)) return;
-    seen.add(dir);
+    if (dir === undefined) return;
+    const dirFold = fold(dir);
+    if (seen.has(dirFold)) return;
+    seen.add(dirFold);
     if (/[\\/]node_modules[\\/]/.test(dir)) modules.add(normal(dir));
     // The project's own files are reviewed one by one (through the seals), not as a tree.
-    else if (dir === project || dir.startsWith(project + sep)) return;
+    else if (dirFold === projectFold || dirFold.startsWith(projectFold + sep)) return;
     else linked.add(dir);
     for (const next of namesOf(readManifest(join(dir, 'package.json')), dependencyFields)) visit(next, dir);
   };
@@ -408,7 +421,7 @@ export function trustedPackages(cwd: string): { modules: string[]; linked: strin
     for (const name of namesOf(readManifest(join(dir, 'package.json')), fields)) visit(name, dir);
   const value = { modules: [...modules], linked: [...linked] };
   if (trustedPackagesCache.size > 256) trustedPackagesCache.clear();
-  trustedPackagesCache.set(project, { stamps, value });
+  trustedPackagesCache.set(projectFold, { stamps, value });
   return value;
 }
 
@@ -429,10 +442,13 @@ export interface HostConfig {
 export function hostConfig(cwd: string, entries: string[], outDir: string, laws: ManifestLaw[]): HostConfig {
   const files = reviewedFiles(cwd, entries, laws);
   // What the process cannot read already (outside the project and outside the trees it is given) needs a grant, by name.
-  const trees = readableBy(cwd);
+  const trees = readableBy(cwd).map((tree) => fold(real(tree)));
   const { granted } = grantOutside(
     cwd,
-    files.filter((file) => !trees.some((tree) => file === tree || isInside(tree, file))),
+    files.filter((file) => {
+      const target = fold(real(file));
+      return !trees.some((tree) => target === tree || isInside(tree, target));
+    }),
   );
   const base = join(cwd, '.tslaws', 'out');
   const trusted = trustedPackages(cwd);
@@ -460,7 +476,12 @@ export function hostConfig(cwd: string, entries: string[], outDir: string, laws:
       if (modules) attempt(`esm:${at}`, () => transformPluginFile(file, cwd, plugins, 'esm'));
     } else if (tsFamily.test(file)) {
       // A file the build compiled loads from its output; only one it left alone loads as source.
-      const compiled = resolve(outDir, relative(cwd, file)).replace(/\.[cm]?tsx?$/, '.js');
+      // The seal records the real path. The build wrote the output under the path it was given. An
+      // 8.3 name and that real path are not the same string, so the compiled file is looked up by the
+      // name the build used.
+      const shown = canonicalCwd(cwd);
+      const source = ontoSpelling(file, shown, real(shown));
+      const compiled = resolve(outDir, relative(shown, source)).replace(/\.[cm]?tsx?$/, '.js');
       if (!existsSync(compiled)) attempt(`ts:${at}`, () => transformSource(file, extension));
     }
   }
@@ -627,13 +648,17 @@ function startProcess(flags: string[]): LawProcess {
 }
 
 function poolFor(cwd: string, extra: string[]): WorkerPool<LawProcess> {
-  const key = JSON.stringify([resolve(cwd), extra]);
+  // Grants keep the path the build opens. `real` alone drops an 8.3 name or a junction, and the permission
+  // check then refuses the compiled law.
+  const shown = canonicalCwd(cwd);
+  const base = real(shown);
+  const key = JSON.stringify([fold(base), extra.map((entry) => fold(real(entry)))]);
   let entry = pools.get(key);
   if (entry === undefined) {
     // Compute permission flags once per pool instead of re-walking node_modules for every forked process.
-    const flags = sandboxFlags(cwd, extra);
+    const flags = sandboxFlags(shown, extra);
     entry = {
-      cwd: resolve(cwd),
+      cwd: base,
       pool: new WorkerPool(() => startProcess(flags), jobs, idleMs),
     };
     pools.set(key, entry);
@@ -643,12 +668,14 @@ function poolFor(cwd: string, extra: string[]): WorkerPool<LawProcess> {
 
 /** Ends the idle law processes of a project and of any project below it, for a scratch copy about to be deleted. */
 export function releaseSandbox(cwd: string): void {
-  const top = resolve(cwd);
-  for (const [key, { cwd: at, pool }] of pools)
-    if (at === top || at.startsWith(top + sep)) {
+  const top = fold(real(cwd));
+  for (const [key, { cwd: at, pool }] of pools) {
+    const atFold = fold(at);
+    if (atFold === top || atFold.startsWith(top + sep)) {
       pool.close();
       pools.delete(key);
     }
+  }
 }
 
 /** Starts `n` law processes ahead of the first law, so they load while the code compiles. */

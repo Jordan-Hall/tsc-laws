@@ -22,6 +22,7 @@ import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { builtinModules } from 'node:module';
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import ts from 'typescript';
+import { plainPath } from './canonicalPath.ts';
 import { readConfig } from './coverage.ts';
 import { moduleSpecifiers } from './lawKinds.ts';
 import { identifiersIn, parseLawFile, type ParsedDeclaration } from './promote.ts';
@@ -101,9 +102,9 @@ const slash = (path: string): string => path.replaceAll('\\', '/');
 
 const realOf = (path: string): string => {
   try {
-    return realpathSync(path);
+    return plainPath(realpathSync.native(path));
   } catch {
-    return path;
+    return plainPath(path);
   }
 };
 

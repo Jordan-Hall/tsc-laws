@@ -43,6 +43,7 @@ import { inProposals } from './lawFiles.ts';
 import { classifyLawFile, type KindVerdict } from './lawKinds.ts';
 import { normaliseProposal } from './proposals.ts';
 import { declarationOf, exercisesOf, markFailing, Sources, type Exercised } from './exercises.ts';
+import { canonicalCwd } from './canonicalPath.ts';
 import type { CheckOptions, ProposalOutcome, LawResult, ManifestLaw } from './types.ts';
 
 type Add = (law: ManifestLaw, status: LawResult['status'], method: string, extra?: Partial<LawResult>) => void;
@@ -83,7 +84,8 @@ export interface CheckReport {
 }
 
 /** The `@tslaws-exempt` functions of the project, for `tslaws accept` to record. */
-export function exemptionsOf(options: CheckOptions): string[] {
+export function exemptionsOf(rawOptions: CheckOptions): string[] {
+  const options = { ...rawOptions, cwd: canonicalCwd(rawOptions.cwd) };
   const covered = coverFiles(options.cwd, readConfig(options.cwd).cover ?? []);
   const compiled = [...new Set([...options.files, ...covered])];
   const built = build(options.compiler, compiled, options.cwd);
@@ -101,7 +103,8 @@ export function exemptionsOf(options: CheckOptions): string[] {
  * The hash of each SMT-LIB problem the prover would send for each law now, rebuilt from the compiled code without
  * running a solver. A certificate is for a law only while its problem hash is one of these.
  */
-export function problemHashesOf(options: CheckOptions, laws: ManifestLaw[]): Map<string, Set<string>> {
+export function problemHashesOf(rawOptions: CheckOptions, laws: ManifestLaw[]): Map<string, Set<string>> {
+  const options = { ...rawOptions, cwd: canonicalCwd(rawOptions.cwd) };
   const covered = coverFiles(options.cwd, readConfig(options.cwd).cover ?? []);
   const built = build(options.compiler, [...new Set([...options.files, ...covered])], options.cwd);
   const program =
@@ -171,7 +174,8 @@ export async function certificatesToAccept(
   return accepted;
 }
 
-export async function check(options: CheckOptions, enforceLock: boolean): Promise<CheckReport> {
+export async function check(rawOptions: CheckOptions, enforceLock: boolean): Promise<CheckReport> {
+  const options = { ...rawOptions, cwd: canonicalCwd(rawOptions.cwd) };
   // A proposal placed in .tslaws/proposals by hand may write its imports from the project root; store them where they resolve.
   for (const file of options.files) if (inProposals(file)) normaliseProposal(options.cwd, file);
   const laws = readManifest(options.compiler, options.files, options.cwd);
