@@ -57,12 +57,17 @@ function activateExtension(vscode, context, io) {
   const supportCache = new Map();
   const shadows = new Map();
 
+  const plainPath = (p) =>
+    p.startsWith('\\\\?\\UNC\\') ? `\\\\${p.slice(8)}` : p.startsWith('\\\\?\\') ? p.slice(4) : p;
   const canonicalPath = (p) => {
-    const normalised = nodePath.normalize(p).replace(/[\\/]+$/, '');
+    const normalised = plainPath(nodePath.normalize(p).replace(/[\\/]+$/, ''));
     if (/^[a-zA-Z]:/.test(normalised)) {
       try {
         const real = fs.realpathSync?.native?.(normalised);
-        if (typeof real === 'string' && real.toLowerCase() === normalised.toLowerCase()) return real;
+        if (typeof real === 'string') {
+          const plain = plainPath(real);
+          if (plain.toLowerCase() === normalised.toLowerCase()) return plain;
+        }
       } catch {
         // Fall back to uppercasing the drive letter when the path cannot be resolved.
       }
@@ -759,8 +764,7 @@ function activateExtension(vscode, context, io) {
     });
 
   let loading = Promise.resolve();
-  const loadLawFiles = async () => {
-    const owner = project;
+  const loadLawFiles = async (owner = project) => {
     if (owner === undefined) return;
     const st = stateOf(owner.dir);
     const answer = await askList({ root: owner.dir, ceiling: owner.folder });
@@ -783,12 +787,24 @@ function activateExtension(vscode, context, io) {
     st.listLoaded = true;
   };
 
-  const refreshLawFiles = async () => {
-    loading = loadLawFiles();
-    await loading;
-    void setHasLaws(); // the Laws view is gated on tslaws.hasLaws, which depends on this list
+  const refreshLawFiles = async (owner = project) => {
+    const job = loadLawFiles(owner);
+    loading = job;
+    // An edit waits on the open project's list. Another project's lock must not replace that wait.
+    const shown = owner !== undefined && (project === undefined || samePath(owner.dir, project.dir));
+    if (shown) ready = job;
+    await job;
     decorations.fire(undefined);
+    if (!shown) return;
+    void setHasLaws(); // the Laws view is gated on tslaws.hasLaws, which depends on this list
     await testing.discover();
+  };
+
+  /** The lock names its project. That project may not be the one open in the editor. */
+  const refreshLock = (uri) => {
+    if (uri?.scheme !== 'file') return;
+    const owner = forFile(uri.fsPath);
+    if (owner !== undefined) void refreshLawFiles(owner);
   };
 
   /** The report a project had when the folder was last open; a file edited since is `stale` until a run covers it. */
@@ -864,9 +880,9 @@ function activateExtension(vscode, context, io) {
     configWatcher.onDidDelete(() => void refreshLawFiles()),
     proposalWatcher.onDidCreate(() => void refreshLawFiles()),
     proposalWatcher.onDidDelete(() => void refreshLawFiles()),
-    lockWatcher.onDidChange(() => void refreshLawFiles()),
-    lockWatcher.onDidCreate(() => void refreshLawFiles()),
-    lockWatcher.onDidDelete(() => void refreshLawFiles()),
+    lockWatcher.onDidChange(refreshLock),
+    lockWatcher.onDidCreate(refreshLock),
+    lockWatcher.onDidDelete(refreshLock),
     watcher.onDidCreate(() => void refreshLawFiles()),
     watcher.onDidDelete(() => void refreshLawFiles()),
     vscode.commands.registerCommand('tslaws.check', () =>

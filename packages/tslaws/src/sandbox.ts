@@ -17,6 +17,7 @@ import { homedir } from 'node:os';
 import { dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
+import { canonicalCwd, plainPath } from './canonicalPath.ts';
 import { lawEnv, readConfig } from './coverage.ts';
 import { scrubbedEnv } from './isolate.ts';
 import type { HostReply, HostRequest, Prepared } from './lawHost.ts';
@@ -91,9 +92,9 @@ const keptFlag =
 /** The path as the file system has it: links followed, and the case Windows and macOS keep. Itself when it does not exist. */
 function real(path: string): string {
   try {
-    return realpathSync.native(path);
+    return plainPath(realpathSync.native(path));
   } catch {
-    return resolve(path);
+    return plainPath(resolve(path));
   }
 }
 
@@ -147,11 +148,11 @@ const tslawsCode = [join(tslawsRoot, 'dist'), join(tslawsRoot, 'src'), join(tsla
 
 /** The `--allow-fs-read` paths: the project, its `node_modules`, the tslaws package, and the trees workspace links lead to. */
 export function readableBy(cwd: string, extra: string[] = []): string[] {
-  const resolved = resolve(cwd);
-  const project = real(resolved);
+  const canonical = canonicalCwd(cwd);
+  const project = real(canonical);
   const here = modulesAbove(project, project);
   const there = modulesAbove(tslawsRoot, project);
-  const roots = fold(resolved) === fold(project) ? [project] : [project, resolved];
+  const roots = fold(canonical) === fold(project) ? [project] : [project, canonical];
   return [
     ...new Set([
       ...roots,

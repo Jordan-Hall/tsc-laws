@@ -11,7 +11,7 @@ import { dirname, join, parse } from 'node:path';
 import { after, before, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { check } from '../dist/check.js';
-import { canonicalCwd } from '../dist/canonicalPath.js';
+import { canonicalCwd, plainPath } from '../dist/canonicalPath.js';
 import {
   grantOutside,
   hostConfig,
@@ -127,6 +127,32 @@ describe('the configuration of a law process', () => {
     writeFileSync(join(cwd, 'src', 'x.ts'), 'export const x: number = 2;\n');
     assert.notEqual(hostConfig(cwd, ['src/x.ts'], outDir, []).key, before.key);
   });
+});
+
+describe('canonical paths', () => {
+  it('strips the Windows device prefix a native realpath can return', () => {
+    assert.equal(plainPath('\\\\?\\D:\\repo\\app'), 'D:\\repo\\app');
+    assert.equal(plainPath('\\\\?\\UNC\\server\\share\\app'), '\\\\server\\share\\app');
+    assert.equal(plainPath('/tmp/app'), '/tmp/app');
+  });
+
+  it(
+    'grants the canonical cwd when the drive letter is lowercase',
+    { skip: process.platform !== 'win32' ? 'Windows drive-letter casing only' : false },
+    () => {
+      const cwd = project('win-drive-grant', { 'src/a.ts': 'export const n = 1;\n' });
+      const canonical = canonicalCwd(cwd);
+      const lower = canonical.replace(/^[A-Z](?=:)/, (drive) => drive.toLowerCase());
+      assert.notEqual(lower, canonical);
+      assert.equal(canonicalCwd(lower), canonical);
+      const reads = readableBy(lower);
+      assert.ok(reads.includes(canonical), reads.join('\n'));
+      assert.ok(
+        reads.every((entry) => !entry.startsWith('\\\\?\\')),
+        reads.join('\n'),
+      );
+    },
+  );
 });
 
 describe('the permission model flags', () => {
