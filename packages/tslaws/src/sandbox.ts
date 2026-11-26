@@ -17,7 +17,7 @@ import { homedir } from 'node:os';
 import { dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
-import { canonicalCwd, plainPath } from './canonicalPath.ts';
+import { canonicalCwd, ontoSpelling, plainPath } from './canonicalPath.ts';
 import { lawEnv, readConfig } from './coverage.ts';
 import { scrubbedEnv } from './isolate.ts';
 import type { HostReply, HostRequest, Prepared } from './lawHost.ts';
@@ -476,7 +476,12 @@ export function hostConfig(cwd: string, entries: string[], outDir: string, laws:
       if (modules) attempt(`esm:${at}`, () => transformPluginFile(file, cwd, plugins, 'esm'));
     } else if (tsFamily.test(file)) {
       // A file the build compiled loads from its output; only one it left alone loads as source.
-      const compiled = resolve(outDir, relative(cwd, file)).replace(/\.[cm]?tsx?$/, '.js');
+      // The seal records the real path. The build wrote the output under the path it was given. An
+      // 8.3 name and that real path are not the same string, so the compiled file is looked up by the
+      // name the build used.
+      const shown = canonicalCwd(cwd);
+      const source = ontoSpelling(file, shown, real(shown));
+      const compiled = resolve(outDir, relative(shown, source)).replace(/\.[cm]?tsx?$/, '.js');
       if (!existsSync(compiled)) attempt(`ts:${at}`, () => transformSource(file, extension));
     }
   }

@@ -2,9 +2,10 @@
 // checker found: tsconfig `paths`, and packages whose `exports` or `types` point at TypeScript source. Two hooks, put in
 // once per process (and once per property worker): a resolver that asks TypeScript when Node cannot resolve a name, and
 // a loader for `.ts` files that no compiler wrote out (a workspace package's source).
-import { existsSync as fsExists, readFileSync, statSync } from 'node:fs';
+import { existsSync as fsExists, readFileSync, realpathSync, statSync } from 'node:fs';
 import Module, { createRequire } from 'node:module';
 import { dirname, extname, join, relative, resolve, sep } from 'node:path';
+import { ontoSpelling, plainPath } from './canonicalPath.ts';
 import { installPluginHooks, pluginExtensionNeeded } from './pluginHooks.ts';
 import { transformPluginFile } from './pluginHost.ts';
 import { transformSync } from 'esbuild';
@@ -100,6 +101,55 @@ export function runtimeOf(cwd: string): LawRuntime | undefined {
 
 const projects = new Map<string, LawRuntime>();
 const byConfig = new Map<string, ResolutionOptions>();
+/** `realpath` of a directory this process has already asked about. A failure is remembered as the path itself. */
+const actualOfCache = new Map<string, string>();
+
+/**
+ * Where `dir` really is. The permission model answers a path it has not been given with an error, which is the same
+ * answer as a directory that is not there: the path we were given is then the one to use.
+ */
+function actualOf(dir: string): string {
+  const known = actualOfCache.get(dir);
+  if (known !== undefined) return known;
+  let actual = dir;
+  try {
+    actual = plainPath(realpathSync.native(dir));
+  } catch {
+    // The directory cannot be resolved from here. Later reads keep using `dir`.
+  }
+  actualOfCache.set(dir, actual);
+  return actual;
+}
+
+/** `file` written with the same directory names as `owner.cwd`. An 8.3 name and a long name are one directory. */
+function asProject(file: string, owner: LawRuntime): string {
+  return ontoSpelling(file, owner.cwd, actualOf(owner.cwd));
+}
+
+/** Whether `file` is `dir` or a file under it, including when the two use different names for one directory. */
+function underDir(dir: string, file: string): boolean {
+  const prefix = dir.endsWith(sep) ? dir : dir + sep;
+  if (file === dir || file.startsWith(prefix)) return true;
+  const opened = ontoSpelling(file, dir, actualOf(dir));
+  return opened === dir || opened.startsWith(prefix);
+}
+
+/**
+ * The other name of `path`, when a registered project is reached by an 8.3 name or a junction and `path` uses one of
+ * the two. Undefined when every project has a single name, or `path` is under neither name.
+ */
+function otherOf(path: string): string | undefined {
+  for (const project of projects.values()) {
+    const actual = actualOf(project.cwd);
+    if (actual.toLowerCase() === project.cwd.toLowerCase()) continue;
+    const opened = ontoSpelling(path, project.cwd, actual);
+    if (opened !== path) return opened;
+    const closed = ontoSpelling(path, actual, project.cwd);
+    if (closed !== path) return closed;
+  }
+  return undefined;
+}
+
 // Compiled laws are CommonJS (see `build` in compile.ts), and these hooks are the CommonJS loader's own (`_resolveFilename`,
 // `_extensions`), so `createRequire` is unavoidable: it loads TypeScript lazily, inside the synchronous resolver hook.
 const load = createRequire(import.meta.url);
@@ -184,7 +234,7 @@ export function installLawRuntime(runtime: LawRuntime): void {
 /** The project a file belongs to: the one with the deepest directory holding it, else the most recently registered. */
 function ownerOf(file: string): LawRuntime | undefined {
   const all = [...projects.values()];
-  const holding = all.filter((p) => file.startsWith(p.cwd + sep)).sort((a, b) => b.cwd.length - a.cwd.length);
+  const holding = all.filter((p) => underDir(p.cwd, file)).sort((a, b) => b.cwd.length - a.cwd.length);
   return holding[0] ?? all.at(-1);
 }
 
@@ -199,10 +249,11 @@ function twinOf(file: string, importer: string | undefined): string | undefined 
   if (importer === undefined || !pluginExtensionNeeded(extname(importer))) return undefined;
   if (!/\.[cm]?tsx?$/.test(file) || /\.d\.[cm]?ts$/.test(file)) return undefined;
   const owner = ownerOf(importer);
-  if (owner === undefined || !file.startsWith(owner.cwd + sep)) return undefined;
+  if (owner === undefined || !underDir(owner.cwd, file)) return undefined;
   const root = compiledRoot(owner);
-  if (file.startsWith(root + sep)) return undefined;
-  const twin = resolve(root, relative(owner.cwd, file)).replace(/\.[cm]?tsx?$/, '.js');
+  const opened = asProject(file, owner);
+  if (opened.startsWith(root + sep)) return undefined;
+  const twin = resolve(root, relative(owner.cwd, opened)).replace(/\.[cm]?tsx?$/, '.js');
   return existsSync(twin) ? twin : undefined;
 }
 
@@ -237,9 +288,9 @@ function twinOfSpecifier(request: string, importer: string | undefined): string 
 function beside(request: string, parent: Parent | undefined): string | undefined {
   const from = parent?.filename;
   if (from === undefined || !request.startsWith('.')) return undefined;
-  const owner = [...projects].find(([top]) => from.startsWith(top + sep))?.[1];
+  const owner = [...projects].find(([top]) => underDir(top, from))?.[1];
   if (owner === undefined) return undefined;
-  const file = resolve(owner.cwd, relative(compiledRoot(owner), dirname(from)), request);
+  const file = resolve(owner.cwd, relative(compiledRoot(owner), dirname(asProject(from, owner))), request);
   return existsSync(file) && statSync(file).isFile() ? file : undefined;
 }
 
@@ -259,7 +310,7 @@ function optionsAround(file: string): ResolutionOptions | undefined {
 function namedInPaths(request: string, parent: Parent | undefined): boolean {
   const from = parent?.filename;
   if (from === undefined) return false;
-  const owner = [...projects].find(([top]) => from.startsWith(top + sep))?.[1];
+  const owner = [...projects].find(([top]) => underDir(top, from))?.[1];
   const options = owner === undefined ? optionsAround(from) : owner.options;
   return Object.keys((options?.paths ?? {}) as Record<string, unknown>).some((pattern) => {
     if (pattern === '*') return false;
@@ -284,8 +335,14 @@ function readableSys(sys: ts.System): ts.ModuleResolutionHost {
         return otherwise;
       }
     };
+  // `fileExists` and `readFile` answer from either name of a directory. The path map is written with the name the
+  // build opened, and a grant is the name `realpath` reports; on Windows those two differ for an 8.3 directory.
   return {
-    fileExists: safe(sys.fileExists, false),
+    fileExists: (path) => {
+      if (sys.fileExists(path)) return true;
+      const other = otherOf(path);
+      return other !== undefined && sys.fileExists(other);
+    },
     // `sys` answers "no" for a directory the process may not read. TypeScript then skips the files under it, and a file the
     // process may read (one granted by name, outside the project) sits in one: such a directory is taken to exist.
     directoryExists: (path) => {
@@ -295,14 +352,22 @@ function readableSys(sys: ts.System): ts.ModuleResolutionHost {
         return (error as { code?: string }).code === 'ERR_ACCESS_DENIED';
       }
     },
-    readFile: safe(sys.readFile, undefined),
+    readFile: (path) => {
+      const text = sys.readFile(path);
+      const other = otherOf(path);
+      return text !== undefined || other === undefined ? text : sys.readFile(other);
+    },
     // A path it may not resolve is taken as it is: resolving walks the directories above, which the process may not read.
+    // A path it can resolve is put back into the name the project was opened with, so the compiled file sits beside it.
     realpath: (path) => {
-      try {
-        return sys.realpath?.(path) ?? path;
-      } catch {
-        return path;
+      const reported = plainPath(sys.realpath?.(path) ?? path);
+      const other = reported === path ? otherOf(path) : undefined;
+      const found = other === undefined ? reported : plainPath(sys.realpath?.(other) ?? reported);
+      for (const project of projects.values()) {
+        const opened = ontoSpelling(found, project.cwd, actualOf(project.cwd));
+        if (opened !== found) return opened;
       }
+      return found;
     },
     getCurrentDirectory: () => sys.getCurrentDirectory(),
     getDirectories: safe(sys.getDirectories, []),
@@ -312,10 +377,12 @@ function readableSys(sys: ts.System): ts.ModuleResolutionHost {
 function resolveThroughTypeScript(request: string, parent: Parent | undefined): string | undefined {
   const from = parent?.filename;
   if (from === undefined) return undefined;
-  const owner = [...projects].find(([top]) => from.startsWith(top + sep))?.[1];
+  const owner = [...projects].find(([top]) => underDir(top, from))?.[1];
   // A compiled law resolves as its source does; the source is what imports are relative to.
   const containing =
-    owner === undefined ? from : join(owner.cwd, relative(compiledRoot(owner), from)).replace(/\.js$/, '.ts');
+    owner === undefined
+      ? from
+      : join(owner.cwd, relative(compiledRoot(owner), asProject(from, owner))).replace(/\.js$/, '.ts');
   const options = owner === undefined ? optionsAround(from) : owner.options;
   if (options === undefined) return undefined;
   const typescript = typescriptOf();
@@ -354,8 +421,14 @@ function runnableFile(found: string, owner: LawRuntime | undefined): string | un
     return existsSync(js) ? js : undefined;
   }
   if (owner !== undefined && /\.[cm]?tsx?$/.test(found) && !/[\\/]node_modules[\\/]/.test(found)) {
-    const compiled = resolve(compiledRoot(owner), relative(owner.cwd, found)).replace(/\.[cm]?tsx?$/, '.js');
+    const compiled = resolve(compiledRoot(owner), relative(owner.cwd, asProject(found, owner))).replace(
+      /\.[cm]?tsx?$/,
+      '.js',
+    );
     if (existsSync(compiled)) return compiled;
   }
-  return existsSync(found) ? found : undefined;
+  if (existsSync(found)) return found;
+  // The name the type checker built may be the one the process was not granted. The other name is the same file.
+  const other = otherOf(found);
+  return other !== undefined && existsSync(other) ? other : undefined;
 }

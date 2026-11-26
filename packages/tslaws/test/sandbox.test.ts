@@ -4,14 +4,14 @@
 // Needs the built compiler in TSC_LAWS_BIN and `npm run build` for dist/.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import nodeModule from 'node:module';
 import { homedir, tmpdir } from 'node:os';
 import { dirname, join, parse } from 'node:path';
 import { after, before, describe, it } from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { check } from '../dist/check.js';
-import { canonicalCwd, plainPath } from '../dist/canonicalPath.js';
+import { canonicalCwd, ontoSpelling, plainPath, spellingRoots } from '../dist/canonicalPath.js';
 import {
   grantOutside,
   hostConfig,
@@ -136,6 +136,29 @@ describe('canonical paths', () => {
     assert.equal(plainPath('/tmp/app'), '/tmp/app');
   });
 
+  it('rewrites an 8.3 directory onto the name the build opened', () => {
+    const opened = 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\proj';
+    const actual = 'C:\\Users\\runneradmin\\AppData\\Local\\Temp\\proj';
+    assert.deepEqual(spellingRoots(opened, actual), {
+      opened: 'C:\\Users\\RUNNER~1',
+      actual: 'C:\\Users\\runneradmin',
+    });
+    assert.equal(
+      ontoSpelling('C:\\Users\\runneradmin\\AppData\\Local\\Temp\\lib\\x.ts', opened, actual),
+      'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\lib\\x.ts',
+    );
+    assert.equal(
+      ontoSpelling('C:/Users/runneradmin/AppData/Local/Temp/lib/x.ts', opened, actual),
+      'C:/Users/RUNNER~1/AppData/Local/Temp/lib/x.ts',
+    );
+    // A difference that is only case is already one path.
+    assert.equal(spellingRoots('D:\\Repo\\App', 'D:\\repo\\app'), undefined);
+    assert.equal(
+      ontoSpelling('D:\\repo\\app\\src\\a.ts', 'D:\\Repo\\App', 'D:\\repo\\app'),
+      'D:\\repo\\app\\src\\a.ts',
+    );
+  });
+
   it(
     'grants the canonical cwd when the drive letter is lowercase',
     { skip: process.platform !== 'win32' ? 'Windows drive-letter casing only' : false },
@@ -181,6 +204,70 @@ describe('the permission model flags', () => {
       const run = spawnSync(
         process.execPath,
         [...sandboxFlags(link), '-e', `require('node:fs').readFileSync(${JSON.stringify(file)}, 'utf8')`],
+        { encoding: 'utf8' },
+      );
+      assert.equal(run.status, 0, run.stderr);
+    },
+  );
+
+  it(
+    'resolves a path alias when the grant uses the real directory name',
+    { skip: process.platform !== 'win32' ? 'Windows 8.3 names only' : false },
+    () => {
+      const spell = join(root, 'spell');
+      const actualRoot = join(spell, 'runneradmin');
+      const openedLink = join(spell, 'RUNNER~1');
+      const cwd = join(openedLink, 'App', 'proj');
+      const lib = join(actualRoot, 'App', 'lib', 'x.ts');
+      mkdirSync(join(actualRoot, 'App', 'proj'), { recursive: true });
+      mkdirSync(dirname(lib), { recursive: true });
+      writeFileSync(lib, 'export const x = 1;\n');
+      try {
+        symlinkSync(actualRoot, openedLink, 'junction');
+      } catch {
+        return;
+      }
+      const out = join(cwd, '.tslaws', 'out');
+      mkdirSync(join(out, 'proj', 'src'), { recursive: true });
+      mkdirSync(join(out, 'lib'), { recursive: true });
+      // The compiler writes this so the output stays CommonJS under a package that is a module.
+      writeFileSync(join(out, 'package.json'), '{"type":"commonjs"}\n');
+      writeFileSync(join(out, 'lib', 'x.js'), 'exports.x = 1;\n');
+      writeFileSync(join(out, 'proj', 'src', 'a.laws.js'), 'exports.x = require("@lib/x").x;\n');
+      const runtime = pathToFileURL(fileURLToPath(new URL('../dist/lawRuntime.js', import.meta.url))).href;
+      const repo = fileURLToPath(new URL('../../..', import.meta.url));
+      const openedLib = join(openedLink, 'App', 'lib').replaceAll('\\', '/');
+      const runner = join(cwd, 'run.mjs');
+      writeFileSync(
+        runner,
+        [
+          `import { createRequire } from 'node:module';`,
+          `import { join } from 'node:path';`,
+          `import { installLawRuntime, loadResolver } from ${JSON.stringify(runtime)};`,
+          `const cwd = process.argv[2];`,
+          `const lib = process.argv[3];`,
+          `const outDir = join(cwd, '.tslaws', 'out', 'proj');`,
+          `installLawRuntime({ cwd, outDir, options: { paths: { '@lib/*': [lib + '/*'] } } });`,
+          `loadResolver();`,
+          `const loaded = createRequire(join(outDir, 'src', 'a.laws.js'))(join(outDir, 'src', 'a.laws.js'));`,
+          `if (loaded.x !== 1) throw new Error('resolved ' + loaded.x);`,
+        ].join('\n'),
+      );
+      const longProject = realpathSync.native(cwd);
+      const flag = permissionFlag();
+      assert.ok(flag);
+      const run = spawnSync(
+        process.execPath,
+        [
+          flag,
+          `--allow-fs-read=${repo}`,
+          `--allow-fs-read=${cwd}`,
+          `--allow-fs-read=${longProject}`,
+          `--allow-fs-read=${lib}`,
+          runner,
+          cwd,
+          openedLib,
+        ],
         { encoding: 'utf8' },
       );
       assert.equal(run.status, 0, run.stderr);
