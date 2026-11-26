@@ -2,6 +2,14 @@
 
 The upstream tsc-ts changelog is CHANGELOG.md. Releases of tsc-laws are tagged `laws-v<version>` (see RELEASING-LAWS.md).
 
+## [1.3.1](https://github.com/Jordan-Hall/tsc-laws/compare/laws-v1.3.0...laws-v1.3.1) (2026-11-26)
+
+
+### Fixes
+
+* **vscode:** fall back when the live shadow cannot be copied ([#119](https://github.com/Jordan-Hall/tsc-laws/issues/119)) ([05e355a](https://github.com/Jordan-Hall/tsc-laws/commit/05e355aa4095465929be1131a25d0fac90f03df1))
+* **windows:** canonicalise lowercase Windows drive letters in tslaws and vscode-tslaws ([#117](https://github.com/Jordan-Hall/tsc-laws/issues/117)) ([6ce6724](https://github.com/Jordan-Hall/tsc-laws/commit/6ce672420aadc21e6d244cc4a7c6b29b9ce51d7c))
+
 ## [1.3.0](https://github.com/Jordan-Hall/tsc-laws/compare/laws-v1.2.0...laws-v1.3.0) (2026-11-23)
 
 
